@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Runtime
+tmp/*
+!tmp/.gitkeep
+log/*
+!log/.gitkeep
+
+# Generated config (created during installation)
+conf/conf.php
+
+# Upload files
+upload/attach/*
+upload/avatar/*
