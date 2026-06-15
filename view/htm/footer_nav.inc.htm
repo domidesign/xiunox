@@ -1,16 +1,49 @@
-<footer class="text-muted small bg-dark py-4 mt-3" id="footer">
-	<div class="container">
-		<div class="row">
-			<div class="col">
-				<!--{hook footer_footer_left_start.htm}-->
-				Powered by <a href="http://bbs.xiuno.com/" target="_blank" class="text-muted"><b>Xiuno BBS <span><?php echo $conf['version'];?></span></b></a>
-				<!--{hook footer_footer_left_end.htm}-->
-			</div>
-			<div class="col text-right">
-				<!--{hook footer_footer_right_start.htm}-->
-				Processed: <b><?php echo substr(microtime(1) - $starttime, 0, 5);?></b>, SQL: <b><?php echo count($db->sqls);?></b>
-				<!--{hook footer_footer_right_end.htm}-->
-			</div>
-		</div>
-	</div>
+<?php
+$footer_config = isset($conf['footer']) ? $conf['footer'] : array();
+$footer_icp = isset($footer_config['icp']) ? $footer_config['icp'] : '';
+$footer_gongan = isset($footer_config['gongan']) ? $footer_config['gongan'] : '';
+$footer_gongan_url = isset($footer_config['gongan_url']) ? $footer_config['gongan_url'] : '';
+$footer_copyright = isset($footer_config['copyright']) ? $footer_config['copyright'] : '';
+$footer_show_powered = isset($footer_config['show_powered']) ? intval($footer_config['show_powered']) : 1;
+?>
+
+<footer class="bbs-footer">
+    <div class="container">
+
+        <!--{hook footer_nav_start.htm}-->
+
+        <!-- 底部：版权 + 备案 + 系统信息 -->
+        <div class="bbs-footer-bottom">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 text-center text-md-start">
+                <div>
+                    <?php if(!empty($footer_copyright)): ?>
+                    <span class="ms-1"><?php echo $footer_copyright;?></span>
+                    <?php endif; ?>
+                    <p>Powered by <a href="https://www.xiunox.org/" target="_blank" rel="noopener">XIUNOX</a></p>
+                </div>
+                <div class="text-center text-md-end">
+                    <div class="bbs-footer-filing mb-1">
+                        <?php if(!empty($footer_icp)): ?>
+                        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">
+                            <i class="ti ti-certificate" style="font-size:0.9rem"></i>
+                            <?php echo esc_html($footer_icp);?>
+                        </a>
+                        <?php endif; ?>
+                        <?php if(!empty($footer_gongan)): ?>
+                        <a href="<?php echo esc_html(!empty($footer_gongan_url) ? $footer_gongan_url : 'https://beian.mps.gov.cn/');?>" target="_blank" rel="noopener">
+                            <i class="ti ti-shield-check" style="font-size:0.9rem"></i>
+                            <?php echo esc_html($footer_gongan);?>
+                        </a>
+                        <?php endif; ?>
+                    </div>
+                    <div class="text-body-secondary" style="font-size:0.75rem">
+                        Processed in <b><?php echo substr(microtime(1) - $starttime, 0, 5);?></b> seconds, <b><?php echo count($db->sqls);?></b> queries
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--{hook footer_nav_end.htm}-->
+
+    </div>
 </footer>

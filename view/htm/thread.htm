@@ -1,95 +1,269 @@
 <?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
 
+<?php
+include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+include_once APP_PATH . 'lib/security/CaptchaService.php';
+$sec_allow_edit = SecurityConfigService::get('security_allow_edit', 1);
+$sec_edit_time_limit = SecurityConfigService::get('security_edit_time_limit', 60);
+$sec_allow_delete = SecurityConfigService::get('security_allow_delete', 0);
+$sec_delete_time_limit = SecurityConfigService::get('security_delete_time_limit', 0);
+$sec_soft_delete = SecurityConfigService::get('security_soft_delete', 1);
+$sec_allow_delete_reply = SecurityConfigService::get('security_allow_delete_reply', 0);
+// 主帖编辑权限：版主/管理员不受时间限制和安全开关限制
+$sec_can_edit_thread = $allowupdate ? TRUE : ($first['allowupdate'] && $sec_allow_edit && ($sec_edit_time_limit == 0 || ($time - $thread['create_date']) < $sec_edit_time_limit * 60));
+// 主帖删除权限：版主/管理员不受时间限制和安全开关限制
+$sec_can_delete_thread = $allowdelete ? TRUE : ($first['allowdelete'] && $sec_allow_delete && ($sec_delete_time_limit > 0 && ($time - $thread['create_date']) < $sec_delete_time_limit * 60));
+?>
+
 <!--{hook thread_start.htm}-->
 
-<div class="row">
-	<div class="col-lg-9 main">
-		<!--{hook thread_breadcrumb_before.htm}-->
-		<?php if(empty($hide_breadcrumb)) { ?>
-		<ol class="breadcrumb d-none d-md-flex">
-			<li class="breadcrumb-item"><a href="./" aria-label="<?php echo lang('index_page');?>"><i class="icon-home"></i></a></li>
-			<li class="breadcrumb-item"><a href="<?php echo url("forum-$fid");?>"><?php echo $forum['name'];?></a></li>
-			<li class="breadcrumb-item active"><a href="<?php echo url("thread-$tid");?>" title="<?php echo lang('index_page');?>返回主题第一页"><?php echo $thread['subject'];?></a></li>
-			<!--{hook thread_breadcrumb.htm}-->
-		</ol>
-		<?php } ?>
-		<!--{hook thread_breadcrumb_after.htm}-->
-		
-		<div class="card card-thread">
+<div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
+	<div class="d-none d-lg-block col-lg-2">
+		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
+	</div>
+	<div class="col-lg-7" style="min-width:0">
+
+		<?php if(isset($thread['audit_status']) && $thread['audit_status'] == 0 && (!empty($uid) && ($uid == $thread['uid'] || $gid > 0 && $gid < 5))): ?>
+		<div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+			<i class="ti ti-clock-hour-4 me-2 fs-5"></i>
+			<div>
+				<strong>
+					<?php echo lang('thread_pending_audit');?>
+				</strong> —
+				<?php echo lang('thread_pending_audit_desc');?>
+			</div>
+		</div>
+		<?php endif; ?>
+
+		<?php if(isset($thread['audit_status']) && $thread['audit_status'] == 2 && (!empty($uid) && ($uid == $thread['uid'] || $gid > 0 && $gid < 5))): ?>
+		<div class="alert alert-danger d-flex align-items-center mb-3" role="alert">
+			<i class="ti ti-circle-x me-2 fs-5"></i>
+			<div>
+				<strong>
+					<?php echo lang('thread_rejected');?>
+				</strong> —
+				<?php echo lang('thread_rejected_desc');?>
+			</div>
+		</div>
+		<?php endif; ?>
+
+		<div class="x-card card card-thread rounded-1">
 			<div class="card-body">
-				<div class="media">
-					<a href="<?php echo url("user-$thread[uid]");?>" tabindex="-1">
-						<img class="avatar-3 mr-3" src="<?php echo $thread['user_avatar_url'];?>">
-					</a>
-					<div class="media-body">
+				<div class="d-flex">
+					<div class="me-3 flex-shrink-0 d-none d-lg-block">
+						<a href="<?php echo url("user-$thread[uid]");?>" tabindex="-1">
+							<?php echo avatar_component_from_data($thread['user_avatar_url'], 'md', isset($thread['group_icon_class']) ? $thread['group_icon_class'] : '', isset($thread['group_color']) ? $thread['group_color'] : '', isset($thread['gid']) ? $thread['gid'] : 0);?>
+						</a>
+					</div>
+					<div class="flex-fill" style="min-width:0">
 						<!--{hook thread_subject_before.htm}-->
 						<h4 class="break-all">
 							<!--{hook thread_subject_start.htm}-->
-							<?php echo $thread['subject'];?>
+							<?php if(!empty($thread['digest'])) { ?><span class="badge bg-warning text-dark me-1"><i
+									class="ti ti-star-filled"></i>
+								<?php echo lang('digest');?>
+							</span>
+							<?php } ?>
+							<?php if(!empty($thread['closed'])) { ?><span class="badge bg-secondary me-1"><i
+									class="ti ti-lock"></i>
+								<?php echo lang('closed');?>
+							</span>
+							<?php } ?>
+							<?php if(isset($thread['audit_status']) && $thread['audit_status'] == 0): ?>
+							<span class="badge bg-warning text-dark me-1"><i class="ti ti-clock-hour-4"></i>
+								<?php echo lang('pending_audit');?>
+							</span>
+							<?php endif; ?>
+							<?php echo esc_html($thread['subject']);?>
 							<!--{hook thread_subject_end.htm}-->
 						</h4>
 						<!--{hook thread_subject_after.htm}-->
-						<div class="d-flex justify-content-between small">
+						<div class="d-flex justify-content-between align-items-center small">
 							<div>
 								<!--{hook thread_username_before.htm}-->
 								<span class="username">
-									<a href="<?php echo url("user-$thread[uid]");?>" class="text-muted font-weight-bold"><?php echo $thread['username'];?></a>
+									<a href="<?php echo url("user-$thread[uid]");?>" class="text-body-secondary
+										fw-semibold">
+										<?php echo esc_html($thread['username']);?>
+									</a>
 								</span>
-								<span class="date text-grey ml-2"><?php echo $thread['create_date_fmt'];?></span>
-								<span class="text-grey ml-2"><i class="icon-eye"></i> <?php echo $thread['views'];?></span>
-								<!--{hook thread_views_after.htm}-->
+								<span class="date text-body-secondary ms-2">
+									<?php echo $thread['create_date_fmt'];?>
+								</span>
+								<!--{hook thread_info_end.htm}-->
 							</div>
-							<div>
+							<div class="d-flex align-items-center gap-2">
+								<!-- 版块图标+名称 -->
+								<a href="<?php echo url("forum-$fid");?>" class="text-body-secondary
+									text-decoration-none small d-inline-flex align-items-center gap-1">
+									<?php if(!empty($forum['icon_url'])): ?>
+									<img src="<?php echo $forum['icon_url'];?>" class="rounded" width="16" height="16"
+										alt="<?php echo esc_html($forum['name']);?>" />
+									<?php elseif(!empty($forum['icon_class'])): ?>
+									<i class="<?php echo $forum['icon_class'];?>"></i>
+									<?php else: ?>
+									<i class="ti ti-message-circle"></i>
+									<?php endif; ?>
+									<span>
+										<?php echo esc_html($forum['name']);?>
+									</span>
+								</a>
+								<!--{hook thread_views_after.htm}-->
 								<!--{hook thread_update_before.htm}-->
-								<?php if($allowupdate || $first['allowupdate']) { ?>
-								<a href="<?php echo url("post-update-$thread[firstpid]");?>" class="text-grey mr-2 post_update"><i class="icon-edit"></i> <?php echo lang('edit');?></a>
+								<?php if($sec_can_edit_thread) { ?>
+								<a href="<?php echo url("post-update-$thread[firstpid]");?>" class="btn btn-sm
+									btn-outline-secondary post_update" hx-boost="false"><i class="ti ti-pencil"></i>
+								 
+								</a>
 								<?php } ?>
-								
-								<?php if($allowdelete || $first['allowdelete']) { ?>
-								<a data-href="<?php echo url("post-delete-$thread[firstpid]");?>" href="javascript:void(0);" class="text-grey post_delete" isfirst="1"><i class="icon-remove"></i> <?php echo lang('delete');?></a>
+
+								<?php if($sec_can_delete_thread) { ?>
+								<a data-href="<?php echo url("post-delete-$thread[firstpid]");?>"
+									href="javascript:void(0);" class="btn btn-sm btn-outline-secondary post_delete"
+									isfirst="1"><i class="ti ti-trash"></i>
+								 
+								</a>
 								<?php } ?>
 								<!--{hook thread_delete_after.htm}-->
+								<?php if(isset($group['allowadmin']) && $group['allowadmin']) { ?>
+								<a href="javascript:void(0);" class="btn btn-sm btn-outline-info thread-announcement"
+									data-tid="<?php echo $tid;?>"><i class="ti ti-megaphone"></i>
+									<?php echo $thread['announcement'] ? lang('cancel_announcement') : lang('set_announcement');?>
+								</a>
+								<?php } ?>
 							</div>
 						</div>
 					</div>
 				</div>
-				<hr />
-				<div class="message break-all" isfirst="1">
-				<?php if($page == 1) { ?>
-				
+
+				<div class="message break-all py-3" isfirst="1" style="line-height:1.8;">
+					<?php if($page == 1) { ?>
+
 					<!--{hook thread_message_before.htm}-->
 					<?php echo $first['message_fmt'];?>
 					<!--{hook thread_message_after.htm}-->
-					
-					<?php echo post_file_list_html($first['filelist']);?>
+
+					<?php echo post_file_list_html($first['filelist'], FALSE, $first['imagelist'], $first['videolist']);?>
 					<!--{hook thread_filelist_after.htm}-->
-					
-				<?php } else { ?>
-				
+
+					<?php } else { ?>
+
 					<!--{hook thread_message_more_before.htm}-->
-					<p><a href="<?php echo url("thread-$tid");?>"><?php echo lang('view_thread_message');?></a></p>
+					<p><a href="<?php echo url("thread-$tid");?>">
+							<?php echo lang('view_thread_message');?>
+						</a></p>
 					<!--{hook thread_message_more_after.htm}-->
-					
-				<?php } ?>
+
+					<?php } ?>
 				</div>
 
 				<!--{hook thread_plugin_before.htm}-->
-				<div class="plugin d-flex justify-content-center mt-3">
+				<div class="d-flex align-items-center gap-3 mt-3 pt-3  ">
+					<span class="text-body-secondary small"><i class="ti ti-eye"></i>
+						<?php echo $thread['views'];?>
+					</span>
+					<?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] == 0)) && (empty($uid) || $gid > 5)) { ?>
+					<!-- 关闭/审核中帖子：隐藏点赞/收藏按钮 -->
+					<?php } elseif(empty($uid)) { ?>
+					<a href="<?php echo url('user-login');?>"
+						class="thread-favorite-btn cursor-pointer transition-colors text-decoration-none"
+						title="<?php echo lang('favorite');?>">
+						<i
+							class="ti <?php echo !empty($thread['is_favorited']) ? 'ti-star-filled text-warning' : 'ti-star';?>"></i>
+						<span class="favorite-count">
+							<?php echo intval($thread['favorites']);?>
+						</span>
+					</a>
+					<a href="<?php echo url('user-login');?>"
+						class="thread-like-btn cursor-pointer transition-colors text-decoration-none"
+						title="<?php echo lang('like');?>">
+						<i
+							class="ti <?php echo !empty($thread['is_liked']) ? 'ti-heart-filled text-danger' : 'ti-heart';?>"></i>
+						<span class="like-count">
+							<?php echo intval($first['likes']);?>
+						</span>
+					</a>
+					<?php } else { ?>
+					<span class="thread-favorite-btn cursor-pointer transition-colors"
+						hx-post="<?php echo url('thread-favorite-'.$tid);?>" hx-target="this" hx-swap="outerHTML"
+						hx-ext="hx-optimistic" hx-optimistic role="button" title="<?php echo lang('favorite');?>">
+						<i
+							class="ti <?php echo !empty($thread['is_favorited']) ? 'ti-star-filled text-warning' : 'ti-star';?>"></i>
+						<span class="favorite-count">
+							<?php echo intval($thread['favorites']);?>
+						</span>
+					</span>
+					<span class="thread-like-btn cursor-pointer transition-colors"
+						hx-post="<?php echo url('thread-like-'.$tid.'-'.$thread['firstpid']);?>"
+						hx-vals='{"_ctx":"thread"}' hx-target="this" hx-swap="outerHTML" hx-ext="hx-optimistic"
+						hx-optimistic role="button" title="<?php echo lang('like');?>">
+						<i
+							class="ti <?php echo !empty($thread['is_liked']) ? 'ti-heart-filled text-danger' : 'ti-heart';?>"></i>
+						<span class="like-count">
+							<?php echo intval($first['likes']);?>
+						</span>
+					</span>
+					<?php } ?>
 					<!--{hook thread_plugin_body.htm}-->
+					<?php if($gid > 0 && $gid < 5) { ?>
+					<span class="ms-auto">
+						<input type="hidden" name="modtid" value="<?php echo $thread['tid']; ?>" />
+						<button class="btn btn-sm btn-outline-danger py-0 px-2 thread-mod-btn"
+							data-mod-url="<?php echo url("mod-delete");?>"
+							data-mod-title="<?php echo lang('delete');?>"
+							data-mod-size="md"
+							data-mod-tid="<?php echo $thread['tid'];?>"><i class="ti ti-trash"></i>
+						</button>
+						<button class="btn btn-sm btn-outline-secondary py-0 px-2 thread-mod-btn"
+							data-mod-url="<?php echo url("mod-move");?>"
+							data-mod-title="<?php echo lang('move');?>"
+							data-mod-size="md"
+							data-mod-tid="<?php echo $thread['tid'];?>"><i class="ti ti-category-2"></i>
+						</button>
+						<button class="btn btn-sm btn-outline-primary py-0 px-2 thread-mod-btn"
+							data-mod-url="<?php echo url("mod-top");?>"
+							data-mod-title="<?php echo lang('top');?>"
+							data-mod-size="md"
+							data-mod-tid="<?php echo $thread['tid'];?>"><i class="ti ti-arrow-up"></i>
+						</button>
+						<button class="btn btn-sm btn-outline-warning py-0 px-2 thread-mod-btn"
+							data-mod-url="<?php echo url("mod-close");?>"
+							data-mod-title="<?php echo lang('close');?>"
+							data-mod-size="md"
+							data-mod-tid="<?php echo $thread['tid'];?>"><i class="ti ti-lock"></i>
+						</button>
+						<button class="btn btn-sm btn-outline-warning py-0 px-2 thread-mod-btn"
+							data-mod-url="<?php echo url("mod-digest");?>"
+							data-mod-title="<?php echo lang('digest');?>"
+							data-mod-size="md"
+							data-mod-tid="<?php echo $thread['tid'];?>"><i class="ti ti-star"></i>
+						</button>
+						<button class="btn btn-sm btn-outline-info py-0 px-2 thread-mod-btn"
+							data-mod-url="<?php echo url("mod-announcement");?>"
+							data-mod-title="<?php echo lang('announcement');?>"
+							data-mod-size="md"
+							data-mod-tid="<?php echo $thread['tid'];?>"><i class="ti ti-bell"></i>
+						</button>
+					</span>
+					<?php } ?>
 				</div>
 				<!--{hook thread_plugin_after.htm}-->
 
 			</div>
 		</div>
-		
+
 		<!--{hook thread_postlist_before.htm}-->
-		
-		<div class="card card-postlist">
+
+		<div class="x-card card card-postlist mt-3 rounded-1">
 			<div class="card-body">
 				<div class="card-title">
-					<div class="d-flex justify-content-between">
+					<div class="d-flex justify-content-between align-items-center">
 						<div>
-							<b><?php echo lang('new_post');?></b> (<span class="posts"><?php echo $thread['posts'];?></span>)
+							<b>
+								<?php echo lang('new_post');?>
+							</b> (<span class="posts" id="posts-count">
+								<?php echo $thread['posts'];?>
+							</span>)
 						</div>
 						<!--{hook thread_post_list_title_middle.htm}-->
 						<div>
@@ -97,212 +271,486 @@
 						</div>
 					</div>
 				</div>
-				<ul class="list-unstyled postlist">
+				<ul class="list-none postlist" id="postlist">
 					<?php include _include(APP_PATH.'view/htm/post_list.inc.htm'); ?>
-					
-					<?php if(!empty($user)) { ?>
-					<li class="post newpost media">
-						<a href="<?php echo url("user-$user[uid]");?>" class="mr-3" tabindex="-1">
-							<img class="avatar-3" src="<?php echo $user['avatar_url'];?>">
-						</a>
-						<div class="media-body">
-							<div class="d-flex justify-content-between small text-muted">
+				</ul>
+				<?php if(!empty($user)) { ?>
+				<?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] == 0)) && ($gid == 0 || $gid > 5)) { ?>
+				<div class="post newpost d-flex mt-3 pt-3  ">
+					<div class="flex-fill text-center text-body-secondary py-3">
+						<i class="ti ti-lock fs-4"></i>
+						<p class="mb-0 mt-1">
+							<?php echo lang('thread_has_already_closed');?>
+						</p>
+					</div>
+				</div>
+				<?php } else { ?>
+				<div class="post newpost d-flex mt-3 pt-3  ">
+					<a href="<?php echo url("user-$user[uid]");?>" class="me-3" tabindex="-1">
+						<?php echo avatar_component($uid, 'md');?>
+					</a>
+					<div class="flex-fill" style="min-width:0">
+						<div class="d-flex justify-content-between small text-body-secondary">
+							<div>
 								<div>
-									<div><?php echo $user['username'];?></div>
-								</div>
-								<div>
-									<span class="floor" id="newfloor"><?php echo ($thread['posts'] + 2);?></span><?php echo lang('floor');?>
+									<?php echo $user['username'];?>
 								</div>
 							</div>
 							<div>
-								<form action="<?php echo url("post-create-$tid-1");?>" method="post" id="quick_reply_form" class="d-block">	
-									<input type="hidden" name="doctype" value="1" />
-									<input type="hidden" name="return_html" value="1" />
-									<input type="hidden" name="quotepid" value="0" />
-									
-									<div class="message mt-1">
-										<textarea class="form-control" placeholder="<?php echo lang('message');?>" name="message" id="message"></textarea>
-									</div>
-									<div class="text-muted mt-2 small">
-										<div class="d-flex justify-content-between">
-											<div>
-												<!--{hook thread_quick_reply_left_start.htm}-->
-												<button type="submit" class="btn btn-sm btn-secondary" id="submit" data-loading-text="<?php echo lang('submiting');?>..."> <?php echo lang('post_create');?> </button>
-												<!--{hook thread_quick_reply_left_end.htm}-->
-											</div>
-											<div>
-												<!--{hook thread_quick_reply_right_start.htm}-->
-												<a class="icon-mail-forward text-muted" href="<?php echo url("post-create-$tid");?>" id="advanced_reply"> <?php echo lang('advanced_reply');?></a>
-												<!--{hook thread_quick_reply_right_end.htm}-->
-											</div>
-										</div>
-									</div>
-								</form>
+								<span class="floor  " id="newfloor">
+									<?php echo ($thread['posts'] + 2);?>
+								</span>
+								<?php echo lang('floor');?>
 							</div>
 						</div>
-					</li>
-					<?php } ?>
-							
+						<div>
+							<form id="quick_reply_form" class="block" hx-post="<?php echo url("post-create-$tid-1");?>"
+								hx-target="#postlist" hx-swap="beforeend"
+								hx-on:htmx:after:request="captchaRefresh('post'); this.reset();">
+								<?php echo CsrfService::input(); ?>
+								<div id="reply-msg"></div>
+								<input type="hidden" name="doctype" value="0" />
+								<input type="hidden" name="quotepid" value="0" />
+								<!--{hook thread_quick_reply_message_before.htm}-->
+								<div class="message mt-1">
+									<textarea class="form-control w-100 " placeholder="<?php echo lang('message');?>"
+										name="message" id="message"></textarea>
+								</div>
+								<!--{hook thread_quick_reply_message_after.htm}-->
+								<?php if(CaptchaService::is_enabled('post')): ?>
+								<div class="mt-2" id="captcha-post" data-captcha-scene="post">
+									<div class="input-group input-group-sm">
+										<span class="input-group-text"><i class="ti ti-shield-check"></i></span>
+										<input type="text" name="captcha" class="form-control form-control-sm"
+											id="captcha-input-post"
+											hx-on:input="document.getElementById('captcha-error-post').textContent=''"
+											placeholder="<?php echo lang('please_input_captcha');?>" autocomplete="off"
+											required>
+										<img id="captcha-img-post" src="" hx-on:click="captchaRefresh('post')"
+											style="cursor:pointer;height:31px;border-radius:0 20px 20px 0;display:none"
+											title="<?php echo lang('click_to_refresh');?>">
+									</div>
+									<span id="captcha-error-post" class="text-danger small mt-1"></span>
+								</div>
+								<?php endif; ?>
+								<div class="text-body-secondary mt-2 small">
+									<div class="d-flex justify-content-between">
+										<div>
+											<!--{hook thread_quick_reply_left_start.htm}-->
+											<button type="submit" class="btn btn-sm btn-primary " id="submit"
+												data-loading-text="<?php echo lang('submiting');?>...">
+												<?php echo lang('post_create');?>
+											</button>
+											<!--{hook thread_quick_reply_left_end.htm}-->
+										</div>
+										<div>
+											<!--{hook thread_quick_reply_right_start.htm}-->
+											<a class="ti ti-reply text-body-secondary text-decoration-none"
+												href="<?php echo url("post-create-$tid");?>" id="advanced_reply"
+												hx-boost="false">
+												<?php echo lang('advanced_reply');?>
+											</a>
+											<!--{hook thread_quick_reply_right_end.htm}-->
+										</div>
+									</div>
+								</div>
+								<!--{hook thread_quick_reply_submit_after.htm}-->
+							</form>
+						</div>
+					</div>
+				</div>
+				<?php } ?>
+				<?php } else { ?>
+				<div class="post newpost d-flex mt-3 pt-3  ">
+					<div class="flex-fill text-center text-body-secondary py-3">
+						<i class="ti ti-user fs-4"></i>
+						<p class="mb-0 mt-1">
+							<?php echo lang('please_login_to_reply');?> <a href="<?php echo url('user-login');?>"
+								class="text-primary">
+								<?php echo lang('login');?>
+							</a>
+						</p>
+					</div>
+				</div>
+				<?php } ?>
+			</div>
+			<!--{hook thread_postlist_after.htm}-->
+
+			<?php if($pagination) { ?>
+			<nav>
+				<ul class="pagination pagination-boxed my-4 justify-content-center flex-wrap">
+					<?php echo $pagination; ?>
 				</ul>
-			</div>
+			</nav>
+			<?php }?>
+
+			<!--{hook thread_page_after.htm}-->
+
 		</div>
-		<!--{hook thread_postlist_after.htm}-->
-		
-		<div class="d-none threadlist"><input type="checkbox" name="modtid" value="<?php echo $thread['tid']; ?>" checked /></div>
-		<?php include _include(APP_PATH.'view/htm/thread_list_mod.inc.htm');?>
-		
-		<?php if($pagination) { ?>
-		<nav><ul class="pagination my-4 justify-content-center flex-wrap"><?php echo $pagination; ?></ul></nav>
-		<?php }?>
-		
-		<!--{hook thread_page_after.htm}-->
-		
-		<a role="button" class="btn btn-secondary btn-block xn-back col-lg-6 mx-auto mb-3" href="javascript:history.back();"><?php echo lang('back');?></a>
-		
+
 	</div>
-	<div class="col-lg-3 d-none d-lg-block aside">
-	
-		<a role="button" class="btn btn-primary btn-block mb-3" href="<?php echo url('thread-create-'.$fid);?>"><?php echo lang('thread_create_new');?></a>
-		
-		<div class="card card-user-info">
-			<div class="m-3 text-center">
-				<a href="<?php echo url("user-$thread[uid]");?>" tabindex="-1">
-					<img class="avatar-5" src="<?php echo $thread['user_avatar_url'];?>">
+	<div class="d-none d-lg-block col-lg-3">
+		<!-- 发帖按钮 -->
+
+		<!-- 1. 作者信息卡片 -->
+		<div class="x-card card rounded-1 mb-3">
+			<div class="card-body">
+				<div class="d-flex align-items-center gap-3">
+					<!-- 头像 -->
+					<div class="flex-shrink-0">
+						<a href="<?php echo url("user-$thread[uid]");?>" tabindex="-1">
+							<?php echo avatar_component_from_data($thread['user_avatar_url'], 'lg', isset($author_group['icon_class']) ? $author_group['icon_class'] : '', isset($author_group['color']) ? $author_group['color'] : '', isset($thread['gid']) ? $thread['gid'] : 0);?>
+						</a>
+					</div>
+					<!-- 用户名+用户组+签名 -->
+					<div class="flex-fill" style="min-width:0">
+						<div>
+							<a href="<?php echo url("user-$thread[uid]");?>" class="text-body text-decoration-none fw-semibold d-block">
+								<?php echo esc_html($thread['username']);?>
+							</a>
+							<?php if(!empty($author_group['name'])): ?>
+							<span class="badge bg-primary bg-opacity-10 text-primary mt-1" style="font-size:0.65em">
+								<?php echo esc_html($author_group['name']);?>
+							</span>
+							<?php endif; ?>
+						</div>
+						<?php if(!empty($author['signature'])): ?>
+						<p class="text-body-secondary small mb-0 mt-1 text-truncate">
+							<?php echo esc_html($author['signature']);?>
+						</p>
+						<?php endif; ?>
+					</div>
+					<!-- 关注按钮 — 直接渲染 -->
+					<?php if(empty($uid)) { ?>
+					<a href="<?php echo url('user-login');?>" class="btn btn-sm btn-primary rounded-pill flex-shrink-0"><i class="ti ti-user-plus me-1"></i><?php echo lang('follow');?></a>
+					<?php } elseif($uid != $thread['uid']) { ?>
+					<?php if($author_followed) { ?>
+					<button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0" hx-post="<?php echo url('user-follow-'.$thread['uid']);?>" hx-target="this" hx-swap="outerHTML" hx-optimistic><i class="ti me-1 ti-user-minus"></i><span><?php echo lang('followed');?></span></button>
+					<?php } else { ?>
+					<button class="btn btn-sm btn-primary rounded-pill flex-shrink-0" hx-post="<?php echo url('user-follow-'.$thread['uid']);?>" hx-target="this" hx-swap="outerHTML" hx-optimistic><i class="ti me-1 ti-user-plus"></i><span><?php echo lang('follow');?></span></button>
+					<?php } ?>
+					<?php } ?>
+				</div>
+			</div>
+
+
+			<!-- 2. 作者数据统计 -->
+
+			<div class="card-body py-3">
+				<div class="d-flex small text-center">
+					<div class="flex-fill py-1"><span class="text-body-secondary d-block">
+							<?php echo lang('posts_label');?>
+						</span><b>
+							<?php echo $author_threads;?>
+						</b></div>
+					<div class="flex-fill py-1"><span class="text-body-secondary d-block">
+							<?php echo lang('comments_label');?>
+						</span><b>
+							<?php echo $author_posts;?>
+						</b></div>
+					<div class="flex-fill py-1"><span class="text-body-secondary d-block">
+							<?php echo lang('followers_label');?>
+						</span><b>
+							<?php echo $author_followers;?>
+						</b></div>
+					<div class="flex-fill py-1"><span class="text-body-secondary d-block">
+							<?php echo lang('following_label');?>
+						</span><b>
+							<?php echo $author_following;?>
+						</b></div>
+				</div>
+			</div>
+			<a role="button" class="btn btn-primary w-100 my-2" href="<?php echo url('thread-create-'.$fid);?>"
+				hx-boost="false"><i class="ti ti-pencil me-1"></i>
+				<?php echo lang('thread_create_new');?>
+			</a>
+
+
+
+		</div>
+
+		<!-- 3. 作者近期帖子 — 直接渲染 -->
+		<div class="x-card card rounded-1 mb-3">
+			<div class="card-body">
+				<h6 class="fw-semibold mb-2"><i class="ti ti-article me-1"></i>
+					<?php echo lang('recent_posts');?>
+				</h6>
+				<?php if(empty($author_recent_threads)) { ?>
+				<div class="text-center py-3 text-body-secondary small"><?php echo lang('no_other_threads');?></div>
+				<?php } else { ?>
+				<?php foreach($author_recent_threads as $_rt) { ?>
+				<a href="<?php echo url('thread-'.$_rt['tid']);?>"
+					class="small text-body text-decoration-none break-all d-block py-1" style="line-height:1.5">
+					<?php echo esc_html($_rt['subject']);?>
 				</a>
-				<h5><a href="<?php echo url("user-".$thread['user']['uid']);?>"><?php echo $thread['user']['username'];?></a></h5>
-				<!--{hook thread_user_username_after.htm}-->
-			</div>
-			<div class="card-footer p-2">
-				<table class="w-100 small">
-					<tr align="center">
-						<td>
-							<span class="text-muted"><?php echo lang('threads');?></span><br>
-							<b><?php echo $thread['user']['threads'];?></b>
-						</td>
-						<!--{hook thread_user_threads_after.htm}-->
-						<td>
-							<span class="text-muted"><?php echo lang('posts');?></span><br>
-							<b><?php echo $thread['user']['posts'];?></b>
-						</td>
-						<!--{hook thread_user_posts_after.htm}-->
-						<td>
-							<span class="text-muted"><?php echo lang('create_rank');?></span><br>
-							<b><?php echo $thread['user']['uid'];?></b>
-						</td>
-						<!--{hook thread_user_uid_after.htm}-->
-					</tr>
-				</table>
+				<?php } ?>
+				<?php } ?>
 			</div>
 		</div>
-		
+
+		<!-- 4. 帖子附件模块 -->
+		<?php if(!empty($sidebar_filelist)) { ?>
+		<div class="x-card card rounded-1 mb-3">
+			<div class="card-body">
+				<h6 class="fw-semibold mb-2"><i class="ti ti-paperclip me-1"></i>
+					<?php echo lang('attachment');?>
+				</h6>
+				<?php foreach($sidebar_filelist as $_file) { ?>
+				<div class="d-flex align-items-center gap-2 py-1">
+					<i class="ti ti-file text-body-secondary flex-shrink-0"></i>
+					<span class="small text-truncate flex-fill">
+						<?php echo esc_html($_file['orgfilename'] ?? $_file['filename'] ?? lang('attachment'));?>
+					</span>
+					<span class="text-body-secondary flex-shrink-0" style="font-size:0.75em">
+						<?php echo isset($_file['filesize']) ? format_filesize($_file['filesize']) : '';?>
+					</span>
+					<?php if(!empty($allowdown)) { ?>
+					<a href="<?php echo url("attach-download-$_file[aid]");?>" class="btn btn-sm
+						btn-outline-primary py-0 px-1 flex-shrink-0" style="font-size:0.75em"><i
+							class="ti ti-download"></i></a>
+					<?php } else { ?>
+					<span class="text-body-secondary flex-shrink-0" style="font-size:0.7em">
+						<?php echo lang('insufficient_privilege_download');?>
+					</span>
+					<?php } ?>
+				</div>
+				<?php } ?>
+			</div>
+		</div>
+		<?php } ?>
+
+		<!-- 6. 移动端扫码访问 -->
+		<div class="x-card card rounded-1 mb-3">
+			<div class="card-body text-center">
+				<div id="qrcode" class="d-inline-block mb-2"></div>
+				<p class="text-body-secondary small mb-0">
+					<?php echo lang('scan_qr_code_tip');?>
+				</p>
+			</div>
+		</div>
+
 		<!--{hook thread_user_after.htm}-->
-		
 	</div>
+
 </div>
+	<!--{hook thread_end.htm}-->
 
-<!--{hook thread_end.htm}-->
+	<!-- 代码高亮：Prism 按需加载，放在 #body 内确保 htmx swap 时随内容一起注入 -->
+	<link href="<?php echo $conf['view_url'];?>vendor/prismjs/themes/prism-tomorrow.min.css" rel="stylesheet">
+	<script src="<?php echo $conf['view_url'];?>vendor/prismjs/prism.min.js"></script>
+	<script src="<?php echo $conf['view_url'];?>vendor/prismjs/plugins/prism-autoloader.min.js"></script>
+	<script>
+		(function () {
+			// 仅首次全局/每次局部刷新标记
+			window.__prismReady = false;
+			let retryCount = 0;
+			const maxRetry = 20; // 最多等待 1s(20*50ms)，防止死循环
 
-<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
-
-<script>
-var jform = $('#quick_reply_form');
-var jsubmit = $('#submit');
-jform.on('submit', function() {
-	jform.reset();
-	jsubmit.button('loading');
-	var postdata = jform.serialize();
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
-		if(code == 0) {
-			var s = '<ul>'+message+'</ul>';
-			var jli = $(s).find('li');
-			jli.insertBefore($('.postlist > .post').last());
-			jsubmit.button('reset');
-			$('#message').val('');
-			
-			// 楼层 +1
-			var jfloor = $('#newfloor');
-			jfloor.html(xn.intval(jfloor.html()) + 1);
-			
-			// 回复数 +1
-			var jposts = $('.posts');
-			jposts.html(xn.intval(jposts.html()) + 1);
-			
-		} else if(code < 0) {
-			$.alert(message);
-			jsubmit.button('reset');
-		} else {
-			jform.find('[name="'+code+'"]').alert(message).focus();
-			jsubmit.button('reset');
-		}
-	});
-	return false;
-});
-
-
-// 缩放图片，适应屏幕大小。
-function resize_image() {
-	var jmessagelist = $('div.message');
-	var first_width = jmessagelist.width(); // 815 : 746; //  734 746
-	jmessagelist.each(function() {
-		var jdiv = $(this);
-		var maxwidth = jdiv.attr('isfirst') ? first_width : jdiv.width(); //  734 746
-		var jmessage_width = Math.min(jdiv.width(), maxwidth);
-		jdiv.find('img, embed, iframe, video').each(function() {
-			var jimg = $(this);
-			var img_width = this.org_width;
-			var img_height = this.org_height;
-			if(!img_width) {
-				var img_width = jimg.attr('width');
-				var img_height = jimg.attr('height');
-				this.org_width = img_width;
-				this.org_height = img_height;
-			}
-			//var percent = xn.min(100, xn.ceil((img_width / jmessage_width) * 100));
-			if(img_width > jmessage_width) {
-				if(this.tagName == 'IMG') {
-					jimg.width(jmessage_width);
-					jimg.css('height', 'auto');
-					jimg.css('cursor', 'pointer');
-					jimg.on('click', function() {
-						//window.open(jimg.attr('src'));
-					});
-				} else {
-					jimg.width(jmessage_width);
-					var height = (img_height / img_width) * jimg.width();
-					jimg.height(height);
+			function doHighlight(container = document) {
+				// 只配置一次路径
+				if (Prism.plugins?.autoloader) {
+					Prism.plugins.autoloader.languages_path = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
 				}
+				// 限定容器，不要全局 all
+				Prism.highlightAllUnder(container);
+				window.__prismReady = true;
+			}
+
+			if (typeof Prism !== 'undefined') {
+				doHighlight();
+				return;
+			}
+
+			// 带最大重试的轮询
+			function wait() {
+				retryCount++;
+				if (retryCount > maxRetry) return;
+
+				if (typeof Prism !== 'undefined') {
+					if (!window.__prismReady) {
+						doHighlight();
+					}
+					return; // 找到就终止轮询
+				}
+				setTimeout(wait, 50);
+			}
+			wait();
+		})();
+	</script>
+
+	<div class="modal fade" id="imageLightbox" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered modal-lg">
+			<div class="modal-content border-0 bg-transparent">
+				<div class="modal-body p-0 text-center position-relative">
+					<button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-2 z-3"
+						data-bs-dismiss="modal" aria-label="Close"></button>
+					<img id="lightboxImage" class="img-fluid rounded-1" src="" alt="">
+					<div class="position-absolute bottom-0 start-0 m-3">
+						<button type="button" class="btn btn-sm btn-light rounded-circle me-2" id="lightboxPrev"><i
+								class="ti ti-chevron-left"></i></button>
+						<button type="button" class="btn btn-sm btn-light rounded-circle" id="lightboxNext"><i
+								class="ti ti-chevron-right"></i></button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+	<script>
+
+		function resize_image() {
+			var jmessagelist = $('div.message');
+			var first_width = jmessagelist.width();
+			jmessagelist.each(function () {
+				var jdiv = $(this);
+				var maxwidth = jdiv.attr('isfirst') ? first_width : jdiv.width();
+				var jmessage_width = Math.min(jdiv.width(), maxwidth);
+				jdiv.find('img, embed, iframe, video').each(function () {
+					var jimg = $(this);
+					var img_width = this.org_width;
+					var img_height = this.org_height;
+					if (!img_width) {
+						var img_width = jimg.attr('width');
+						var img_height = jimg.attr('height');
+						this.org_width = img_width;
+						this.org_height = img_height;
+					}
+					if (img_width > jmessage_width) {
+						if (this.tagName == 'IMG') {
+							jimg.width(jmessage_width);
+							jimg.css('height', 'auto');
+							jimg.css('cursor', 'pointer');
+						} else {
+							jimg.width(jmessage_width);
+							var height = (img_height / img_width) * jimg.width();
+							jimg.height(height);
+						}
+					}
+				});
+			});
+		}
+
+		function resize_table() {
+			$('div.message').each(function () {
+				var jdiv = $(this);
+				jdiv.find('table').addClass('table').wrap('<div class="overflow-x-auto"></div>');
+			});
+		}
+
+		$(function () {
+			resize_image();
+			resize_table();
+			$(window).on('resize', resize_image);
+		});
+
+		var jmessage = $('#message');
+		jmessage.on('focus', function () { if (jmessage.t) { clearTimeout(jmessage.t); jmessage.t = null; } jmessage.css('height', '8rem'); });
+		jmessage.on('blur', function () { jmessage.t = setTimeout(function () { jmessage.css('height', '2.5rem'); }, 1000); });
+
+		$('li[data-active="fid-<?php echo $fid;?>"]').addClass('active');
+
+		// 管理按钮事件委托
+		document.addEventListener('click', function(e) {
+			var btn = e.target.closest('.thread-mod-btn');
+			if (!btn) return;
+			var url = btn.getAttribute('data-mod-url');
+			var title = btn.getAttribute('data-mod-title');
+			var size = btn.getAttribute('data-mod-size');
+			var tid = parseInt(btn.getAttribute('data-mod-tid'), 10);
+			handleModBtnClick(url, title, size, tid);
+		});
+
+		$('.thread-announcement').on('click', function () {
+			var el = $(this);
+			var tid = el.data('tid');
+			$.xpost(xn.url('thread-announcement-' + tid), {}, function (code, message) {
+				if (code == 0) {
+					if (message.action == 'set') {
+						el.html('<i class="ti ti-megaphone"></i> <?php echo lang('cancel_announcement');?>');
+						$.alert('<?php echo lang('set_announcement');?><?php echo lang('success_label');?>');
+					} else {
+						el.html('<i class="ti ti-megaphone"></i> <?php echo lang('set_announcement');?>');
+						$.alert('<?php echo lang('cancel_announcement');?><?php echo lang('success_label');?>');
+					}
+				} else {
+					$.alert(message);
+				}
+			});
+		});
+
+		$('#postlist').on('click', '.post_reply', function () {
+			var el = $(this);
+			var pid = el.data('pid');
+			var username = el.data('username');
+			var jmessage = $('#message');
+			jmessage.val('@' + username + ' ');
+			jmessage.focus();
+			$('input[name="quotepid"]').val(pid);
+			var offset = jmessage.offset();
+			if (offset) {
+				$('html, body').animate({ scrollTop: offset.top - 100 }, 300);
 			}
 		});
-	});
-}
 
-// 对于超宽的表格，加上响应式
-function resize_table() {
-	$('div.message').each(function() {
-		var jdiv = $(this);
-		jdiv.find('table').addClass('table').wrap('<div class="table-responsive"></div>'); 
-	});
-}
+		var lightboxImages = [];
+		var lightboxIndex = 0;
+		$(function () {
+			$('.message img').each(function () {
+				var src = $(this).attr('src');
+				if (src && !$(this).closest('a').length) {
+					lightboxImages.push(src);
+					$(this).css('cursor', 'pointer').on('click', function () {
+						lightboxIndex = lightboxImages.indexOf(src);
+						$('#lightboxImage').attr('src', src);
+						new bootstrap.Modal(document.getElementById('imageLightbox')).show();
+					});
+				}
+			});
+		});
+		$('#lightboxPrev').on('click', function () {
+			if (lightboxImages.length === 0) return;
+			lightboxIndex = (lightboxIndex - 1 + lightboxImages.length) % lightboxImages.length;
+			$('#lightboxImage').attr('src', lightboxImages[lightboxIndex]);
+		});
+		$('#lightboxNext').on('click', function () {
+			if (lightboxImages.length === 0) return;
+			lightboxIndex = (lightboxIndex + 1) % lightboxImages.length;
+			$('#lightboxImage').attr('src', lightboxImages[lightboxIndex]);
+		});
 
-$(function() {
-	resize_image();
-	resize_table();
-	$(window).on('resize', resize_image);
-});
+		$(function () {
+			$('.message pre code').each(function () {
+				$(this).parent().css('position', 'relative');
+				$(this).before('<button class="btn btn-sm btn-outline-light position-absolute top-0 end-0 m-1  copy-code" title="<?php echo lang('copy');?>"><i class="ti ti-clipboard"></i></button>');
+			});
+			if (typeof Prism !== 'undefined') Prism.highlightAll();
+		});
+		$(document).on('click', '.copy-code', function () {
+			var code = $(this).next('code').text();
+			navigator.clipboard.writeText(code).then(function () {
+				showToast('<?php echo lang('copied_to_clipboard');?>');
+			});
+		});
+	</script>
 
-// 输入框自动伸缩
+	<!-- QR Code 生成 -->
+	<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+	<script>
+		(function () {
+			var qrcodeEl = document.getElementById('qrcode');
+			if (qrcodeEl && typeof QRCode !== 'undefined') {
+				new QRCode(qrcodeEl, {
+					text: '<?php echo $thread_url;?>',
+					width: 120,
+					height: 120,
+					colorDark: '#000000',
+					colorLight: '#ffffff',
+					correctLevel: QRCode.CorrectLevel.M
+				});
+			}
+		})();
+	</script>
 
-var jmessage = $('#message');
-jmessage.on('focus', function() {if(jmessage.t) { clearTimeout(jmessage.t); jmessage.t = null; } jmessage.css('height', '8rem'); });
-jmessage.on('blur', function() {jmessage.t = setTimeout(function() { jmessage.css('height', '2.5rem');}, 1000); });
-
-$('li[data-active="fid-<?php echo $fid;?>"]').addClass('active');
-
-</script>
-
-<?php if($thread['closed'] && ($gid == 0 || $gid > 5)) { ?>
-<script>
-jmessage.val('<?php echo lang('thread_has_already_closed');?>').attr('readonly', 'readonly');
-</script>
-<?php } ?>
-<!--{hook thread_js.htm}-->
+	<!--{hook thread_js.htm}-->

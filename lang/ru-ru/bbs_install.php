@@ -1,7 +1,7 @@
 <?php
 
 return array(
-	'installed_tips' => 'Форум уже установлен, если вы хотите переустановить, удалите conf/conf.php',
+	'installed_tips' => 'Форум уже установлен, если вы хотите переустановить, удалите conf/conf.php и install/install.lock',
 	'please_set_conf_file_writable' => 'Установите права чтения/запси для conf/conf.php !',
 	'evn_not_support_php_mysql' => 'Текущая версия PHP,mysql и pdo_mysql driver не соответствует минимальным системным требованиям, не могу установить',
 	'dbhost_is_empty' => 'Введите имя сервера',
@@ -39,15 +39,16 @@ return array(
 	'admin_username' => 'Логин',
 	'admin_pw' => 'Пароль',
 	'installing_about_moment' => 'Установка, ожидайте...',
-	'license_title' => 'Xiuno BBS 4.0 Лицензионное соглашение',
-	'license_content' => 'Thank you to choose BBS Xiuno 4, it is a domestic, compact, stable, support in the large amount of data is still maintained a high load capacity of light forum. It is only more than 20 table, 1M compression source code about running very fast, processing a single request in 0.01 second level, in APC, Xcache, Yac environment can ran to the 0.00x seconds, to third-party library, very few dependencies, the front only dependent jquery.js, as thought it is just like a car handmade Ferrari, the power is strong, without the slightest throatiness, convenient deployment and maintenance is the cornerstone of a very good secondary development.
-Xiuno BBS (bulletin board system) 4.0 using bootstrap 4 + jQuery 3 as a front-end library, full support for mobile browser; the back-end XiunoPHP 4.0 support NoSQL way to operate a variety of databases, this version is a great leap forward.
-Xiuno pronunciation "Shura", English Shura, which is one of the six Buddhist "Shura", in between humanity and heaven.
-BBS Xiuno 4 using the MIT agreement, you can freely modify, derived version, commercial without fear of any legal risks (the original copyright information should be retained after the modification)。
-	',
-	'license_date' => 'Дата выпуска: Jan 22, 2018',
+	'license_title' => 'Лицензионное соглашение XIUNOX',
+	'license_content' => 'Спасибо, что выбрали XIUNOX — современную, легковесную и стабильную форумную систему. Построена на архитектуре Bootstrap 5.3 + htmx 4 с полной поддержкой мобильных браузеров. Бэкенд использует PHP 8.0+ с движком InnoDB и кодировкой utf8mb4. Минимальные зависимости от сторонних библиотек делают систему удобной для развёртывания и обслуживания, а также отличной основой для разработки.
+
+XIUNOX выпускается под лицензией MIT. Вы можете свободно модифицировать, создавать производные версии и использовать в коммерческих целях без каких-либо юридических рисков (оригинальная информация об авторских правах должна быть сохранена).',
+	'license_date' => 'Дата выпуска: 2026',
 	'agree_license_to_continue' => 'Принять лицензию и продолжить',
-	'install_title' => 'Xiuno BBS 4.0 Мастер установки',
+	'license_read_hint' => 'Прокрутите вниз, чтобы прочитать полное соглашение',
+	'license_countdown_text' => 'Пожалуйста, внимательно прочитайте соглашение',
+	'license_ready' => 'Готово, отметьте согласие',
+	'install_title' => 'Мастер установки XIUNOX',
 	'install_guide' => 'Мастер установки',
 
 	
@@ -57,8 +58,26 @@ BBS Xiuno 4 using the MIT agreement, you can freely modify, derived version, com
 	'function_glob_not_exists' => 'Plugin install dependent on it, please setting php.ini, set disabled_functions = ; Lifting restrictions on this function',
 	'function_gzcompress_not_exists' => 'Plugin install dependent on it, on Linux server, add compile argument: --with-zlib, on Windows Server, please setting php.ini open extension=php_zlib.dll',
 	'function_mb_substr_not_exists' => 'System dependent on it, on Linux server, add compile argument: --with-mbstring, on Windows Server, please setting php.ini open extension=php_mbstring.dll',
-	
+
+	'optional' => 'Опционально',
+	'recommended' => 'Рекомендуется',
+
 	// hook lang_en_us_bbs_install.php
+
+	'step_lang' => 'Выбор языка',
+	'step_license' => 'Лицензионное соглашение',
+	'step_env' => 'Проверка среды',
+	'step_config' => 'Настройка базы данных',
+	'install_success' => 'Установка завершена!',
+	'visit_site' => 'Перейти на сайт',
+
+	'admin_username_is_empty' => 'Имя администратора не может быть пустым',
+	'admin_password_is_empty' => 'Пароль администратора не может быть пустым',
+	'admin_password_too_short' => 'Пароль администратора должен быть не менее 6 символов',
+	'admin_email_is_empty' => 'Email администратора не может быть пустым',
+	'admin_email_invalid' => 'Неверный формат email администратора',
+
+	'db_already_exists_confirm' => 'В базе данных уже существуют таблицы XIUNOX. Продолжение установки удалит все данные! Нажмите OK для продолжения или Отмена для возврата.',
 );
 
 ?>

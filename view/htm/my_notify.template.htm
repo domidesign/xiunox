@@ -1,0 +1,104 @@
+<template include="./view/htm/my_notify.template.htm">
+	<slot name="my_body">
+		<?php
+		$notify_tabs = array('reply', 'like', 'favorite', 'follow', 'system');
+		$notify_groups = array();
+		foreach($notify_tabs as $t) $notify_groups[$t] = array();
+
+		if(!empty($notifylist)) {
+			foreach($notifylist as $notify) {
+				$ntype = isset($notify['type']) ? $notify['type'] : 'system';
+				if(!in_array($ntype, $notify_tabs)) $ntype = 'system';
+				$notify_groups[$ntype][] = $notify;
+			}
+		}
+		?>
+
+		<div class="tab-pane fade show active" id="notify-all" role="tabpanel">
+			<?php if(!empty($notifylist)) { ?>
+			<div class="d-flex flex-column gap-2">
+				<?php foreach($notifylist as $notify) { ?>
+				<div class="notice-item card-0 rounded-1 overflow-hidden <?php echo empty($notify['is_read']) ? 'notice-unread' : '';?>" data-nid="<?php echo $notify['nid'];?>" data-type="<?php echo $notify['type'];?>">
+					<div class="card-body p-3 d-flex align-items-start gap-3">
+						<?php echo avatar_component_from_data($notify['from_avatar_url'], 'sm', '', '', isset($notify['from_gid']) ? $notify['from_gid'] : 0);?>
+						<div class="flex-fill" style="min-width:0">
+							<div class="d-flex align-items-start justify-content-between gap-2">
+								<div class="small <?php echo empty($notify['is_read']) ? 'fw-semibold' : 'text-body-secondary';?>">
+									<?php if(!empty($notify['url'])) { ?>
+									<a href="<?php echo $notify['url'];?>" class="text-decoration-none notify-page-link" data-nid="<?php echo $notify['nid'];?>"><?php echo $notify['message'];?></a>
+									<?php } else { ?>
+									<?php echo $notify['message'];?>
+									<?php } ?>
+								</div>
+								<?php if(empty($notify['is_read'])) { ?>
+								<button type="button" class="btn btn-sm btn-link text-decoration-none p-0 notice-mark-read flex-shrink-0" data-nid="<?php echo $notify['nid'];?>" data-source="notify" title="<?php echo lang('mark_as_read');?>" hx-post="<?php echo url('my-notify_read-'.$notify['nid']);?>" hx-target="closest .notice-item" hx-swap="outerHTML">
+									<i class="ti ti-check"></i>
+								</button>
+								<?php } ?>
+							</div>
+							<div class="d-flex align-items-center gap-2 mt-1">
+								<span class="text-body-secondary" style="font-size:0.75rem"><?php echo $notify['create_date_fmt'];?></span>
+								<?php if(empty($notify['is_read'])) { ?>
+								<span class="badge bg-primary rounded-pill" style="font-size:0.6rem"><?php echo lang('unread');?></span>
+								<?php } ?>
+							</div>
+						</div>
+					</div>
+				</div>
+				<?php } ?>
+			</div>
+			<?php if($pagination) { ?>
+			<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap mt-3"><?php echo $pagination; ?></ul></nav>
+			<?php } ?>
+			<?php } else { ?>
+			<div class="text-center text-body-secondary py-5">
+				<i class="ti ti-bell-off fs-1 d-block mb-2 opacity-50"></i>
+				<?php echo lang('no_notify');?>
+			</div>
+			<?php } ?>
+		</div>
+
+		<?php foreach($notify_tabs as $tab_type) { ?>
+		<div class="tab-pane fade" id="notify-<?php echo $tab_type;?>" role="tabpanel">
+			<?php if(!empty($notify_groups[$tab_type])) { ?>
+			<div class="d-flex flex-column gap-2">
+				<?php foreach($notify_groups[$tab_type] as $notify) { ?>
+				<div class="notice-item card-0 rounded-1 overflow-hidden <?php echo empty($notify['is_read']) ? 'notice-unread' : '';?>" data-nid="<?php echo $notify['nid'];?>" data-type="<?php echo $notify['type'];?>">
+					<div class="card-body p-3 d-flex align-items-start gap-3">
+						<?php echo avatar_component_from_data($notify['from_avatar_url'], 'sm', '', '', isset($notify['from_gid']) ? $notify['from_gid'] : 0);?>
+						<div class="flex-fill" style="min-width:0">
+							<div class="d-flex align-items-start justify-content-between gap-2">
+								<div class="small <?php echo empty($notify['is_read']) ? 'fw-semibold' : 'text-body-secondary';?>">
+									<?php if(!empty($notify['url'])) { ?>
+									<a href="<?php echo $notify['url'];?>" class="text-decoration-none notify-page-link" data-nid="<?php echo $notify['nid'];?>"><?php echo $notify['message'];?></a>
+									<?php } else { ?>
+									<?php echo $notify['message'];?>
+									<?php } ?>
+								</div>
+								<?php if(empty($notify['is_read'])) { ?>
+								<button type="button" class="btn btn-sm btn-link text-decoration-none p-0 notice-mark-read flex-shrink-0" data-nid="<?php echo $notify['nid'];?>" data-source="notify" title="<?php echo lang('mark_as_read');?>" hx-post="<?php echo url('my-notify_read-'.$notify['nid']);?>" hx-target="closest .notice-item" hx-swap="outerHTML">
+									<i class="ti ti-check"></i>
+								</button>
+								<?php } ?>
+							</div>
+							<div class="d-flex align-items-center gap-2 mt-1">
+								<span class="text-body-secondary" style="font-size:0.75rem"><?php echo $notify['create_date_fmt'];?></span>
+								<?php if(empty($notify['is_read'])) { ?>
+								<span class="badge bg-primary rounded-pill" style="font-size:0.6rem"><?php echo lang('unread');?></span>
+								<?php } ?>
+							</div>
+						</div>
+					</div>
+				</div>
+				<?php } ?>
+			</div>
+			<?php } else { ?>
+			<div class="text-center text-body-secondary py-5">
+				<i class="ti ti-bell-off fs-1 d-block mb-2 opacity-50"></i>
+				<?php echo lang('no_notify');?>
+			</div>
+			<?php } ?>
+		</div>
+		<?php } ?>
+	</slot>
+</template>

@@ -2,69 +2,78 @@
 
 <!--{hook index_start.htm}-->
 
-<div class="row">
-	<div class="col-lg-9 main">
+<div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
+	<div class="d-none d-lg-block col-lg-2">
+		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
+	</div>
+	<div class="col-lg-7" style="min-width:0">
 		<!--{hook index_main_start.htm}-->
-		<div class="card card-threadlist">
-			<div class="card-header">
-				<ul class="nav nav-tabs card-header-tabs">
-					<li class="nav-item">
-						<a class="nav-link <?php echo $active == 'default' ? 'active' : '';?>" href="./<?php echo url("$route");?>"><?php echo lang('new_thread');?></a>
-					</li>
-					<!--{hook index_thread_list_nav_item_after.htm}-->
-				</ul>
-			</div>
-			<div class="card-body">
-				<ul class="list-unstyled threadlist mb-0">
-					<!--{hook index_threadlist_before.htm}-->
-					<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm');?>
-					<!--{hook index_threadlist_after.htm}-->
-				</ul>
+		<?php
+		$_announcement = isset($conf['announcement']) ? $conf['announcement'] : '';
+		$_announcements = cache_get('sidebar_announcements');
+		if(!$_announcements) {
+			$_announcements = thread_find(array('is_announcement' => 1), array('announcement_order' => -1, 'create_date' => -1), 1, 5);
+			if($_announcements) cache_set('sidebar_announcements', $_announcements, 600);
+		}
+		?>
+		<?php if($_announcement || $_announcements) { ?>
+	<div class="x-card card mb-3">
+		<div class="d-flex align-items-center gap-2">
+			<span class="announcement-badge flex-shrink-0"><i class="ti ti-speakerphone me-1"></i><?php echo lang('announcement');?></span>
+			<div class="announcement-scroll flex-fill" id="announcementScroll">
+				<div class="announcement-scroll-inner">
+				 
+					<?php if($_announcements) { foreach($_announcements as $_t) { ?>
+					<a href="<?php echo url("thread-$_t[tid]");?>" class="announcement-item announcement-link"><?php echo $_t['subject'];?></a>
+					<?php } } ?>
+				</div>
 			</div>
 		</div>
-		
-		<?php include _include(APP_PATH.'view/htm/thread_list_mod.inc.htm');?>
-		
+	</div>
+	<?php } ?>
+		<div class="index-threadlist ">
+			<div class="  py-1 pe-3">
+				<div class="d-flex justify-content-between align-items-center flex-wrap">
+					<ul class="nav thread-nav-tabs" role="tablist">
+						<li class="nav-item"><a class="nav-link<?php echo $order == 'tid' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'tid'));?>" hx-get="<?php echo url("$route", array('order' => 'tid', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('latest_tab');?></a></li>
+						<li class="nav-item"><a class="nav-link<?php echo $order == 'hot' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'hot'));?>" hx-get="<?php echo url("$route", array('order' => 'hot', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('hottest_tab');?></a></li>
+						<li class="nav-item"><a class="nav-link<?php echo $order == 'digest' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'digest'));?>" hx-get="<?php echo url("$route", array('order' => 'digest', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('digest');?></a></li>
+						<?php if(!empty($uid)) { ?>
+						<li class="nav-item"><a class="nav-link<?php echo $order == 'follow' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'follow'));?>" hx-get="<?php echo url("$route", array('order' => 'follow', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('follow_tab');?></a></li>
+						<?php } ?>
+						<!--{hook index_thread_list_nav_item_after.htm}-->
+					</ul>
+					<?php $toggle_url = url("$route-$page", array('order' => $order)); ?>
+					<?php include _include(APP_PATH.'view/htm/view_toggle.inc.htm');?>
+				</div>
+			</div>
+			<div class="mt-0 ">
+				<!--{hook index_threadlist_before.htm}-->
+				<?php if ($view_mode == 'list') { ?>
+					 
+				<ul class="list-none threadlist x-card card  mb-0">
+					<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm');?>
+				</ul>
+				<?php } elseif ($view_mode == 'timeline') { ?>
+				<div class="timeline-feed ">
+					<?php include _include(APP_PATH.'view/htm/thread_list_timeline.inc.htm');?>
+				</div>
+				<?php } else { ?>
+				<div class="masonry-container ">
+					<?php include _include(APP_PATH.'view/htm/thread_list_masonry.inc.htm');?>
+				</div>
+				<?php } ?>
+				<!--{hook index_threadlist_after.htm}-->
+				<?php if($view_mode == 'list') { include _include(APP_PATH.'view/htm/thread_list_mod.inc.htm'); } ?>
+			</div>
+		</div>
+
 		<!--{hook index_page_before.htm}-->
-		<nav class="my-3"><ul class="pagination justify-content-center flex-wrap"><?php echo $pagination; ?></ul></nav>
+		<?php include _include(APP_PATH.'view/htm/pagination.inc.htm');?>
 		<!--{hook index_page_end.htm}-->
 	</div>
-	<div class="col-lg-3 d-none d-lg-block aside">
-		<a role="button" class="btn btn-primary btn-block mb-3" href="<?php echo url('thread-create-'.$fid);?>"><?php echo lang('thread_create_new');?></a>
-		<!--{hook index_site_brief_before.htm}-->
-		<div class="card card-site-info">
-			<!--{hook index_site_brief_start.htm}-->
-			<div class="m-3">
-				<h5 class="text-center"><?php echo $conf['sitename'];?></h5>
-				<div class="small line-height-3"><?php echo $conf['sitebrief'];?></div>
-			</div>
-			<div class="card-footer p-2">
-				<table class="w-100 small">
-					<tr align="center">
-						<td>
-							<span class="text-muted"><?php echo lang('threads');?></span><br>
-							<b><?php echo $runtime['threads'];?></b>
-						</td>
-						<td>
-							<span class="text-muted"><?php echo lang('posts');?></span><br>
-							<b><?php echo $runtime['posts'];?></b>
-						</td>
-						<td>
-							<span class="text-muted"><?php echo lang('users');?></span><br>
-							<b><?php echo $runtime['users'];?></b>
-						</td>
-						<?php if($runtime['onlines'] > 0) { ?>
-						<td>
-							<span class="text-muted"><?php echo lang('online');?></span><br>
-							<b><?php echo $runtime['onlines'];?></b>
-						</td>
-						<?php } ?>
-					</tr>
-				</table>
-			</div>
-			<!--{hook index_site_brief_end.htm}-->
-		</div>
-		<!--{hook index_site_brief_after.htm}-->
+	<div class="d-none d-lg-block col-lg-3">
+		<?php include _include(APP_PATH.'view/htm/sidebar_right.inc.htm');?>
 	</div>
 </div>
 
@@ -74,6 +83,112 @@
 
 <script>
 $('li[data-active="fid-0"]').addClass('active');
+</script>
+
+<script>
+(function(){
+	var animate = anime.animate;
+	var set = anime.set;
+	var stagger = anime.stagger;
+
+	// ===== 公告滚动动画 =====
+	<?php if(!empty($_announcement) || !empty($_announcements)) { ?>
+	(function(){
+		var container = document.getElementById('announcementScroll');
+		if(!container) return;
+		var inner = container.querySelector('.announcement-scroll-inner');
+		var items = inner.querySelectorAll('.announcement-item');
+		if(items.length <= 1) return;
+
+		var idx = 0;
+		var itemH = 1.8 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+
+		function scrollNext() {
+			idx++;
+			animate(inner, {
+				y: -(idx * itemH),
+				duration: 500,
+				ease: 'inOutQuad',
+				onComplete: function() {
+					if(idx >= items.length) {
+						idx = 0;
+						set(inner, { y: 0 });
+					}
+					setTimeout(scrollNext, 3000);
+				}
+			});
+		}
+
+		setTimeout(scrollNext, 3000);
+	})();
+	<?php } ?>
+
+	// ===== 右侧栏统计数字计数动画 =====
+	(function(){
+		var statEls = document.querySelectorAll('.stat-count');
+		if(!statEls.length) return;
+
+		var observer = new IntersectionObserver(function(entries) {
+			entries.forEach(function(entry) {
+				if(!entry.isIntersecting) return;
+				observer.disconnect(); // 只触发一次
+
+				statEls.forEach(function(el) {
+					var target = parseInt(el.getAttribute('data-count'), 10);
+					if(isNaN(target) || target === 0) return;
+
+					var obj = { value: 0 };
+					animate(obj, {
+						value: target,
+						duration: 1000,
+						ease: 'outExpo',
+						onUpdate: function() {
+							el.textContent = Math.round(obj.value);
+						}
+					});
+				});
+			});
+		}, { threshold: 0.3 });
+
+		var sidebar = document.getElementById('sidebar-right');
+		if(sidebar) observer.observe(sidebar);
+	})();
+
+	// ===== 帖子列表淡入交错动画 =====
+	function animateThreadItems() {
+		// 支持三种布局：列表、朋友圈、瀑布流
+		var items = document.querySelectorAll('.thread-list-item:not([data-animated]), .timeline-card:not([data-animated]), .masonry-item:not([data-animated])');
+		if(!items.length) return;
+
+		// 设置初始状态
+		items.forEach(function(item) {
+			item.style.opacity = '0';
+			item.style.transform = 'translateY(20px)';
+		});
+
+		animate(items, {
+			opacity: 1,
+			translateY: 0,
+			duration: 300,
+			delay: stagger(50),
+			ease: 'outQuad',
+			onComplete: function() {
+				items.forEach(function(item) {
+					item.setAttribute('data-animated', '1');
+				});
+			}
+		});
+	}
+
+	// 页面加载时执行
+	animateThreadItems();
+
+	// htmx 局部刷新后执行
+	document.addEventListener('htmx:afterSettle', function() {
+		animateThreadItems();
+	});
+
+})();
 </script>
 
 <!--{hook index_js.htm}-->

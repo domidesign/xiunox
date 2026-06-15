@@ -2,63 +2,555 @@
 
 <!--{hook my_common_start.htm}-->
 
-<div class="btn-group mb-3 d-lg-none" role="group" id="my_mobile_nav">
+<?php include _include(APP_PATH.'view/htm/my.layout.inc.htm');?>
 
-	<!--{hook my_common_mobile_my_before.htm}-->
-	<a role="button" class="btn btn-secondary" data-active="menu-my" href="<?php echo url('my');?>">个人资料</a>
-	<!--{hook my_common_mobile_my_after.htm}-->
-	
-	<!--{hook my_common_mobile_my_thread_before.htm}-->
-	<a role="button" class="btn btn-secondary" data-active="menu-my-thread" href="<?php echo url('my-thread');?>">论坛帖子</a>
-	<!--{hook my_common_mobile_my_thread_after.htm}-->
-	
-</div>
+		<!-- Tab 内容区 -->
+		<div class="tab-content x-card card" id="myTabContent">
 
-<div class="row">
-	<!-- 左侧菜单 -->
-	<div class="col-lg-2 hidden-md hidden-sm" id="my_aside">
-		<div class="card">
-			<div class="card-body text-center">
-				<!--{hook my_common_avatar_before.htm}-->
-				<img class="avatar-4" src="<?php echo $user['avatar_url'];?>">
-				<br><?php echo $user['username'];?>
-				<!--{hook my_common_username_after.htm}-->
+			<!-- 基本资料 -->
+			<div class="tab-pane fade<?php if(empty($active_tab) || $active_tab == 'profile') echo ' show active'; ?>" id="tab-profile" role="tabpanel">
+				<!--{hook my_profile_start.htm}-->
+				<form hx-post="<?php echo url('my-profile');?>" hx-target="#profile-msg" hx-swap="innerHTML" id="profile_form">
+					<?php echo CsrfService::input(); ?>
+					<div id="profile-msg"></div>
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('nickname');?></label>
+						<input type="text" class="form-control " name="username" value="<?php echo esc_html($user['username']);?>" required>
+						<div class="invalid-feedback"></div>
+					</div>
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('signature');?></label>
+						<textarea class="form-control rounded-1" name="signature" rows="3" placeholder="<?php echo lang('signature_placeholder');?>"><?php echo esc_html($user['signature'] ?? '');?></textarea>
+						<div class="invalid-feedback"></div>
+						<?php if(!empty($user['signature'])) { ?>
+						<div class="mt-2 p-2 bg-body-tertiary rounded small text-body-secondary user-signature-display">
+							<i class="ti ti-quote me-1"></i><?php echo esc_html($user['signature']);?>
+						</div>
+						<?php } else { ?>
+						<div class="mt-2 p-2 bg-body-tertiary rounded small text-body-secondary user-signature-display" style="display:none;">
+							<i class="ti ti-quote me-1"></i>
+						</div>
+						<?php } ?>
+					</div>
+					<div>
+						<button type="submit" class="btn btn-primary " id="profile_submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('save_profile');?></button>
+					</div>
+				</form>
+				<!--{hook my_profile_end.htm}-->
 			</div>
-			<div class="list-group list-group-flush text-center">
-				<!--{hook my_common_my_before.htm}-->
-				<a href="<?php echo url('my');?>" class="list-group-item list-group-item-action" data-active="menu-my">个人资料</a>
-				<!--{hook my_common_my_after.htm}-->
-				
-				<!--{hook my_common_my_thread_before.htm}-->
-				<a href="<?php echo url('my-thread');?>" class="list-group-item list-group-item-action" data-active="menu-my-thread">论坛帖子</a>
-				<!--{hook my_common_my_thread_after.htm}-->
-				
+
+			<!-- 安全设置 -->
+			<div class="tab-pane fade<?php if(!empty($active_tab) && $active_tab == 'security') echo ' show active'; ?>" id="tab-security" role="tabpanel">
+				<!--{hook my_security_start.htm}-->
+
+				<div class="x-card card mb-4">
+					<div class="card-body">
+						<h6 class="fw-medium mb-3"><i class="ti ti-mail"></i> <?php echo lang('modify_email');?></h6>
+						<form hx-post="<?php echo url('my-email');?>" hx-target="#email-msg" hx-swap="innerHTML" id="email_form">
+							<?php echo CsrfService::input(); ?>
+							<div id="email-msg"></div>
+							<div class="mb-3">
+								<label class="form-label text-body-secondary"><?php echo lang('current_email');?></label>
+								<input type="text" class="form-control " value="<?php echo esc_html($user['email']);?>" disabled>
+							</div>
+							<div class="mb-3">
+								<label class="form-label"><?php echo lang('new_email');?></label>
+								<input type="email" class="form-control " name="email_new" id="email_new" placeholder="<?php echo lang('please_input_new_email');?>" required>
+								<div class="invalid-feedback"></div>
+							</div>
+							<div class="mb-3">
+								<label class="form-label"><?php echo lang('verify_code');?></label>
+								<div class="input-group">
+									<input type="text" class="form-control " name="email_code" id="email_code" placeholder="<?php echo lang('please_input_verify_code');?>" required>
+									<button type="button" class="btn btn-outline-primary " id="send_code_btn"><?php echo lang('send_verify_code');?></button>
+								</div>
+								<div class="invalid-feedback"></div>
+							</div>
+							<div>
+								<button type="submit" class="btn btn-primary " id="email_submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('confirm_modify');?></button>
+							</div>
+						</form>
+					</div>
+				</div>
+
+				<div class="x-card card">
+					<div class="card-body">
+						<h6 class="fw-medium mb-3"><i class="ti ti-lock"></i> <?php echo lang('update_password');?></h6>
+						<form hx-post="<?php echo url('my-password');?>" hx-target="#password-msg" hx-swap="innerHTML" id="password_form">
+							<?php echo CsrfService::input(); ?>
+							<div id="password-msg"></div>
+							<div class="mb-3">
+								<input type="password" class="form-control " name="password_old" placeholder="<?php echo lang('password_old');?>" required>
+								<div class="invalid-feedback"></div>
+							</div>
+							<div class="mb-3">
+								<input type="password" class="form-control " name="password_new" placeholder="<?php echo lang('password_new');?>" required>
+								<div class="invalid-feedback"></div>
+							</div>
+							<div class="mb-3">
+								<input type="password" class="form-control " name="password_new_repeat" placeholder="<?php echo lang('password_new_repeat');?>" required>
+								<div class="invalid-feedback"></div>
+							</div>
+							<div>
+								<button type="submit" class="btn btn-primary " id="password_submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('update_password');?></button>
+							</div>
+						</form>
+					</div>
+				</div>
+
+				<!--{hook my_security_end.htm}-->
 			</div>
+
+			<!-- 头像设置 -->
+			<div class="tab-pane fade<?php if(!empty($active_tab) && $active_tab == 'avatar') echo ' show active'; ?>" id="tab-avatar" role="tabpanel">
+				<!--{hook my_avatar_start.htm}-->
+
+				<!-- 当前头像 -->
+				<div class="text-center mb-4">
+					<img id="avatar_img" class="rounded-circle border border-3" style="width:128px;height:128px;object-fit:cover;" src="<?php echo $user['avatar_url'];?>" alt="" onerror="this.src='/view/img/avatar.png'">
+					<div class="mt-2">
+						<button type="button" class="btn btn-sm btn-outline-secondary" id="avatar_reset_btn">
+							<i class="ti ti-arrow-back-up"></i> <?php echo lang('reset_default');?>
+						</button>
+					</div>
+				</div>
+
+				<!-- 子 Tab：上传 / 预设 -->
+				<ul class="nav nav-pills mb-3 justify-content-center" role="tablist">
+					<li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#avatar-upload-tab" type="button"><i class="ti ti-upload"></i> <?php echo lang('upload_avatar');?></button></li>
+					<li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#avatar-preset-tab" type="button"><i class="ti ti-grid-dots"></i> <?php echo lang('preset_avatar_tab');?></button></li>
+				</ul>
+
+				<div class="tab-content">
+					<!-- 上传头像 Tab -->
+					<div class="tab-pane fade show active" id="avatar-upload-tab">
+						<form id="avatar_upload_form" action="<?php echo url('my-avatar');?>" method="POST" enctype="multipart/form-data" hx-boost="false">
+							<?php echo CsrfService::input(); ?>
+							<div class="text-center p-4 border border-2 rounded-3 mb-3" id="avatar_dropzone" style="border-style:dashed!important;cursor:pointer;transition:all 0.2s;">
+								<div id="avatar_preview_wrap" style="display:none;">
+									<img id="avatar_preview_img" class="rounded-circle mx-auto d-block" style="width:160px;height:160px;object-fit:cover;" src="" alt="<?php echo lang('preview');?>">
+									<p class="mt-2 small text-body-secondary mb-0"><?php echo lang('click_to_reselect');?></p>
+								</div>
+								<div id="avatar_select_hint">
+									<i class="ti ti-cloud-upload d-block mb-2" style="font-size:2.5rem;opacity:0.4;"></i>
+									<p class="mb-1 text-body-secondary"><?php echo lang('click_select_or_drag');?></p>
+									<small class="text-body-secondary"><?php echo lang('supported_image_formats');?></small>
+								</div>
+								<input type="file" name="file" id="avatar_file_input" accept="image/jpeg,image/png,image/gif,image/webp,image/bmp" class="d-none">
+							</div>
+							<div class="text-center">
+								<button type="submit" class="btn btn-primary" id="avatar_upload_btn" disabled>
+									<i class="ti ti-check"></i> <?php echo lang('confirm_upload_avatar');?>
+								</button>
+							</div>
+						</form>
+					</div>
+
+					<!-- 预设头像 Tab -->
+					<div class="tab-pane fade" id="avatar-preset-tab">
+						<?php
+						$preset_list = avatar_preset_files();
+						$current_preset = ($user['avatar'] < 0) ? abs($user['avatar']) : 0;
+						?>
+						<?php if(!empty($preset_list)) { ?>
+						<div class="row g-2" id="preset_avatars">
+							<?php foreach($preset_list as $idx => $preset) {
+								$active = ($idx == $current_preset) ? ' border-primary border-3' : '';
+							?>
+							<div class="col-3 col-sm-2">
+								<img class="preset-avatar rounded-circle w-100 border<?php echo $active;?>" style="aspect-ratio:1;object-fit:cover;cursor:pointer;" src="<?php echo $preset['url'];?>" data-index="<?php echo $idx;?>" data-src="<?php echo $preset['url'];?>" onerror="this.parentElement.style.display='none'">
+							</div>
+							<?php } ?>
+						</div>
+						<?php } else { ?>
+						<p class="text-body-secondary text-center small"><?php echo lang('no_preset_avatar_tip');?> <code>view/img/avatars/</code> <?php echo lang('preset_avatar_dir_tip');?></p>
+						<?php } ?>
+					</div>
+				</div>
+
+				<!-- 预设头像提交表单（隐藏） -->
+				<form id="preset_form" action="<?php echo url('my-avatar_preset');?>" method="POST" hx-boost="false" style="display:none;">
+					<?php echo CsrfService::input(); ?>
+					<input type="hidden" name="avatar_index" id="preset_index_input" value="">
+					<button type="submit" name="submit" style="display:none;"></button>
+				</form>
+
+				<!-- 恢复默认表单（隐藏） -->
+				<form id="reset_form" action="<?php echo url('my-avatar_preset');?>" method="POST" hx-boost="false" style="display:none;">
+					<?php echo CsrfService::input(); ?>
+					<input type="hidden" name="avatar_index" value="0">
+					<button type="submit" name="submit" style="display:none;"></button>
+				</form>
+
+				<!--{hook my_avatar_end.htm}-->
+			</div>
+
+			<!-- AI设置 -->
+			<div class="tab-pane fade<?php if(!empty($active_tab) && $active_tab == 'ai') echo ' show active'; ?>" id="tab-ai" role="tabpanel">
+				<!--{hook my_ai_start.htm}-->
+				<form hx-post="<?php echo url('my-ai_setting');?>" hx-target="#ai-msg" hx-swap="innerHTML" id="ai_form">
+					<?php echo CsrfService::input(); ?>
+					<div id="ai-msg"></div>
+
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('ai_provider');?></label>
+						<select class="form-select " name="ai_provider" id="ai_provider">
+							<option value="openai" <?php echo (!empty($ai_config['models']['openai'])) ? 'selected' : '';?>>OpenAI (ChatGPT)</option>
+							<option value="deepseek" <?php echo (!empty($ai_config['models']['deepseek'])) ? 'selected' : '';?>>DeepSeek</option>
+							<option value="gitee" <?php echo (!empty($ai_config['models']['gitee'])) ? 'selected' : '';?>>Gitee AI</option>
+							<option value="spark" <?php echo (!empty($ai_config['models']['spark'])) ? 'selected' : '';?>><?php echo lang('ai_provider_spark');?></option>
+							<option value="wenxin" <?php echo (!empty($ai_config['models']['wenxin'])) ? 'selected' : '';?>><?php echo lang('ai_provider_wenxin');?></option>
+							<option value="custom" <?php echo (!empty($ai_config['models']['custom'])) ? 'selected' : '';?>><?php echo lang('ai_provider_custom');?></option>
+						</select>
+						<div class="form-text"><?php echo lang('ai_provider_tip');?></div>
+					</div>
+
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('api_key_label');?></label>
+						<input type="password" class="form-control " name="ai_apikey" id="ai_apikey"
+							placeholder="sk-..."
+							value="<?php echo !empty($ai_config['models']) ? array_values($ai_config['models'])[0]['apiKey'] ?? '' : '';?>">
+						<div class="form-text"><?php echo lang('ai_api_key_tip');?></div>
+					</div>
+
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('ai_api_url');?></label>
+						<input type="text" class="form-control " name="ai_endpoint" id="ai_endpoint"
+							placeholder="https://api.openai.com"
+							value="<?php echo !empty($ai_config['models']) ? array_values($ai_config['models'])[0]['endpoint'] ?? '' : '';?>">
+						<div class="form-text"><?php echo lang('ai_api_url_tip');?></div>
+					</div>
+
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('ai_model_name');?></label>
+						<input type="text" class="form-control " name="ai_model" id="ai_model"
+							placeholder="gpt-4o-mini"
+							value="<?php echo !empty($ai_config['models']) ? array_values($ai_config['models'])[0]['model'] ?? '' : '';?>">
+						<div class="form-text"><?php echo lang('ai_model_name_tip');?></div>
+					</div>
+
+					<div>
+						<button type="submit" class="btn btn-primary " id="ai_submit"><?php echo lang('save_setting');?></button>
+					</div>
+				</form>
+				<!--{hook my_ai_end.htm}-->
+			</div>
+
+			<!-- 积分记录 -->
+			<div class="tab-pane fade<?php if(!empty($active_tab) && $active_tab == 'credits') echo ' show active'; ?>" id="tab-credits" role="tabpanel">
+				<!--{hook my_credits_start.htm}-->
+				<ul class="nav nav-tabs mb-3" id="creditsSubTab" role="tablist">
+					<li class="nav-item"><button class="nav-link" onclick="switchCreditsTab('rule')" data-tab="rule" type="button"><?php echo lang('credits_rules');?></button></li>
+					<li class="nav-item"><button class="nav-link active" onclick="switchCreditsTab('log')" data-tab="log" type="button"><?php echo lang('user_credits_log');?></button></li>
+				</ul>
+				<div class="tab-content">
+					<div class="tab-pane fade rounded-1 overflow-hidden" id="tab-credits-rule" role="tabpanel">
+						<!-- 版块选择器 -->
+						<div class="mb-3">
+							<select class="form-select form-select-sm" id="credits-rule-forum" style="width:auto">
+								<option value="0"><?php echo lang('global_rules');?></option>
+								<?php if(!empty($forumlist)) { foreach($forumlist as $f) { ?>
+								<option value="<?php echo $f['fid'];?>"><?php echo esc_html($f['name']);?></option>
+								<?php } } ?>
+							</select>
+						</div>
+						<div id="credits-rule-content">
+							<?php if(!empty($credits_rules_global)) { ?>
+							<div class="table-responsive w-100">
+								<table class="table table-sm table-hover w-100">
+									<thead><tr><th><?php echo lang('event_name');?></th><th><?php echo lang('credits_label');?></th><th><?php echo lang('golds_label');?></th><th><?php echo lang('rmb_label');?></th></tr></thead>
+									<tbody>
+									<?php foreach($credits_rules_global as $rule) { ?>
+									<tr>
+										<td><?php echo esc_html(credits_event_name($rule['event']));?></td>
+										<td class="<?php echo intval($rule['credits_change']) > 0 ? 'text-success' : (intval($rule['credits_change']) < 0 ? 'text-danger' : '');?>">
+											<?php $v = intval($rule['credits_change']); echo $v > 0 ? '+' : '';echo $v;?>
+										</td>
+										<td class="<?php echo intval($rule['golds_change']) > 0 ? 'text-success' : (intval($rule['golds_change']) < 0 ? 'text-danger' : '');?>">
+											<?php $v = intval($rule['golds_change']); echo $v > 0 ? '+' : '';echo $v;?>
+										</td>
+										<td class="<?php echo intval($rule['rmbs_change']) > 0 ? 'text-success' : (intval($rule['rmbs_change']) < 0 ? 'text-danger' : '');?>">
+											<?php $v = intval($rule['rmbs_change']); echo $v > 0 ? '+' : '';echo $v;?>
+										</td>
+									</tr>
+									<?php } ?>
+									</tbody>
+								</table>
+							</div>
+							<?php } else { ?>
+							<div class="text-center text-body-secondary py-4"><?php echo lang('no_credits_rules');?></div>
+							<?php } ?>
+						</div>
+					</div>
+					<div class="tab-pane fade show active rounded-1 overflow-hidden" id="tab-credits-log" role="tabpanel">
+						<?php if(!empty($credits_loglist)) { ?>
+						<div class="list-group list-group-flush">
+							<?php foreach($credits_loglist as $log) { ?>
+							<div class="list-group-item px-3 py-2 d-flex align-items-center gap-2 flex-wrap">
+								<span class="text-body-secondary"><?php echo esc_html(credits_event_name($log['reason']));?></span>
+								<span class="<?php echo $log['change'] > 0 ? 'text-success' : 'text-danger';?> fw-medium"><?php echo $log['change'] > 0 ? '+' : '';echo $log['change'];?></span>
+								<small class="text-body-secondary ms-auto"><?php echo $log['create_date_fmt'];?></small>
+							</div>
+							<?php } ?>
+						</div>
+						<?php } else { ?>
+						<div class="text-center text-body-secondary py-4"><?php echo lang('user_no_credits_log');?></div>
+						<?php } ?>
+					</div>
+				</div>
+				<!--{hook my_credits_end.htm}-->
+			</div>
+
 		</div>
 	</div>
-	<!-- 右侧内容 -->
-	<div class="col-lg-10" id="my_main">
-		<!--{hook my_common_main_card_before.htm}-->
-		<div class="card">
-			<div class="card-header">
-				<!--{hook my_common_my_nav_slot_before.htm}-->
-				<slot name="my_nav" />
-				<!--{hook my_common_my_nav_slot_after.htm}-->
-			</div>
-			<div class="card-body">
-				<!--{hook my_common_my_body_slot_before.htm}-->
-				<slot name="my_body" />
-				<!--{hook my_common_my_body_slot_after.htm}-->
-			</div>
-		</div>
-		<!--{hook my_common_main_card_after.htm}-->
-	</div>
+
+	<!-- 右侧空栏 -->
+	<div class="d-none d-lg-block col-lg-3"></div>
 </div>
 
 <!--{hook my_common_end.htm}-->
 
 <?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
-<script>
-$('li[data-active="bbs"]').addClass('active');
-</script>
+
 <!--{hook my_common_js.htm}-->
+
+<script>
+
+document.getElementById('password_form').addEventListener('htmx:config:request', function(e) {
+	// 密码直接提交，服务端 password_md5() 统一处理
+});
+var jsend_code_btn = $('#send_code_btn');
+var send_code_timer = 0;
+jsend_code_btn.on('click', function() {
+	var email = $('#email_new').val();
+	if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+		$('#email_new').focus();
+		return;
+	}
+	jsend_code_btn.prop('disabled', true);
+	XN.post('<?php echo url("my-send_email_code");?>', {email: email}, function(code, msg) {
+		if(code == 0) {
+			if(typeof XN.toast === 'function') XN.toast(msg, 'success');
+			send_code_timer = 60;
+			var interval = setInterval(function() {
+				send_code_timer--;
+				if(send_code_timer <= 0) {
+					clearInterval(interval);
+					jsend_code_btn.text('<?php echo lang('send_verify_code');?>').prop('disabled', false);
+				} else {
+					jsend_code_btn.text(send_code_timer + 's');
+				}
+			}, 1000);
+		} else {
+			if(typeof XN.toast === 'function') XN.toast(msg || 'Error', 'danger');
+			jsend_code_btn.prop('disabled', false);
+		}
+	});
+});
+
+// ========== 头像设置（原生 JS，表单提交 + 页面刷新） ==========
+(function(){
+	var fileInput = document.getElementById('avatar_file_input');
+	var previewWrap = document.getElementById('avatar_preview_wrap');
+	var previewImg = document.getElementById('avatar_preview_img');
+	var selectHint = document.getElementById('avatar_select_hint');
+	var uploadBtn = document.getElementById('avatar_upload_btn');
+	var dropzone = document.getElementById('avatar_dropzone');
+
+	function handleFileSelect(file) {
+		if(!file || !file.type.match(/^image\//)) return;
+		if(file.size > 5242880) {
+			if(typeof showToast === 'function') showToast('<?php echo lang('image_size_limit');?>', 'error');
+			return;
+		}
+		var reader = new FileReader();
+		reader.onload = function(e) {
+			previewImg.src = e.target.result;
+			previewWrap.style.display = 'block';
+			selectHint.style.display = 'none';
+			uploadBtn.disabled = false;
+		};
+		reader.readAsDataURL(file);
+	}
+
+	fileInput.addEventListener('change', function() {
+		if(this.files && this.files[0]) handleFileSelect(this.files[0]);
+	});
+
+	dropzone.addEventListener('click', function(e) {
+		if(e.target.tagName !== 'INPUT') fileInput.click();
+	});
+
+	dropzone.addEventListener('dragover', function(e) { e.preventDefault(); this.style.borderColor = 'var(--bs-primary)'; });
+	dropzone.addEventListener('dragleave', function(e) { e.preventDefault(); this.style.borderColor = ''; });
+	dropzone.addEventListener('drop', function(e) {
+		e.preventDefault();
+		this.style.borderColor = '';
+		if(e.dataTransfer.files && e.dataTransfer.files[0]) {
+			fileInput.files = e.dataTransfer.files;
+			handleFileSelect(e.dataTransfer.files[0]);
+		}
+	});
+
+	var presetContainer = document.getElementById('preset_avatars');
+	var presetIndexInput = document.getElementById('preset_index_input');
+	var presetForm = document.getElementById('preset_form');
+
+	if(presetContainer && presetForm) {
+		presetContainer.addEventListener('click', function(e) {
+			var img = e.target.closest('.preset-avatar');
+			if(!img) return;
+			var idx = img.getAttribute('data-index');
+			if(!idx) return;
+			XN.confirm('<?php echo lang('confirm_use_avatar');?>', function() {
+				presetIndexInput.value = idx;
+				var btn = document.createElement('button');
+				btn.type = 'submit';
+				btn.name = 'submit';
+				presetForm.appendChild(btn);
+				btn.click();
+				btn.remove();
+			});
+		});
+	}
+
+	var resetBtn = document.getElementById('avatar_reset_btn');
+	var resetForm = document.getElementById('reset_form');
+	if(resetBtn && resetForm) {
+		resetBtn.addEventListener('click', function() {
+			XN.confirm('<?php echo lang('confirm_reset_avatar');?>', function() {
+				var btn = document.createElement('button');
+				btn.type = 'submit';
+				btn.name = 'submit';
+				resetForm.appendChild(btn);
+				btn.click();
+				btn.remove();
+			});
+		});
+	}
+})();
+
+$('#ai_provider').on('change', function() {
+	var v = $(this).val();
+	var endpointMap = {
+		'openai': 'https://api.openai.com',
+		'deepseek': 'https://api.deepseek.com',
+		'gitee': 'https://ai.gitee.com/api/inference/serverless/',
+		'spark': '',
+		'wenxin': '',
+		'custom': ''
+	};
+	var modelMap = {
+		'openai': 'gpt-4o-mini',
+		'deepseek': 'deepseek-chat',
+		'gitee': '',
+		'spark': 'v3.5',
+		'wenxin': '',
+		'custom': ''
+	};
+	if (!$('#ai_endpoint').val() && endpointMap[v]) {
+		$('#ai_endpoint').val(endpointMap[v]);
+	}
+	if (!$('#ai_model').val() && modelMap[v]) {
+		$('#ai_model').val(modelMap[v]);
+	}
+});
+
+// ========== 积分规则版块切换 ==========
+(function(){
+	var forumSelect = document.getElementById('credits-rule-forum');
+	var ruleContent = document.getElementById('credits-rule-content');
+	if(forumSelect && ruleContent) {
+		forumSelect.addEventListener('change', function() {
+			var fid = this.value;
+			ruleContent.innerHTML = '<div class="text-center text-body-secondary py-4"><?php echo lang('loading_dots');?></div>';
+			fetch('<?php echo url("my-credits_rules");?>?fid=' + encodeURIComponent(fid), {
+				headers: {'HX-Request': 'true'}
+			})
+			.then(function(r) { return r.text(); })
+			.then(function(html) {
+				ruleContent.innerHTML = html;
+			})
+			.catch(function() {
+				ruleContent.innerHTML = '<div class="text-center text-body-secondary py-4"><?php echo lang('load_failed');?></div>';
+			});
+		});
+	}
+})();
+
+// ========== 积分子标签切换 ==========
+function switchCreditsTab(tab) {
+	document.getElementById('tab-credits-rule').classList.remove('show','active');
+	document.getElementById('tab-credits-log').classList.remove('show','active');
+	if(tab === 'rule') {
+		document.getElementById('tab-credits-rule').classList.add('show','active');
+	} else {
+		document.getElementById('tab-credits-log').classList.add('show','active');
+	}
+	document.querySelectorAll('#creditsSubTab .nav-link').forEach(function(btn) {
+		btn.classList.remove('active');
+		if(btn.getAttribute('data-tab') === tab) btn.classList.add('active');
+	});
+}
+
+// ========== Tab 切换函数（my 页面内 tab 切换） ==========
+function switchMyTab(tabName) {
+	document.querySelectorAll('#myTabContent > .tab-pane').forEach(function(pane) {
+		pane.classList.remove('show', 'active');
+	});
+	var target = document.getElementById('tab-' + tabName);
+	if(target) {
+		target.classList.add('show', 'active');
+	}
+	document.querySelectorAll('.side-nav-item').forEach(function(item) {
+		item.classList.remove('active');
+	});
+	var activeItem = document.querySelector('.side-nav-item[data-tab="' + tabName + '"]');
+	if(activeItem) activeItem.classList.add('active');
+	document.querySelectorAll('#settingsTabMobile .nav-link').forEach(function(btn) {
+		btn.classList.remove('active');
+		if(btn.getAttribute('data-tab') === tabName) btn.classList.add('active');
+	});
+	if(history.replaceState) {
+		history.replaceState(null, '', '#' + tabName);
+	}
+}
+
+// 侧边栏 nav 点击处理
+document.querySelectorAll('.side-nav-item[data-tab]').forEach(function(item) {
+	item.addEventListener('click', function(e) {
+		e.preventDefault();
+		var tabName = this.getAttribute('data-tab');
+		if(tabName) switchMyTab(tabName);
+	});
+});
+
+// 移动端 tab 点击处理
+document.querySelectorAll('#settingsTabMobile .nav-link[data-tab]').forEach(function(link) {
+	link.addEventListener('click', function(e) {
+		e.preventDefault();
+		var tabName = this.getAttribute('data-tab');
+		if(tabName) switchMyTab(tabName);
+	});
+});
+
+// 页面加载时根据 URL hash 恢复 tab
+(function() {
+	var validTabs = ['profile', 'security', 'avatar', 'ai', 'credits'];
+	var hash = location.hash.replace('#', '');
+	if(hash && validTabs.indexOf(hash) !== -1) {
+		switchMyTab(hash);
+	}
+	// 监听 hash 变化，点击侧边栏链接后切换 tab
+	window.addEventListener('hashchange', function() {
+		var h = location.hash.replace('#', '');
+		if(h && validTabs.indexOf(h) !== -1) {
+			switchMyTab(h);
+		}
+	});
+})();
+
+<?php if(!empty($active_tab) && $active_tab != 'profile' && $active_tab != 'notice') { ?>
+switchMyTab('<?php echo $active_tab;?>');
+<?php } ?>
+</script>

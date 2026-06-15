@@ -1,100 +1,132 @@
 <?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
 
+<?php
+include_once APP_PATH . 'lib/security/CaptchaService.php';
+$captcha_login_on = CaptchaService::is_enabled('login');
+?>
+
 <!--{hook user_login_start.htm}-->
 
-<div class="row">
-	<div class="col-lg-6 mx-auto">
-		<div class="card">
-			<div class="card-header">
-				<?php echo lang('user_login');?>
-				<!--{hook user_login_title_after.htm}-->
-			</div>
-			<div class="card-body ajax_modal_body">
-				<form action="<?php echo url('user-login');?>" method="post" id="form">
-					<div class="form-group input-group">
-						<div class="input-group-prepend">
-							<span class="input-group-text"><i class="icon icon-user icon-fw"></i></span>
-						</div>
-						<input type="text" class="form-control" placeholder="<?php echo lang('email');?>" id="email" name="email">
-						<div class="invalid-feedback"></div>
-					</div>
-					<!--{hook user_login_email_after.htm}-->
-					<div class="form-group input-group">
-						<div class="input-group-prepend">
-							<span class="input-group-text"><i class="icon icon-lock icon-fw"></i></span>
-						</div>
-						<input type="password" class="form-control" placeholder="<?php echo lang('password');?>" id="password" name="password">
-						<div class="invalid-feedback"></div>
-					</div>
-					<!--{hook user_login_password_after.htm}-->
-					<div class="form-group">
-						<button type="submit" class="btn btn-primary btn-block" id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('login');?></button>
-					</div>
-					<!--{hook user_login_submit_after.htm}-->
-					<div class="media">
-						<div>
-							<!--{hook user_login_form_footer_left.htm}-->
-						</div>
-						<div class="media-body text-right">
-							<!--{hook user_login_form_footer_right_start.htm}-->
-							<a href="<?php echo url('user-create');?>" class="text-muted"><small><?php echo lang('user_create');?></small></a>
-							<?php if(!empty($conf['user_resetpw_on'])) { ?>
-							<a href="<?php echo url('user-resetpw');?>" class="text-muted ml-3"><small><?php echo lang('forgot_pw');?></small></a>
-							<?php } ?>
-							<!--{hook user_login_form_footer_right_end.htm}-->
-						</div>
-					</div>
-				</form>
-			</div>
-		</div>
-		<!--{hook user_login_card_after.htm}-->
+<div class="mx-auto" style="max-width:28rem">
+	<div class="text-center mb-4">
+		<img src="<?php echo $conf['logo_mobile_url'];?>" class="site-logo-lg mx-auto mb-2" alt="<?php echo $conf['sitename'];?>">
+		<h2 class="fs-4 fw-bold"><?php echo $conf['sitename'];?></h2>
 	</div>
+	<div class="x-card card">
+		<div class="card-body mb-3">
+			<?php echo lang('user_login');?>
+			<!--{hook user_login_title_after.htm}-->
+		</div>
+		<div class="card-body ajax_modal_body">
+			<form hx-post="<?php echo url('user-login');?>" hx-target="#login-msg" hx-swap="innerHTML" id="form">
+				<?php echo CsrfService::input(); ?>
+				<input type="hidden" name="next" value="<?php echo htmlspecialchars($referer);?>">
+				<div id="login-msg"></div>
+				<div class="mb-3 w-100">
+	
+					<div class="input-group w-100">
+						<span class="input-group-text"><i class="ti ti-user"></i></span>
+						<input type="text" class="form-control " placeholder="<?php echo lang('email');?> / <?php echo lang('username');?>" id="email" name="email">
+					</div>
+					<div class="invalid-feedback" id="email_error"></div>
+				</div>
+				<!--{hook user_login_email_after.htm}-->
+				<div class="mb-3 w-100">
+	
+					<div class="input-group w-100">
+						<span class="input-group-text"><i class="ti ti-lock"></i></span>
+						<input type="password" class="form-control " placeholder="<?php echo lang('password');?>" id="password" name="password">
+					</div>
+					<div class="invalid-feedback" id="password_error"></div>
+				</div>
+				<!--{hook user_login_password_after.htm}-->
+				<?php if($captcha_login_on): ?>
+				<div class="mb-3 w-100" id="captcha-login" data-captcha-scene="login">
+					<!-- <label class="form-label"><?php echo lang('captcha_label');?></label> -->
+					<div class="input-group w-100">
+						<span class="input-group-text"><i class="ti ti-shield-check"></i></span>
+						<input type="text" name="captcha" class="form-control" id="captcha-input-login" hx-on:input="document.getElementById('captcha-error-login').textContent=''" placeholder="<?php echo lang('please_input_captcha');?>" autocomplete="off" required>
+						<img id="captcha-img-login" src="" hx-on:click="captchaRefresh('login')" style="cursor:pointer;height:38px;border-radius:0 20px 20px 0;display:none" title="<?php echo lang('click_to_refresh');?>">
+					</div>
+					<span id="captcha-error-login" class="text-danger small mt-1"></span>
+				</div>
+				<?php endif; ?>
+				<div class="mb-3">
+					<button type="submit" class="btn btn-primary w-100 " id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('login');?></button>
+				</div>
+				<!--{hook user_login_submit_after.htm}-->
+				<div class="d-flex justify-content-between align-items-center">
+					<?php if(!empty($conf['user_resetpw_on'])) { ?>
+					<a href="<?php echo url('user-resetpw');?>" class="text-body-secondary text-decoration-none" hx-boost="false"><span class="small"><?php echo lang('forgot_pw');?></span></a>
+					<?php } else { ?>
+					<div></div>
+					<?php } ?>
+					<div>
+						<!--{hook user_login_form_footer_right_start.htm}-->
+						<a href="<?php echo url('user-create');?>" class="text-primary text-decoration-none fw-medium" hx-boost="false"><span class="small"><?php echo lang('user_create');?></span></a>
+						<!--{hook user_login_form_footer_right_end.htm}-->
+					</div>
+				</div>
+			</form>
+		</div>
+	</div>
+	<!--{hook user_login_card_after.htm}-->
 </div>
 
 <!--{hook user_login_end.htm}-->
 
-<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
-
-<script src="<?php echo $conf['view_url'];?>js/md5.js"></script>
-
 <script>
-var jform = $('#form');
-var jsubmit = $('#submit');
-var jemail = $('#email');
-var jpassword = $('#password');
-var referer = '<?php echo $referer;?>';
-jform.on('submit', function() {
-	jform.reset();
-	jsubmit.button('loading');
-	var postdata = jform.serializeObject();
-	postdata.password = $.md5(postdata.password);
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
-		if(code == 0) {
-			jsubmit.button(message).delay(1000).location(referer);
-		} else if(xn.is_number(code)) {
-			alert(message);
-			jsubmit.button('reset');
-		} else {
-			jform.find('[name="'+code+'"]').alert(message).focus();
-			jsubmit.button('reset');
-		}
-		/*
-		if(code == 0) {
-			jsubmit.button(message).delay(1000).location(referer);
-		} else if(code == 'email') {
-			jemail.alert(message).focus();
-			jsubmit.button('reset');
-		} else if(code == 'password') {
-			jpassword.alert(message).focus();
-			jsubmit.button('reset');
-		} else {
-			alert(message);
-			jsubmit.button('reset');
-		}*/
-	});
-	return false;
-});
+// 登录表单：htmx 统一处理提交和响应
+(function() {
+	var form = document.getElementById('form');
+	if(!form) return;
 
+	// htmx 请求完成后：刷新验证码 + 处理特殊错误（锁定等）
+	form.addEventListener('htmx:after:request', function(event) {
+		// 每次提交后刷新验证码
+		if(typeof captchaRefresh === 'function') captchaRefresh('login');
+
+		var response = event.detail && event.detail.ctx && event.detail.ctx.response;
+		if(!response || !response.ok) return;
+
+		// 检查 target 中是否有错误消息（htmx 已 swap 进去）
+		setTimeout(function() {
+			var msgEl = document.getElementById('login-msg');
+			if(!msgEl) return;
+			var errDiv = msgEl.querySelector('[data-code]') || msgEl;
+			var errCode = parseInt(errDiv.getAttribute('data-code')) || 0;
+			// 验证码错误 (code -1001)：显示在验证码行内
+			if(errCode === -1001) {
+				var captchaErr = document.getElementById('captcha-error-login');
+				if(captchaErr) captchaErr.textContent = msgEl.textContent || '';
+			}
+			// 账号锁定/频率限制 (code -1002/-1003)：禁用按钮并倒计时
+			if(errCode === -1002 || errCode === -1003) {
+				var submitBtn = document.getElementById('submit');
+				var inputs = form.querySelectorAll('input:not([type=hidden])');
+				if(submitBtn) {
+					submitBtn.disabled = true;
+					inputs.forEach(function(inp) { inp.disabled = true; });
+					var seconds = parseInt(errDiv.getAttribute('data-wait')) || 300;
+					var originalText = submitBtn.textContent.trim();
+					var timer = setInterval(function() {
+						seconds--;
+						if(seconds <= 0) {
+							clearInterval(timer);
+							submitBtn.disabled = false;
+							submitBtn.textContent = originalText;
+							inputs.forEach(function(inp) { inp.disabled = false; });
+						} else {
+							var m = Math.floor(seconds / 60);
+							var s = seconds % 60;
+							submitBtn.textContent = originalText + ' (' + m + ':' + (s < 10 ? '0' : '') + s + ')';
+						}
+					}, 1000);
+				}
+			}
+		}, 50);
+	});
+})();
 </script>
 
-<!--{hook user_login_js.htm}-->
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>

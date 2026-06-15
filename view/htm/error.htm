@@ -1,0 +1,52 @@
+<?php $conf = G('conf');?>
+<?php $header = G('header');?>
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook error_start.htm}-->
+
+<div class="d-flex justify-content-center align-items-center" style="min-height:60vh">
+	<div class="text-center py-5" style="max-width:32rem">
+		<!--{hook error_icon_before.htm}-->
+		<div class="mb-3">
+			<i class="ti <?php echo $error_icon;?> text-primary" style="font-size:4.5rem;line-height:1"></i>
+		</div>
+		<!--{hook error_icon_after.htm}-->
+
+		<!--{hook error_number_before.htm}-->
+		<div class="text-muted" style="font-size:7rem;font-weight:700;line-height:1;letter-spacing:-0.03em;opacity:.25">
+			<?php echo intval($error_type);?>
+		</div>
+		<!--{hook error_number_after.htm}-->
+
+		<!--{hook error_title_before.htm}-->
+		<h4 class="mt-3 mb-2 fw-semibold">
+			<?php echo esc_html($error_title);?>
+		</h4>
+		<!--{hook error_title_after.htm}-->
+
+		<?php if(!empty($error_message)) { ?>
+		<!--{hook error_message_before.htm}-->
+		<p class="text-body-secondary mb-4">
+			<?php echo $error_message;?>
+		</p>
+		<!--{hook error_message_after.htm}-->
+		<?php } ?>
+
+		<!--{hook error_buttons_before.htm}-->
+		<div class="d-flex justify-content-center gap-2 mt-4">
+			<a href="./" class="btn btn-primary rounded-pill px-4">
+				<i class="ti ti-home me-1"></i><?php echo lang('back_to_home');?>
+			</a>
+			<a href="javascript:history.back()" class="btn btn-outline-secondary rounded-pill px-4">
+				<i class="ti ti-arrow-left me-1"></i><?php echo lang('back_to_prev');?>
+			</a>
+		</div>
+		<!--{hook error_buttons_after.htm}-->
+	</div>
+</div>
+
+<!--{hook error_end.htm}-->
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<!--{hook error_js.htm}-->

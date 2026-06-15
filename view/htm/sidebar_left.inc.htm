@@ -1,0 +1,45 @@
+<!--{hook sidebar_left_start.htm}-->
+<div class="d-none d-lg-block mb-3">
+	<div class="sidebar-left x-card card  overflow-hidden">
+		<!--{hook sidebar_left_quick_before.htm}-->
+		<!--{hook sidebar_left_quick_after.htm}-->
+		<!--{hook sidebar_left_forum_before.htm}-->
+		<?php
+		$_sidebar_nav_items = $conf['sidebar_nav_items'] ?? array();
+		if(!empty($_sidebar_nav_items)) {
+		?>
+		<div id="sidenav-menu">
+			<ul class="side-nav">
+				<!-- <li class="side-nav-title mt-2"><?php echo lang('navigation');?></li> -->
+			<?php usort($_sidebar_nav_items, function($a, $b) {
+				$ra = intval($a['rank'] ?? 0);
+				$rb = intval($b['rank'] ?? 0);
+				if ($ra !== $rb) return $ra - $rb;
+				$ta = ($a['type'] ?? 'link') === 'title' ? 0 : 1;
+				$tb = ($b['type'] ?? 'link') === 'title' ? 0 : 1;
+				return $ta - $tb;
+			}); ?>
+			<?php foreach($_sidebar_nav_items as $_sni) {
+				$_type = isset($_sni['type']) ? $_sni['type'] : 'link';
+				if ($_type === 'title') {
+			?>
+				<li class="side-nav-title"><?php echo esc_html($_sni['name']);?></li>
+			<?php
+				} else {
+			?>
+				<li class="side-nav-item" data-active="nav-<?php echo $_sni['slug'];?>">
+					<a href="<?php echo $_sni['url'];?>" class="side-nav-link">
+						<span class="menu-icon"><?php if(!empty($_sni['icon'])) { ?><i class="<?php echo $_sni['icon'];?>"></i><?php } else { ?><i class="ti ti-link"></i><?php } ?></span>
+						<span class="menu-text"><?php echo $_sni['name'];?></span>
+					</a>
+				</li>
+			<?php
+				}
+			} ?>
+			</ul>
+		</div>
+		<?php } ?>
+		<!--{hook sidebar_left_forum_after.htm}-->
+	</div>
+</div>
+<!--{hook sidebar_left_end.htm}-->

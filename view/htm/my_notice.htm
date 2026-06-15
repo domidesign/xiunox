@@ -1,0 +1,269 @@
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook my_common_start.htm}-->
+
+<?php $active_tab = 'notice'; ?>
+<?php include _include(APP_PATH.'view/htm/my.layout.inc.htm');?>
+
+		<!-- 通知内容区 -->
+		<div class="x-card card">
+<?php
+// 合并未读数（notify + notice）
+$_notify_unread = notify_count_unread($uid);
+$_notice_unread = notice_count_unread($uid);
+$_total_unread = $_notify_unread + $_notice_unread;
+
+// 操作文本映射
+function _notice_action_text($source, $type) {
+	if($source === 'notify') {
+		$map = array('like'=>'赞了你的帖子', 'reply'=>'回复了你的评论', 'follow'=>'关注了你', 'favorite'=>'收藏了你的帖子', 'thread'=>'发布了新帖', 'forum_post'=>'发布了新帖', 'mention'=>'提及了你');
+		return isset($map[$type]) ? $map[$type] : '通知了你';
+	}
+	$map = array(1=>'发布了公告', 2=>'评论了', 3=>'系统通知');
+	return isset($map[$type]) ? $map[$type] : '发送了通知';
+}
+?>
+
+<div class="d-flex justify-content-between align-items-center p-3 pb-0">
+	<h5 class="fw-bold mb-0"><?php echo lang('notice');?></h5>
+	<?php if($_total_unread > 0) { ?>
+	<a href="javascript:void(0);" class="btn btn-sm btn-outline-primary rounded-pill" id="notice-mark-all-read">
+		<i class="ti ti-checks me-1"></i><?php echo lang('mark_all_read');?>
+	</a>
+	<?php } ?>
+</div>
+
+<ul class="nav nav-tabs flex-nowrap  mb-3" id="noticeTab" role="tablist" style="gap:0.25rem">
+	<!--{hook my_nav_notice_before.htm}-->
+	<?php
+	$_type_str = (string)$type;
+	foreach ($notice_menu as $k=>$v) {
+		$_k_str = (string)$k;
+		$_is_active = ($_type_str === $_k_str);
+		if(($_type_str === '' || $_type_str === '0') && $_k_str === '0') $_is_active = true;
+	?>
+	<li class="nav-item" role="presentation">
+		<a class="nav-link rounded-pill px-3 <?php echo $_is_active ? 'active' : '';?>" href="<?php echo $v['url'];?>" data-notice-type="<?php echo htmlspecialchars($_k_str);?>">
+			<?php echo $v['name'];?>
+		</a>
+	</li>
+	<?php } ?>
+	<!--{hook my_nav_notice_after.htm}-->
+</ul>
+
+<div class="tab-content px-3 pb-3">
+	<?php if(!empty($noticelist)) { ?>
+	<div class="d-flex flex-column gap-2">
+		<?php foreach($noticelist as $_notice) {
+			$_is_unread = empty($_notice['is_read']);
+			$_is_reply = ($_notice['source'] === 'notify' && $_notice['type'] === 'reply');
+			$_action_text = _notice_action_text($_notice['source'], $_notice['type']);
+			$_from_uid = isset($_notice['from_uid']) ? intval($_notice['from_uid']) : 0;
+			$_from_gid = isset($_notice['from_gid']) ? intval($_notice['from_gid']) : 0;
+		?>
+		<div class="notice-card p-1 py-2 <?php echo $_is_unread ? 'notice-unread' : '';?>" id="notice-nid-<?php echo $_notice['nid'];?>" data-nid="<?php echo $_notice['nid'];?>" data-source="<?php echo $_notice['source'];?>">
+			<div class="d-flex gap-2">
+				<!-- 左侧头像 -->
+				<div class="flex-shrink-0">
+					<?php echo avatar_component_from_data($_notice['from_user_avatar_url'], 'md', '', '', $_from_gid);?>
+				</div>
+				<!-- 右侧内容区 -->
+				<div class="flex-fill" style="min-width:0">
+					<!-- 第一行：用户名+时间 | 已读+查看 -->
+					<div class="d-flex align-items-center justify-content-between gap-1 mb-1">
+						<div class="d-flex align-items-center gap-1">
+							<?php if($_from_uid > 0) { ?>
+							<a href="<?php echo url('user-'.$_from_uid);?>" class="fw-semibold text-decoration-none"><?php echo esc_html($_notice['from_username']);?></a>
+							<?php } else { ?>
+							<span class="fw-semibold"><?php echo esc_html($_notice['from_username']);?></span>
+							<?php } ?>
+							<span class="text-body-secondary small"><?php echo $_notice['create_date_fmt'];?></span>
+						</div>
+						<div class="d-flex align-items-center gap-1 flex-shrink-0">
+							<?php if($_is_unread) { ?>
+							<button type="button" class="btn btn-sm btn-link text-decoration-none p-0 notice-card-mark-read" data-nid="<?php echo $_notice['nid'];?>" data-source="<?php echo $_notice['source'];?>" title="<?php echo lang('mark_as_read');?>">
+								<i class="ti ti-check"></i>
+							</button>
+							<?php } ?>
+							<?php if(!empty($_notice['url'])) { ?>
+							<a href="<?php echo $_notice['url'];?>" class="btn btn-sm btn-link text-decoration-none p-0 notice-card-view" data-nid="<?php echo $_notice['nid'];?>" data-source="<?php echo $_notice['source'];?>" title="<?php echo lang('view');?>">
+								<i class="ti ti-external-link"></i>
+							</a>
+							<?php } ?>
+						</div>
+					</div>
+					<!-- 第二行：操作描述 + 帖子链接 -->
+					<div class="small mb-1">
+						<span class="<?php echo $_is_unread ? 'fw-medium' : 'text-body-secondary';?>"><?php echo esc_html($_action_text);?></span>
+						<?php if(!empty($_notice['thread_subject'])) { ?>
+						<a href="<?php echo !empty($_notice['url']) ? $_notice['url'] : '#';?>" class="text-decoration-none ms-1 notice-card-thread-link" data-nid="<?php echo $_notice['nid'];?>" data-source="<?php echo $_notice['source'];?>">「<?php echo esc_html(mb_strlen($_notice['thread_subject']) > 30 ? mb_substr($_notice['thread_subject'], 0, 30).'...' : $_notice['thread_subject']);?>」</a>
+						<?php } ?>
+					</div>
+					<?php if($_is_reply) { ?>
+					<!-- 第三行：你的评论内容 -->
+					<?php if(!empty($_notice['quote_content'])) { ?>
+					<div class="small text-body-secondary bg-body-tertiary rounded px-2 py-1 mb-1" style="font-size:0.8rem">
+						<?php echo esc_html(mb_strlen($_notice['quote_content']) > 80 ? mb_substr($_notice['quote_content'], 0, 80).'...' : $_notice['quote_content']);?>
+					</div>
+					<?php } ?>
+					<!-- 第四行：回复内容 -->
+					<?php if(!empty($_notice['content'])) { ?>
+					<div class="small bg-primary bg-opacity-10 rounded px-2 py-1" style="font-size:0.8rem">
+						<?php echo esc_html(mb_strlen(strip_tags($_notice['content'])) > 80 ? mb_substr(strip_tags($_notice['content']), 0, 80).'...' : strip_tags($_notice['content']));?>
+					</div>
+					<?php } ?>
+					<?php } elseif(!empty($_notice['content']) && $_notice['source'] === 'notify' && in_array($_notice['type'], array('mention', 'forum_post'))) { ?>
+					<div class="small text-body-secondary" style="font-size:0.8rem">
+						<?php echo esc_html(mb_strlen(strip_tags($_notice['content'])) > 80 ? mb_substr(strip_tags($_notice['content']), 0, 80).'...' : strip_tags($_notice['content']));?>
+					</div>
+					<?php } elseif($_notice['source'] === 'notice') { ?>
+					<div class="small text-body-secondary" style="font-size:0.8rem">
+						<?php echo strip_tags($_notice['message'], '<a>');?>
+					</div>
+					<?php } ?>
+				</div>
+			</div>
+		</div>
+		<?php } ?>
+	</div>
+	<?php if($pagination) { ?>
+	<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap mt-3"><?php echo $pagination; ?></ul></nav>
+	<?php } ?>
+	<?php } else { ?>
+	<div class="text-center text-body-secondary py-5">
+		<i class="ti ti-bell-off fs-1 d-block mb-2 opacity-50"></i>
+		<?php echo lang('notice_my_nomessage');?>
+	</div>
+	<?php } ?>
+</div>
+
+		</div>
+	</div>
+
+	<!-- 右侧空栏 -->
+	<div class="d-none d-lg-block col-lg-3"></div>
+</div>
+
+<!--{hook my_common_end.htm}-->
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<!--{hook my_notice_js.htm}-->
+
+<script>
+// 兜底：根据当前 URL 确保正确的 tab 处于 active 状态
+(function() {
+	var tab = document.getElementById('noticeTab');
+	if(!tab) return;
+	var links = tab.querySelectorAll('a[data-notice-type]');
+	var currentPath = window.location.pathname + window.location.search;
+	var currentClean = currentPath.replace(/\.htm$/, '');
+	var currentLast = currentClean.split('/').pop();
+	var matched = null;
+	links.forEach(function(a) {
+		var hrefClean = a.getAttribute('href').replace(/\.htm$/, '');
+		var hrefLast = hrefClean.split('/').pop();
+		if(currentLast === hrefLast && hrefClean.indexOf('my-notice') !== -1) {
+			matched = a;
+		}
+	});
+	if(matched) {
+		links.forEach(function(a) { a.classList.remove('active'); });
+		matched.classList.add('active');
+	}
+})();
+
+// 标已读辅助
+(function() {
+	var csrfToken = document.querySelector('meta[name="csrf-token"]');
+	var token = csrfToken ? csrfToken.getAttribute('content') : '';
+
+	function markRead(nid, source, card) {
+		var markUrl, data;
+		if(source === 'notify') {
+			markUrl = '<?php echo str_replace(".htm", "", url("my-notify_read"));?>' + '-' + nid + '.htm';
+			data = 'csrf_token=' + encodeURIComponent(token);
+		} else {
+			markUrl = '<?php echo url("notice-mark_read");?>';
+			data = 'csrf_token=' + encodeURIComponent(token) + '&notice_id=' + encodeURIComponent(nid);
+		}
+		var xhr = new XMLHttpRequest();
+		xhr.open('POST', markUrl, true);
+		xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+		xhr.onreadystatechange = function() {
+			if(xhr.readyState !== 4) return;
+			try {
+				var json = JSON.parse(xhr.responseText);
+				if(parseInt(json.code) === 0 && card) {
+					card.classList.remove('notice-unread');
+					var markBtn = card.querySelector('.notice-card-mark-read');
+					if(markBtn) markBtn.remove();
+					var badge = document.getElementById('notice-badge');
+					if(badge && json.unread_count !== undefined && parseInt(json.unread_count) === 0) {
+						badge.innerHTML = '';
+					}
+				}
+			} catch(e) {
+				console.error('markRead parse error', e, xhr.responseText);
+			}
+		};
+		xhr.send(data);
+	}
+
+	// 统一处理：点击卡片内任何元素都自动标已读
+	document.addEventListener('click', function(e) {
+		var card = e.target.closest('.notice-card');
+		if(!card || !card.classList.contains('notice-unread')) return;
+		var nid = card.getAttribute('data-nid');
+		var source = card.getAttribute('data-source');
+		if(!nid) return;
+
+		// 标记已读
+		markRead(nid, source, card);
+
+		// 如果点击的是帖子链接或查看按钮，需要跳转
+		var threadLink = e.target.closest('.notice-card-thread-link');
+		var viewBtn = e.target.closest('.notice-card-view');
+		if(threadLink || viewBtn) {
+			var href = (threadLink || viewBtn).getAttribute('href');
+			if(href && href !== '#' && href !== 'javascript:;') {
+				e.preventDefault();
+				window.location.href = href;
+			}
+		}
+	});
+
+	// 全部标为已读
+	document.addEventListener('click', function(e) {
+		var btn = e.target.closest('#notice-mark-all-read');
+		if(!btn) return;
+		e.preventDefault();
+		var data = 'csrf_token=' + encodeURIComponent(token) + '&act=readall&uid=<?php echo intval($uid);?>';
+		var xhr = new XMLHttpRequest();
+		xhr.open('POST', '<?php echo url("my-notice");?>', true);
+		xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+		xhr.onreadystatechange = function() {
+			if(xhr.readyState !== 4) return;
+			try {
+				var json = JSON.parse(xhr.responseText);
+				if(parseInt(json.code) === 0) {
+					document.querySelectorAll('.notice-card.notice-unread').forEach(function(el) {
+						el.classList.remove('notice-unread');
+						var markBtn = el.querySelector('.notice-card-mark-read');
+						if(markBtn) markBtn.remove();
+					});
+					btn.remove();
+					var badge = document.getElementById('notice-badge');
+					if(badge) badge.innerHTML = '';
+					if(typeof showToast === 'function') showToast('<?php echo lang('all_marked_as_read');?>', 'success');
+				} else {
+					if(typeof showToast === 'function') showToast(json.message || '<?php echo lang('operation_failed');?>', 'danger');
+				}
+			} catch(e) {
+				console.error('markAllRead parse error', e, xhr.responseText);
+			}
+		};
+		xhr.send(data);
+	});
+})();
+</script>

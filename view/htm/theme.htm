@@ -1,0 +1,90 @@
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook theme_start.htm}-->
+
+<div class="d-flex gap-4">
+	<div class="d-none d-lg-block" style="width:16.666%">
+		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm'); ?>
+	</div>
+	<div class="flex-fill" style="min-width:0">
+		<div class="x-card card">
+			<div class="card-body">
+				<h3 class="card-title"><i class="ti ti-palette"></i> <?php echo lang('theme_settings');?></h3>
+				<p class="text-body-secondary small mb-4"><?php echo lang('theme_settings_desc');?></p>
+
+				<div class="d-grid gap-4" style="grid-template-columns:1fr 1fr;">
+					<?php foreach(array('light', 'dark') as $theme) { ?>
+					<div class="position-relative border overflow-hidden rounded-1 <?php echo $theme == $current_theme ? 'border-primary' : 'border-secondary';?>" data-theme-name="<?php echo $theme;?>" onclick="selectTheme('<?php echo $theme;?>')" style="cursor:pointer">
+						<div data-bs-theme="<?php echo $theme;?>" class="bg-body text-body w-100">
+							<div class="d-grid" style="grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(3,1fr);">
+								<div class="bg-body-secondary" style="grid-column-start:1;grid-row:span 2;grid-row-start:1"></div>
+								<div class="bg-body-tertiary" style="grid-column-start:1;grid-row-start:3"></div>
+								<div class="bg-body d-flex flex-column gap-1 p-2" style="grid-column:span 4;grid-column-start:2;grid-row:span 3;grid-row-start:1">
+									<div class="fw-bold"><?php echo $theme === 'light' ? lang('theme_light') : lang('theme_dark');?></div>
+									<div class="d-flex flex-wrap gap-1">
+										<div class="bg-primary d-flex align-items-center justify-content-center rounded theme-swatch"><div class="text-white small fw-bold">A</div></div>
+										<div class="bg-secondary d-flex align-items-center justify-content-center rounded theme-swatch"><div class="text-white small fw-bold">A</div></div>
+										<div class="bg-success d-flex align-items-center justify-content-center rounded theme-swatch"><div class="text-white small fw-bold">A</div></div>
+										<div class="bg-dark d-flex align-items-center justify-content-center rounded theme-swatch"><div class="text-white small fw-bold">A</div></div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<?php if($theme == $current_theme) { ?>
+						<div class="position-absolute top-0 end-0 m-2"><span class="badge bg-primary "><i class="ti ti-check" style="font-size:.75rem"></i></span></div>
+						<?php } ?>
+					</div>
+					<?php } ?>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="d-none d-lg-block" style="width:25%">
+		<?php include _include(APP_PATH.'view/htm/sidebar_right.inc.htm'); ?>
+	</div>
+</div>
+
+<!--{hook theme_end.htm}-->
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+function selectTheme(theme) {
+	document.documentElement.setAttribute('data-bs-theme', theme);
+	localStorage.setItem('theme', theme);
+
+	document.querySelectorAll('[data-theme-name]').forEach(function(card) {
+		card.classList.remove('border-primary');
+		card.classList.add('border-secondary');
+		var badge = card.querySelector('.badge');
+		if(badge) badge.parentElement.remove();
+	});
+
+	var activecard= document.querySelector('[data-theme-name="' + theme + '"]');
+	if(activeCard) {
+		activeCard.classList.remove('border-secondary');
+		activeCard.classList.add('border-primary');
+		var inner = activeCard.querySelector('[data-bs-theme]');
+		if(inner && !activeCard.querySelector('.badge')) {
+			var div = document.createElement('div');
+			div.className = 'position-absolute top-0 end-0 m-2';
+			div.innerHTML = '<span class="badge bg-primary "><i class="ti ti-check" style="font-size:.75rem"></i></span>';
+			activeCard.appendChild(div);
+		}
+	}
+
+	var iconLight = document.getElementById('theme-icon-light');
+	var iconDark = document.getElementById('theme-icon-dark');
+	if(iconLight && iconDark) {
+		if(theme === 'dark') {
+			iconLight.classList.add('d-none');
+			iconDark.classList.remove('d-none');
+		} else {
+			iconLight.classList.remove('d-none');
+			iconDark.classList.add('d-none');
+		}
+	}
+
+	$.xpost('<?php echo url("theme");?>', {theme: theme}, function(code, msg) {});
+}
+</script>

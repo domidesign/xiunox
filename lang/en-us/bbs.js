@@ -1,14 +1,14 @@
 var lang = {
 	'warning': 'Warning',
-	'tips_title': 'Tips：',
+	'tips_title': 'Tips:',
 	'confirm': 'Confirm',
 	'confirm_title': 'Please confirm',
-	'confirm_delete': 'Confirm delete？',
+	'confirm_delete': 'Confirm delete?',
 	'close': 'Close',
 	'yes': 'Yes',
 	'no': 'No',
 	'open': 'Open',
-	'close': 'Close',
+	'loading': 'Loading...',
 	
 	// hook lang_en_us_bbs_js.htm
 	

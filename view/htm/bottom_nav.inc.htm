@@ -1,0 +1,93 @@
+<?php
+// 底部导航"发现"项：固定链接到发现页面
+?>
+<nav class="bottom-nav" id="mobileTabbar">
+	<a href="<?php echo url('index');?>" class="bottom-nav-item" data-nav="home">
+		<i class="ti ti-smart-home"></i>
+		<span><?php echo lang('index_page');?></span>
+	</a>
+	<a href="<?php echo url('forums');?>" class="bottom-nav-item" data-nav="forum">
+		<i class="ti ti-category"></i>
+		<span><?php echo lang('forum');?></span>
+	</a>
+	<?php if(!empty($uid)) { ?>
+	<a href="<?php echo url('thread-create-'.$fid);?>" class="bottom-nav-item" data-nav="create" hx-boost="false">
+		<i class="ti ti-circle-plus"></i>
+		<span><?php echo lang('thread_create');?></span>
+	</a>
+	<?php } else { ?>
+	<a href="<?php echo url('user-login');?>" class="bottom-nav-item" data-nav="create">
+		<i class="ti ti-circle-plus"></i>
+		<span><?php echo lang('thread_create');?></span>
+	</a>
+	<?php } ?>
+	<a href="<?php echo url('more');?>" class="bottom-nav-item" data-nav="discover">
+		<i class="ti ti-compass"></i>
+		<span><?php echo lang('discover');?></span>
+	</a>
+	<?php if(!empty($uid)) { ?>
+	<a href="<?php echo url('my');?>" class="bottom-nav-item" data-nav="me">
+		<i class="ti ti-user"></i>
+		<span><?php echo lang('my');?></span>
+	</a>
+	<?php } else { ?>
+	<a href="<?php echo url('user-login');?>" class="bottom-nav-item" data-nav="me">
+		<i class="ti ti-user"></i>
+		<span><?php echo lang('login');?></span>
+	</a>
+	<?php } ?>
+</nav>
+<script>
+(function() {
+	var tabbar = document.getElementById('mobileTabbar');
+	if (!tabbar) return;
+
+	var items = tabbar.querySelectorAll('.bottom-nav-item');
+	var path = window.location.pathname + window.location.search;
+
+	// 图标映射：普通 → 填充
+	var iconMap = {
+		'ti-home': 'ti-home-filled',
+		'ti-category': 'ti-category-filled',
+		'ti-circle-plus': 'ti-circle-plus-filled',
+		'ti-compass': 'ti-compass-filled',
+		'ti-user': 'ti-user-filled'
+	};
+
+	function setActive(item) {
+		item.classList.add('active');
+		// 替换为填充图标
+		var icon = item.querySelector('i');
+		if (icon) {
+			for (var normal in iconMap) {
+				if (icon.classList.contains(normal)) {
+					icon.classList.remove(normal);
+					icon.classList.add(iconMap[normal]);
+					break;
+				}
+			}
+		}
+	}
+
+	var matched = false;
+	items.forEach(function(item) {
+		var nav = item.getAttribute('data-nav');
+		if (!nav) return;
+
+		var isHome = (nav === 'home') && (path === '/' || path === '/index.php' || path.indexOf('index') > -1 || path === './');
+		var isForum = (nav === 'forum') && /forums/i.test(path);
+		var isCreate = (nav === 'create') && /thread-create/i.test(path);
+		var isDiscover = (nav === 'discover') && /more/i.test(path);
+		var isMe = (nav === 'me') && (/my/i.test(path) && !/my-notice/i.test(path));
+
+		if (isHome || isForum || isCreate || isDiscover || isMe) {
+			setActive(item);
+			matched = true;
+		}
+	});
+
+	if (!matched) {
+		setActive(items[0]);
+	}
+})();
+</script>

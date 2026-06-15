@@ -3,9 +3,9 @@
 		<ul class="list-unstyled threadlist">
 			<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm'); ?>
 		</ul>
-		
+
 		<?php if($pagination) { ?>
-		<nav><ul class="pagination justify-content-center"><?php echo $pagination; ?></ul></nav>
+		<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap"><?php echo $pagination; ?></ul></nav>
 		<?php } ?>
 	</slot>
 </template>

@@ -9,30 +9,50 @@
 	<meta name="description" content="" />
 	<meta name="renderer" content="webkit" />
 	<title><?php echo lang('install_title');?></title>
-	
+
 	<link rel="shortcut icon" href="../view/img/favicon.ico" />
 	<link rel="icon" sizes="32x32" href="../view/img/favicon.ico">
 	<link rel="Bookmark" href="../view/img/favicon.ico" />
-	<link rel="stylesheet" href="../view/css/bootstrap.css">
-	<link rel="stylesheet" href="../view/css/bootstrap-icon.css">
-	<link rel="stylesheet" href="../view/css/bootstrap-bbs.css">
+	<link href="../view/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+	<link rel="stylesheet" href="../view/vendor/tabler-icons/tabler-icons.min.css">
+	<style>
+	body { background: #f5f5f5; }
+	.install-wrap { max-width: 960px; margin: 2rem auto; }
+	</style>
 </head>
 
 <body>
-	<div id="wrapper">
-	
-		<nav class="navbar navbar-expand-md navbar-dark bg-dark" id="header">
-			<!-- pc navigation -->
-			<div class="container collapse navbar-toggleable-md">
-				<ul class="navnavbar navbar-nav" id="nav_pc">
-					<li class="nav-item">
-						<img src="../view/img/logo.png" class="logo-2">
-					</li>
-					<li class="nav-item">
-						<h4 class="mt-1 nav-link">Xiuno BBS <small class="text-danger">v<?php echo $conf['version'];?></small> <?php echo lang('install_guide');?></h4>
-					</li>
-				</ul>
+	<div class="install-wrap">
+
+		<nav class="navbar navbar-dark bg-dark rounded mb-3 px-3" id="header">
+			<div class="container-fluid px-0">
+				<img src="../view/img/logo.png" class="h-8" style="height:32px">
+				<h4 class="mt-1 text-light mb-0" style="font-size:1.1rem">XIUNOX <small class="text-danger">v<?php echo $conf['version'];?></small> <?php echo lang('install_guide');?></h4>
 			</div>
 		</nav>
-		
-		<div id="body" class="container">
+
+		<div class="container-fluid px-0">
+<?php
+$step = isset($step) ? $step : 1;
+$steps = array(
+    1 => lang('step_lang') ?? '选择语言',
+    2 => lang('step_license') ?? '许可协议',
+    3 => lang('step_env') ?? '环境检测',
+    4 => lang('step_config') ?? '数据库配置',
+);
+?>
+<div class="x-card  cardrounded-3 mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex justify-content-between align-items-center">
+            <?php foreach($steps as $n => $label) { ?>
+                <div class="text-center flex-fill">
+                    <div class="d-inline-flex align-items-center justify-content-center rounded-circle <?php echo $n < $step ? 'bg-success' : ($n == $step ? 'bg-primary' : 'bg-secondary'); ?>" style="width:28px;height:28px;color:#fff;font-size:0.85rem;font-weight:600"><?php echo $n < $step ? '✓' : $n; ?></div>
+                    <div class="small mt-1 <?php echo $n == $step ? 'fw-bold text-primary' : 'text-body-secondary'; ?>"><?php echo $label; ?></div>
+                </div>
+                <?php if($n < 4) { ?>
+                    <div class="flex-shrink-0" style="width:40px"><hr class="my-0 <?php echo $n < $step ? 'border-success' : ''; ?>"></div>
+                <?php } ?>
+            <?php } ?>
+        </div>
+    </div>
+</div>

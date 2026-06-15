@@ -2,18 +2,21 @@
 
 <!--{hook message_start.htm}-->
 
-<div class="row">
-	<div class="col-lg-8 mx-auto">
-		<div class="card mt-4">
-			<div class="card-body">
-				<h4 class="card-title text-center mb-0">
-					<i class="icon-<?php echo $code == 0 ? 'ok' : 'warning-sign'; ?>"></i> 
-					<!--{hook message_message_before.htm}-->
-					<?php echo is_array($message) ? print_r($message, 1) : $message;?>
-					<!--{hook message_message_after.htm}-->
-				</h4>
-				<!--{hook message_title_after.htm}-->
-			</div>
+<div class="d-flex justify-content-center py-5">
+	<div class="w-100" style="max-width:32rem">
+		<div class="alert <?php echo $code == 0 ? 'alert-success' : 'alert-danger';?> rounded-1 d-flex align-items-center gap-2" role="alert">
+			<i class="ti ti-<?php echo $code == 0 ? 'circle-check' : 'alert-triangle';?> fs-3 flex-shrink-0"></i>
+			<span class="fs-5 fw-medium">
+				<!--{hook message_message_before.htm}-->
+				<?php echo is_array($message) ? print_r($message, 1) : $message;?>
+				<!--{hook message_message_after.htm}-->
+			</span>
+			<!--{hook message_title_after.htm}-->
+		</div>
+		<div class="text-center mt-3">
+			<a href="javascript:history.back()" class="btn btn-outline-secondary ">
+				<i class="ti ti-arrow-left me-1"></i><?php echo lang('back');?>
+			</a>
 		</div>
 	</div>
 </div>

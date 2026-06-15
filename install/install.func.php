@@ -8,12 +8,24 @@ function get_env(&$env, &$write) {
 	$env['os']['status'] = 1;
 	// glob gzip
 	//$env['os']['disable'] = 1;
-	
+
 	$env['php_version']['name'] = lang('php_version');
 	$env['php_version']['must'] = TRUE;
 	$env['php_version']['current'] = PHP_VERSION;
-	$env['php_version']['need'] = '5.0';
-	$env['php_version']['status'] = version_compare(PHP_VERSION , '5') > 0;
+	$env['php_version']['need'] = '8.0';
+	$env['php_version']['status'] = version_compare(PHP_VERSION, '8.0.0', '>=');
+
+	$env['pdo_mysql']['name'] = 'pdo_mysql';
+	$env['pdo_mysql']['must'] = TRUE;
+	$env['pdo_mysql']['current'] = extension_loaded('pdo_mysql') ? lang('supported') : lang('not_supported');
+	$env['pdo_mysql']['need'] = lang('required');
+	$env['pdo_mysql']['status'] = extension_loaded('pdo_mysql') ? 1 : 0;
+
+	$env['gd']['name'] = 'GD';
+	$env['gd']['must'] = FALSE;
+	$env['gd']['current'] = extension_loaded('gd') ? lang('supported') : lang('not_supported');
+	$env['gd']['need'] = lang('recommended');
+	$env['gd']['status'] = extension_loaded('gd') ? 1 : 2;
 
 	// 目录可写
 	$writedir = array(
@@ -39,7 +51,6 @@ function install_sql_file($sqlfile) {
 	foreach ($arr as $sql) {
 		$sql = trim($sql);
 		if(empty($sql)) continue;
-		$arr = explode(";\n", $s);
 		db_exec($sql) === FALSE AND message(-1, "sql: $sql, errno: $errno, errstr: $errstr");
 	}
 }

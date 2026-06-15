@@ -1,7 +1,7 @@
 <?php
 
 return array(
-	'installed_tips' => '程序已經安裝過了，如需重新安裝，請刪除 conf/conf.php ！',
+	'installed_tips' => '程序已經安裝過了，如需重新安裝，請刪除 conf/conf.php 和 install/install.lock ！',
 	'please_set_conf_file_writable' => '請設置 conf/conf.php 文件為可寫！',
 	'evn_not_support_php_mysql' => '當前 PHP 環境不支持 mysql 和 pdo_mysql，無法繼續安裝。',
 	'dbhost_is_empty' => '數據庫主機不能為空',
@@ -39,17 +39,16 @@ return array(
 	'admin_username' => '管理員用戶名',
 	'admin_pw' => '管理員密碼',
 	'installing_about_moment' => '正在安裝，大概需要壹分鐘左右',
-	'license_title' => 'Xiuno BBS 4.0 中文版授權協議',
-	'license_content' => '感謝您選擇 Xiuno BBS 4.0，它是壹款國產、小巧、穩定、支持在大數據量下仍然保持高負載能力的輕型論壇。它只有 20 多個表，源代碼壓縮後 1M 左右，運行速度非常快，處理單次請求在 0.01 秒級別，在有 APC、XCache、Yac 的環境下可以跑到 0.00x 秒，對第三方類庫依賴極少，僅僅前端依賴 jquery.js，作者認為它就像壹輛純手工打造的法拉利，動力強勁，沒有壹絲贅肉，方便部署和維護，是壹個非常好的二次開發的基石。
-	
-Xiuno BBS 4.0 采用 Bootstrap 4 + JQuery 3 作為前端類庫，全面支持移動端瀏覽器；後端 XiunoPHP 4.0 支持了 NoSQL 的方式操作各種數據庫，這個版本是壹個巨大的飛躍。
-	
-Xiuno 發音“修羅”，英文為 Shura，在佛教裏面為六道之壹"修羅道"，處於人道和天道之間。
+	'license_title' => 'XIUNOX 授權協議',
+	'license_content' => '感謝您選擇 XIUNOX，它是一款現代化、輕量、穩定的論壇系統。基於 Bootstrap 5.3 + htmx 4 架構，全面支持移動端瀏覽器，後端採用 PHP 8.0+，支持 InnoDB 引擎和 utf8mb4 字符集，對第三方類庫依賴極少，方便部署和維護，是一個非常好的二次開發基石。
 
-Xiuno BBS 4.0 采用 MIT 協議發布，您可以自由修改、派生版本、商用而不用擔心任何法律風險（修改後應保留原來的版權信息）。',
-	'license_date' => '發布時間：2016年7月26日',
+XIUNOX 採用 MIT 協議發布，您可以自由修改、派生版本、商用而不用擔心任何法律風險（修改後應保留原來的版權信息）。',
+	'license_date' => '發布時間：2026年',
 	'agree_license_to_continue' => '同意協議繼續安裝',
-	'install_title' => 'Xiuno BBS 4.0 安裝向導',
+	'license_read_hint' => '請下滑閱讀完整協議內容',
+	'license_countdown_text' => '請認真閱讀協議內容',
+	'license_ready' => '閱讀完畢，請勾選同意',
+	'install_title' => 'XIUNOX 安裝向導',
 	'install_guide' => '安裝向導',
 
 	'function_check' => '函數依賴檢查',
@@ -58,8 +57,26 @@ Xiuno BBS 4.0 采用 MIT 協議發布，您可以自由修改、派生版本、�
 	'function_glob_not_exists' => '後臺插件功能依賴該函數，請配置 php.ini，設置 disabled_functions = ; 去除對該函數的限制',
 	'function_gzcompress_not_exists' => '後臺插件功能依賴該函數，Linux 主機請添加編譯參數 --with-zlib，Windows 主機請配置 php.ini 註釋掉  extension=php_zlib.dll',
 	'function_mb_substr_not_exists' => '系統依賴該函數，Linux 主機請添加編譯參數 --with-mbstring，Windows 主機請配置 php.ini 註釋掉 extension=php_mbstring.dll',
-	
+
+	'optional' => '可選',
+	'recommended' => '推薦',
+
 	// hook lang_zh_tw_bbs_admin.php
+
+	'step_lang' => '選擇語言',
+	'step_license' => '許可協議',
+	'step_env' => '環境檢測',
+	'step_config' => '數據庫配置',
+	'install_success' => '安裝成功！',
+	'visit_site' => '訪問站點',
+
+	'admin_username_is_empty' => '管理員用戶名不能為空',
+	'admin_password_is_empty' => '管理員密碼不能為空',
+	'admin_password_too_short' => '管理員密碼至少6個字符',
+	'admin_email_is_empty' => '管理員郵箱不能為空',
+	'admin_email_invalid' => '管理員郵箱格式不正確',
+
+	'db_already_exists_confirm' => '數據庫中已存在 Xiuno BBS 的表，繼續安裝將清空所有數據！點擊確定繼續，取消返回修改。',
 );
 
 ?>

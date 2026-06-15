@@ -2,75 +2,160 @@
 					empty($allowupdate) AND $allowupdate = 0;
 					empty($allowdelete) AND $allowdelete = 0;
 					empty($allowpost) AND $allowpost = 0;
+					empty($reply_map) AND $reply_map = array();
+					// 回复删除安全配置
+					if(!isset($sec_allow_delete_reply)) {
+						include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+						$sec_allow_delete_reply = SecurityConfigService::get('security_allow_delete_reply', 0);
+					}
 				?>
 				<!--{hook post_list_inc_start.htm}-->
 
 				<?php if($postlist) { foreach($postlist as $_post) { ?>
-					<li class="media <?php echo $_post['classname'];?>" data-pid="<?php echo $_post['pid'];?>" data-uid="<?php echo $_post['uid'];?>">
-						<a href="<?php echo url("user-$_post[uid]");?>" class="mr-3" tabindex="-1">
-							<img class="avatar-3" src="<?php echo $_post['user_avatar_url'];?>">
-						</a>
+					<li class="d-flex <?php echo $_post['classname'];?>" data-pid="<?php echo $_post['pid'];?>" data-uid="<?php echo $_post['uid'];?>">
+						<div class="me-3 flex-shrink-0">
+							<a href="<?php echo url("user-$_post[uid]");?>" tabindex="-1">
+								<?php echo avatar_component_from_data($_post['user_avatar_url'], 'md', isset($_post['group_icon_class']) ? $_post['group_icon_class'] : '', isset($_post['group_color']) ? $_post['group_color'] : '', isset($_post['gid']) ? $_post['gid'] : 0);?>
+							</a>
+						</div>
 						<!--{hook post_list_inc_avatar_after.htm}-->
-						<div class="media-body">
-							<div class="d-flex justify-content-between small text-muted">
-								<div>
-									<!--{hook post_list_inc_username_before.htm}-->
-									<span class="username">
-										<a href="<?php echo url("user-$_post[uid]");?>" class="text-muted font-weight-bold"><?php echo $_post['username'];?></a>
-									</span>
-									<!--{hook post_list_inc_username_after.htm}-->
-									
-									<!--{hook post_list_inc_create_date_before.htm}-->
-									<span class="date text-grey ml-2"><?php echo $_post['create_date_fmt'];?></span>
-									<!--{hook post_list_inc_create_date_after.htm}-->
-								</div>
-								<div class="text-right text-grey">
-									<!--{hook post_list_inc_quote_before.htm}-->
-									<?php if($allowpost) { ?>
-									<a href="javascript:void(0)" data-tid="<?php echo $_post['tid'];?>" data-pid="<?php echo $_post['pid'];?>" class="text-grey post_reply mr-3"><i class="icon-reply" title="<?php echo lang('quote');?>"></i> <span class="d-none"><?php echo lang('quote');?></span></a>
-									<?php } ?>
-									<!--{hook post_list_inc_quote_after.htm}-->
-									
-									<!--{hook post_list_inc_update_before.htm}-->
-									<?php if($allowupdate || $_post['allowupdate']) { ?>
-									<a href="<?php echo url("post-update-$_post[pid]");?>" class="text-grey post_update mr-3"><i class="icon-edit" title="<?php echo lang('edit');?>"></i> <span class="d-none"><?php echo lang('edit');?></span></a>
-									<?php } ?>
-									<!--{hook post_list_inc_update_after.htm}-->
-								
-									<!--{hook post_list_inc_delete_before.htm}-->
-									<?php if($allowdelete || $_post['allowdelete']) { ?>
-									<a data-href="<?php echo url("post-delete-$_post[pid]");?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-grey post_delete _confirm mr-3"><i class="icon-remove" title="<?php echo lang('delete');?>"></i> <span class="d-none"><?php echo lang('delete');?></span></a>
-									<?php } ?>
-									<!--{hook post_list_inc_delete_after.htm}-->
-									
-									<!--{hook post_list_inc_floor_before.htm}-->
-									<?php if($_post['floor']) { ?>
-									<span class="floor-parent">
-										<span class="floor mr-0"><?php echo $_post['floor'];?></span><?php echo lang('floor');?>
-									</span>
-									<?php } ?>
-									<!--{hook post_list_inc_floor_after.htm}-->
-								</div>
+						<div class="flex-fill" style="min-width:0">
+							<div class="small text-body-secondary">
+								<!--{hook post_list_inc_username_before.htm}-->
+								<span class="username">
+									<a href="<?php echo url("user-$_post[uid]");?>" class="text-body-secondary fw-semibold"><?php echo $_post['username'];?></a>
+								</span>
+								<?php if(isset($_post['audit_status']) && $_post['audit_status'] == 0): ?>
+								<span class="badge bg-warning text-dark ms-1" style="font-size:0.65em"><?php echo lang('pending_audit');?></span>
+								<?php endif; ?>
+								<!--{hook post_list_inc_username_after.htm}-->
 							</div>
+
 							<div class="message mt-1 break-all">
-							
+
 								<!--{hook post_list_inc_subject_before.htm}-->
 								<?php if(!empty($_post['subject'])) { ?>
 									<h6><a href="<?php echo url("thread-$_post[tid]");?>" target="_blank"><?php echo $_post['subject'];?></a></h6>
 								<?php } ?>
 								<!--{hook post_list_inc_subject_after.htm}-->
-								
+
 								<!--{hook post_list_inc_message_before.htm}-->
 								<?php echo $_post['message_fmt'];?>
 								<!--{hook post_list_inc_message_after.htm}-->
-								
+
 								<!--{hook post_list_inc_filelist_before.htm}-->
-								<?php echo post_file_list_html($_post['filelist']);?>
+								<?php echo post_file_list_html($_post['filelist'], FALSE, $_post['imagelist'], $_post['videolist']);?>
 								<!--{hook post_list_inc_filelist_after.htm}-->
-								
+
 							</div>
+
+							<div class="d-flex justify-content-between align-items-center mt-2 small text-body-secondary">
+								<div class="d-flex align-items-center">
+									<!--{hook post_list_inc_create_date_before.htm}-->
+									<span class="date text-body-secondary"><?php echo $_post['create_date_fmt'];?></span>
+									<!--{hook post_list_inc_create_date_after.htm}-->
+									<?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] == 0)) && (empty($uid) || $gid > 5)) { ?>
+									<!-- 关闭/审核中帖子：隐藏点赞按钮 -->
+									<?php } elseif(empty($uid)) { ?>
+									<a href="<?php echo url('user-login');?>" class="post-like-btn text-body-secondary ms-3 text-decoration-none">
+										<i class="ti ti-heart"></i>
+										<span class="like-count"><?php echo intval($_post['likes']);?></span>
+									</a>
+									<?php } else { ?>
+									<span class="post-like-btn cursor-pointer text-body-secondary ms-3" hx-post="<?php echo url('thread-like-'.$tid.'-'.$_post['pid']);?>" hx-vals='{"_ctx":"post"}' hx-target="this" hx-swap="outerHTML" hx-ext="hx-optimistic" hx-optimistic>
+										<i class="ti <?php echo !empty($_post['is_liked']) ? 'ti-heart-filled text-danger' : 'ti-heart';?>"></i>
+										<span class="like-count"><?php echo intval($_post['likes']);?></span>
+									</span>
+									<?php } ?>
+								</div>
+								<div class="d-flex align-items-center gap-2">
+									<!--{hook post_list_inc_quote_before.htm}-->
+									<?php if($allowpost && (empty($thread['closed']) || $gid <= 5) && (empty($thread['audit_status']) || $thread['audit_status'] != 0 || $gid <= 5)) { ?>
+									<a href="javascript:void(0)" data-tid="<?php echo $_post['tid'];?>" data-pid="<?php echo $_post['pid'];?>" data-username="<?php echo $_post['username'];?>" class="text-body-secondary post_reply"><i class="ti ti-message-2"></i> <?php echo lang('reply');?></a>
+									<?php } ?>
+									<!--{hook post_list_inc_quote_after.htm}-->
+
+									<!--{hook post_list_inc_update_before.htm}-->
+									<?php if($allowupdate || $_post['allowupdate']) { ?>
+									<a href="<?php echo url("post-update-$_post[pid]");?>" class="text-body-secondary post_update" hx-boost="false"><i class="ti ti-pencil"></i></a>
+									<?php } ?>
+									<!--{hook post_list_inc_update_after.htm}-->
+
+									<!--{hook post_list_inc_delete_before.htm}-->
+									<?php if($allowdelete || ($_post['allowdelete'] && $sec_allow_delete_reply)) { ?>
+									<a data-href="<?php echo url("post-delete-$_post[pid]");?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm"><i class="ti ti-trash"></i></a>
+									<?php } ?>
+									<!--{hook post_list_inc_delete_after.htm}-->
+
+									<!--{hook post_list_inc_floor_before.htm}-->
+									<?php if($_post['floor']) { ?>
+									<!-- <span class="floor-parent">
+										<span class="floor me-0 badge bg-body-secondary text-body "><?php echo $_post['floor'];?></span><?php echo lang('floor');?>
+									</span> -->
+									<?php } ?>
+									<!--{hook post_list_inc_floor_after.htm}-->
+								</div>
+							</div>
+
+							<!-- Level-2 回复列表 -->
+							<?php if(!empty($reply_map[$_post['pid']])) { ?>
+							<div class="replies-container mt-2 ps-3 border-start border-2">
+								<?php foreach($reply_map[$_post['pid']] as $_reply) { ?>
+								<div class="d-flex mb-2 <?php echo $_reply['classname'];?>" data-pid="<?php echo $_reply['pid'];?>" data-uid="<?php echo $_reply['uid'];?>">
+									<div class="me-2 flex-shrink-0">
+										<a href="<?php echo url("user-$_reply[uid]");?>" tabindex="-1">
+											<?php echo avatar_component_from_data($_reply['user_avatar_url'], 'sm', isset($_reply['group_icon_class']) ? $_reply['group_icon_class'] : '', isset($_reply['group_color']) ? $_reply['group_color'] : '', isset($_reply['gid']) ? $_reply['gid'] : 0);?>
+										</a>
+									</div>
+									<div class="flex-fill" style="min-width:0">
+										<div class="small text-body-secondary">
+											<span class="username">
+												<a href="<?php echo url("user-$_reply[uid]");?>" class="text-body-secondary fw-semibold small"><?php echo $_reply['username'];?></a>
+											</span>
+											<?php if(isset($_reply['audit_status']) && $_reply['audit_status'] == 0): ?>
+											<span class="badge bg-warning text-dark ms-1" style="font-size:0.6em"><?php echo lang('pending_audit');?></span>
+											<?php endif; ?>
+											<?php if(!empty($_reply['reply_to_username'])) { ?>
+											<span class="text-body-secondary small"> <?php echo lang('reply_at');?><a href="<?php echo url("user-" . intval($_reply['reply_to_uid']));?>" class="text-primary"><?php echo esc_html($_reply['reply_to_username']);?></a>：</span>
+											<?php } else { ?>
+											<span class="text-body-secondary small">：</span>
+											<?php } ?>
+										</div>
+										<div class="small"><?php echo preg_replace('#<blockquote\s+class="blockquote">.*?</blockquote>#is', '', $_reply['message_fmt']);?></div>
+										<div class="d-flex justify-content-between align-items-center mt-1">
+											<span class="date text-body-secondary" style="font-size:0.75em"><?php echo $_reply['create_date_fmt'];?></span>
+											<div class="d-flex align-items-center gap-2">
+												<?php if($allowpost && (empty($thread['closed']) || $gid <= 5) && (empty($thread['audit_status']) || $thread['audit_status'] != 0 || $gid <= 5)) { ?>
+												<a href="javascript:void(0)" data-tid="<?php echo $_reply['tid'];?>" data-pid="<?php echo $_reply['pid'];?>" data-username="<?php echo $_reply['username'];?>" class="text-body-secondary post_reply" style="font-size:0.8em"><i class="ti ti-message-2"></i> <?php echo lang('reply');?></a>
+												<?php } ?>
+												<?php if($allowupdate || $_reply['allowupdate']) { ?>
+												<a href="<?php echo url("post-update-$_reply[pid]");?>" class="text-body-secondary post_update" hx-boost="false" style="font-size:0.8em"><i class="ti ti-pencil"></i></a>
+												<?php } ?>
+												<?php if($allowdelete || ($_reply['allowdelete'] && $sec_allow_delete_reply)) { ?>
+												<a data-href="<?php echo url("post-delete-$_reply[pid]");?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm" style="font-size:0.8em"><i class="ti ti-trash"></i></a>
+												<?php } ?>
+												<?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] == 0)) && (empty($uid) || $gid > 5)) { ?>
+												<!-- 关闭/审核中帖子：隐藏点赞按钮 -->
+												<?php } elseif(empty($uid)) { ?>
+												<a href="<?php echo url('user-login');?>" class="post-like-btn text-body-secondary text-decoration-none" style="font-size:0.8em">
+													<i class="ti ti-heart"></i>
+													<span class="like-count"><?php echo intval($_reply['likes']);?></span>
+												</a>
+												<?php } else { ?>
+												<span class="post-like-btn cursor-pointer text-body-secondary" hx-post="<?php echo url('thread-like-'.$tid.'-'.$_reply['pid']);?>" hx-vals='{"_ctx":"reply"}' hx-target="this" hx-swap="outerHTML" hx-ext="hx-optimistic" hx-optimistic style="font-size:0.8em">
+													<i class="ti <?php echo !empty($_reply['is_liked']) ? 'ti-heart-filled text-danger' : 'ti-heart';?>"></i>
+													<span class="like-count"><?php echo intval($_reply['likes']);?></span>
+												</span>
+												<?php } ?>
+											</div>
+										</div>
+									</div>
+								</div>
+								<?php } ?>
+							</div>
+							<?php } ?>
 						</div>
 					</li>
 				<?php }} ?>
-				
+
 				<!--{hook post_list_inc_end.htm}-->

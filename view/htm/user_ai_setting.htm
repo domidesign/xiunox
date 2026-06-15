@@ -1,0 +1,141 @@
+<template include="./view/htm/user.common.template.htm">
+	<slot name="user_info">
+		<div class="x-card card mb-3">
+			<div class="card-body text-center py-4">
+				<?php echo avatar_component_from_data($_user['avatar_url'], 'xl', isset($_user['group_icon_class']) ? $_user['group_icon_class'] : '', isset($_user['group_color']) ? $_user['group_color'] : '', isset($_user['gid']) ? $_user['gid'] : 0);?>
+				<h5 class="fw-bold mb-1"><?php echo esc_html($_user['username']);?></h5>
+				<span class="badge bg-primary  mb-2"><?php echo $_user['groupname'];?></span>
+				<?php if(!empty($_user['signature'])) { ?>
+				<p class="text-body-secondary small mb-0"><?php echo esc_html($_user['signature']);?></p>
+				<?php } ?>
+				<div class="d-flex justify-content-center gap-4 mt-3">
+					<div class="text-center">
+						<div class="fs-5 fw-bold text-primary"><?php echo $_user['threads'];?></div>
+						<div class="small text-body-secondary"><?php echo lang('threads');?></div>
+					</div>
+					<div class="text-center">
+						<div class="fs-5 fw-bold text-primary"><?php echo $_user['posts'];?></div>
+						<div class="small text-body-secondary"><?php echo lang('posts');?></div>
+					</div>
+					<div class="text-center">
+						<a href="<?php echo url("user-following-$_uid");?>" class="text-decoration-none">
+							<div class="fs-5 fw-bold text-primary"><?php echo $_user['follows'];?></div>
+							<div class="small text-body-secondary"><?php echo lang('follows');?></div>
+						</a>
+					</div>
+					<div class="text-center">
+						<a href="<?php echo url("user-followers-$_uid");?>" class="text-decoration-none">
+							<div class="fs-5 fw-bold text-primary"><?php echo $_user['followeds'];?></div>
+							<div class="small text-body-secondary"><?php echo lang('fans');?></div>
+						</a>
+					</div>
+				</div>
+				<div class="mt-3">
+					<a href="<?php echo url('my');?>" class="btn btn-outline-primary btn-sm ">
+						<i class="ti ti-pencil"></i> <?php echo lang('edit_profile');?>
+					</a>
+				</div>
+			</div>
+		</div>
+	</slot>
+
+	<slot name="user_nav">
+		<ul class="nav nav-tabs overflow-x-auto flex-nowrap" style="flex-wrap:nowrap">
+			<li class="nav-item"><a class="nav-link" href="<?php echo url("user-thread-$_uid");?>" data-active="user-thread"><?php echo lang('thread');?></a></li>
+			<li class="nav-item"><a class="nav-link" href="<?php echo url("user-post-$_uid");?>" data-active="user-post"><?php echo lang('reply');?></a></li>
+			<li class="nav-item"><a class="nav-link" href="<?php echo url("user-following-$_uid");?>" data-active="user-following"><?php echo lang('following');?></a></li>
+			<li class="nav-item"><a class="nav-link" href="<?php echo url("user-followers-$_uid");?>" data-active="user-followers"><?php echo lang('followers');?></a></li>
+			<?php if(!empty($uid) && $uid == $_uid) { ?>
+			<li class="nav-item"><a class="nav-link" href="<?php echo url("user-favorite-$_uid");?>" data-active="user-favorite"><?php echo lang('my_favorite');?></a></li>
+			<li class="nav-item"><a class="nav-link" href="<?php echo url("user-like-$_uid");?>" data-active="user-like"><?php echo lang('my_like');?></a></li>
+			<?php } ?>
+			<li class="nav-item"><a class="nav-link active" href="<?php echo url("user-ai_setting");?>" data-active="user-ai"><?php echo lang('ai_setting');?></a></li>
+			<!--{hook user_nav_end.htm}-->
+		</ul>
+	</slot>
+
+	<slot name="user_body">
+		<form hx-post="<?php echo url('user-ai_setting');?>" hx-target="#ai-setting-msg" hx-swap="innerHTML" id="form">
+			<?php echo CsrfService::input(); ?>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('ai_provider');?></label>
+				<select class="form-select w-100 " name="ai_provider" id="ai_provider">
+					<option value="openai" <?php echo (!empty($ai_config['models']['openai'])) ? 'selected' : '';?>>OpenAI (ChatGPT)</option>
+					<option value="deepseek" <?php echo (!empty($ai_config['models']['deepseek'])) ? 'selected' : '';?>>DeepSeek</option>
+					<option value="gitee" <?php echo (!empty($ai_config['models']['gitee'])) ? 'selected' : '';?>>Gitee AI</option>
+					<option value="spark" <?php echo (!empty($ai_config['models']['spark'])) ? 'selected' : '';?>><?php echo lang('ai_provider_spark');?></option>
+					<option value="wenxin" <?php echo (!empty($ai_config['models']['wenxin'])) ? 'selected' : '';?>><?php echo lang('ai_provider_wenxin');?></option>
+					<option value="custom" <?php echo (!empty($ai_config['models']['custom'])) ? 'selected' : '';?>><?php echo lang('ai_provider_custom');?></option>
+				</select>
+				<div class="form-text"><?php echo lang('ai_provider_tip');?></div>
+			</div>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('api_key_label');?></label>
+				<input type="password" class="form-control w-100 " name="ai_apikey" id="ai_apikey"
+					placeholder="sk-..."
+					value="<?php echo !empty($ai_config['models']) ? array_values($ai_config['models'])[0]['apiKey'] ?? '' : '';?>">
+				<div class="form-text"><?php echo lang('ai_api_key_tip');?></div>
+			</div>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('ai_api_url');?></label>
+				<input type="text" class="form-control w-100 " name="ai_endpoint" id="ai_endpoint"
+					placeholder="https://api.openai.com"
+					value="<?php echo !empty($ai_config['models']) ? array_values($ai_config['models'])[0]['endpoint'] ?? '' : '';?>">
+				<div class="form-text"><?php echo lang('ai_api_url_tip');?></div>
+			</div>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('ai_model_name');?></label>
+				<input type="text" class="form-control w-100 " name="ai_model" id="ai_model"
+					placeholder="gpt-4o-mini"
+					value="<?php echo !empty($ai_config['models']) ? array_values($ai_config['models'])[0]['model'] ?? '' : '';?>">
+				<div class="form-text"><?php echo lang('ai_model_name_tip');?></div>
+			</div>
+
+			<div class="d-flex justify-content-end">
+				<div id="ai-setting-msg"></div>
+				<button type="submit" class="btn btn-primary " id="submit"><?php echo lang('save_setting');?></button>
+			</div>
+		</form>
+	</slot>
+</template>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+	var providerSelect = document.getElementById('ai_provider');
+	var endpointInput = document.getElementById('ai_endpoint');
+	var modelInput = document.getElementById('ai_model');
+	
+	var endpointMap = {
+		'openai': 'https://api.openai.com',
+		'deepseek': 'https://api.deepseek.com',
+		'gitee': 'https://ai.gitee.com/api/inference/serverless/',
+		'spark': '',
+		'wenxin': '',
+		'custom': ''
+	};
+	var modelMap = {
+		'openai': 'gpt-4o-mini',
+		'deepseek': 'deepseek-chat',
+		'gitee': '',
+		'spark': 'v3.5',
+		'wenxin': '',
+		'custom': ''
+	};
+	
+	providerSelect.addEventListener('change', function() {
+		var v = this.value;
+		if(!endpointInput.value && endpointMap[v]) {
+			endpointInput.value = endpointMap[v];
+		}
+		if(!modelInput.value && modelMap[v]) {
+			modelInput.value = modelMap[v];
+		}
+	});
+	
+	document.querySelector('a[data-active="user-ai"]').classList.add('active');
+});
+</script>

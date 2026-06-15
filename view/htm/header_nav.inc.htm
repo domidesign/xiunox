@@ -1,70 +1,198 @@
+<!--{hook header_nav_start.htm}-->
+<?php
+$_search_require_login = isset($_search_require_login) ? $_search_require_login : 1;
+$_search_disabled = ($_search_require_login && (empty($uid) || $uid == 0));
+$_nav_items = isset($conf['nav_items']) ? $conf['nav_items'] : array();
+$_categories = array();
+$_uncategorized = array();
+foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show : array()) as $_forum) {
+	if(!empty($_forum['type']) && $_forum['type'] == 1) {
+		$_categories[$_forum['fid']] = $_forum;
+	} elseif(empty($_forum['fup'])) {
+		$_uncategorized[] = $_forum;
+	}
+}
+?>
+<header class="navbar bg-body shadow-sm sticky-top" id="header">
+	<div class="container">
+		<div class="d-flex g-4 align-items-center w-100">
 
-	<!-- 
-		轻论坛导航：默认头部
-		Bootstrap 4.0 推荐的 PC/Mobile 公共写法 
-		优点：公用性强
-		缺点：结构稍微有点复杂
-	-->
-	
-	<!--{hook header_nav_start.htm}-->
-	<header class="navbar navbar-expand-lg navbar-dark bg-dark" id="header">
-		<div class="container">
-			<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#nav" aria-controls="navbar_collapse" aria-expanded="false" aria-label="<?php echo lang('toggler_menu');?>">
-				<span class="navbar-toggler-icon"></span>
-			</button>
-			
-			<!--{hook header_nav_logo_before.htm}-->
-			
-			<a class="navbar-brand text-truncate" href="<?php echo $header['mobile_link'];?>">
-				<img src="<?php echo $conf['logo_mobile_url'];?>" class="logo-2">
-				<?php if($header['mobile_title']) { ?>
-					<span class="hidden-lg"><?php echo $header['mobile_title'];?></span>
-				<?php } ?>
-			</a>
-			
-			<!--{hook header_nav_logo_after.htm}-->
-			
-			<?php if(empty($uid)) { ?>
-				<a class="navbar-brand hidden-lg" href="<?php echo url('user-login');?>" aria-label="<?php echo lang('login');?>"> <i class="icon-user icon"></i></a>
-			<?php } else { ?>
-				<a class="navbar-brand hidden-lg" href="<?php echo url("thread-create-$fid");?>" aria-label="<?php echo lang('thread_create');?>"><i class="icon-edit icon"></i></a>
-			<?php } ?>
-			
-			<!--{hook header_nav_user_icon_after.htm}-->
-			
-			<div class="collapse navbar-collapse" id="nav">
-				<!-- 左侧：版块 -->
-				<ul class="navbar-nav mr-auto">
-					<!--{hook header_nav_forum_start.htm}-->
-					<li class="nav-item home" fid="0" data-active="fid-0"><a class="nav-link" href="."><i class="icon-home d-md-none"></i> <?php echo lang('index_page');?></a></li>
-					<!--{hook header_nav_home_link_after.htm}-->
-					<?php foreach($forumlist_show as $_forum) { ?>
-					<!--{hook header_nav_forumlist_loop_start.htm}-->
-					<li class="nav-item" fid="<?php echo $_forum['fid'];?>" data-active="fid-<?php echo $_forum['fid'];?>">
-						<a class="nav-link" href="<?php echo url("forum-$_forum[fid]");?>"><i class="icon-circle-o d-md-none"></i> <?php echo $_forum['name'];?></a>
-					</li>
-					<!--{hook header_nav_forumlist_loop_end.htm}-->
+			<!-- 左侧：Logo（与左侧栏 col-lg-2 对齐） -->
+			<div class="col col-lg-2 d-flex align-items-center gap-1 flex-shrink-0">
+
+				<!-- Logo -->
+				<!--{hook header_nav_logo_before.htm}-->
+				<a class="fs-6 d-flex align-items-center" href="<?php echo url('index');?>">
+					<img src="<?php echo $conf['logo_mobile_url'];?>" class="site-logo"
+						alt="<?php echo $conf['sitename'];?>">
+					<?php if($conf['sitename']) { ?>
+					<span class="d-none d-sm-inline ms-2">
+						<?php echo $conf['sitename'];?>
+					</span>
 					<?php } ?>
-					<!--{hook header_nav_forum_end.htm}-->
-				</ul>
-				<!-- 右侧：用户 -->
-				<ul class="navbar-nav">
-					<!--{hook header_nav_user_start.htm}-->
-				<?php if(empty($uid)) { ?>
-					<li class="nav-item"><a class="nav-link" href="<?php echo url('user-login');?>"><i class="icon-user"></i> <?php echo lang('login');?></a></li>
-					<!--<li class="nav-item"><a class="nav-link" href="<?php echo url('user-create');?>"><?php echo lang('register');?></a></li>-->
-				<?php } else { ?>
-					<li class="nav-item username"><a class="nav-link" href="<?php echo url('my');?>"><img class="avatar-1" src="<?php echo $user['avatar_url'];?>"> <?php echo $user['username'];?></a></li>
-					<!-- 管理员 -->
-					<?php if($gid == 1) { ?>
-					<li class="nav-item"><a class="nav-link" href="admin/"><i class="icon-home"></i> <?php echo lang('admin_page');?></a></li>
-					<?php } ?>
-					<!--{hook header_nav_admin_page_after.htm}-->
-					<li class="nav-item"><a class="nav-link" href="<?php echo url('user-logout');?>"><i class="icon-sign-out"></i> <?php echo lang('logout');?></a></li>
-				<?php } ?>
-					<!--{hook header_nav_user_end.htm}-->
-				</ul>
+				</a>
+				<!--{hook header_nav_logo_after.htm}-->
 			</div>
+
+			<!-- 中间：导航链接 + 搜索（与主内容区 col-lg-7 对齐） -->
+			<div class="d-none d-lg-flex col-lg-7 align-items-center justify-content-between gap-2">
+				<!--{hook header_nav_custom_before.htm}-->
+				<ul class="navbar-nav flex-row   px-1">
+					<?php if(empty($_nav_items)) { ?>
+					<li class="nav-item">
+						<a class="nav-link transition-colors" href="<?php echo url('index');?>"><i class="ti ti-home me-1"></i><?php echo lang('index_page');?></a>
+					</li>
+					<?php } else { ?>
+					<?php usort($_nav_items, function($a, $b) { return intval($a['rank'] ?? 0) - intval($b['rank'] ?? 0); }); ?>
+					<?php foreach($_nav_items as $_ni) { ?>
+					<li class="nav-item" data-active="nav-<?php echo $_ni['slug'];?>"><a
+							class="nav-link transition-colors" href="<?php echo $_ni['url'];?>">
+							<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo $_ni['icon'];?>"></i>
+							<?php } ?>
+							<?php echo $_ni['name'];?>
+						</a></li>
+					<?php } ?>
+					<?php } ?>
+				</ul>
+				<!--{hook header_nav_custom_after.htm}-->
+
+				<!--{hook header_nav_search_before.htm}-->
+				<form id="navSearchForm" class="d-flex align-items-center position-relative"
+					action="<?php echo url('search.htm');?>" method="get"
+					onsubmit="<?php if($_search_disabled): ?>showToast('<?php echo lang('please_login_to_search');?>','warning');return false;<?php else: ?>var kw=this.querySelector('input[name=keyword]');if(!kw.value.trim()){showToast('<?php echo lang('please_input_keyword');?>');return false;}window.location.href='<?php echo url('search.htm');?>?keyword='+encodeURIComponent(kw.value.trim());return false;
+					<?php endif; ?>">
+					<div class="input-group input-group-sm input-group-search" style="width:14rem">
+						<input type="text" name="keyword"
+							placeholder="<?php echo $_search_disabled ? lang('please_login_to_search') : lang('search_placeholder_full');?>"
+							class="form-control form-control-sm" autocomplete="off" id="navSearchInput" <?php
+							if($_search_disabled) echo 'disabled' ; ?>>
+						<button class="btn btn-sm" type="submit" <?php if($_search_disabled) echo 'disabled' ; ?>><i
+								class="ti ti-search"></i></button>
+					</div>
+					<div id="searchSuggest" class="dropdown-menu shadow rounded-3 p-0"
+						style="width:14rem;max-height:16rem;overflow-y:auto;"></div>
+				</form>
+				<!--{hook header_nav_search_after.htm}-->
+			</div>
+
+			<!-- 右侧：操作图标（与右侧栏 col-lg-3 对齐） -->
+			<div class="col-auto col-lg-3 d-flex align-items-center justify-content-end gap-1 ms-auto ms-lg-0">
+
+				<a href="<?php echo url('search.htm');?>" class="nav-icon-btn d-lg-none"
+					aria-label="<?php echo lang('search');?>" <?php if($_search_disabled): ?>onclick="showToast('
+					<?php echo lang('please_login_to_search');?>','warning');return false;"
+					<?php endif; ?>>
+					<i class="ti ti-search"></i>
+				</a>
+
+				<button type="button" class="nav-icon-btn" id="theme-toggle" title="<?php echo lang('dark_mode');?>"
+					aria-label="<?php echo lang('dark_mode');?>">
+					<i class="ti ti-sun" id="theme-icon-light"></i>
+					<i class="ti ti-moon d-none" id="theme-icon-dark"></i>
+				</button>
+
+				<div class="dropdown">
+					<a href="#" class="nav-icon-btn" title="<?php echo lang('switch_language');?>"
+						data-bs-toggle="dropdown" aria-expanded="false">
+						<i class="ti ti-language"></i>
+					</a>
+					<ul class="dropdown-menu dropdown-menu-end shadow rounded-1 mt-3">
+						<?php
+						$langs = array('zh-cn'=>lang('lang_zh_cn'), 'zh-tw'=>lang('lang_zh_tw'), 'en-us'=>lang('lang_en_us'), 'ja-jp'=>lang('lang_ja_jp'), 'ko-kr'=>lang('lang_ko_kr'), 'ru-ru'=>lang('lang_ru_ru'), 'th-th'=>lang('lang_th_th'));
+						foreach ($langs as $code => $name) {
+							$active = ($conf['lang'] == $code) ? ' active' : '';
+							echo '<li><a class="dropdown-item'.$active.'" href="'.url('lang-'.$code).'">'.$name.'</a></li>';
+						}
+						?>
+					</ul>
+				</div>
+
+				<?php if(!empty($uid)) {
+					// 通知未读数改为 AJAX 延迟加载
+					$total_unread = 0; // 默认0，AJAX 获取后更新
+				?>
+				<div class="dropdown">
+					<a href="#" class="nav-icon-btn position-relative" title="<?php echo lang('my_notify');?>"
+						aria-label="<?php echo lang('my_notify');?>" data-bs-toggle="dropdown"
+						data-bs-auto-close="outside" aria-expanded="false" id="notify-bell">
+						<i class="ti ti-bell" id="notify-bell-icon"></i>
+						<span id="notice-badge" class="position-absolute   translate-middle"></span>
+					</a>
+					<div class="dropdown-menu dropdown-menu-end shadow rounded-3 p-0 mt-3"
+						style="width:22rem;max-height:24rem;overflow-y:auto;" id="notice-dropdown">
+						<div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
+							<span class="fw-semibold small">
+								<?php echo lang('notification');?>
+							</span>
+							<div class="d-flex gap-2">
+								<a href="javascript:void(0);" class="text-decoration-none small"
+									id="notice-dropdown-mark-all" style="display:none;">
+									<?php echo lang('mark_all_read');?>
+								</a>
+								<span class="text-body-secondary small" id="notice-dropdown-mark-all-sep" style="display:none;">|</span>
+								<a href="<?php echo url('my-notice');?>" class="text-decoration-none small">
+									<?php echo lang('view_all');?>
+								</a>
+							</div>
+						</div>
+						<div id="notice-dropdown-list" class="py-1">
+							<div class="text-center text-body-secondary small py-4">
+								<?php echo lang('loading_dots');?>
+							</div>
+						</div>
+					</div>
+				</div>
+				<?php } ?>
+
+				<!--{hook header_nav_user_menu_before.htm}-->
+
+				<?php if(empty($uid)) { ?>
+				<a href="<?php echo url('user-login');?>" class="nav-icon-btn" title="<?php echo lang('login');?>"
+					aria-label="<?php echo lang('login');?>">
+					<i class="ti ti-user"></i>
+				</a>
+				<?php } else { ?>
+				<div class="dropdown ms-2">
+					<button type="button" class="nav-icon-btn p-0  " data-bs-toggle="dropdown" aria-expanded="false">
+						<?php echo avatar_component($uid, 'sm');?>
+					</button>
+					<ul class="dropdown-menu dropdown-menu-end shadow rounded-1 mt-3" style="width:12rem;">
+						<li class="dropdown-header"><span>
+								<?php echo $user['username'];?>
+							</span></li>
+						<li><a class="dropdown-item" href="<?php echo url("user-$uid");?>"><i class="ti ti-user"></i>
+								<?php echo lang('my_home_page');?>
+							</a></li>
+						<li><a class="dropdown-item" href="<?php echo url('my');?>"><i class="ti ti-settings"></i>
+								<?php echo lang('edit_profile');?>
+							</a></li>
+					
+
+
+
+						<!--{hook header_nav_admin_page_before.htm}-->
+					 
+						<?php if($gid == 1) { ?>
+						<li><a class="dropdown-item" href="admin/" target="_blank"><i class="ti ti-settings"></i>
+								<?php echo lang('admin_page');?>
+							</a></li>
+						<?php } ?>
+						<!--{hook header_nav_admin_page_after.htm}-->
+	<li><a class="dropdown-item" href="<?php echo url('user-logout');?>"><i
+									class="ti ti-logout"></i>
+								<?php echo lang('logout_action');?>
+							</a></li>
+
+					</ul>
+				</div>
+				<?php } ?>
+
+				<!--{hook header_nav_user_menu_after.htm}-->
+
+			</div>
+
 		</div>
-	</header>
-	<!--{hook header_nav_end.htm}-->
+	</div>
+</header>
+
+<!--{hook header_nav_end.htm}-->

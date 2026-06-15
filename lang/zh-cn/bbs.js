@@ -8,6 +8,6 @@ var lang = {
 	'yes': '是',
 	'no': '否',
 	'open': '打开',
-	'close': '关闭',
+	'loading': '加载中...',
 	// hook lang_zh_cn_bbs_js.htm
 };

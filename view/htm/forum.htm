@@ -1,112 +1,115 @@
 <?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
 
+
+
 <!--{hook forum_start.htm}-->
 
-<div class="row">
-	<div class="col-lg-9 main">
-		<!--{hook forum_breadcrumb_before.htm}-->
-		<?php if(empty($hide_breadcrumb)) { ?>
-		<ol class="breadcrumb d-none d-md-flex">
-			<li class="breadcrumb-item"><a href="./"><i class="icon-home" aria-hidden="true"></i></a></li>
-			<li class="breadcrumb-item active"><a href="<?php echo url("forum-$fid");?>"><?php echo $forum['name'];?></a></li>
-			<!--{hook forum_breadcrumb.htm}-->
-		</ol>
-		<?php } ?>
-		<!--{hook forum_breadcrumb_after.htm}-->
-				
-		<div class="card card-threadlist">
-			<div class="card-header d-flex justify-content-between">
-				<ul class="nav nav-tabs card-header-tabs">
-					<li class="nav-item">
-						<a class="nav-link <?php echo $active == 'default' ? 'active' : '';?>" href="<?php echo url("forum-$fid");?>"><?php echo lang('new_thread');?></a>
-					</li>
+<div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
+	<div class="d-none d-lg-block col-lg-2">
+		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
+	</div>
+	<div class="col-lg-7 main" style="min-width:0">
+
+
+		<div class="index-threadlist">
+			<div class="x-card card py-1">
+				<div class="d-flex justify-content-between align-items-center flex-wrap">
+					<ul class="nav thread-nav-tabs" role="tablist">
+					<li class="nav-item"><a class="nav-link<?php echo $orderby == 'lastpid' || $orderby == 'tid' ? ' active' : '';?>" role="tab" href="<?php echo url("forum-$fid", array('orderby' => 'lastpid'));?>" hx-get="<?php echo url("forum-$fid", array('orderby' => 'lastpid', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('latest_tab');?></a></li>
+					<li class="nav-item"><a class="nav-link<?php echo $orderby == 'hot' ? ' active' : '';?>" role="tab" href="<?php echo url("forum-$fid", array('orderby' => 'hot'));?>" hx-get="<?php echo url("forum-$fid", array('orderby' => 'hot', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('hottest_tab');?></a></li>
+					<li class="nav-item"><a class="nav-link<?php echo $orderby == 'digest' ? ' active' : '';?>" role="tab" href="<?php echo url("forum-$fid", array('orderby' => 'digest'));?>" hx-get="<?php echo url("forum-$fid", array('orderby' => 'digest', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('digest');?></a></li>
+					<?php if(!empty($uid)) { ?>
+					<li class="nav-item"><a class="nav-link<?php echo $orderby == 'follow' ? ' active' : '';?>" role="tab" href="<?php echo url("forum-$fid", array('orderby' => 'follow'));?>" hx-get="<?php echo url("forum-$fid", array('orderby' => 'follow', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('follow_tab');?></a></li>
+					<?php } ?>
 					<!--{hook forum_thread_list_nav_item_after.htm}-->
 				</ul>
-				<!--{hook forum_thread_list_dropdown_before.htm}-->
-				<div class="text-right text-small pt-1 card-header-dropdown">
-					<div class="btn-toolbar" role="toolbar">
-						<span class="text-muted"><?php echo lang('orderby');?>：</span>
-						<div class="dropdown btn-group">
-							<a href="#" class="dropdown-toggle" id="ordery_dropdown_menu" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-							    <?php echo $orderby == 'tid' ? lang('thread_create_date') : lang('post_create_date');?>
-								<!--{hook forum_thread_list_dropdown_toggle.htm}-->
-							</a>
-							<div class="dropdown-menu dropdown-menu-right" aria-labelledby="ordery_dropdown_menu">
-							    <a class="dropdown-item" href="<?php echo url("forum-$fid-1", array('orderby'=>'tid') + $extra);?>"><i class="icon text-primary <?php echo $orderby == 'tid' ? 'icon-check' : '';?>"></i>&nbsp; <?php echo lang('thread_create_date');?></a>
-							    <a class="dropdown-item" href="<?php echo url("forum-$fid-1", array('orderby'=>'lastpid') + $extra);?>"><i class="icon text-primary <?php echo $orderby == 'lastpid' ? 'icon-check' : '';?>"></i>&nbsp; <?php echo lang('post_create_date');?></a>
-							    <!--{hook forum_thread_list_dropdown_menu.htm}-->
-							</div>
-						</div>
-					</div>
+					<?php $toggle_url = url("forum-$fid-$page", array('orderby' => $orderby) + ($extra ?? array())); ?>
+					<?php include _include(APP_PATH.'view/htm/view_toggle.inc.htm');?>
 				</div>
-				<!--{hook forum_thread_list_dropdown_after.htm}-->
 			</div>
-			<div class="card-body">
-				<ul class="list-unstyled threadlist mb-0">
-					<!--{hook forum_threadlist_before.htm}-->
+			<div>
+				<!--{hook forum_threadlist_before.htm}-->
+				<?php if ($view_mode == 'list') { ?>
+				<ul class="list-none threadlist x-card card mb-0">
 					<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm');?>
-					<!--{hook forum_threadlist_after.htm}-->
 				</ul>
+				<?php } elseif ($view_mode == 'timeline') { ?>
+				<div class="timeline-feed">
+					<?php include _include(APP_PATH.'view/htm/thread_list_timeline.inc.htm');?>
+				</div>
+				<?php } else { ?>
+				<div class="masonry-container">
+					<?php include _include(APP_PATH.'view/htm/thread_list_masonry.inc.htm');?>
+				</div>
+				<?php } ?>
+				<!--{hook forum_threadlist_after.htm}-->
+				<?php if($view_mode == 'list') { include _include(APP_PATH.'view/htm/thread_list_mod.inc.htm'); } ?>
 			</div>
 		</div>
 
-		<?php include _include(APP_PATH.'view/htm/thread_list_mod.inc.htm');?>
-		
 		<!--{hook forum_page_before.htm}-->
-		<nav class="my-3"><ul class="pagination justify-content-center flex-wrap"><?php echo $pagination; ?></ul></nav>
+		<?php include _include(APP_PATH.'view/htm/pagination.inc.htm');?>
 		<!--{hook forum_page_after.htm}-->
 	</div>
-	<div class="col-lg-3 d-none d-lg-block aside">
-	
-		<a role="button" class="btn btn-primary btn-block mb-3" href="<?php echo url('thread-create-'.$fid);?>"><?php echo lang('thread_create_new');?></a>
-		
-		<div class="card card-forum-info">
-			<div class="card-body text-center">
-				<img class="logo-5 mb-2" src="<?php echo $forum['icon_url'];?>">
-				<h5><?php echo $forum['name'];?></h5>
-				<!--{hook forum_brief_before.htm}-->
-				<div class="text-left line-height-2"><?php echo $forum['brief'];?></div>
-				<!--{hook forum_brief_before.htm}-->
+	<div class="d-none d-lg-block col-lg-3 aside">
+		<div class="x-card card card-forum-info rounded-1 mb-3">
+			<div class="card-body">
+				<div class="d-flex align-items-center gap-3">
+					<?php if(!empty($forum['icon_url'])): ?>
+					<span class="flex-shrink-0"><img src="<?php echo $forum['icon_url'];?>" class="rounded" width="32" height="32" alt="<?php echo esc_html($forum['name']);?>" /></span>
+					<?php elseif(!empty($forum['icon_class'])): ?>
+					<span class="flex-shrink-0" style="font-size:2rem"><i class="<?php echo $forum['icon_class'];?>"></i></span>
+					<?php else: ?>
+					<span class="flex-shrink-0 text-body-secondary" style="font-size:2rem"><i class="ti ti-message-circle"></i></span>
+					<?php endif; ?>
+					<div class="flex-fill" style="min-width:0">
+						<h6 class="fw-bold mb-0"><?php echo esc_html($forum['name']);?></h6>
+						<?php if(!empty($forum['brief'])): ?>
+						<p class="text-body-secondary small mb-0 mt-1 text-truncate"><?php echo $forum['brief'];?></p>
+						<?php endif; ?>
+					</div>
+					<span id="forum-follow-btn"
+					hx-get="<?php echo url('forum-follow_status-'.$fid);?>"
+					hx-trigger="load"
+					hx-target="#forum-follow-btn"
+					hx-swap="innerHTML">
+					<button class="btn btn-sm btn-primary rounded-pill flex-shrink-0" disabled>
+						<i class="ti me-1 ti-heart"></i>
+						<span><?php echo lang('follow');?></span>
+					</button>
+				</span>
+				</div>
 			</div>
-			<div class="card-footer p-2">
-				<table class="w-100 small">
-					<tr align="center">
-						<td>
-							<span class="text-muted"><?php echo lang('threads');?></span><br>
-							<b><?php echo $forum['threads'];?></b>
-						</td>
-						<td>
-							<span class="text-muted"><?php echo lang('today_posts');?></span><br>
-							<b><?php echo $forum['todayposts'];?></b>
-						</td>
-						<td>
-							<span class="text-muted"><?php echo lang('today_threads');?></span><br>
-							<b><?php echo $forum['todaythreads'];?></b>
-						</td>
-						<!--{hook forum_todaythreads_after.htm}-->
-					</tr>
-				</table>
+			<div class="card-body p-2">
+				<div class="d-flex small text-center">
+					<div class="flex-fill py-1"><span class="text-body-secondary d-block"><?php echo lang('threads_label');?></span><b><?php echo $forum['threads'];?></b></div>
+					<div class="flex-fill py-1"><span class="text-body-secondary d-block"><?php echo lang('today_replies');?></span><b><?php echo $forum['todayposts'];?></b></div>
+					<div class="flex-fill py-1"><span class="text-body-secondary d-block"><?php echo lang('members');?></span><b><?php echo $forum['follows'];?></b></div>
+				</div>
+			</div>
+			<div class="px-3 pb-3">
+				<a role="button" class="btn btn-primary w-100" href="<?php echo url('thread-create-'.$fid);?>" hx-boost="false"><i class="ti ti-pencil me-1"></i> <?php echo lang('thread_create_new');?></a>
 			</div>
 		</div>
-		
+
 		<!--{hook forum_mod_before.htm}-->
 		<?php if($forum['announcement'] || $forum['modlist']) { ?>
-		<div class="card card-mod-info">
+		<div class="x-card card card-mod-info rounded-1 mb-3">
 			<div class="card-body">
 				<?php if($forum['announcement']) { ?>
-				<h6 class="card-title"><?php echo lang('forum_anouncement');?>：</h6>
-				<p class="small">
+				<h6 class="fw-semibold"><i class="ti ti-speakerphone me-1"></i><?php echo lang('forum_anouncement');?></h6>
+				<div class="alert alert-info border-0 rounded-1 small mb-0">
 					<?php echo $forum['announcement'];?>
-				</p>
+				</div>
 				<?php  } ?>
-				
+
 				<?php if($forum['modlist']) { ?>
-				<h6 class="card-title"><?php echo lang('forum_moderator');?>：</h6>
-				<div class="row">
+				<h6 class="fw-semibold"><?php echo lang('forum_moderator');?>：</h6>
+				<div class="d-flex flex-wrap gap-2">
 					<?php foreach ($forum['modlist'] as $mod) { ?>
-					<div class="col-3 mb-1 text-center">
-						<a href="#"><img src="<?php echo $conf['view_url'];?>img/avatar.png" alt="..." width="32" height="32" class="img-circle"></a><br>
-						<a href="<?php echo url("user-$mod[uid]");?>" class="small text-muted text-nowrap"><?php echo $mod['username'];?></a>
+					<div class="text-center">
+						<a href="#"><img src="<?php echo $conf['view_url'];?>img/avatar.png" class="avatar-sm" alt="" onerror="this.src='/view/img/avatar.png'"></a><br>
+						<a href="<?php echo url("user-$mod[uid]");?>" class="small text-body-secondary text-nowrap text-decoration-none"><?php echo esc_html($mod['username']);?></a>
 					</div>
 					<?php } ?>
 				</div>

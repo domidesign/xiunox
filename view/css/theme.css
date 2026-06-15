@@ -1,0 +1,96 @@
+@charset "UTF-8";
+/* 主题色变量 - 前后台共用 */
+/* 通过 data-theme 属性切换主题色，通过 data-bs-theme 属性切换明暗模式 */
+/* 核心思路：--bs-body-bg 设为组件背景色（白/深灰），页面背景用 --x-page-bg 单独控制 */
+
+:root {
+    --bs-primary: #2563eb;
+    --bs-primary-rgb: 37, 99, 235;
+    --bs-link-color: #2563eb;
+    --bs-link-color-hover: #1d4ed8;
+    /* 组件背景色（card/dropdown/modal 等都继承此值） */
+    --bs-body-bg: #fff;
+    /* 页面背景色（与组件背景区分） */
+    --x-page-bg: #f1f2f5;
+}
+
+
+
+
+/* 页面背景：body 用页面色，组件自动用 --bs-body-bg（白色） */
+body {
+    font-size: 14px;
+
+    background-color: var(--x-page-bg);
+}
+
+a {
+text-decoration: none; 
+color: var(--bs-body-color);
+}
+
+/* 主题色方案 - 只需设置 --bs-primary 和 --bs-primary-rgb */
+[data-theme="blue"] {
+    --bs-primary: #2563eb;
+    --bs-primary-rgb: 37, 99, 235;
+    --bs-link-color: #2563eb;
+    --bs-link-color-hover: #1d4ed8;
+    --x-page-bg: #f1f2f5;
+}
+
+[data-theme="green"] {
+    --bs-primary: #16a34a;
+    --bs-primary-rgb: 22, 163, 74;
+    --bs-link-color: #16a34a;
+    --bs-link-color-hover: #15803d;
+    --x-page-bg: #f4f7f5;
+}
+
+[data-theme="purple"] {
+    --bs-primary: #9333ea;
+    --bs-primary-rgb: 147, 51, 234;
+    --bs-link-color: #9333ea;
+    --bs-link-color-hover: #7e22ce;
+    --x-page-bg: #f9f8fa;
+}
+
+[data-theme="red"] {
+    --bs-primary: #dc2626;
+    --bs-primary-rgb: 220, 38, 38;
+    --bs-link-color: #dc2626;
+    --bs-link-color-hover: #b91c1c;
+    --x-page-bg: #fbf6f5;
+}
+
+[data-theme="orange"] {
+    --bs-primary: #ea580c;
+    --bs-primary-rgb: 234, 88, 12;
+    --bs-link-color: #ea580c;
+    --bs-link-color-hover: #c2410c;
+    --x-page-bg: #fbf6f5;
+}
+
+/* 暗色模式 放最下边*/
+[data-bs-theme="dark"] {
+    --bs-body-bg: #161616;
+    --bs-body-color: #e0e0e0;
+    --bs-border-color: #333;
+    --bs-tertiary-bg: #2a2a2a;
+    --bs-secondary-color: #888;
+    --bs-secondary-bg: #222;
+    --bs-link-color: #60a5fa;
+    --bs-link-color-hover: #93c5fd;
+    --x-page-bg: #111;
+}
+
+.x-card {
+    margin: 13px 0;
+    padding: 12px;
+    background-color: var(--bs-body-bg);
+    border-radius: var(--bs-border-radius-sm);
+    border: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+.card-thread {
+    padding: 24px;
+ }

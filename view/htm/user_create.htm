@@ -1,151 +1,149 @@
 <?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
 
+<?php
+include_once APP_PATH . 'lib/security/CaptchaService.php';
+$captcha_register_on = CaptchaService::is_enabled('register');
+?>
+
 <!--{hook user_create_start.htm}-->
 
-<div class="row">
-	<div class="col-lg-6 mx-auto">
-		<!--{hook user_create_card_before.htm}-->
-		<div class="card">
-			<div class="card-header">
-				<?php echo lang('user_create');?>
-				<!--{hook user_create_title_after.htm}-->
-			</div>
-			<div class="card-body">
-				<form action="<?php echo url('user-create');?>" method="post" id="form">
-				
-					<div class="form-group input-group">
-						<div class="input-group-prepend">
-							<span class="input-group-text"><i class="icon icon-envelope icon-fw"></i></span>
-						</div>
-						<input type="email" class="form-control" placeholder="<?php echo lang('email');?>" name="email" id="email" required>
-					</div>
-					
-					<!--{hook user_create_email_after.htm}-->
-					
-					<div class="form-group input-group">
-						<div class="input-group-prepend">
-							<span class="input-group-text"><i class="icon icon-user icon-fw"></i></span>
-						</div>
-						<input type="text" class="form-control" placeholder="<?php echo lang('username');?>" name="username" id="username">
-					</div>
-					
-					<!--{hook user_create_username_after.htm}-->
-					
-					<div class="media">
-						<div class="media-body">
-							<div class="form-group input-group">
-								<div class="input-group-prepend">
-									<span class="input-group-text"><i class="icon icon-lock icon-fw"></i></span>
-								</div>
-								<input type="password" class="form-control" placeholder="<?php echo lang('password');?>" name="password" id="password">
-							</div>
-						</div>
-					</div>
-					
-					<!--{hook user_create_password_after.htm}-->
-					
-					
-					<?php if($conf['user_create_email_on']) { ?>
-					<div class="media">
-						<div class="media-body">
-							<div class="form-group input-group">
-								<div class="input-group-prepend">
-									<span class="input-group-text"><i class="icon icon-barcode icon-fw"></i></span>
-								</div>
-								<input type="text" class="form-control" placeholder="<?php echo lang('verify_code');?>" name="code" id="code">
-							</div>
-						</div>
-						<div class="align-self-center ml-1">
-							<button type="submit" class="btn btn-primary btn-sm ml-3 form-group" id="sendcode" data-loading-text="<?php echo lang('sending');?>..." action="<?php echo url('user-send_code-user_create');?>"><?php echo lang('send_verify_code');?></button>
-						</div>
-					</div>
-					<?php } ?>
-					
-					
-					<div class="form-group">
-						<button type="submit" class="btn btn-primary btn-block" id="submit" data-loading-text="<?php echo lang('submiting');?>..." <?php if($conf['user_create_email_on']) { ?>disabled<?php } ?>><?php echo lang('next_step');?></button>
-					</div>
-					<!--{hook user_create_submit_after.htm}-->
-					
-					<div class="media">
-						<div>
-							<!--{hook user_create_form_footer_left.htm}-->
-						</div>
-						<div class="media-body text-right">
-							<!--{hook user_create_form_footer_right_start.htm}-->
-							<a href="<?php echo url('user-login');?>" class="text-muted"><small><?php echo lang('user_login');?></small></a>
-							<?php if(!empty($conf['user_resetpw_on'])) { ?>
-							<a href="<?php echo url('user-resetpw');?>" class="text-muted ml-3"><small><?php echo lang('forgot_pw');?></small></a>
-							<?php } ?>
-							<!--{hook user_create_form_footer_right_end.htm}-->
-						</div>
-					</div>
-					
-				</form>
-			</div>
-		</div>
-		<!--{hook user_create_card_after.htm}-->
+<div class="mx-auto" style="max-width:28rem">
+	<div class="text-center mb-4">
+		<img src="<?php echo $conf['logo_mobile_url'];?>" class="site-logo-lg mx-auto mb-2" alt="<?php echo $conf['sitename'];?>">
+		<h2 class="fs-4 fw-bold"><?php echo $conf['sitename'];?></h2>
 	</div>
+	<!--{hook user_create_card_before.htm}-->
+	<div class="x-card card">
+		<div class="card-body mb-3">
+			<?php echo lang('user_create');?>
+			<!--{hook user_create_title_after.htm}-->
+		</div>
+		<div class="card-body">
+			<form hx-post="<?php echo url('user-create');?>" hx-target="#create-msg" hx-swap="innerHTML" id="form">
+				<?php echo CsrfService::input(); ?>
+				<input type="hidden" name="next" value="<?php echo htmlspecialchars(http_referer());?>">
+				<div id="create-msg"></div>
+
+				<div class="input-group mb-3 w-100">
+					<span class="input-group-text"><i class="ti ti-mail"></i></span>
+					<input type="email" class="form-control " placeholder="<?php echo lang('email');?>" name="email" id="email" required>
+				</div>
+				<div class="invalid-feedback" id="email_error" style="margin-top:-0.5rem;margin-bottom:0.5rem"></div>
+
+				<!--{hook user_create_email_after.htm}-->
+
+				<div class="input-group mb-3 w-100">
+					<span class="input-group-text"><i class="ti ti-user"></i></span>
+					<input type="text" class="form-control " placeholder="<?php echo lang('username');?>" name="username" id="username">
+				</div>
+				<div class="invalid-feedback" id="username_error" style="margin-top:-0.5rem;margin-bottom:0.5rem"></div>
+
+				<!--{hook user_create_username_after.htm}-->
+
+				<div class="d-flex">
+					<div class="flex-fill" style="min-width:0">
+						<div class="input-group w-100">
+							<span class="input-group-text"><i class="ti ti-lock"></i></span>
+							<input type="password" class="form-control " placeholder="<?php echo lang('password');?>" name="password" id="password">
+						</div>
+					</div>
+				</div>
+				<div class="invalid-feedback" id="password_error" style="margin-top:0.25rem;margin-bottom:0.5rem"></div>
+
+				<!--{hook user_create_password_after.htm}-->
+
+				<?php if($conf['user_create_email_on']) { ?>
+				<div class="d-flex align-items-center gap-3 mt-3">
+					<div class="flex-fill" style="min-width:0">
+						<div class="input-group w-100">
+							<span class="input-group-text"><i class="ti ti-key"></i></span>
+							<input type="text" class="form-control " placeholder="<?php echo lang('verify_code');?>" name="code" id="code">
+						</div>
+					</div>
+					<div class="self-center">
+						<button type="button" class="btn btn-primary btn-sm " id="sendcode" data-url="<?php echo url('user-send_code-user_create');?>" onclick="sendVerifyCode(this)"><?php echo lang('send_verify_code');?></button>
+					</div>
+				</div>
+				<?php } ?>
+
+				<?php if($captcha_register_on): ?>
+				<div class="mb-3 mt-3 w-100" id="captcha-register" data-captcha-scene="register">
+					<!-- <label class="form-label"><?php echo lang('captcha_label');?></label> -->
+					<div class="input-group w-100">
+						<span class="input-group-text"><i class="ti ti-shield-check"></i></span>
+						<input type="text" name="captcha" class="form-control" id="captcha-input-register" hx-on:input="document.getElementById('captcha-error-register').textContent=''" placeholder="<?php echo lang('please_input_captcha');?>" autocomplete="off" required>
+						<img id="captcha-img-register" src="" hx-on:click="captchaRefresh('register')" style="cursor:pointer;height:38px;border-radius:0 20px 20px 0;display:none" title="<?php echo lang('click_to_refresh');?>">
+					</div>
+					<span id="captcha-error-register" class="text-danger small mt-1"></span>
+				</div>
+				<?php endif; ?>
+
+				<div class="mb-3 mt-3">
+					<button type="submit" class="btn btn-primary w-100 " id="submit" data-loading-text="<?php echo lang('submiting');?>..." <?php if($conf['user_create_email_on']) { ?>disabled<?php } ?>><?php echo lang('next_step');?></button>
+				</div>
+				<!--{hook user_create_submit_after.htm}-->
+
+				<div class="d-flex justify-content-between align-items-center">
+					<a href="<?php echo url('user-login');?>" class="text-primary text-decoration-none fw-medium" hx-boost="false"><span class="small"><?php echo lang('user_login');?></span></a>
+					<div>
+						<!--{hook user_create_form_footer_right_start.htm}-->
+						<!--{hook user_create_form_footer_right_end.htm}-->
+					</div>
+				</div>
+
+			</form>
+		</div>
+	</div>
+	<!--{hook user_create_card_after.htm}-->
 </div>
 
 <!--{hook user_create_end.htm}-->
 
-<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
-
-<script src="<?php echo $conf['view_url'];?>js/md5.js"></script>
-
 <script>
-var jform = $('#form');
-var jsubmit = $('#submit');
-var jsend = $('#sendcode');
-var referer = '<?php echo http_referer();?>';
-jsend.on('click', function() {
-	jform.reset();
-	jsend.button('loading');
-	var postdata = jform.serialize();
-	$.xpost(jsend.attr('action'), postdata, function(code, message) {
-		if(code == 0) {
-			$('#code').focus();
-			var t = 60; // 倒计时
-			jsend.button('<?php echo lang('user_send_sucessfully');?> 60 ');
-			jsubmit.button('reset');
-			// 倒计时，重新发送
-			var handler = setInterval(function() {
-				jsend.button('<?php echo lang('user_send_sucessfully');?> '+(--t)+' ');
-				if(t == 0) {
-					clearInterval(handler);
-					jsend.button('reset');
+// 注册表单：htmx 统一处理提交和响应
+// - 成功+跳转：后端返回 HX-Trigger → 全局 htmxSuccessRedirect 事件 → toast + 延迟跳转
+// - 失败：后端返回 HTML 错误片段 → htmx swap 到 #create-msg
+(function() {
+	var form = document.getElementById('form');
+	if(!form) return;
+
+	// htmx 请求完成后：刷新验证码 + 处理特殊错误
+	form.addEventListener('htmx:after:request', function(event) {
+		// 每次提交后刷新验证码
+		if(typeof captchaRefresh === 'function') captchaRefresh('register');
+
+		var response = event.detail && event.detail.ctx && event.detail.ctx.response;
+		if(!response || !response.ok) return;
+
+		// 检查 target 中是否有错误消息（htmx 已 swap 进去）
+		setTimeout(function() {
+			var msgEl = document.getElementById('create-msg');
+			if(!msgEl) return;
+			var errDiv = msgEl.querySelector('[data-code]') || msgEl;
+			var errCode = parseInt(errDiv.getAttribute('data-code')) || 0;
+			// 验证码错误 (code -1001)
+			if(errCode === -1001) {
+				var captchaErr = document.getElementById('captcha-error-register');
+				if(captchaErr) captchaErr.textContent = msgEl.textContent || '';
+			}
+		}, 50);
+	});
+
+	<?php if($conf['user_create_email_on']) { ?>
+	// 验证码发送成功后启用提交按钮
+	var sendBtn = document.getElementById('sendcode');
+	if(sendBtn) {
+		sendBtn.addEventListener('click', function() {
+			setTimeout(function() {
+				var submitBtn = document.getElementById('submit');
+				if(submitBtn && submitBtn.disabled) {
+					submitBtn.disabled = false;
 				}
-			}, 1000);
-		} else if(code < 0) {
-			$.alert(message, -1);
-			jsend.button('reset');
-		} else {
-			jform.find('[name="'+code+'"]').alert(message).focus();
-			jsend.button('reset');
-		}
-	});
-	return false;
-});
-
-jform.on('submit', function() {
-	var postdata = jform.serializeObject();
-	jsubmit.button('loading');
-	postdata.password = $.md5(postdata.password);
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
-		if(code == 0) {
-			jsubmit.button(message).delay(1000).location(referer);
-		} else if(xn.is_number(code)) {
-			alert(message);
-			jsubmit.button('reset');
-		} else {
-			jform.find('[name="'+code+'"]').alert(message).focus();
-			jsubmit.button('reset');
-		}
-	});
-	return false;
-});
-
+			}, 500);
+		});
+	}
+	<?php } ?>
+})();
 </script>
 
-<!--{hook user_create_js.htm}-->
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>

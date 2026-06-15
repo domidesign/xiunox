@@ -1,15 +1,27 @@
-<template include="./view/htm/my.common.template.htm">
-	<slot name="my_nav">
-		<ul class="nav nav-tabs card-header-tabs">
-			<!--{hook my_nav_thread_before.htm}-->
-			<li class="nav-item">
-				<a class="nav-link" href="<?php echo url("my-thread");?>" data-active="my-thread"><?php echo lang('my_thread');?></a>
-			</li>
-			<!--{hook my_nav_thread_after.htm}-->
-		</ul>
-	</slot>
-</template>
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
 
-<script>
-$('a[data-active="menu-my-thread"]').addClass('active');
-</script>
+<!--{hook my_common_start.htm}-->
+
+<div class="mx-auto" style="max-width: 48rem;">
+	<div class="x-card card">
+		<div class="card-body">
+			<ul class="nav nav-tabs">
+				<!--{hook my_nav_thread_before.htm}-->
+				<li class="nav-item"><a class="nav-link active" href="<?php echo url("my-thread");?>"><?php echo lang('my_thread');?></a></li>
+				<!--{hook my_nav_thread_after.htm}-->
+				<li class="nav-item"><a class="nav-link" href="<?php echo url("my-favorite");?>"><?php echo lang('my_favorite');?></a></li>
+				<li class="nav-item"><a class="nav-link" href="<?php echo url("my-feed");?>"><?php echo lang('my_feed');?></a></li>
+				<li class="nav-item"><a class="nav-link" href="<?php echo url("my-notify");?>"><?php echo lang('my_notify');?></a></li>
+			</ul>
+		</div>
+		<div class="card-body">
+			<slot name="my_body" />
+		</div>
+	</div>
+</div>
+
+<!--{hook my_common_end.htm}-->
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<!--{hook my_common_js.htm}-->

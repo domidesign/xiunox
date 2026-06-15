@@ -1,0 +1,141 @@
+<!--{hook thread_list_timeline_start.htm}-->
+<?php $_status_labels = thread_status_labels(); ?>
+<?php if($threadlist) { foreach($threadlist as &$_thread) { ?>
+<?php if(!isset($_thread['tid'])) continue; ?>
+
+<div class="timeline-card x-card card rounded-3 hover-lift transition-colors<?php if(!empty($_thread['top'])) echo ' border-primary'; ?>" data-tid="<?php echo $_thread['tid'];?>">
+	<div class="card-body d-flex  ">
+		<div class="timeline-avatar  me-2">
+			<a href="<?php echo url("user-$_thread[uid]");?>" tabindex="-1">
+				<?php echo avatar_component_from_data($_thread['user_avatar_url'], 'md', isset($_thread['group_icon_class']) ? $_thread['group_icon_class'] : '', isset($_thread['group_color']) ? $_thread['group_color'] : '', isset($_thread['gid']) ? $_thread['gid'] : 0);?>
+			</a>
+		</div>
+		<!--{hook thread_list_timeline_avatar_after.htm}-->
+		<div class="timeline-right flex-grow-1 me-2  ">
+			<div class="timeline-header d-flex gap-3">
+
+				<div class="timeline-body flex-grow-1">
+					<div class="timeline-user-row d-flex align-items-center flex-wrap gap-1">
+						<a href="<?php echo url("user-$_thread[uid]");?>" class="timeline-username fw-semibold
+							text-decoration-none">
+							<?php echo $_thread['username'];?>
+						</a>
+						<!-- <span class="timeline-meta-top text-body-secondary">
+							<?php echo $_thread['create_date_fmt'];?>
+						</span>
+						<?php if(!empty($_thread['forumname'])) { ?>
+						<a href="<?php echo url("forum-$_thread[fid]");?>" class="timeline-forum-tag badge bg-light
+							text-dark text-decoration-none">
+							<?php echo $_thread['forumname'];?>
+						</a>
+						<?php } ?> -->
+					</div>
+					<!--{hook thread_list_timeline_subject_before.htm}-->
+					<div class="timeline-subject mt-1">
+						<?php if(!empty($_thread['top'])) { ?>
+						<?php echo thread_status_label_html('top', $_status_labels); ?>
+						<?php } ?>
+						<?php if(!empty($_thread['digest'])) { ?>
+						<?php echo thread_status_label_html('digest', $_status_labels); ?>
+						<?php } ?>
+						<?php if(!empty($_thread['closed'])) { ?>
+						<?php echo thread_status_label_html('closed', $_status_labels); ?>
+						<?php } ?>
+						<a href="<?php echo url("thread-$_thread[tid]");?>" class="text-decoration-none">
+							<?php echo $_thread['subject'];?>
+						</a>
+						<?php if(isset($_thread['audit_status']) && $_thread['audit_status'] == 0): ?>
+						<span class="badge bg-warning text-dark ms-1" style="font-size:0.65em">
+							<?php echo lang('pending_audit');?>
+						</span>
+						<?php elseif(isset($_thread['audit_status']) && $_thread['audit_status'] == 2): ?>
+						<span class="badge bg-danger ms-1" style="font-size:0.65em">
+							<?php echo lang('rejected_audit');?>
+						</span>
+						<?php endif; ?>
+						<?php if(!empty($_thread['images'])) { ?>
+						<?php echo thread_status_label_html('image', $_status_labels); ?>
+						<?php } ?>
+						<?php if(!empty($_thread['videos'])) { ?>
+						<?php echo thread_status_label_html('video', $_status_labels); ?>
+						<?php } ?>
+						<?php if(!empty($_thread['files'])) { ?>
+						<?php echo thread_status_label_html('attachment', $_status_labels); ?>
+						<?php } ?>
+					</div>
+					<!--{hook thread_list_timeline_subject_after.htm}-->
+				</div>
+			</div>
+
+			<?php if(!empty($_thread['message_preview'])) { ?>
+			<p class="timeline-preview mb-2">
+				<?php echo htmlspecialchars($_thread['message_preview']);?>
+			</p>
+			<?php } ?>
+
+			<!--{hook thread_list_timeline_images_before.htm}-->
+			<?php if(!empty($_thread['thumbnails'])) { ?>
+			<?php $img_count = count($_thread['thumbnails']); ?>
+			<div class="timeline-images grid-<?php echo $img_count;?>">
+				<?php foreach($_thread['thumbnails'] as $idx => $thumb_url) { ?>
+				<div class="timeline-img-wrapper">
+					<img class="timeline-img" src="<?php echo $thumb_url;?>" loading="lazy">
+					<?php if($idx == 8 && $_thread['image_count'] > 9) { ?>
+					<div class="timeline-img-more">+
+						<?php echo $_thread['image_count'] - 9;?>
+					</div>
+					<?php } ?>
+				</div>
+				<?php } ?>
+			</div>
+			<?php } ?>
+			<!--{hook thread_list_timeline_images_after.htm}-->
+
+			<div class="timeline-footer d-flex align-items-center justify-content-between mt-2">
+				<div class="d-flex align-items-center gap-2">
+					<?php if(!empty($_thread['forumname'])) { ?>
+					<a href="<?php echo url("forum-$_thread[fid]");?>" class="text-body-secondary text-decoration-none
+						small">
+						<?php echo $_thread['forumname'];?>
+					</a>
+					<span class="text-body-tertiary">·</span>
+					<?php } ?>
+					<span class="text-body-tertiary small">
+						<?php echo $_thread['create_date_fmt'];?>
+					</span>
+				</div>
+				<div class="d-flex align-items-center gap-3">
+					<span class="text-body-tertiary small"><i class="ti ti-eye"></i>
+						<?php echo $_thread['views'];?>
+					</span>
+					<span class="text-body-tertiary small"><i class="ti ti-heart"></i>
+						<?php echo $_thread['likes'];?>
+					</span>
+					<a href="<?php echo url("thread-$_thread[tid]");?>" class="text-body-tertiary text-decoration-none
+						small"><i class="ti ti-message-circle"></i>
+						<?php echo $_thread['posts'];?>
+					</a>
+				</div>
+			</div>
+			<!--{hook thread_list_timeline_footer_after.htm}-->
+		</div>
+	</div>
+</div>
+<?php } } else { ?>
+<div class="text-center text-body-secondary py-x-card card">
+	<i class="ti ti-message-circle fs-1 d-block mb-2 opacity-50"></i>
+	<p class="fs-6">
+		<?php echo lang('no_thread_tip');?>
+	</p>
+	<?php if(!empty($order) && $order == 'follow') { ?>
+	<p class="small">
+		<?php echo lang('follow_interest_users');?>
+	</p>
+	<?php } else { ?>
+	<p class="small">
+		<?php echo lang('be_first_poster');?>
+	</p>
+	<?php } ?>
+</div>
+<?php } ?>
+<!--{hook thread_list_timeline_end.htm}-->

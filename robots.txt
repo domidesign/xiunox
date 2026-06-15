@@ -1,4 +1,31 @@
+# XIUNOX robots.txt
+
 User-agent: *
-Disallow: /admin
-Disallow: /user-*
-Disallow: /serach-*
+
+# 敏感目录
+Disallow: /admin/
+Disallow: /conf/
+Disallow: /log/
+Disallow: /tmp/
+Disallow: /install/
+
+# API 接口
+Disallow: /api/
+
+# 用户相关页面（无 SEO 价值）
+Disallow: /user-login*
+Disallow: /user-create*
+Disallow: /user-resetpw*
+Disallow: /my-*
+
+# 功能页面（无 SEO 价值）
+Disallow: /search-*
+
+# 附件临时目录
+Disallow: /upload/tmp/
+
+# 静态资源（无需索引）
+Disallow: /view/vendor/
+
+# Sitemap
+# Sitemap: https://www.example.com/sitemap.xml

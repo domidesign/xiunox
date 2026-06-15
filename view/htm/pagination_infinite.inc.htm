@@ -1,0 +1,129 @@
+<?php if(!empty($pagination)) { ?>
+<?php
+$_mode = isset($view_mode) ? $view_mode : 'list';
+$_target_map = array(
+    'list' => array('.threadlist', '.threadlist > li:not(.thread-list-divider)'),
+    'timeline' => array('.timeline-feed', '.timeline-feed > .timeline-card'),
+    'waterfall' => array('.masonry-container', '.masonry-container > .masonry-item'),
+);
+$_hx_target = isset($_target_map[$_mode]) ? $_target_map[$_mode][0] : '.threadlist';
+$_hx_select = isset($_target_map[$_mode]) ? $_target_map[$_mode][1] : '.threadlist > li';
+?>
+<!--{hook pagination_infinite_before.htm}-->
+<div class="pagination-infinite" id="paginationInfinite"
+     hx-get="<?php echo $infinite_url ?? url($route . '-' . ($fid ?? 0) . '-' . ($page + 1));?>"
+     hx-trigger="revealed"
+     hx-target="<?php echo $_hx_target;?>"
+     hx-select="<?php echo $_hx_select;?>"
+     hx-swap="beforeend"
+     hx-indicator="#infiniteIndicator">
+    <div id="infiniteIndicator" class="text-center py-3">
+        <span class="spinner-border spinner-border-sm text-primary"></span>
+        <span class="ms-2 text-body-secondary small"><?php echo lang('loading');?></span>
+    </div>
+</div>
+<noscript>
+    <nav class="my-3"><ul class="pagination pagination-boxed justify-content-end flex-wrap"><?php echo $pagination; ?></ul></nav>
+</noscript>
+<script>
+(function(){
+    var el = document.getElementById('paginationInfinite');
+    if(!el) return;
+
+    // 停止无限加载，显示"没有更多数据"
+    function stopInfiniteLoading() {
+        el.setAttribute('hx-trigger', 'none');
+        el.innerHTML = '<div class="text-center py-3 text-body-secondary small"><?php echo lang('no_more_data_tip');?></div>';
+    }
+
+    // 请求完成后更新 URL 和处理边界情况
+    el.addEventListener('htmx:afterRequest', function(e) {
+        // 请求失败或被取消
+        if(!e.detail || !e.detail.xhr) {
+            stopInfiniteLoading();
+            return;
+        }
+        if(e.detail.xhr.status !== 200) {
+            stopInfiniteLoading();
+            return;
+        }
+
+        // 从响应中检查是否有新内容
+        var responseText = e.detail.xhr.responseText || '';
+        var selectAttr = el.getAttribute('hx-select') || '';
+        var items = [];
+
+        if(selectAttr && responseText) {
+            try {
+                var parser = new DOMParser();
+                var doc = parser.parseFromString(responseText, 'text/html');
+                items = doc.querySelectorAll(selectAttr);
+            } catch(err) {
+                // 解析失败，视为没有更多数据
+                stopInfiniteLoading();
+                return;
+            }
+        }
+
+        // 没有新内容，说明已到最后一页
+        if(items.length === 0) {
+            stopInfiniteLoading();
+            return;
+        }
+
+        // 递增 URL 中的页码
+        var currentUrl = el.getAttribute('hx-get') || '';
+        var nextUrl = currentUrl;
+
+        // 格式1: ?forum-5-2.htm（页码在路径中，最后一个 -数字.htm）
+        var lastDashIdx = currentUrl.lastIndexOf('-');
+        if(lastDashIdx !== -1) {
+            var afterDash = currentUrl.substring(lastDashIdx + 1);
+            var pageMatch = afterDash.match(/^(\d+)(\.htm)/);
+            if(pageMatch) {
+                var nextPage = parseInt(pageMatch[1], 10) + 1;
+                nextUrl = currentUrl.substring(0, lastDashIdx + 1) + nextPage + pageMatch[2];
+            }
+        }
+
+        // 格式2: ?index-default.htm&page=2（页码在查询参数中）
+        if(nextUrl === currentUrl) {
+            nextUrl = currentUrl.replace(/([?&]page=)(\d+)/, function(match, prefix, pageNum) {
+                return prefix + (parseInt(pageNum, 10) + 1);
+            });
+        }
+
+        if(nextUrl !== currentUrl) {
+            el.setAttribute('hx-get', nextUrl);
+        }
+    });
+
+    // DOM 更新完成后触发动画和重排，并做边界安全检查
+    document.addEventListener('htmx:afterSettle', function(e) {
+        // 只处理来自 paginationInfinite 的请求
+        if(!e.detail || e.detail.elt !== el) return;
+
+        // 安全检查：如果元素已被 htmx 置为 none 触发，确保 indicator 已替换
+        if(el.getAttribute('hx-trigger') === 'none') {
+            var indicator = el.querySelector('#infiniteIndicator');
+            if(indicator) {
+                el.innerHTML = '<div class="text-center py-3 text-body-secondary small"><?php echo lang('no_more_data_tip');?></div>';
+            }
+            return;
+        }
+
+        // masonry 布局需要触发 CSS columns 重排
+        var masonryContainer = document.querySelector('.masonry-container');
+        if(masonryContainer) {
+            void masonryContainer.offsetHeight;
+        }
+
+        // 触发帖子列表淡入动画
+        if(typeof animateThreadItems === 'function') {
+            setTimeout(animateThreadItems, 50);
+        }
+    });
+})();
+</script>
+<!--{hook pagination_infinite_after.htm}-->
+<?php } ?>

@@ -1,65 +1,81 @@
-### 【Xiuno BBS 4.0 是什么？】
-Xiuno BBS 4.0 是一款轻论坛产品，前端基于 BootStrap 4.0、JQuery 3，后端基于 PHP/7 MySQL XCache/Yac/Redis/Memcached...
+# XIUNOX
 
-自适应手机、平板、PC，有着非常方便的插件机制，不仅仅是一个轻论坛，还是一个良好的二次开发平台。
-
-git： https://git.oschina.net/xiuno/xiunobbs.git
-
-### 【Xiuno BBS 4.0 带来了什么？】
-前端采用 BootStrap 4 + JQuery 3，响应式布局，自适应手机，平板，PC 设备，不再需要单独开发移动版本。
-
-对 Bootstrap 4 进行了增强和兼容，比如增加 $('#submit').button('xxx').delay(3000).location('xxx.php') 的连续操作支持。
-
-xiuno.js 采用了 xn. 命名空间，不再担心 js 命名冲突，完善了对常用的 php 函数的实现。
-
-增加了通用的 $.each_sync() 方法，从客户端避免 ajax 并发导致的服务端并发写数据问题，简化了服务端逻辑。
-
-不再支持 IE89 和以下版本，全面拥抱移动端，不用再用琢磨恶心的 css hack。
-
-不再强制要求 URL-Rewrite， 采用相对路径的 URL 格式，方便部署到子目录：user-login.htm
-
-图片缩略、裁切放到了客户端，不再依赖服务端 GD 库（不再担心各种 GD 漏洞和弱点）。
-
-同时支持 Session 和 Token 方式登录，可以全站返回 json 数据，方便 APP 开发。
-
-插件机制采用 hook + overwrite 方式，方便插入，和覆盖，非常方便二次开发，并且不影响性能，不影响编译。
-
-db 层采用了更加方便的接口，可以同时支持 SQL 和 NoSQL 的方式操作数据（提倡 NoSQL)。
-
-论坛功能上更加的精简，更多功能采用插件的方式进行扩充。
-
-引入了语言包，自带简体、繁体、英文三个版本。
-
-插件中心正式开启，开发者可以入驻，开发收费插件。
-
-只需要一个博客插件，它就可以变成一个功能强大的博客。
-
-帖子支持 txt html markdown 三种格式，自带适度整合的 UMEditor 插件，修正了 UM 在 Bootstrap 4 下的很多问题。
-
-xiunophp 4.0 这个框架合并成了一个文件 xiunophp.min.php，只需要一个 include 就可以开始使用里面提供的方便的函数和全局变量。
-
-Xiuno BBS 4 正式版经历了近 2 年，7 个 beta 版本，最终定型，这可能是最后一个大版本，放心动手二次开发吧。
+基于 [Xiuno BBS 4.0.4](xiunobbs4.0.4.md) 原版打造的现代化重构版本 XIUNOX，
+全面适配 PHP 8 + MySQL 8，采用 Bootstrap 5.3 与 HTMX 构建现代无刷新 UI，
+安全与可扩展性大幅提升，原生支持多语言、RESTful API，让轻量论坛重获新生。
 
 
-### 【性能方面】
-采用静态语言编程风格，充分发挥 PHP7 OPCache 的威力。
 
-专门针对 BBS 业务的索引优化和适度的缓存。
+## 技术栈
 
-大量的运算放到了客户端，并发问题尽量由客户端控制。
+- **后端**：PHP 8.0+ / MySQL8（pdo_mysql）
+- **前端**：Bootstrap 5.3+ / htmx 4.x / Tabler Icons
+- **架构**：htmx 纯净架构（服务端渲染 + 乐观更新 + morph DOM 保留）
+- **安全**：CSRF 防护 / XSS 防护（EscapeService）/ 参数化查询 / 登录安全
+- **API**：v1 版本 API，支持 Token 认证，60 天缓存
 
-作者十多年从业经验带领您绕过雷区。
+## 核心特性
 
-### 【授权】
-Xiuno BBS 4.0 采用 MIT 协议发布，您可以自由修改、派生版本、商用而不用担心任何法律风险（修改后应保留原来的版权信息）。
+- 响应式布局，自适应手机、平板、PC
+- htmx 4 驱动交互：hx-get / hx-post / hx-live / hx-optimistic
+- 插件机制：hook + overwrite，方便二次开发
+- 多语言支持：简体中文、繁体中文、英文、日文、韩文、俄文、泰文
+- 附件管理：图片缩略、视频信息获取（ffprobe 可选）
+- 缓存支持：MySQL / Redis / Memcached / Yac
+- 积分系统：多类型积分、每日限额、日志审计
+- 安全防护：验证码、IP 黑名单、敏感词过滤、登录限速
+- RESTful API：v1 版本 API，支持 Token 认证 
+- 后台管理：用户 / 版块 / 插件 / 主题 / 安全等完整管理功能
 
-我们承诺对主程序永远免费，在没有盈利前接受正派人士的捐赠。
+## 目录结构
 
-### 【站长交流群】
-474834730
+```
+xiunobbs/
+├── admin/          # 后台管理
+├── api/            # RESTful API
+├── conf/           # 配置文件
+├── doc/            # 开发文档
+├── install/        # 安装程序
+├── lang/           # 多语言包
+├── lib/            # 核心类库
+├── model/          # 数据模型
+├── plugin/         # 插件目录
+├── view/           # 前台模板
+│   └── htm/        # HTM 模板文件
+├── upload/         # 上传文件
+└── tmp/            # 编译缓存
+```
 
-### 【开发者群】
-2759536
+## 快速开始
 
-axiuno@gmail.com
-2018/1/17
+详见 [安装教程](install.md)
+
+## 插件开发
+
+详见 [插件开发](plugindev.md)
+
+## 多语言支持
+
+| 语言 | 代码 |
+|------|------|
+| 简体中文 | zh-cn |
+| 繁体中文 | zh-tw |
+| 英文 | en-us |
+| 日文 | ja-jp |
+| 韩文 | ko-kr |
+| 俄文 | ru-ru |
+| 泰文 | th-th |
+
+## 授权协议
+
+MIT 协议，附加免责声明和使用限制条款。可自由修改、派生版本、商用（需保留原版权信息，且不得用于协议中明确禁止的用途）。详见 [LICENSE](LICENSE)。
+
+
+## BASED ON
+Xiuno BBS 4.0.4
+https://github.com/xiuno/xiunobbs
+
+## 使用的库
+- **Bootstrap**：5.3.3
+- **htmx**：4.1.1
+- **Tabler Icons**：2.1.0

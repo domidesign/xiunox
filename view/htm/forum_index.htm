@@ -1,0 +1,180 @@
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook forum_index_start.htm}-->
+
+<div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
+	<div class="d-none d-lg-block col-lg-2">
+		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
+	</div>
+	<div class="col-lg-7  " style="min-width:0">
+		<!-- 页面标题 -->
+
+		<!--{hook forum_index_header.htm}-->
+
+		<!-- 版块列表 -->
+		<?php foreach($_forumTree as $_forum) { ?>
+		<!--{hook forum_index_forum_before.htm}-->
+			<!-- 版块头部：名称 -->
+		<div class="card-header bg-transparent d-flex align-items-center justify-content-between p-3 pb-0 forum-section">
+				<div class="d-flex align-items-center gap-2">
+					<?php if(!$_forum['is_category']) { ?>
+						<?php if(!empty($_forum['icon_url'])): ?>
+						<span style="font-size:1.25rem"><img src="<?php echo $_forum['icon_url'];?>" class="rounded" width="20" height="20" alt="<?php echo esc_html($_forum['name']);?>" /></span>
+						<?php elseif(!empty($_forum['icon_class'])): ?>
+						<span style="font-size:1.25rem"><i class="<?php echo $_forum['icon_class'];?>"></i></span>
+						<?php else: ?>
+						<span style="font-size:1.25rem"><i class="ti ti-message-circle text-body-secondary"></i></span>
+						<?php endif; ?>
+					<?php } ?>
+					<?php if(!$_forum['is_category']) { ?>
+					<a href="<?php echo url('forum-' . $_forum['fid']);?>" class="text-decoration-none fw-semibold"><?php echo esc_html($_forum['name']);?></a>
+					<?php } else { ?>
+					<span class="fw-semibold"><?php echo esc_html($_forum['name']);?></span>
+					<?php } ?>
+				</div>
+				<?php if(!empty($_forum['children'])) { ?>
+				<span class="badge bg-light text-body-secondary rounded-pill"><?php echo count($_forum['children']);?> <?php echo lang('sub_forum_count_unit');?></span>
+				<?php } ?>
+			</div>
+		<div class="   p-3 pt-0 forum-section">
+		
+			
+
+			<?php if(!$_forum['is_category']) { ?>
+			<!-- 版块内容：描述、统计、关注 -->
+			<div class="x-card card py-3">
+				<?php if(!empty($_forum['description'])) { ?>
+				<p class="text-body-secondary small mb-2"><?php echo esc_html($_forum['description']);?></p>
+				<?php } ?>
+				<div class="d-flex gap-3 mb-2">
+					<span class="small text-body-secondary"><i class="ti ti-message me-1"></i><?php echo lang('today_label');?> <?php echo $_forum['today_posts'];?></span>
+					<span class="small text-body-secondary"><i class="ti ti-file me-1"></i><?php echo lang('threads_label2');?> <?php echo $_forum['threads'];?></span>
+					<span class="small text-body-secondary"><i class="ti ti-heart me-1"></i><?php echo lang('follow');?> <?php echo $_forum['follows'] ?? 0;?></span>
+				</div>
+				<?php if(!empty($_forum['last_post']) && !empty($_forum['last_post']['title'])) { ?>
+				<div class="small text-body-secondary">
+					<i class="ti ti-clock me-1"></i><?php echo lang('last_post');?>:
+					<a href="#" class="text-decoration-none"><?php echo esc_html($_forum['last_post']['title']);?></a>
+					by <a href="#" class="text-decoration-none"><?php echo esc_html($_forum['last_post']['username']);?></a>
+					<?php echo humandate($_forum['last_post']['time']);?>
+				</div>
+				<?php } ?>
+				<!-- 关注按钮 -->
+				<?php $_is_followed = !empty($_followStatus[$_forum['fid']]); ?>
+				<div class="mt-2">
+					<?php if(!empty($uid)) { ?>
+					<?php if($_is_followed) { ?>
+					<button class="btn btn-sm btn-outline-secondary rounded-pill"
+						hx-post="<?php echo url('forum-follow-'.$_forum['fid']);?>"
+						hx-target="this"
+						hx-swap="outerHTML"
+						hx-optimistic>
+						<i class="ti me-1 ti-heart-filled"></i>
+						<span><?php echo lang('followed');?></span>
+					</button>
+					<?php } else { ?>
+					<button class="btn btn-sm btn-outline-primary rounded-pill"
+						hx-post="<?php echo url('forum-follow-'.$_forum['fid']);?>"
+						hx-target="this"
+						hx-swap="outerHTML"
+						hx-optimistic>
+						<i class="ti me-1 ti-heart"></i>
+						<span><?php echo lang('follow');?></span>
+					</button>
+					<?php } ?>
+					<?php } else { ?>
+					<a href="<?php echo url('user-login');?>" class="btn btn-outline-primary rounded-pill">
+						<i class="ti ti-heart me-1"></i><?php echo lang('follow');?>
+					</a>
+					<?php } ?>
+				</div>
+			</div>
+			<?php } ?>
+
+			<?php if(!empty($_forum['children'])) { ?>
+			<!-- 子版块卡片 -->
+			<div class="collapse show" id="forum-children-<?php echo $_forum['fid'];?>">
+				<div class=" ">
+					<div class="d-flex flex-wrap gap-2">
+						<?php foreach($_forum['children'] as $_child) { ?>
+						<div class="   x-card card">
+							<a href="<?php echo url('forum-' . $_child['fid']);?>" class="  d-block d-flex  gap-2  ">
+								<div class="d-flex align-items-center gap-2 mb-1">
+									<?php if(!empty($_child['icon_url'])): ?>
+									<img src="<?php echo $_child['icon_url'];?>" class="rounded flex-shrink-0" width="42" height="42" alt="<?php echo esc_html($_child['name']);?>" />
+									<?php elseif(!empty($_child['icon_class'])): ?>
+									<span class="flex-shrink-0 sub-forum-icon"><i class="<?php echo $_child['icon_class'];?>"></i></span>
+									<?php else: ?>
+									<span class="flex-shrink-0 sub-forum-icon text-body-secondary"><i class="ti ti-<i class="ti ti-messages"></i>"></i></span>
+									<?php endif; ?>
+									
+								</div>
+								<div class="d-flex flex-column ">
+                                <div>
+									<span class="fw-medium text-truncate"><?php echo esc_html($_child['name']);?></span>
+								</div>
+								<div class="d-flex gap-2 small text-body-secondary">
+									<span><i class="ti ti-file-text me-1"></i><?php echo $_child['threads'];?></span>
+									<span><i class="ti ti-users me-1"></i><?php echo $_child['follows'] ?? 0;?></span>
+								</div>
+								</div>
+								
+							</a>
+						</div>
+						<?php } ?>
+					</div>
+				</div>
+				<!--{hook forum_index_children_after.htm}-->
+			</div>
+			<?php } ?>
+
+			<?php if(!$_forum['is_category'] && !empty($_forum['moderators'])) { ?>
+			<!-- 版主信息 -->
+			<div class="card-footer bg-transparent   py-2">
+				<span class="small text-body-secondary"><?php echo lang('moderator_label');?></span>
+				<?php foreach($_forum['moderators'] as $_idx => $_mod) { ?>
+					<?php if($_idx > 0) echo '、'; ?>
+					<a href="<?php echo url('user-' . $_mod['uid']);?>" class="small text-decoration-none"><?php echo esc_html($_mod['username']);?></a>
+				<?php } ?>
+			</div>
+			<?php } ?>
+		</div>
+		<!--{hook forum_index_forum_after.htm}-->
+		<?php } ?>
+	</div>
+	<div class="d-none d-lg-block col-lg-3">
+		<?php include _include(APP_PATH.'view/htm/sidebar_right.inc.htm');?>
+	</div>
+</div>
+
+<!--{hook forum_index_footer.htm}-->
+
+<!--{hook forum_index_end.htm}-->
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+(function(){
+    if(typeof anime === 'undefined') return;
+    var animate = anime.animate;
+    var stagger = anime.stagger;
+
+    var items = document.querySelectorAll('.forum-section');
+    if(!items.length) return;
+
+    items.forEach(function(item) {
+        item.style.opacity = '0';
+        item.style.transform = 'translateY(15px)';
+    });
+
+    animate(items, {
+        opacity: 1,
+        translateY: 0,
+        duration: 300,
+        delay: stagger(60),
+        ease: 'outQuad'
+    });
+})();
+</script>
+
+<!--{hook forum_index_js.htm}-->

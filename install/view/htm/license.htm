@@ -1,46 +1,159 @@
-<?php include INSTALL_PATH.'view/htm/header.inc.htm';?>
+<?php $step = 2; include INSTALL_PATH.'view/htm/header.inc.htm';?>
 
-<div class="card">
+<div class="x-card cardrounded-3">
 	<div class="card-body">
 		<h3 class="card-title mt-3"><?php echo lang('license_title');?></h3>
 		<hr />
-		<pre style="white-space: pre-wrap; word-wrap: break-word;"><?php echo lang('license_content');?>
-		<br>
-		The MIT License (MIT)
-		[OSI Approved License]
-		
-		The MIT License (MIT)
-		
-		Copyright (c) 2015 axiuno@gmail.com
-		
-		Permission is hereby granted, free of charge, to any person obtaining a copy
-		of this software and associated documentation files (the "Software"), to deal
-		in the Software without restriction, including without limitation the rights
-		to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-		copies of the Software, and to permit persons to whom the Software is
-		furnished to do so, subject to the following conditions:
-		
-		The above copyright notice and this permission notice shall be included in
-		all copies or substantial portions of the Software.
-		
-		THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-		IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-		FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-		AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-		LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-		OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-		THE SOFTWARE.
-		
-		http://www.opensource.org/licenses/mit-license.php
-	
-警告：按照我国法律，在未取得相关资源（影片、动画、图书、音乐等）授权的情况下，请不要传播任何形式的相关资源（资源数据文件、种子文件、网盘文件、FTP 文件等）！否则后果自负。
-		
-<?php echo lang('license_date');?>
-		</pre>
-	
-		<div class="text-center m-3"><button class="btn btn-primary" onClick="window.location='index.php?action=env'"><?php echo lang('agree_license_to_continue');?></button></div>
+
+		<div class="row g-3">
+			<!-- 左侧：协议内容 + 阅读提示 -->
+			<div class="col-md-8">
+				<div id="license-box" style="height:420px;overflow-y:auto;border:1px solid #dee2e6;border-radius:6px;padding:1rem;background:#fafafa;">
+					<pre style="white-space:pre-wrap;word-break:break-word;font-size:0.82rem;margin:0;"><?php
+$licenseFile = APP_PATH . 'LICENSE';
+if (file_exists($licenseFile)) {
+    echo htmlspecialchars(file_get_contents($licenseFile), ENT_QUOTES, 'UTF-8');
+} else {
+    echo 'LICENSE file not found.';
+}
+					?></pre>
+				</div>
+
+				<!-- 滚动提示：滑到底部后隐藏 -->
+				<div id="scroll-hint" class="d-flex align-items-center text-muted small mt-2">
+					<i class="ti ti-arrow-down me-1" style="font-size:1.1rem"></i>
+					<span><?php echo lang('license_read_hint');?></span>
+				</div>
+			</div>
+
+			<!-- 右侧：操作区 -->
+			<div class="col-md-4">
+				<div class="border rounded-3 p-3 d-flex flex-column h-100" style="background:#f8f9fa;min-height:420px;">
+					<div class="flex-grow-1 d-flex flex-column justify-content-center">
+						<!-- 等待阅读状态 -->
+						<div id="status-waiting" class="text-center text-muted">
+							<i class="ti ti-book" style="font-size:2.5rem;"></i>
+							<p class="mt-2 small mb-0"><?php echo lang('license_read_hint');?></p>
+						</div>
+
+						<!-- 倒计时状态 -->
+						<div id="status-countdown" class="text-center d-none">
+							<div class="position-relative d-inline-block">
+								<svg width="64" height="64" viewBox="0 0 64 64" style="transform:rotate(-90deg)">
+									<circle cx="32" cy="32" r="28" fill="none" stroke="#dee2e6" stroke-width="4"/>
+									<circle id="countdown-ring" cx="32" cy="32" r="28" fill="none" stroke="#0d6efd" stroke-width="4"
+										stroke-dasharray="175.93" stroke-dashoffset="0" stroke-linecap="round"/>
+								</svg>
+								<span id="countdown-num" class="position-absolute top-50 start-50 translate-middle fw-bold" style="font-size:1.4rem;">5</span>
+							</div>
+							<p class="text-muted small mt-2 mb-0"><?php echo lang('license_countdown_text');?></p>
+						</div>
+
+						<!-- 就绪状态 -->
+						<div id="status-ready" class="text-center d-none">
+							<i class="ti ti-circle-check text-success" style="font-size:2.5rem;"></i>
+							<p class="mt-2 small text-success mb-0"><?php echo lang('license_ready');?></p>
+						</div>
+					</div>
+
+					<!-- 底部：勾选 + 按钮 -->
+					<div class="border-top pt-3 mt-3">
+						<div class="form-check mb-3">
+							<input class="form-check-input" type="checkbox" id="agree_check" disabled>
+							<label class="form-check-label small" for="agree_check" id="agree_label">
+								<?php echo lang('agree_license_to_continue');?>
+							</label>
+						</div>
+						<button class="btn btn-primary w-100" id="btn_continue" disabled onclick="window.location='index.php?action=env'">
+							<?php echo lang('next_step');?>
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
 	</div>
 </div>
 
+<script>
+(function() {
+	var box = document.getElementById('license-box');
+	var check = document.getElementById('agree_check');
+	var label = document.getElementById('agree_label');
+	var btn = document.getElementById('btn_continue');
+
+	var hintEl = document.getElementById('scroll-hint');
+	var statusWaiting = document.getElementById('status-waiting');
+	var statusCountdown = document.getElementById('status-countdown');
+	var statusReady = document.getElementById('status-ready');
+	var countdownNum = document.getElementById('countdown-num');
+	var countdownRing = document.getElementById('countdown-ring');
+
+	var triggered = false;
+	var totalSeconds = 10;
+	var circumference = 2 * Math.PI * 28; // ~175.93
+
+	// 防抖：确保滚动到底部后稳定停留才触发
+	var debounceTimer = null;
+
+	function showStatus(which) {
+		statusWaiting.classList.add('d-none');
+		statusCountdown.classList.add('d-none');
+		statusReady.classList.add('d-none');
+		which.classList.remove('d-none');
+	}
+
+	function startCountdown() {
+		if (triggered) return;
+		triggered = true;
+
+		// 隐藏阅读提示
+		hintEl.style.display = 'none';
+
+		// 显示倒计时
+		showStatus(statusCountdown);
+		countdownNum.textContent = totalSeconds;
+		countdownRing.style.strokeDashoffset = '0';
+
+		var elapsed = 0;
+		var timer = setInterval(function() {
+			elapsed++;
+			var remaining = totalSeconds - elapsed;
+			countdownNum.textContent = remaining > 0 ? remaining : '';
+
+			// 环形进度
+			var progress = elapsed / totalSeconds;
+			countdownRing.style.strokeDashoffset = (circumference * progress).toFixed(2);
+
+			if (elapsed >= totalSeconds) {
+				clearInterval(timer);
+				// 显示就绪
+				showStatus(statusReady);
+				check.disabled = false;
+			}
+		}, 1000);
+	}
+
+	box.addEventListener('scroll', function() {
+		if (triggered) return;
+
+		var atBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 20;
+
+		if (atBottom) {
+			// 每次到达底部都重置防抖，确保用户确实在底部停留
+			clearTimeout(debounceTimer);
+			debounceTimer = setTimeout(startCountdown, 300);
+		} else {
+			// 离开底部时清除等待中的防抖
+			clearTimeout(debounceTimer);
+			debounceTimer = null;
+		}
+	});
+
+	// 勾选同意后启用按钮
+	check.addEventListener('change', function() {
+		btn.disabled = !check.checked;
+	});
+})();
+</script>
 
 <?php include INSTALL_PATH.'view/htm/footer.inc.htm';?>

@@ -71,7 +71,7 @@ xn.is_ie_10 = navigator.userAgent.indexOf('Trident') != -1;
 xn.is_ff = navigator.userAgent.indexOf('Firefox') != -1;
 xn.in_mobile = ($(window).width() < 1140);
 xn.options = {}; // 全局配置
-
+xn.options.water_image_url = 'view/img/water-small.png';// 默认水印路径
 
 xn.htmlspecialchars = function(s) {
 	s = s.replace(/</g, "&lt;");
@@ -795,6 +795,17 @@ $.xget = function(url, callback, retry) {
 	};
 })(jQuery, window);
 
+
+$.unparam = function(str) {
+	return str.split('&').reduce(function (params, param) {
+		var paramSplit = param.split('=').map(function (value) {
+			return decodeURIComponent(value.replace('+', ' '));
+		});
+		params[paramSplit[0]] = paramSplit[1];
+		return params;
+	}, {});
+}
+
 $.xpost = function(url, postdata, callback, progress_callback) {
 	if($.isFunction(postdata)) {
 		callback = postdata;
@@ -836,6 +847,72 @@ $.xpost = function(url, postdata, callback, progress_callback) {
 		}
 	});
 };
+
+/*
+$.xpost = function(url, postdata, callback, progress_callback) {
+	//构造表单数据
+	if(xn.is_string(postdata)) {
+		postdata = xn.is_string(postdata) ? $.unparam(postdata) : postdata;
+	}
+	var formData = new FormData();
+	for(k in postdata) {
+		formData.append(k, postdata[k]);
+	}
+	
+	//创建xhr对象 
+	var xhr = new XMLHttpRequest();
+	
+	//设置xhr请求的超时时间
+	xhr.timeout = 6000000;
+	
+	//设置响应返回的数据格式
+	xhr.responseType = "text";
+	
+	//创建一个 post 请求，采用异步
+	xhr.open('POST', url, true);
+	
+	xhr.setRequestHeader("Content_type", "application/x-www-form-urlencoded"); 
+	xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest"); 
+	
+	//注册相关事件回调处理函数
+	xhr.onload = function(e) { 
+		if(this.status == 200 || this.status == 304) {
+			var r = this.response;
+			if(!r) return callback(-1, 'Server Response Empty!');
+			var s = xn.json_decode(r);
+			if(!s || s.code === undefined) return callback(-1, 'Server Response Not JSON：'+r);
+			if(s.code == 0) {
+				return callback(0, s.message);
+			//系统错误
+			} else if(s.code < 0) {
+				return callback(s.code, s.message);
+			} else {
+				return callback(s.code, s.message);
+			}
+		} else {
+			console.log(e);
+		}
+	};
+	xhr.ontimeout = function(e) { 
+		console.log(e);
+		return callback(-1, 'Ajax request timeout:'+url);
+		
+	};
+	xhr.onerror = function(e) { 
+		console.log(e);
+		return callback(-1, 'Ajax request error');
+	};
+	xhr.upload.onprogress = function(e) { 
+		if (e.lengthComputable) {
+			if(progress_callback) progress_callback(xn.intval(e.loaded / e.total * 100));
+			//console.log('progress1:'+e.loaded / e.total * 100 + '%');
+		}
+	};
+	
+	//发送数据
+	xhr.send(formData);
+};
+*/
 
 /*
 	功能：
@@ -963,7 +1040,7 @@ $.fn.base64_encode_file = function(width, height, action) {
 						if(jassoc) jassoc.attr('src', message.data);
 						jhidden.val(message.data); // base64
 					} else {
-						alert(message);
+						XN.alert(message);
 					}
 					jsubmit.button('reset');
 				}, {width: width, height: height, action: action});
@@ -1115,8 +1192,8 @@ xn.image_file_type = function(file_base64_data) {
 
 //对图片进行裁切，缩略，对黑色背景，透明化处理
 xn.image_resize = function(file_base64_data, callback, options) {
-	var thumb_width = options.width || 1200;
-	var thumb_height = options.height || 2400;
+	var thumb_width = options.width || 2560;
+	var thumb_height = options.height || 4960;
 	var action = options.action || 'thumb';
 	var filetype = options.filetype || xn.image_file_type(file_base64_data);//xn.base64_data_image_type(file_base64_data);
 	var qulity = options.qulity || 0.9; // 图片质量, 1 为无损
@@ -1128,8 +1205,7 @@ xn.image_resize = function(file_base64_data, callback, options) {
 	var img = new Image();
 	img.onload = function() {
 		
-		var water_img = new Image();
-		water_img.onload = function() {
+		var water_img_onload = function(water_on,orientation) { //qiukong_patch
 			var canvas = document.createElement('canvas');
 			// 等比缩放
 			var width = 0, height = 0, canvas_width = 0, canvas_height = 0;
@@ -1137,6 +1213,7 @@ xn.image_resize = function(file_base64_data, callback, options) {
 			
 			var img_width = img.width;
 			var img_height = img.height;
+			var qkswap=false;if(orientation==6 || orientation==8){img_width=img.height;img_height=img.width;qkswap=true;}; //qiukong_patch
 			
 			if(xn.substr(file_base64_data, 0, 14) == 'data:image/gif') return callback(0, {width: img_width, height: img_height, data: file_base64_data});
 			
@@ -1194,23 +1271,29 @@ xn.image_resize = function(file_base64_data, callback, options) {
 	
 			//ctx.fillStyle = 'rgb(255,255,255)';
 			//ctx.fillRect(0,0,width,height);
+
+			switch(orientation){case 3:ctx.translate(width,height);ctx.rotate(180*Math.PI/180);break;case 6:ctx.translate(width,0);ctx.rotate(90*Math.PI/180);break;case 8:ctx.translate(0,height);ctx.rotate(-90*Math.PI/180);break;default:break;}; //qiukong_patch
 	
 			ctx.clearRect(0, 0, width, height); 			// canvas清屏
-			ctx.drawImage(img, 0, 0, img_width, img_height, dx, dy, width, height);	// 将图像绘制到canvas上 
+			ctx.drawImage(img, 0, 0, img.width, img.height, qkswap?dy:dx, qkswap?dx:dy, qkswap?height:width, qkswap?width:height); //qiukong_patch
 			
-			var water_width = water_img.width;
-			var water_height = water_img.height;
-			if(img_width > 400 && img_width > water_width && water_width > 4) {
-				var x =  img_width - water_width - 16;
-				var y = img_height - water_height - 16;
-				
-				// 参数参考：https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
-				ctx.globalAlpha = 0.3; // 水印透明度
-				ctx.beginPath();
-				ctx.drawImage(water_img, 0, 0, water_width, water_height, x, y, water_width, water_height);	// 将水印图像绘制到canvas上 
-				ctx.closePath();
-				ctx.save();
+			
+			if(water_on) {
+				var water_width = water_img.width;
+				var water_height = water_img.height;
+				if(img_width > 400 && img_width > water_width && water_width > 4) {
+					var x =  img_width - water_width - 16;
+					var y = img_height - water_height - 16;
+					
+					// 参数参考：https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
+					ctx.globalAlpha = 0.3; // 水印透明度
+					ctx.beginPath();
+					ctx.drawImage(water_img, 0, 0, water_width, water_height, x, y, water_width, water_height);	// 将水印图像绘制到canvas上 
+					ctx.closePath();
+					ctx.save();
+				}
 			}
+			
 			
 			var imagedata = ctx.getImageData(0, 0, canvas_width, canvas_height);
 			var data = imagedata.data;
@@ -1227,11 +1310,22 @@ xn.image_resize = function(file_base64_data, callback, options) {
 			if(callback) callback(0, {width: width, height: height, data: s});
 		
 		};
+		
+		var water_img = new Image();
+		water_img.onload = function() {
+			var reader=new FileReader();reader.onload=function(e){var view=new DataView(e.target.result);if(view.getUint16(0,false)!=0xFFD8){water_img_onload(true,-2);return;};var length=view.byteLength,offset=2;while(offset<length){if(view.getUint16(offset+2,false)<=8){water_img_onload(true,-1);return;};var marker=view.getUint16(offset,false);offset+=2;if(marker==0xFFE1){if(view.getUint32(offset+=2,false)!=0x45786966){water_img_onload(true,-1);return;};var little=view.getUint16(offset+=6,false)==0x4949;offset+=view.getUint32(offset+4,little);var tags=view.getUint16(offset, little);offset+=2;for(var i=0;i<tags;i++){if(view.getUint16(offset+(i*12),little)==0x0112){water_img_onload(true,view.getUint16(offset+(i*12)+8,little));return;}}}else if((marker&0xFF00)!=0xFF00){break;}else{offset+=view.getUint16(offset,false);};};water_img_onload(true,-1);return;};var dataarr=file_base64_data.split(','),mime=dataarr[0].match(/:(.*?);/)[1],bstr=atob(dataarr[1]),n=bstr.length,u8arr=new Uint8Array(n);while(n--){u8arr[n]=bstr.charCodeAt(n);};reader.readAsArrayBuffer(new Blob([u8arr],{type:mime})); //qiukong_patch
+		};
+		water_img.onerror = function() {
+			water_img_onload(false,0); //qiukong_patch
+		};
 		water_img.src = options.water_image_url || xn.options.water_image_url;
+		if(!water_img.src) {
+			water_img_onload(false,0); //qiukong_patch
+		}
 	};
 	img.onerror = function(e) {
 		console.log(e);
-		alert(e);
+		XN.alert(e);
 	};
 	img.src = file_base64_data;
 };
@@ -1240,74 +1334,77 @@ xn.image_resize = function(file_base64_data, callback, options) {
 	用法：
 	var file = e.target.files[0]; // 文件控件 onchange 后触发的 event;
 	var upload_url = 'xxx.php'; // 服务端地址
-	var postdata = {width: 2048, height: 4096, action: 'thumb', filetype: 'jpg'}; // postdata|options 公用，一起传给服务端。
-	var progress = function(percent) { console.log('progress:'+ percent); }}; // 如果是图片，会根据此项设定进行缩略和剪切 thumb|clip
-	xn.upload_file(file, upload_url, postdata, function(code, json) {
+	var postdata = {tid: 123, pid: 456}; // 额外 post 数据
+	var progress = function(percent) { console.log('progress:'+ percent); }};
+	xn.upload_file(file, upload_url, postdata, function(code, message) {
 		// 成功
 		if(code == 0) {
-			console.log(json.url);
-			console.log(json.width);
-			console.log(json.height);
+			console.log(message.url);
+			console.log(message.width);
+			console.log(message.height);
 		} else {
-			alert(json);
+			alert(message);
 		}
 	}, progress);
+
+	注意：本函数已重构为 FormData 上传，不再使用 base64 编码
+	图片缩放/剪切已由服务端 AttachmentService 处理
 */
 xn.upload_file = function(file, upload_url, postdata, complete_callback, progress_callback, thumb_callback) {
 	postdata = postdata || {};
-	postdata.width = postdata.width || 1200;
-	postdata.height = postdata.height || 2400;
 	
-	var ajax_upload_file = function(base64_data) {
-		var ajax_upload = function(upload_url, postdata, complete_callback) {
-			$.xpost(upload_url, postdata, function(code, message) {
-				if(code != 0) return complete_callback(code, message);
-				if(complete_callback) complete_callback(0, message);
-			}, function(percent) {
-				if(progress_callback) progress_callback(percent);
-			});
-		};
-		
-		// gif 直接上传
-		// 图片进行缩放，然后上传
-		//  && xn.substr(base64_data, 0, 14) != 'data:image/gif'
-		if(xn.substr(base64_data, 0, 10) == 'data:image') {
-			var filename = file.name ? file.name : (file.type == 'image/png' ? 'capture.png' : 'capture.jpg');
-			xn.image_resize(base64_data, function(code, message) {
-				if(code != 0) return alert(message);
-				// message.width, message.height 是缩略后的宽度和高度
-				postdata.name = filename;
-				postdata.data = message.data;
-				postdata.width = message.width;
-				postdata.height = message.height;
-				ajax_upload(upload_url, postdata, complete_callback);
-			}, postdata);
-		// 文件直接上传， 不缩略
-		} else {
-			var filename = file.name ? file.name : '';
-			postdata.name = filename;
-			postdata.data = base64_data;
-			postdata.width = 0;
-			postdata.height = 0;
-			ajax_upload(upload_url, postdata, complete_callback);
-		}
-	};
-		
-	// 如果为 base64 则不需要 new FileReader()
-	if(xn.is_string(file) && xn.substr(file, 0, 10) == 'data:image') {
-		var base64_data = file;
-		if(thumb_callback) thumb_callback(base64_data);
-		ajax_upload_file(base64_data);
-	} else {
-		var reader = new FileReader();
-			reader.readAsDataURL(file);
-			reader.onload = function() {
-				var base64_data = this.result;
-				if(thumb_callback) thumb_callback(base64_data);
-			    ajax_upload_file(base64_data);
-			}
+	var xhr = new XMLHttpRequest();
+	xhr.open('POST', upload_url, true);
+	xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+	
+	var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+	if (csrfMeta) {
+		xhr.setRequestHeader('X-CSRF-Token', csrfMeta.getAttribute('content'));
 	}
 	
+	if (xhr.upload && progress_callback) {
+		xhr.upload.onprogress = function(e) {
+			if (e.lengthComputable) {
+				var percent = Math.round(e.loaded * 100 / e.total);
+				progress_callback(percent);
+			}
+		};
+	}
+	
+	xhr.onload = function() {
+		if (xhr.status >= 200 && xhr.status < 300) {
+			try {
+				var json = JSON.parse(xhr.responseText);
+				if (json.code === 0) {
+					if (complete_callback) complete_callback(0, json.message);
+				} else {
+					if (complete_callback) complete_callback(json.code || -1, json.message);
+				}
+			} catch(e) {
+				if (complete_callback) complete_callback(-1, '响应解析失败');
+			}
+		} else {
+			if (complete_callback) complete_callback(-1, '上传失败');
+		}
+	};
+	
+	xhr.onerror = function() {
+		if (complete_callback) complete_callback(-1, '网络错误');
+	};
+	
+	var formData = new FormData();
+	formData.append('file', file);
+	var csrfToken = '';
+	var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+	if (csrfMeta) csrfToken = csrfMeta.getAttribute('content');
+	if (csrfToken) formData.append('csrf_token', csrfToken);
+	for (var k in postdata) {
+		if (postdata.hasOwnProperty(k) && k !== 'data' && k !== 'name' && k !== 'width' && k !== 'height') {
+			formData.append(k, postdata[k]);
+		}
+	}
+	
+	xhr.send(formData);
 };
 
 // 从事件对象中查找 file 对象，兼容 jquery event, clipboard, file.onchange
@@ -1338,7 +1435,7 @@ xn.nodeHasParent = function(node, topNode) {
 // 表单提交碰到错误的时候，依赖此处，否则错误会直接跳过，不利于发现错误
 window.onerror = function(msg, url, line) {
 	if(!window.debug) return;
-	alert("error: "+msg+"\r\n line: "+line+"\r\n url: "+url);
+	XN.alert("error: "+msg+"\r\n line: "+line+"\r\n url: "+url);
 	// 阻止所有的 form 提交动作
 	return false;
 };
@@ -1455,8 +1552,10 @@ $.fn.alert = function(message) {
 	jpthis = jthis.parent('.form-group');
 	jpthis.addClass('has-danger');
 	jthis.addClass('form-control-danger');
-	//if(in_mobile) alert(message);
-	jthis.data('title', message).tooltip('show');
+	jthis.attr('title', message);
+	var tip = jthis.next('.xn-field-tip');
+	if(tip.length) { tip.text(message).show(); }
+	else { jthis.after('<span class="xn-field-tip text-danger small">' + message + '</span>'); }
 	return this;
 };
 
@@ -1578,7 +1677,8 @@ $.fn.attr_name_index = function(rowid) {
 $.fn.reset = function() {
 	var jform = $(this);
 	jform.find('input[type="submit"]').button('reset');
-	jform.find('input').tooltip('dispose');
+	jform.find('.xn-field-tip').remove();
+	jform.find('input').removeAttr('title');
 };
 
 // 用来代替 <base href="../" /> 的功能
@@ -1614,17 +1714,35 @@ $.fn.base_href = function(base) {
 	});
 */
 $.each_sync = function(array, func, callback){
+	if(typeof async !== 'undefined') {
+		_runEachSync(array, func, callback);
+		return;
+	}
+	// 按需加载 async.js：从已加载的 xiuno.js script 标签推断 baseUrl
+	var scripts = document.querySelectorAll('script[src*="xiuno.js"]');
+	var baseUrl = '';
+	if(scripts.length > 0) {
+		baseUrl = scripts[0].src.replace(/js\/xiuno\.js.*$/, '');
+	}
+	var script = document.createElement('script');
+	script.src = baseUrl + 'js/async.js';
+	script.onload = function() {
+		_runEachSync(array, func, callback);
+	};
+	script.onerror = function() {
+		console.error('Failed to load async.js');
+		if(callback) callback('load_error', null);
+	};
+	document.head.appendChild(script);
+};
+
+function _runEachSync(array, func, callback) {
 	async.series((function(){
 		var func_arr = [];
 		for(var i = 0; i< array.length; i++){
 			var f = function(i){
 				return function(callback){
 					func(i, callback);
-					/*
-					setTimeout(function() {
-						func(i, callback);
-					}, 2000);*/
-					
 				}
 			};
 			func_arr.push(f(i))
@@ -1633,7 +1751,7 @@ $.each_sync = function(array, func, callback){
 	})(), function(error, results) {
 		if(callback) callback(null, "complete");
 	});
-};
+}
 
 // 定位
 /*
@@ -1860,4 +1978,58 @@ $.fn.xn_toggle = function() {
 $('.xn-dropdown').xn_dropdown();
 $('.xn-toggle').xn_toggle();
 
-console.log('xiuno.js loaded');
+function showToast(message, type, redirectUrl) {
+    var toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;';
+        document.body.appendChild(toastContainer);
+    }
+    
+    var iconMap = {
+        success: 'ti-circle-check',
+        error: 'ti-alert-circle',
+        warning: 'ti-alert-triangle',
+        info: 'ti-info-circle'
+    };
+    var bgMap = {
+        success: 'bg-success-subtle border border-success',
+        error: 'bg-danger-subtle border border-danger',
+        warning: 'bg-warning-subtle border border-warning',
+        info: 'bg-primary-subtle border border-primary'
+    };
+    var textMap = {
+        success: 'text-success',
+        error: 'text-danger',
+        warning: 'text-warning',
+        info: 'text-primary'
+    };
+    
+    var icon = iconMap[type] || iconMap.info;
+    var bg = bgMap[type] || bgMap.info;
+    var textCls = textMap[type] || textMap.info;
+    
+    var toastId = 'toast-' + Date.now();
+    var toast = document.createElement('div');
+    toast.id = toastId;
+    toast.className = bg + ' rounded-3 shadow-sm d-flex align-items-center gap-2 px-3 py-2';
+    toast.style.cssText = 'pointer-events:auto;font-size:0.875rem;animation:toast-slide-in 0.3s ease;min-width:200px;max-width:400px;';
+    toast.innerHTML = '<i class="ti ' + icon + ' ' + textCls + '" style="font-size:1.25rem;flex-shrink:0"></i><span class="flex-fill">' + message + '</span>';
+    
+    toastContainer.appendChild(toast);
+    
+    var duration = redirectUrl ? 2000 : 3000;
+    setTimeout(function() {
+        toast.style.animation = 'toast-slide-in 0.3s ease reverse';
+        setTimeout(function() { toast.remove(); }, 300);
+    }, duration);
+    
+    if (redirectUrl) {
+        setTimeout(function() {
+            window.location.href = redirectUrl;
+        }, duration + 300);
+    }
+    
+    return toast;
+}

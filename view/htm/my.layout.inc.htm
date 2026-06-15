@@ -1,0 +1,107 @@
+<?php
+// my 页面公共布局组件（侧边栏 + 用户信息卡片 + 移动端tab）
+// 使用方式：include 前设置 $active_tab = 'notice' 等
+// 右侧内容区由各页面自行填充
+?>
+<div class="row g-4">
+	<!-- 左侧导航栏 -->
+	<div class="d-none d-lg-block col-lg-2">
+		<div class="x-card card overflow-hidden">
+			<!--{hook my_sidebar_nav_before.htm}-->
+			<ul class="side-nav">
+				<li class="side-nav-title mt-2"><?php echo lang('personal_settings');?></li>
+				<!--{hook my_sidebar_nav_profile_before.htm}-->
+				<li class="side-nav-item<?php if(empty($active_tab) || $active_tab == 'profile') echo ' active'; ?>" data-tab="profile">
+					<a href="javascript:;" class="side-nav-link">
+						<span class="menu-icon"><i class="ti ti-user"></i></span>
+						<span class="menu-text"><?php echo lang('my_basic_profile');?></span>
+					</a>
+				</li>
+				<!--{hook my_sidebar_nav_item_after.htm}-->
+				<!--{hook my_sidebar_nav_security_before.htm}-->
+				<li class="side-nav-item<?php if(!empty($active_tab) && $active_tab == 'security') echo ' active'; ?>" data-tab="security">
+					<a href="javascript:;" class="side-nav-link">
+						<span class="menu-icon"><i class="ti ti-shield-lock"></i></span>
+						<span class="menu-text"><?php echo lang('security_setting');?></span>
+					</a>
+				</li>
+				<!--{hook my_sidebar_nav_item_after.htm}-->
+				<!--{hook my_sidebar_nav_avatar_before.htm}-->
+				<li class="side-nav-item<?php if(!empty($active_tab) && $active_tab == 'avatar') echo ' active'; ?>" data-tab="avatar">
+					<a href="javascript:;" class="side-nav-link">
+						<span class="menu-icon"><i class="ti ti-photo"></i></span>
+						<span class="menu-text"><?php echo lang('avatar_setting');?></span>
+					</a>
+				</li>
+				<!--{hook my_sidebar_nav_item_after.htm}-->
+				<!--{hook my_sidebar_nav_ai_before.htm}-->
+				<li class="side-nav-item<?php if(!empty($active_tab) && $active_tab == 'ai') echo ' active'; ?>" data-tab="ai">
+					<a href="javascript:;" class="side-nav-link">
+						<span class="menu-icon"><i class="ti ti-robot"></i></span>
+						<span class="menu-text"><?php echo lang('ai_setting');?></span>
+					</a>
+				</li>
+				<!--{hook my_sidebar_nav_item_after.htm}-->
+				<!--{hook my_sidebar_nav_credits_before.htm}-->
+				<li class="side-nav-item<?php if(!empty($active_tab) && $active_tab == 'credits') echo ' active'; ?>" data-tab="credits">
+					<a href="javascript:;" class="side-nav-link">
+						<span class="menu-icon"><i class="ti ti-coin"></i></span>
+						<span class="menu-text"><?php echo lang('user_credits_log');?></span>
+					</a>
+				</li>
+				<!--{hook my_sidebar_nav_item_after.htm}-->
+				<li class="side-nav-title mt-2"><?php echo lang('message_center');?></li>
+				<li class="side-nav-item<?php if(!empty($active_tab) && $active_tab == 'notice') echo ' active'; ?>">
+					<a href="<?php echo url('my-notice');?>" class="side-nav-link">
+						<span class="menu-icon"><i class="ti ti-bell"></i></span>
+						<span class="menu-text"><?php echo lang('notice');?></span>
+					</a>
+				</li>
+			</ul>
+			<!--{hook my_sidebar_nav_after.htm}-->
+		</div>
+	</div>
+
+	<!-- 右侧内容区 -->
+	<div class="col-lg-7" style="min-width:0">
+		<!-- 移动端 Tab 导航 -->
+		<ul class="nav nav-tabs mb-3 d-lg-none" id="settingsTabMobile" role="tablist">
+			<li class="nav-item" role="presentation">
+				<a href="javascript:;" data-tab="profile" class="nav-link<?php if(empty($active_tab) || $active_tab == 'profile') echo ' active'; ?>"><?php echo lang('my_basic_profile');?></a>
+			</li>
+			<li class="nav-item" role="presentation">
+				<a href="javascript:;" data-tab="security" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'security') echo ' active'; ?>"><?php echo lang('security_setting');?></a>
+			</li>
+			<li class="nav-item" role="presentation">
+				<a href="javascript:;" data-tab="avatar" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'avatar') echo ' active'; ?>"><?php echo lang('avatar_setting');?></a>
+			</li>
+			<li class="nav-item" role="presentation">
+				<a href="javascript:;" data-tab="ai" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'ai') echo ' active'; ?>"><?php echo lang('ai_setting');?></a>
+			</li>
+			<li class="nav-item" role="presentation">
+				<a href="javascript:;" data-tab="credits" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'credits') echo ' active'; ?>"><?php echo lang('user_credits_log');?></a>
+			</li>
+			<li class="nav-item" role="presentation">
+				<a href="<?php echo url('my-notice');?>" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'notice') echo ' active'; ?>"><?php echo lang('notice');?></a>
+			</li>
+		</ul>
+
+		<!-- 用户信息卡片 -->
+		<div class="x-card card mb-3">
+			<div class="card-body d-flex align-items-center gap-3">
+				<?php echo avatar_component_from_data($user['avatar_url'], 'xl', isset($user['group_icon_class']) ? $user['group_icon_class'] : '', isset($user['group_color']) ? $user['group_color'] : '', isset($user['gid']) ? $user['gid'] : 0);?>
+				<div class="flex-fill" style="min-width:0">
+					<h5 class="fw-bold mb-1"><?php echo esc_html($user['username']);?></h5>
+					<span class="badge bg-primary mb-2"><?php echo $user['groupname'];?></span>
+					<?php if(!empty($user['signature'])) { ?>
+					<p class="text-body-secondary small mb-0"><?php echo esc_html($user['signature']);?></p>
+					<?php } ?>
+					<div class="d-flex gap-4 mt-2">
+						<span><span class="fw-bold text-primary"><?php echo $user['threads'];?></span> <small class="text-body-secondary"><?php echo lang('threads_label');?></small></span>
+						<span><span class="fw-bold text-primary"><?php echo $user['credits'];?></span> <small class="text-body-secondary"><?php echo lang('credits_label');?></small></span>
+						<span><span class="fw-bold text-primary"><?php echo $user['follows'];?></span> <small class="text-body-secondary"><?php echo lang('following_label');?></small></span>
+						<span><span class="fw-bold text-primary"><?php echo $user['followeds'];?></span> <small class="text-body-secondary"><?php echo lang('followers_label');?></small></span>
+					</div>
+				</div>
+			</div>
+		</div>

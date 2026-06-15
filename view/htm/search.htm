@@ -1,0 +1,184 @@
+<?php
+include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+$search_require_login = SecurityConfigService::get('security_search_require_login', 1);
+$search_disabled = ($search_require_login && (empty($uid) || $uid == 0));
+?>
+
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook search_start.htm}-->
+
+<div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
+	<div class="d-none d-lg-block col-lg-2">
+		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
+	</div>
+	<div class="col-lg-7" style="min-width:0">
+		<!--{hook search_main_start.htm}-->
+
+		<div class="x-card card">
+			<div class="card-body">
+				<form action="./" id="searchForm" method="get" hx-get="<?php echo url('search.htm');?>" hx-target="#searchResults" hx-select="#searchResults" hx-swap="innerHTML" hx-push-url="true" <?php if($search_disabled): ?>onsubmit="showToast('<?php echo lang('please_login_to_search');?>','warning');return false;"<?php endif; ?>>
+					<div class="input-group input-group-lg" style="border-radius:0.375rem;overflow:hidden">
+						<span class="input-group-text<?php if($search_disabled) echo ' text-body-secondary'; ?>"><i class="ti ti-search" style="color:var(--bs-primary)"></i></span>
+						<input type="text" class="form-control" placeholder="<?php echo $search_disabled ? lang('please_login_to_search') : lang('search_placeholder');?>" name="keyword" value="<?php echo $keyword_safe;?>" autocomplete="off" <?php if($search_disabled) echo 'disabled'; ?>>
+						<button class="btn btn-primary px-4 rounded-0" type="submit" <?php if($search_disabled) echo 'disabled'; ?>><i class="ti ti-arrow-right me-1"></i><?php echo lang('search');?></button>
+					</div>
+				</form>
+			</div>
+		</div>
+
+		<div id="searchResults">
+		<?php if($keyword_safe && $keyword_too_short) { ?>
+		<div class="x-card card mt-3">
+			<div class="card-body text-center py-5 text-body-secondary">
+				<i class="ti ti-alert-circle fs-1 mb-3 d-block opacity-25"></i>
+				<p class="fs-5 fw-semibold"><?php echo lang('keyword_too_short');?></p>
+			</div>
+		</div>
+		<?php } elseif($keyword_safe) { ?>
+		<div class="x-card card mt-3">
+			<div class="card-body">
+				<ul class="nav nav-tabs card-header-tabs" id="searchTab" role="tablist">
+					<li class="nav-item">
+						<button class="nav-link<?php if(empty($search_type) || $search_type == 'thread') echo ' active'; ?>" data-bs-toggle="tab" data-bs-target="#search-thread" type="button">
+							<i class="ti ti-message-2 me-1"></i><?php echo lang('user_thread');?> <?php if(!empty($total)) { ?><span class="badge bg-secondary"><?php echo $total;?></span><?php } ?>
+						</button>
+					</li>
+					<li class="nav-item">
+						<button class="nav-link<?php if(!empty($search_type) && $search_type == 'user') echo ' active'; ?>" data-bs-toggle="tab" data-bs-target="#search-user" type="button">
+							<i class="ti ti-user me-1"></i><?php echo lang('users');?> <?php if(!empty($user_total)) { ?><span class="badge bg-secondary"><?php echo $user_total;?></span><?php } ?>
+						</button>
+					</li>
+				</ul>
+			</div>
+			<div class="tab-content">
+				<div class="tab-pane fade<?php if(empty($search_type) || $search_type == 'thread') echo ' show active'; ?>" id="search-thread" role="tabpanel">
+					<div class="card-body">
+						<!--{hook search_threadlist_before.htm}-->
+						<?php if(!empty($threadlist)) { ?>
+						<div class="x-card card">
+							<?php foreach($threadlist as $thread) { ?>
+							<div class="  pb-3 mb-1">
+								<div class="mb-1">
+									<a href="<?php echo url("thread-$thread[tid]");?>" class="fw-semibold text-decoration-none fs-6"><?php echo $thread['subject'];?></a>
+								</div>
+								<?php if(!empty($thread['summary'])) { ?>
+								<div class="small text-body-secondary mb-2 line-clamp-2"><?php echo $thread['summary'];?></div>
+								<?php } ?>
+								<div class="d-flex align-items-center gap-3 small text-body-secondary">
+									<?php if(!empty($thread['forumname'])) { ?>
+									<span><i class="ti ti-folder me-1"></i><?php echo esc_html($thread['forumname']);?></span>
+									<?php } ?>
+									<span><i class="ti ti-clock me-1"></i><?php echo $thread['create_date_fmt'];?></span>
+									<span><i class="ti ti-message me-1"></i><?php echo $thread['posts'];?></span>
+								</div>
+							</div>
+							<?php } ?>
+						</div>
+						<?php } else { ?>
+						<div class="text-center py-5 text-body-secondary">
+							<i class="ti ti-search fs-1 mb-3 d-block opacity-25"></i>
+							<p class="fs-5 fw-semibold"><?php echo lang('no_thread_found');?></p>
+						</div>
+						<?php } ?>
+						<!--{hook search_threadlist_after.htm}-->
+					</div>
+					<?php if(!empty($pagination)) { ?>
+					<div class="card-body border-top">
+						<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap mb-0"><?php echo $pagination; ?></ul></nav>
+					</div>
+					<?php } ?>
+				</div>
+
+				<div class="tab-pane fade<?php if(!empty($search_type) && $search_type == 'user') echo ' show active'; ?>" id="search-user" role="tabpanel">
+					<div class="card-body">
+						<?php if(!empty($userlist)) { ?>
+						<div class="x-card card">
+							<?php foreach($userlist as $u) { ?>
+							<div class="d-flex align-items-center gap-3 p-2 rounded">
+								<?php echo avatar_component_from_data($u['avatar_url'], 'md', isset($u['group_icon_class']) ? $u['group_icon_class'] : '', isset($u['group_color']) ? $u['group_color'] : '', isset($u['gid']) ? $u['gid'] : 0);?>
+								<div class="flex-fill">
+									<a href="<?php echo url("user-$u[uid]");?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['username']);?></a>
+									<?php if(!empty($u['signature'])) { ?>
+									<div class="small text-body-secondary"><?php echo esc_html($u['signature']);?></div>
+									<?php } ?>
+								</div>
+								<?php if(!empty($uid) && $uid != $u['uid']) {
+									$_u_is_followed = !empty($u['is_followed']);
+								?>
+								<?php if($_u_is_followed) { ?>
+								<button class="btn btn-sm btn-outline-secondary rounded-pill user-follow-btn"
+									hx-post="<?php echo url('user-follow-'.$u['uid']);?>"
+									hx-target="this"
+									hx-swap="outerHTML"
+									hx-optimistic>
+									<i class="ti ti-user-minus"></i>
+									<span><?php echo lang('unfollow');?></span>
+								</button>
+								<?php } else { ?>
+								<button class="btn btn-sm btn-primary rounded-pill user-follow-btn"
+									hx-post="<?php echo url('user-follow-'.$u['uid']);?>"
+									hx-target="this"
+									hx-swap="outerHTML"
+									hx-optimistic>
+									<i class="ti ti-user-plus"></i>
+									<span><?php echo lang('follow');?></span>
+								</button>
+								<?php } ?>
+								<?php } ?>
+							</div>
+							<?php } ?>
+						</div>
+						<?php } else { ?>
+						<div class="text-center py-5 text-body-secondary">
+							<i class="ti ti-user fs-1 mb-3 d-block opacity-25"></i>
+							<p class="fs-5 fw-semibold"><?php echo lang('no_user_found');?></p>
+						</div>
+						<?php } ?>
+					</div>
+					<?php if(!empty($user_pagination)) { ?>
+					<div class="card-body border-top">
+						<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap mb-0"><?php echo $user_pagination; ?></ul></nav>
+					</div>
+					<?php } ?>
+				</div>
+			</div>
+		</div>
+		<?php } ?>
+		</div>
+
+		<!--{hook search_main_end.htm}-->
+	</div>
+	<div class="d-none d-lg-block col-lg-3">
+		<?php include _include(APP_PATH.'view/htm/sidebar_right.inc.htm');?>
+	</div>
+</div>
+
+<!--{hook search_end.htm}-->
+
+
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+document.getElementById('searchForm').addEventListener('htmx:after:request', function(event) {
+	var response = event.detail.ctx && event.detail.ctx.response;
+	if(!response || !response.ok) return;
+	response.text().then(function(text) {
+		try {
+			var json = JSON.parse(text);
+			if(parseInt(json.code) !== 0) {
+				if(typeof XN.toast === 'function') XN.toast(json.message || '<?php echo lang('search_failed');?>', 'danger');
+				var resultsEl = document.getElementById('searchResults');
+				if(resultsEl) {
+					resultsEl.innerHTML = '<div class="x-card card mt-3"><div class="card-body text-center py-5 text-body-secondary"><i class="ti ti-alert-circle fs-1 mb-3 d-block opacity-25"></i><p class="fs-5 fw-semibold">' + (json.message || '<?php echo lang('search_failed');?>') + '</p></div></div>';
+				}
+			}
+		} catch(e) {
+			// 非 JSON 响应是正常的 HTML，htmx 会自动处理
+		}
+	});
+});
+</script>
+
+<!--{hook search_js.htm}-->

@@ -12,6 +12,11 @@ CREATE TABLE `bbs_user` (
   `password` char(32) NOT NULL DEFAULT '' COMMENT '密码',
   `password_sms` char(16) NOT NULL DEFAULT '' COMMENT '密码',	# 预留，手机发送的 sms 验证码
   salt char(16) NOT NULL DEFAULT '' COMMENT '密码混杂',
+  `password_hash` varchar(255) NOT NULL DEFAULT '' COMMENT 'bcrypt密码哈希',
+  login_attempts int(11) NOT NULL DEFAULT '0' COMMENT '登录失败次数',
+  banned_until int(11) unsigned NOT NULL DEFAULT '0' COMMENT '封禁截止时间',
+  last_login_ip int(11) unsigned NOT NULL DEFAULT '0' COMMENT '最后登录IP',
+  last_login_time int(11) unsigned NOT NULL DEFAULT '0' COMMENT '最后登录时间',
   mobile char(11) NOT NULL DEFAULT '' COMMENT '手机号',		# 预留，供二次开发扩展
   qq char(15) NOT NULL DEFAULT '' COMMENT 'QQ',			# 预留，供二次开发扩展，可以弹出QQ直接聊天
   threads int(11) NOT NULL DEFAULT '0' COMMENT '发帖数',		#
@@ -24,12 +29,18 @@ CREATE TABLE `bbs_user` (
   login_ip int(11) unsigned NOT NULL DEFAULT '0' COMMENT '登录时IP',
   login_date int(11) unsigned NOT NULL DEFAULT '0' COMMENT '登录时间',
   logins int(11) unsigned NOT NULL DEFAULT '0' COMMENT '登录次数',
-  avatar int(11) unsigned NOT NULL DEFAULT '0' COMMENT '用户最后更新图像时间',
+  avatar int(11) NOT NULL DEFAULT '0' COMMENT '头像: 0=默认, >0=上传时间戳, <0=预设头像索引',
+  follows int(11) NOT NULL DEFAULT '0' COMMENT '关注数',
+  followeds int(11) NOT NULL DEFAULT '0' COMMENT '粉丝数',
+  favorites int(11) NOT NULL DEFAULT '0' COMMENT '收藏数',
+  ai_config text DEFAULT NULL COMMENT 'AI配置',
+  notices mediumint(8) unsigned NOT NULL DEFAULT '0' COMMENT '通知数',
+  unread_notices mediumint(8) unsigned NOT NULL DEFAULT '0' COMMENT '未读通知数',
   PRIMARY KEY (uid),
   UNIQUE KEY username (username),
   UNIQUE KEY email (email),						# 升级的时候可能为空
   KEY gid (gid)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 INSERT INTO `bbs_user` SET uid=1, gid=1, email='admin@admin.com', username='admin',`password`='d98bb50e808918dd45a8d92feafc4fa3',salt='123456';
 
 # 用户组
@@ -51,23 +62,28 @@ CREATE TABLE `bbs_group` (
   allowbanuser int(11) NOT NULL default '0',		# 允许禁止用户
   allowdeleteuser int(11) NOT NULL default '0',		# 允许删除用户
   allowviewip int(11) unsigned NOT NULL default '0',	# 允许查看用户敏感信息
+  allow_direct_post tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否直接发布: 0需审核/1直接发布',
+  allow_direct_reply tinyint(1) NOT NULL DEFAULT '1' COMMENT '回帖审核: 0需审核/1直接发布',
+  allow_direct_profile tinyint(1) NOT NULL DEFAULT '1' COMMENT '个人资料审核: 0需审核/1直接更新',
+  color char(7) NOT NULL default '',			# 用户组颜色
+  icon varchar(50) NOT NULL default '',			# 用户组图标
   PRIMARY KEY (gid)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
-INSERT INTO `bbs_group` SET gid='0', name="游客组", creditsfrom='0', creditsto='0', allowread='1', allowthread='0', allowpost='1', allowattach='0', allowdown='1', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+INSERT INTO `bbs_group` SET gid='0', name="游客组", creditsfrom='0', creditsto='0', allowread='1', allowthread='0', allowpost='1', allowattach='0', allowdown='1', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0', allow_direct_reply='1', allow_direct_profile='1', icon='ti ti-user', color='#6c757d';
 
-INSERT INTO `bbs_group` SET gid='1', name="管理员组", creditsfrom='0', creditsto='0', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='1', allowupdate='1', allowdelete='1', allowmove='1', allowbanuser='1', allowdeleteuser='1', allowviewip='1';
-INSERT INTO `bbs_group` SET gid='2', name="超级版主组", creditsfrom='0', creditsto='0', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='1', allowupdate='1', allowdelete='1', allowmove='1', allowbanuser='1', allowdeleteuser='1', allowviewip='1';
-INSERT INTO `bbs_group` SET gid='4', name="版主组", creditsfrom='0', creditsto='0', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='1', allowupdate='1', allowdelete='1', allowmove='1', allowbanuser='1', allowdeleteuser='0', allowviewip='1';
-INSERT INTO `bbs_group` SET gid='5', name="实习版主组", creditsfrom='0', creditsto='0', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='1', allowupdate='1', allowdelete='0', allowmove='1', allowbanuser='0', allowdeleteuser='0', allowviewip='0';
+INSERT INTO `bbs_group` SET gid='1', name="管理员组", creditsfrom='0', creditsto='0', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='1', allowupdate='1', allowdelete='1', allowmove='1', allowbanuser='1', allowdeleteuser='1', allowviewip='1', allow_direct_reply='1', allow_direct_profile='1', icon='ti ti-shield', color='#dc3545';
+INSERT INTO `bbs_group` SET gid='2', name="超级版主组", creditsfrom='0', creditsto='0', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='1', allowupdate='1', allowdelete='1', allowmove='1', allowbanuser='1', allowdeleteuser='1', allowviewip='1', allow_direct_reply='1', allow_direct_profile='1', icon='ti ti-star', color='#0d6efd';
+INSERT INTO `bbs_group` SET gid='4', name="版主组", creditsfrom='0', creditsto='0', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='1', allowupdate='1', allowdelete='1', allowmove='1', allowbanuser='1', allowdeleteuser='0', allowviewip='1', allow_direct_reply='1', allow_direct_profile='1', icon='ti ti-award', color='#198754';
+INSERT INTO `bbs_group` SET gid='5', name="实习版主组", creditsfrom='0', creditsto='0', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='1', allowupdate='1', allowdelete='0', allowmove='1', allowbanuser='0', allowdeleteuser='0', allowviewip='0', allow_direct_reply='1', allow_direct_profile='1', icon='ti ti-user-check', color='#6c757d';
 
-INSERT INTO `bbs_group` SET gid='6', name="待验证用户组", creditsfrom='0', creditsto='0', allowread='1', allowthread='0', allowpost='1', allowattach='0', allowdown='1', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0';
-INSERT INTO `bbs_group` SET gid='7', name="禁止用户组", creditsfrom='0', creditsto='0', allowread='0', allowthread='0', allowpost='0', allowattach='0', allowdown='0', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0';
+INSERT INTO `bbs_group` SET gid='6', name="待验证用户组", creditsfrom='0', creditsto='0', allowread='1', allowthread='0', allowpost='1', allowattach='0', allowdown='1', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0', allow_direct_reply='1', allow_direct_profile='1';
+INSERT INTO `bbs_group` SET gid='7', name="禁止用户组", creditsfrom='0', creditsto='0', allowread='0', allowthread='0', allowpost='0', allowattach='0', allowdown='0', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0', allow_direct_reply='0', allow_direct_profile='0';
 
-INSERT INTO `bbs_group` SET gid='101', name="一级用户组", creditsfrom='0', creditsto='50', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0';
-INSERT INTO `bbs_group` SET gid='102', name="二级用户组", creditsfrom='50', creditsto='200', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0';
-INSERT INTO `bbs_group` SET gid='103', name="三级用户组", creditsfrom='200', creditsto='1000', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0';
-INSERT INTO `bbs_group` SET gid='104', name="四级用户组", creditsfrom='1000', creditsto='10000', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0';
-INSERT INTO `bbs_group` SET gid='105', name="五级用户组", creditsfrom='10000', creditsto='10000000', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0';
+INSERT INTO `bbs_group` SET gid='101', name="一级用户组", creditsfrom='0', creditsto='50', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0', allow_direct_reply='1', allow_direct_profile='1';
+INSERT INTO `bbs_group` SET gid='102', name="二级用户组", creditsfrom='50', creditsto='200', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0', allow_direct_reply='1', allow_direct_profile='1';
+INSERT INTO `bbs_group` SET gid='103', name="三级用户组", creditsfrom='200', creditsto='1000', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0', allow_direct_reply='1', allow_direct_profile='1';
+INSERT INTO `bbs_group` SET gid='104', name="四级用户组", creditsfrom='1000', creditsto='10000', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0', allow_direct_reply='1', allow_direct_profile='1';
+INSERT INTO `bbs_group` SET gid='105', name="五级用户组", creditsfrom='10000', creditsto='10000000', allowread='1', allowthread='1', allowpost='1', allowattach='1', allowdown='1', allowtop='0', allowupdate='0', allowdelete='0', allowmove='0', allowbanuser='0', allowdeleteuser='0', allowviewip='0', allow_direct_reply='1', allow_direct_profile='1';
 
 # 板块表，一级, runtime 中存放 forumlist 格式化以后的数据。
 DROP TABLE IF EXISTS bbs_forum;
@@ -75,21 +91,25 @@ CREATE TABLE bbs_forum (
   fid int(11) unsigned NOT NULL auto_increment,		# fid
  # fup int(11) unsigned NOT NULL auto_increment,	# 上一级版块，二级版块作为插件
   name char(16) NOT NULL default '',			# 版块名称
-  rank tinyint(3) unsigned NOT NULL default '0',	# 显示，倒序，数字越大越靠前
+  `rank` tinyint(3) unsigned NOT NULL default '0',	# 显示，倒序，数字越大越靠前
+  fup int(11) unsigned NOT NULL DEFAULT '0',		# 上级分区 fid，0 表示分区或未归类版块
+  type tinyint(1) NOT NULL DEFAULT '0',			# 0=版块 1=分区
   threads mediumint(8) unsigned NOT NULL default '0',	# 主题数
   todayposts mediumint(8) unsigned NOT NULL default '0',# 今日发帖，计划任务每日凌晨０点清空为０，
   todaythreads mediumint(8) unsigned NOT NULL default '0',# 今日发主题，计划任务每日凌晨０点清空为０
+  follows int(11) unsigned NOT NULL default '0',		# 关注数
   brief text NOT NULL,					# 版块简介 允许HTML
   announcement text NOT NULL,				# 版块公告 允许HTML
   accesson int(11) unsigned NOT NULL default '0',	# 是否开启权限控制
+  audit_thread tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否审核发帖: 0不审核/1审核',
   orderby tinyint(11) NOT NULL default '0',		# 默认列表排序，0: 顶贴时间 last_date， 1: 发帖时间 tid
   create_date int(11) unsigned NOT NULL default '0',	# 板块创建时间
-  icon int(11) unsigned NOT NULL default '0',		# 板块是否有 icon，存放最后更新时间
+  icon varchar(255) NOT NULL default '',		# 版块图标，存储图片路径
   moduids char(120) NOT NULL default '',		# 每个版块有多个版主，最多10个： 10*12 = 120，删除用户的时候，如果是版主，则调整后再删除。逗号分隔
   seo_title char(64) NOT NULL default '',		# SEO 标题，如果设置会代替版块名称
   seo_keywords char(64) NOT NULL default '',		# SEO keyword
   PRIMARY KEY (fid)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 INSERT INTO bbs_forum SET fid='1', name='默认版块', brief='默认版块介绍';
 #  cache_date int(11) NOT NULL default '0',		# 最后 threadlist 缓存的时间，6种排序前10页结果缓存。如果是前10页，先读缓存，并依据此字段过期。更新条件：发贴
   
@@ -103,8 +123,10 @@ CREATE TABLE bbs_forum_access (				# 字段中文名
   allowpost tinyint(1) unsigned NOT NULL default '0',	# 允许回复
   allowattach tinyint(1) unsigned NOT NULL default '0',	# 允许上传附件
   allowdown tinyint(1) unsigned NOT NULL default '0',	# 允许下载附件
+  allowthreadaudit tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT '发帖审核: 0不审核/1需审核',
+  allowpostaudit tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT '回帖审核: 0不审核/1需审核',
   PRIMARY KEY (fid, gid)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 # 论坛主题
 DROP TABLE IF EXISTS bbs_thread;
@@ -120,18 +142,27 @@ CREATE TABLE bbs_thread (
 
   views int(11) unsigned NOT NULL default '0',		# 查看次数, 剥离出去，单独的服务，避免 cache 失效
   posts int(11) unsigned NOT NULL default '0',		# 回帖数
+  likes int(11) NOT NULL DEFAULT '0',			# 点赞数
+  favorites int(11) NOT NULL DEFAULT '0',		# 收藏数
   images tinyint(6) NOT NULL default '0',		# 附件中包含的图片数
   files tinyint(6) NOT NULL default '0',		# 附件中包含的文件数
+  videos tinyint(6) NOT NULL default '0',		# 附件中包含的视频数
   mods tinyint(6) NOT NULL default '0',			# 预留：版主操作次数，如果 > 0, 则查询 modlog，显示斑竹的评分
   closed tinyint(1) unsigned NOT NULL default '0',	# 预留：是否关闭，关闭以后不能再回帖、编辑。
+  audit_status tinyint(1) NOT NULL DEFAULT '1' COMMENT '审核状态: 0待审/1通过/2驳回',
+  is_announcement tinyint(1) unsigned NOT NULL DEFAULT '0' COMMENT '是否公告: 0否/1是',
+  announcement_order int(11) unsigned NOT NULL DEFAULT '0' COMMENT '公告排序',
+  is_digest tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否精华: 0否/1是',
+  digest_date int(11) unsigned NOT NULL DEFAULT 0 COMMENT '精华时间',
   firstpid int(11) unsigned NOT NULL default '0',	# 首贴 pid
   lastuid int(11) unsigned NOT NULL default '0',	# 最近参与的 uid
   lastpid int(11) unsigned NOT NULL default '0',	# 最后回复的 pid
   PRIMARY KEY (tid),					# 主键
   KEY (lastpid),					# 最后回复排序
   KEY (fid, tid),					# 发帖时间排序，正序。数据量大时可以考虑建立小表，对小表进行分区优化，只有数据量达到千万级以上时才需要。
-  KEY (fid, lastpid)					# 顶贴时间排序，倒序
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+  KEY (fid, lastpid),					# 顶贴时间排序，倒序
+  FULLTEXT INDEX ft_subject (subject) WITH PARSER ngram	# 全文搜索索引（中文分词）
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 # 置顶主题
 DROP TABLE IF EXISTS bbs_thread_top;
@@ -142,7 +173,7 @@ CREATE TABLE bbs_thread_top (
   PRIMARY KEY (tid),					#
   KEY (top, tid),					# 最新贴：top=0 order by tid desc / 全局置顶： top=3
   KEY (fid, top)					# 版块置顶的贴 fid=1 and top=1
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 # 论坛帖子数据
 DROP TABLE IF EXISTS bbs_post;
@@ -155,15 +186,19 @@ CREATE TABLE bbs_post (
   userip int(11) unsigned NOT NULL default '0',		# 发帖时用户ip ip2long()
   images smallint(6) NOT NULL default '0',		# 附件中包含的图片数
   files smallint(6) NOT NULL default '0',		# 附件中包含的文件数
+  videos smallint(6) NOT NULL default '0',		# 附件中包含的视频数
   doctype tinyint(3) NOT NULL default '0',		# 类型，0: html, 1: txt; 2: markdown; 3: ubb
   quotepid int(11) NOT NULL default '0',		# 引用哪个 pid，可能不存在
+  likes int(11) NOT NULL DEFAULT '0',			# 点赞数
+  audit_status tinyint(1) NOT NULL DEFAULT '1' COMMENT '审核状态: 0待审/1通过/2驳回',
 
   message longtext NOT NULL,				# 内容，用户提示的原始数据
   message_fmt longtext NOT NULL,			# 内容，存放的过滤后的html内容，可以定期清理，减肥。
   PRIMARY KEY (pid),
   KEY (tid, pid),
-  KEY (uid)						# 我的回帖，清理数据需要
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+  KEY (uid),						# 我的回帖，清理数据需要
+  FULLTEXT INDEX ft_message (message) WITH PARSER ngram	# 全文搜索索引（中文分词）
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 # 编辑历史
 
 #论坛附件表  只能按照从上往下的方式查找和删除！ 此表如果大，可以考虑通过 aid 分区。
@@ -186,10 +221,12 @@ CREATE TABLE bbs_attach (
   golds int(11) NOT NULL default '0',			# 需要的金币，预留
   rmbs int(11) NOT NULL default '0',			# 需要的人民币，预留
   isimage tinyint(1) NOT NULL default '0',		# 是否为图片
+  thumb_exists tinyint(1) NOT NULL DEFAULT 0 COMMENT '缩略图是否存在',
+  driver varchar(32) NOT NULL DEFAULT 'local' COMMENT '存储驱动',
   PRIMARY KEY (aid),					# aid
   KEY pid (pid),					# 每个帖子下多个附件
   KEY uid (uid)						# 我的附件，清理数据需要。
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 # 我的主题，每个主题不管回复多少次，只记录一次。大表，需要分区。
 DROP TABLE IF EXISTS bbs_mythread;
@@ -197,7 +234,7 @@ CREATE TABLE bbs_mythread (
   uid int(11) unsigned NOT NULL default '0',		# uid
   tid int(11) unsigned NOT NULL default '0',		# 用来清理，删除板块的时候需要
   PRIMARY KEY (uid, tid)				# 每一个帖子只能插入一次 unique
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 # 我的回帖。大表，需要分区。
 DROP TABLE IF EXISTS bbs_mypost;
@@ -207,7 +244,7 @@ CREATE TABLE bbs_mypost (
   pid int(11) unsigned NOT NULL default '0',		#
   KEY (tid),						#
   PRIMARY KEY (uid, pid)				#
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 # session 表
 # 缓存到 runtime 表。 online_0 全局 online_fid 版块。提高遍历效率。
@@ -226,7 +263,7 @@ CREATE TABLE bbs_session (
   KEY ip (ip),
   KEY fid (fid),
   KEY uid_last_date (uid, last_date)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 
 DROP TABLE IF EXISTS bbs_session_data;
@@ -235,7 +272,7 @@ CREATE TABLE bbs_session_data (
   last_date int(11) unsigned NOT NULL default '0',	# 上次活动时间
   data text NOT NULL,					# 存超大数据
   PRIMARY KEY (sid)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 # 版主操作日志
 DROP TABLE IF EXISTS bbs_modlog;
@@ -252,8 +289,27 @@ CREATE TABLE bbs_modlog (
   PRIMARY KEY (logid),
   KEY (uid, logid),
   KEY (tid)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
-        
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+# 通知表
+DROP TABLE IF EXISTS bbs_notice;
+CREATE TABLE bbs_notice (
+  nid int(11) unsigned NOT NULL AUTO_INCREMENT,
+  fromuid int(11) unsigned NOT NULL DEFAULT '0',
+  recvuid int(11) unsigned NOT NULL DEFAULT '0',
+  create_date int(11) unsigned NOT NULL DEFAULT '0',
+  isread tinyint(3) unsigned NOT NULL DEFAULT '0',
+  is_read tinyint(1) unsigned NOT NULL DEFAULT '0',
+  type tinyint(3) unsigned NOT NULL DEFAULT '0',
+  message longtext NOT NULL,
+  icon varchar(64) NOT NULL DEFAULT '' COMMENT '公告图标类名',
+  url varchar(255) NOT NULL DEFAULT '' COMMENT '公告跳转链接',
+  PRIMARY KEY (nid),
+  KEY (fromuid, type),
+  KEY (recvuid, type),
+  KEY (recvuid, is_read)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 # 持久的 key value 数据存储, ttserver, mysql
 DROP TABLE IF EXISTS bbs_kv;
 CREATE TABLE bbs_kv (
@@ -261,7 +317,7 @@ CREATE TABLE bbs_kv (
   v mediumtext NOT NULL,
   expiry int(11) unsigned NOT NULL default '0',		# 过期时间
   PRIMARY KEY(k)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 # 缓存表，用来保存临时数据。
 DROP TABLE IF EXISTS bbs_cache;
@@ -270,7 +326,7 @@ CREATE TABLE bbs_cache (
   v mediumtext NOT NULL,
   expiry int(11) unsigned NOT NULL default '0',		# 过期时间
   PRIMARY KEY(k)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 # 临时队列，用来保存临时数据。
 DROP TABLE IF EXISTS bbs_queue;
@@ -280,7 +336,7 @@ CREATE TABLE bbs_queue (
   expiry int(11) unsigned NOT NULL default '0',		# 过期时间，默认 0，不过期
   UNIQUE KEY(queueid, v),
   KEY(expiry)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 
 # 系统表, id
@@ -298,5 +354,339 @@ CREATE TABLE `bbs_table_day` (
   `maxid` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '最大ID', 	#
   `count` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '总数', 		#
   PRIMARY KEY (`year`, `month`, `day`, `table`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+# 用户登录日志
+DROP TABLE IF EXISTS `bbs_user_login_log`;
+CREATE TABLE `bbs_user_login_log` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `uid` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '用户id',
+  `ip` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '登录IP',
+  `time` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '登录时间',
+  `success` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否成功',
+  `user_agent` varchar(255) NOT NULL DEFAULT '' COMMENT '浏览器UA',
+  PRIMARY KEY (`id`),
+  KEY (`uid`, `time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+# 帖子点赞
+DROP TABLE IF EXISTS bbs_post_like;
+CREATE TABLE bbs_post_like (
+  tid int(11) unsigned NOT NULL DEFAULT '0',
+  pid int(11) unsigned NOT NULL DEFAULT '0',
+  uid int(11) unsigned NOT NULL DEFAULT '0',
+  create_date int(11) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (uid, pid),
+  KEY (tid, uid),
+  KEY (pid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+# 帖子收藏
+DROP TABLE IF EXISTS bbs_thread_favorite;
+CREATE TABLE bbs_thread_favorite (
+  tid int(11) unsigned NOT NULL DEFAULT '0',
+  uid int(11) unsigned NOT NULL DEFAULT '0',
+  create_date int(11) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (uid, tid),
+  KEY (tid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+# 用户关注
+DROP TABLE IF EXISTS bbs_user_follow;
+CREATE TABLE bbs_user_follow (
+  uid int(11) unsigned NOT NULL DEFAULT '0',
+  follow_uid int(11) unsigned NOT NULL DEFAULT '0',
+  create_date int(11) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (uid, follow_uid),
+  KEY (follow_uid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+# 版块关注
+DROP TABLE IF EXISTS bbs_forum_follow;
+CREATE TABLE bbs_forum_follow (
+  uid int(11) unsigned NOT NULL DEFAULT '0',
+  fid smallint(6) unsigned NOT NULL DEFAULT '0',
+  create_date int(11) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (uid, fid),
+  KEY (fid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+# 站内通知
+DROP TABLE IF EXISTS bbs_notify;
+CREATE TABLE bbs_notify (
+  nid int(11) unsigned NOT NULL AUTO_INCREMENT,
+  uid int(11) unsigned NOT NULL DEFAULT '0',
+  from_uid int(11) unsigned NOT NULL DEFAULT '0',
+  type char(16) NOT NULL DEFAULT '' COMMENT 'thread/like/favorite/follow',
+  tid int(11) unsigned NOT NULL DEFAULT '0',
+  pid int(11) unsigned NOT NULL DEFAULT '0',
+  content char(128) NOT NULL DEFAULT '',
+  create_date int(11) unsigned NOT NULL DEFAULT '0',
+  is_read tinyint(1) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (nid),
+  KEY (uid, is_read, nid),
+  KEY (uid, type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+# 审核日志
+DROP TABLE IF EXISTS bbs_audit_log;
+CREATE TABLE bbs_audit_log (
+  logid int(11) unsigned NOT NULL AUTO_INCREMENT,
+  uid int(11) unsigned NOT NULL DEFAULT 0 COMMENT '操作者uid',
+  target_type char(16) NOT NULL DEFAULT '' COMMENT '目标类型: thread/post',
+  target_id int(11) unsigned NOT NULL DEFAULT 0 COMMENT '目标ID: tid或pid',
+  action char(16) NOT NULL DEFAULT '' COMMENT '操作: approve/reject',
+  reason varchar(255) NOT NULL DEFAULT '' COMMENT '操作原因',
+  create_date int(11) unsigned NOT NULL DEFAULT 0 COMMENT '操作时间',
+  PRIMARY KEY (logid),
+  KEY (target_type, target_id),
+  KEY (uid, logid),
+  KEY (create_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+# 个人资料审核
+DROP TABLE IF EXISTS bbs_user_profile_audit;
+CREATE TABLE bbs_user_profile_audit (
+  id int(11) unsigned NOT NULL AUTO_INCREMENT,
+  uid int(11) unsigned NOT NULL DEFAULT 0 COMMENT '用户id',
+  field_name varchar(32) NOT NULL DEFAULT '' COMMENT '字段名: avatar/signature',
+  old_value text NOT NULL COMMENT '旧值',
+  new_value text NOT NULL COMMENT '新值',
+  audit_status tinyint(1) NOT NULL DEFAULT 0 COMMENT '审核状态: 0待审/1通过/2驳回',
+  operator_uid int(11) unsigned NOT NULL DEFAULT 0 COMMENT '审核人uid',
+  reason varchar(255) NOT NULL DEFAULT '' COMMENT '审核原因',
+  create_date int(11) unsigned NOT NULL DEFAULT 0 COMMENT '提交时间',
+  audit_date int(11) unsigned NOT NULL DEFAULT 0 COMMENT '审核时间',
+  PRIMARY KEY (id),
+  KEY idx_uid (uid),
+  KEY idx_audit_status (audit_status),
+  KEY idx_create_date (create_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+# 插件管理表
+DROP TABLE IF EXISTS bbs_plugin;
+CREATE TABLE bbs_plugin (
+  dir varchar(64) NOT NULL COMMENT '插件目录名',
+  name varchar(128) NOT NULL DEFAULT '' COMMENT '插件名称',
+  type tinyint(1) NOT NULL DEFAULT 0 COMMENT '类型: 0=插件, 1=模板',
+  installed tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否已安装',
+  enable tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否已启用',
+  install_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '安装时间',
+  enable_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '最后启用时间',
+  disable_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '最后禁用时间',
+  create_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '记录创建时间',
+  update_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '记录更新时间',
+  PRIMARY KEY (dir),
+  KEY type (type),
+  KEY enable (enable),
+  KEY install_time (install_time),
+  KEY enable_time (enable_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+# 邮件发送日志
+CREATE TABLE IF NOT EXISTS `bbs_email_log` (
+  `logid` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `to_email` varchar(200) NOT NULL DEFAULT '' COMMENT '收件人邮箱',
+  `subject` varchar(200) NOT NULL DEFAULT '' COMMENT '邮件主题',
+  `smtp_host` varchar(100) NOT NULL DEFAULT '' COMMENT 'SMTP服务器',
+  `status` tinyint(1) unsigned NOT NULL DEFAULT '0' COMMENT '状态: 0=失败, 1=成功',
+  `error_msg` varchar(500) NOT NULL DEFAULT '' COMMENT '错误信息',
+  `create_date` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '创建时间',
+  `ip` int(11) unsigned NOT NULL DEFAULT '0' COMMENT 'IP地址',
+  PRIMARY KEY (`logid`),
+  KEY `idx_to_email` (`to_email`),
+  KEY `idx_status` (`status`),
+  KEY `idx_create_date` (`create_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='邮件发送日志';
+
+# 管理员操作日志
+CREATE TABLE IF NOT EXISTS `bbs_admin_log` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `uid` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '操作者uid',
+  `action` varchar(32) NOT NULL DEFAULT '' COMMENT '操作类型',
+  `target_type` varchar(32) NOT NULL DEFAULT '' COMMENT '目标类型',
+  `target_ids` varchar(255) NOT NULL DEFAULT '' COMMENT '目标ID列表',
+  `detail` varchar(1024) NOT NULL DEFAULT '' COMMENT '操作详情',
+  `ip` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '操作IP',
+  `create_date` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '操作时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_uid` (`uid`),
+  KEY `idx_action` (`action`),
+  KEY `idx_create_date` (`create_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='管理员操作日志';
+
+# 积分日志
+DROP TABLE IF EXISTS bbs_credits_log;
+CREATE TABLE bbs_credits_log (
+  logid int(11) unsigned NOT NULL AUTO_INCREMENT,
+  uid int(11) unsigned NOT NULL DEFAULT 0 COMMENT '用户id',
+  type varchar(16) NOT NULL DEFAULT 'credits' COMMENT '积分类型: credits/golds/rmbs',
+  `change` int(11) NOT NULL DEFAULT 0 COMMENT '变动值，正为加，负为减',
+  balance int(11) NOT NULL DEFAULT 0 COMMENT '变动后余额',
+  reason varchar(64) NOT NULL DEFAULT '' COMMENT '变动原因',
+  ip int(11) unsigned NOT NULL DEFAULT 0 COMMENT '操作IP',
+  create_date int(11) unsigned NOT NULL DEFAULT 0 COMMENT '创建时间',
+  PRIMARY KEY (logid),
+  KEY idx_uid_date (uid, create_date),
+  KEY idx_uid_reason_date (uid, reason, create_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='积分日志';
+
+# 全局积分规则
+DROP TABLE IF EXISTS bbs_credits_rule_global;
+CREATE TABLE bbs_credits_rule_global (
+  ruleid int(11) unsigned NOT NULL AUTO_INCREMENT,
+  event varchar(32) NOT NULL DEFAULT '' COMMENT '事件标识',
+  label varchar(64) NOT NULL DEFAULT '' COMMENT '事件显示名称',
+  credits_change int(11) NOT NULL DEFAULT 0 COMMENT '积分变化值',
+  golds_change int(11) NOT NULL DEFAULT 0 COMMENT '金币变化值',
+  rmbs_change int(11) NOT NULL DEFAULT 0 COMMENT '人民币变化值',
+  enabled tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+  PRIMARY KEY (ruleid),
+  UNIQUE KEY event (event)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='全局积分规则';
+
+INSERT INTO bbs_credits_rule_global (event, label, credits_change, golds_change, rmbs_change, enabled) VALUES
+('thread_post', '发主题', 0, 0, 0, 1),
+('reply_post', '发回复', 0, 0, 0, 1),
+('thread_digest', '加精', 0, 0, 0, 1),
+('thread_top', '置顶', 0, 0, 0, 1),
+('thread_delete', '删主题', 0, 0, 0, 1),
+('reply_delete', '删除回复', 0, 0, 0, 1),
+('be_liked', '被点赞', 0, 0, 0, 1),
+('like', '点赞他人', 0, 0, 0, 1),
+('be_commented', '被回复', 0, 0, 0, 1),
+('favorite', '收藏', 0, 0, 0, 1),
+('be_favorited', '被收藏', 0, 0, 0, 1),
+('daily_login', '每日首次登录', 0, 0, 0, 1);
+
+# 版块积分规则覆盖
+DROP TABLE IF EXISTS bbs_credits_rule_forum;
+CREATE TABLE bbs_credits_rule_forum (
+  id int(11) unsigned NOT NULL AUTO_INCREMENT,
+  fid smallint(6) unsigned NOT NULL DEFAULT 0 COMMENT '版块ID',
+  event varchar(32) NOT NULL DEFAULT '' COMMENT '事件标识',
+  credits_change int(11) NOT NULL DEFAULT 0 COMMENT '积分变化值',
+  golds_change int(11) NOT NULL DEFAULT 0 COMMENT '金币变化值',
+  rmbs_change int(11) NOT NULL DEFAULT 0 COMMENT '人民币变化值',
+  enabled tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+  PRIMARY KEY (id),
+  UNIQUE KEY fid_event (fid, event)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='版块积分规则覆盖';
+
+# API 令牌
+DROP TABLE IF EXISTS bbs_api_token;
+CREATE TABLE bbs_api_token (
+  id bigint(16) unsigned NOT NULL AUTO_INCREMENT,
+  uid int(11) unsigned NOT NULL DEFAULT 0,
+  type enum('access','refresh') NOT NULL DEFAULT 'access' COMMENT '令牌类型',
+  related_id bigint(16) unsigned NOT NULL DEFAULT 0 COMMENT '关联令牌ID',
+  token char(64) NOT NULL DEFAULT '',
+  expires_at int(11) unsigned NOT NULL DEFAULT 0,
+  created_at int(11) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  UNIQUE KEY token (token),
+  KEY uid (uid),
+  KEY uid_type (uid, type),
+  KEY expires_at (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='API令牌';
+
+# API 日志
+DROP TABLE IF EXISTS bbs_api_log;
+CREATE TABLE bbs_api_log (
+  id bigint(16) unsigned NOT NULL AUTO_INCREMENT,
+  resource varchar(32) NOT NULL DEFAULT '',
+  method varchar(10) NOT NULL DEFAULT '',
+  uid int(11) unsigned NOT NULL DEFAULT 0,
+  ip int(11) unsigned NOT NULL DEFAULT 0,
+  duration int(11) unsigned NOT NULL DEFAULT 0,
+  create_date int(11) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY resource_method (resource, method),
+  KEY uid (uid),
+  KEY create_date (create_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='API日志';
+
+# 帖子点赞（API v1）
+DROP TABLE IF EXISTS bbs_thread_like;
+CREATE TABLE bbs_thread_like (
+  id bigint(16) unsigned NOT NULL AUTO_INCREMENT,
+  tid int(11) unsigned NOT NULL DEFAULT 0,
+  uid int(11) unsigned NOT NULL DEFAULT 0,
+  create_date int(11) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  UNIQUE KEY tid_uid (tid, uid),
+  KEY uid (uid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='帖子点赞';
+
+# 帖子举报
+DROP TABLE IF EXISTS bbs_thread_report;
+CREATE TABLE bbs_thread_report (
+  id bigint(16) unsigned NOT NULL AUTO_INCREMENT,
+  tid int(11) unsigned NOT NULL DEFAULT 0,
+  uid int(11) unsigned NOT NULL DEFAULT 0,
+  reason varchar(500) NOT NULL DEFAULT '',
+  create_date int(11) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY tid (tid),
+  KEY uid (uid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='帖子举报';
+
+# IP 黑名单
+DROP TABLE IF EXISTS bbs_ip_blacklist;
+CREATE TABLE bbs_ip_blacklist (
+  id int(11) unsigned NOT NULL AUTO_INCREMENT,
+  ip varchar(45) NOT NULL DEFAULT '' COMMENT 'IP地址或CIDR段',
+  type tinyint(1) NOT NULL DEFAULT 0 COMMENT '0黑名单/1白名单',
+  remark varchar(128) NOT NULL DEFAULT '' COMMENT '备注',
+  create_date int(11) unsigned NOT NULL DEFAULT 0 COMMENT '创建时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY ip (ip),
+  KEY type (type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='IP黑名单';
+
+# 邮箱黑名单
+DROP TABLE IF EXISTS bbs_email_blacklist;
+CREATE TABLE bbs_email_blacklist (
+  id int(11) unsigned NOT NULL AUTO_INCREMENT,
+  domain varchar(128) NOT NULL DEFAULT '' COMMENT '邮箱域名',
+  remark varchar(128) NOT NULL DEFAULT '' COMMENT '备注',
+  create_date int(11) unsigned NOT NULL DEFAULT 0 COMMENT '创建时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY domain (domain)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='邮箱黑名单';
+
+# 用户组权限
+DROP TABLE IF EXISTS bbs_group_permission;
+CREATE TABLE bbs_group_permission (
+  gid smallint(6) unsigned NOT NULL DEFAULT 0,
+  permission_key varchar(64) NOT NULL DEFAULT '',
+  value tinyint(1) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (gid, permission_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户组权限';
+
+# 初始化默认权限数据
+INSERT INTO bbs_group_permission (gid, permission_key, value) VALUES
+(0, 'allowread', 1), (0, 'allowpost', 1), (0, 'allowdown', 1),
+(1, 'allowread', 1), (1, 'allowthread', 1), (1, 'allowpost', 1), (1, 'allowattach', 1), (1, 'allowdown', 1), (1, 'allowtop', 1), (1, 'allowupdate', 1), (1, 'allowdelete', 1), (1, 'allowmove', 1), (1, 'allowbanuser', 1), (1, 'allowdeleteuser', 1), (1, 'allowviewip', 1),
+(2, 'allowread', 1), (2, 'allowthread', 1), (2, 'allowpost', 1), (2, 'allowattach', 1), (2, 'allowdown', 1), (2, 'allowtop', 1), (2, 'allowupdate', 1), (2, 'allowdelete', 1), (2, 'allowmove', 1), (2, 'allowbanuser', 1), (2, 'allowdeleteuser', 1), (2, 'allowviewip', 1),
+(4, 'allowread', 1), (4, 'allowthread', 1), (4, 'allowpost', 1), (4, 'allowattach', 1), (4, 'allowdown', 1), (4, 'allowtop', 1), (4, 'allowupdate', 1), (4, 'allowdelete', 1), (4, 'allowmove', 1), (4, 'allowbanuser', 1), (4, 'allowviewip', 1),
+(101, 'allowread', 1), (101, 'allowthread', 1), (101, 'allowpost', 1), (101, 'allowattach', 1), (101, 'allowdown', 1),
+(102, 'allowread', 1), (102, 'allowthread', 1), (102, 'allowpost', 1), (102, 'allowattach', 1), (102, 'allowdown', 1),
+(103, 'allowread', 1), (103, 'allowthread', 1), (103, 'allowpost', 1), (103, 'allowattach', 1), (103, 'allowdown', 1),
+(104, 'allowread', 1), (104, 'allowthread', 1), (104, 'allowpost', 1), (104, 'allowattach', 1), (104, 'allowdown', 1),
+(105, 'allowread', 1), (105, 'allowthread', 1), (105, 'allowpost', 1), (105, 'allowattach', 1), (105, 'allowdown', 1);
+
+# 友情链接
+DROP TABLE IF EXISTS bbs_friendlink;
+CREATE TABLE bbs_friendlink (
+  linkid bigint(11) unsigned NOT NULL AUTO_INCREMENT,
+  type smallint(11) NOT NULL DEFAULT '0',
+  `rank` smallint(11) NOT NULL DEFAULT '0',
+  create_date int(11) unsigned NOT NULL DEFAULT '0',
+  name char(32) NOT NULL DEFAULT '',
+  url char(64) NOT NULL DEFAULT '',
+  favicon char(128) NOT NULL DEFAULT '',
+  PRIMARY KEY (linkid),
+  KEY type (type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='友情链接';
 

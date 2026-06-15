@@ -1,0 +1,93 @@
+<template include="./view/htm/user.common.template.htm">
+	<slot name="user_info">
+		<div class="x-card card mb-3">
+			<div class="card-body text-center py-4">
+				<?php echo avatar_component_from_data($_user['avatar_url'], 'xl', isset($_user['group_icon_class']) ? $_user['group_icon_class'] : '', isset($_user['group_color']) ? $_user['group_color'] : '', isset($_user['gid']) ? $_user['gid'] : 0);?>
+				<h5 class="fw-bold mb-1"><?php echo esc_html($_user['username']);?></h5>
+				<span class="badge bg-primary  mb-2"><?php echo $_user['groupname'];?></span>
+				<?php if(!empty($_user['signature'])) { ?>
+				<p class="text-body-secondary small mb-0"><?php echo esc_html($_user['signature']);?></p>
+				<?php } ?>
+				<div class="d-flex justify-content-center gap-4 mt-3">
+					<div class="text-center">
+						<div class="fs-5 fw-bold text-primary"><?php echo $_user['threads'];?></div>
+						<div class="small text-body-secondary"><?php echo lang('threads');?></div>
+					</div>
+					<div class="text-center">
+						<div class="fs-5 fw-bold text-primary"><?php echo $_user['posts'];?></div>
+						<div class="small text-body-secondary"><?php echo lang('posts');?></div>
+					</div>
+					<div class="text-center">
+						<a href="<?php echo url("user-following-$_uid");?>" class="text-decoration-none">
+							<div class="fs-5 fw-bold text-primary"><?php echo $_user['follows'];?></div>
+							<div class="small text-body-secondary"><?php echo lang('follows');?></div>
+						</a>
+					</div>
+					<div class="text-center">
+						<a href="<?php echo url("user-followers-$_uid");?>" class="text-decoration-none">
+							<div class="fs-5 fw-bold text-primary"><?php echo $_user['followeds'];?></div>
+							<div class="small text-body-secondary"><?php echo lang('fans');?></div>
+						</a>
+					</div>
+				</div>
+				<div class="mt-3">
+					<?php if(!empty($uid) && $uid != $_uid) {
+						$_is_user_followed = !empty($_user['is_followed']);
+					?>
+					<?php if($_is_user_followed) { ?>
+					<button class="btn btn-sm btn-outline-secondary user-follow-btn"
+						hx-post="<?php echo url('user-follow-'.$_uid);?>"
+						hx-target="this"
+						hx-swap="outerHTML"
+						hx-optimistic>
+					<i class="ti ti-user-minus"></i>
+					<span><?php echo lang('unfollow');?></span>
+				</button>
+					<?php } else { ?>
+					<button class="btn btn-sm btn-primary user-follow-btn"
+						hx-post="<?php echo url('user-follow-'.$_uid);?>"
+						hx-target="this"
+						hx-swap="outerHTML"
+						hx-optimistic>
+					<i class="ti ti-user-plus"></i>
+					<span><?php echo lang('follow');?></span>
+				</button>
+					<?php } ?>
+					<?php } elseif(!empty($uid) && $uid == $_uid) { ?>
+					<a href="<?php echo url('my');?>" class="btn btn-outline-primary btn-sm ">
+						<i class="ti ti-pencil"></i> <?php echo lang('edit_profile');?>
+					</a>
+					<?php } ?>
+				</div>
+			</div>
+		</div>
+	</slot>
+
+	<slot name="user_nav">
+		<ul class="nav nav-tabs overflow-x-auto flex-nowrap" style="flex-wrap:nowrap">
+			<li class="nav-item"><a class="nav-link" href="<?php echo url("user-thread-$_uid");?>" data-active="user-thread"><?php echo lang('thread');?></a></li>
+			<li class="nav-item"><a class="nav-link active" href="<?php echo url("user-post-$_uid");?>" data-active="user-post"><?php echo lang('reply');?></a></li>
+			<li class="nav-item"><a class="nav-link" href="<?php echo url("user-following-$_uid");?>" data-active="user-following"><?php echo lang('following');?></a></li>
+			<li class="nav-item"><a class="nav-link" href="<?php echo url("user-followers-$_uid");?>" data-active="user-followers"><?php echo lang('followers');?></a></li>
+			<?php if(!empty($uid) && $uid == $_uid) { ?>
+			<li class="nav-item"><a class="nav-link" href="<?php echo url("user-favorite-$_uid");?>" data-active="user-favorite"><?php echo lang('my_favorite');?></a></li>
+			<li class="nav-item"><a class="nav-link" href="<?php echo url("user-like-$_uid");?>" data-active="user-like"><?php echo lang('my_like');?></a></li>
+			<?php } ?>
+			<!--{hook user_nav_end.htm}-->
+		</ul>
+	</slot>
+
+	<slot name="user_body">
+		<ul class="list-unstyled postlist">
+			<?php include _include(APP_PATH.'view/htm/post_list.inc.htm'); ?>
+		</ul>
+
+		<?php if($pagination) { ?>
+		<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap"><?php echo $pagination; ?></ul></nav>
+		<?php } ?>
+	</slot>
+</template>
+
+<script>
+$('a[data-active="user-post"]').addClass('active');
+</script>

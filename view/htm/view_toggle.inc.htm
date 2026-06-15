@@ -1,0 +1,25 @@
+<!--{hook view_toggle_start.htm}-->
+<div class="btn-group view-toggle  d-md-flex" role="group" aria-label="<?php echo lang('view_list');?>">
+	<a class="btn btn-sm <?php echo ($view_mode ?? 'list') == 'list' ? 'btn-primary' : 'btn-outline-secondary';?>  "
+		data-view="list"
+		hx-get="<?php echo $toggle_url . (strpos($toggle_url, '?') !== FALSE ? '&' : '?') . 'view=list'; ?>"
+		hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"
+		title="<?php echo lang('view_list');?>">
+		<i class="ti ti-layout-list"></i>
+	</a>
+	<a class="btn btn-sm <?php echo ($view_mode ?? 'list') == 'timeline' ? 'btn-primary' : 'btn-outline-secondary';?> "
+		data-view="timeline"
+		hx-get="<?php echo $toggle_url . (strpos($toggle_url, '?') !== FALSE ? '&' : '?') . 'view=timeline'; ?>"
+		hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"
+		title="<?php echo lang('view_timeline');?>">
+		<i class="ti ti-layout-collage"></i>
+	</a>
+	<a class="btn btn-sm <?php echo ($view_mode ?? 'list') == 'waterfall' ? 'btn-primary' : 'btn-outline-secondary';?> "
+		data-view="waterfall"
+		hx-get="<?php echo $toggle_url . (strpos($toggle_url, '?') !== FALSE ? '&' : '?') . 'view=waterfall'; ?>"
+		hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"
+		title="<?php echo lang('view_waterfall');?>">
+		<i class="ti ti-layout-dashboard"></i>
+	</a>
+</div>
+<!--{hook view_toggle_end.htm}-->

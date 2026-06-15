@@ -1,4 +1,9 @@
 /*
+ * DEPRECATED: 本文件中的 FileUploader 已被 upload-service.js 中的 UploadService 替代
+ * 保留此文件仅为向后兼容，新代码请使用 UploadService
+ */
+
+/*
 * Copyright (C) 2015 xiuno.com
 */
 
@@ -105,7 +110,7 @@ FileUploader.prototype.init = function(files) {
 }
 
 FileUploader.prototype.start = function(posturl, postdata, filename) {
-	if(!this.selectedfiles) return alert('Please select file!');
+	if(!this.selectedfiles) { XN.alert('Please select file!'); return; }
 
 	if(posturl) this.posturl = posturl;
 	if(postdata) this.postdata = postdata;

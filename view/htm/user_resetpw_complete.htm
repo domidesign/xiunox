@@ -1,80 +1,63 @@
 <?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
 
-<div class="row">
-	<div class="col-lg-6 mx-auto">
-		<div class="card">
-			<div class="card-header"><?php echo lang('user_resetpw');?></div>
-			<!--{hook user_create_card_title.htm}-->
-			<div class="card-body">
-				<form action="<?php echo url('user-resetpw_complete');?>" method="post" id="form">
-					<div class="form-group input-group">
-						<div class="input-group-prepend">
-							<span class="input-group-text"><i class="icon icon-envelope icon-fw"></i></span>
-						</div>
-						<input type="text" class="form-control" placeholder="<?php echo lang('email');?>" name="email" id="email" value="<?php echo $email;?>" disabled>
-					</div>
-					<div class="form-group input-group">
-						<div class="input-group-prepend">
-							<span class="input-group-text"><i class="icon icon-lock icon-fw"></i></span>
-						</div>
-						<input type="password" class="form-control" placeholder="<?php echo lang('password_new');?>" id="password" name="password">
-					</div>
-					<div class="form-group input-group">
-						<div class="input-group-prepend">
-							<span class="input-group-text"><i class="icon icon-lock icon-fw"></i></span>
-						</div>
-						<input type="password" class="form-control" placeholder="<?php echo lang('password_new_repeat');?>" id="password2">
-					</div>
-					<p>
-						<button type="submit" class="btn btn-primary btn-block" id="submit" data-loading-text="<?php echo lang('submiting');?>..." <?php if(!$conf['user_resetpw_on']) { ?>disabled<?php } ?>><?php echo lang('next_step');?></button>
-					</p>
-				</form>
-			</div>
+<div class="mx-auto" style="max-width:28rem">
+	<div class="text-center mb-4">
+		<img src="<?php echo $conf['logo_mobile_url'];?>" class="site-logo-lg mx-auto mb-2" alt="<?php echo $conf['sitename'];?>">
+		<h2 class="fs-4 fw-bold"><?php echo $conf['sitename'];?></h2>
+	</div>
+	<div class="x-card card">
+		<div class="card-body">
+			<h3 class="fs-5 fw-bold mb-0"><?php echo lang('user_resetpw');?></h3>
+		</div>
+		<!--{hook user_create_card_title.htm}-->
+		<div class="card-body">
+			<form hx-post="<?php echo url('user-resetpw_complete');?>" hx-target="#resetpw-complete-msg" hx-swap="innerHTML" id="form">
+				<?php echo CsrfService::input(); ?>
+				<div class="input-group mb-3">
+					<span class="input-group-text"><i class="ti ti-mail"></i></span>
+					<input type="text" class="form-control " placeholder="<?php echo lang('email');?>" name="email" id="email" value="<?php echo $email;?>" disabled>
+				</div>
+				<div class="input-group mb-3">
+					<span class="input-group-text"><i class="ti ti-lock"></i></span>
+					<input type="password" class="form-control " placeholder="<?php echo lang('password_new');?>" id="password" name="password">
+				</div>
+				<div class="input-group mb-3">
+					<span class="input-group-text"><i class="ti ti-lock"></i></span>
+					<input type="password" class="form-control " placeholder="<?php echo lang('password_new_repeat');?>" id="password2">
+				</div>
+				<div id="resetpw-complete-msg"></div>
+				<div class="mb-3">
+					<button type="submit" class="btn btn-primary w-100 " id="submit" <?php if(!$conf['user_resetpw_on']) { ?>disabled<?php } ?>><?php echo lang('next_step');?></button>
+				</div>
+			</form>
 		</div>
 	</div>
 </div>
 
-<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
-<script src="<?php echo $conf['view_url'];?>js/md5.js"></script>
-
 <script>
-var jform = $('#form');
-var jsubmit = $('#submit');
-var jpassword = $('#password');
-var jpassword2 = $('#password2');
-jform.on('submit', function() {
-	jform.reset();
-	jsubmit.button('loading');
+document.addEventListener('DOMContentLoaded', function() {
+	var form = document.getElementById('form');
+	var submitBtn = document.getElementById('submit');
+	var password = document.getElementById('password');
+	var password2 = document.getElementById('password2');
 	
-	if(!jpassword.val()) {
-		jpassword.focus();
-		$.alert('<?php echo lang('please_input_password');?>');
-		jsubmit.button('reset');
-		return false;
-	}
-	
-	if(jpassword.val() != jpassword2.val()) {
-		jpassword2.focus();
-		$.alert('<?php echo lang('repeat_password_incorrect');?>');
-		jsubmit.button('reset');
-		return false;
-	}
-	
-	var postdata = jform.serializeObject();
-	postdata.password = $.md5(postdata.password);
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
-		if(code == 0) {
-			$.alert(message);
-			jsubmit.button(message).delay(1000).location(xn.url('user-login'));
-		} else if(xn.is_number(code)) {
-			alert(message);
-			jsubmit.button('reset');
-		} else {
-			jform.find('[name="'+code+'"]').alert(message).focus();
-			jsubmit.button('reset');
+	form.addEventListener('htmx:config:request', function(e) {
+		var pw = password.value;
+		var pw2 = password2.value;
+		if(!pw) {
+			password.focus();
+			showToast('<?php echo lang('please_input_password');?>');
+			e.preventDefault();
+			return;
+		}
+		if(pw != pw2) {
+			password2.focus();
+			showToast('<?php echo lang('repeat_password_incorrect');?>');
+			e.preventDefault();
+			return;
 		}
 	});
-	return false;
 });
-
 </script>
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>

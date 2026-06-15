@@ -1,7 +1,11 @@
 <?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
 
 <?php
-	// 公用一个模板
+include_once APP_PATH . 'lib/security/CaptchaService.php';
+$captcha_post_on = CaptchaService::is_enabled('post');
+?>
+
+<?php
 	if($route == 'thread' && $action == 'create') {
 		$form_title = lang('thread_create');
 		$form_action = url("thread-create");
@@ -11,8 +15,12 @@
 		$form_doctype = 1;
 		$isfirst = 1;
 		$quotepid = 0;
-		$location = url("forum-'+jfid.checked()+'");
+		$location = url("forum-'+jfid.val()+'");
 		$filelist = array();
+
+		if (!isset($forumlist_allowthread)) {
+			$forumlist_allowthread = forum_list_access_filter($forumlist, $gid, 'allowthread');
+		}
 	} elseif($route == 'post' && $action == 'update') {
 		$form_title = lang('post_update');
 		$form_action = url("post-update-$pid");
@@ -31,34 +39,70 @@
 		$form_message = '';
 		$form_doctype = 1;
 		$isfirst = 0;
-		//$quotepid = 0;
 		$location = url("thread-$tid");
 		$filelist = array();
 	}
-	
+
 	// hook post_start_init.htm
-	
+
+	// 创建新帖子/回复时，清空上次遗留的临时文件
+	if(($route == 'thread' && $action == 'create') || ($route == 'post' && $action == 'create')) {
+		if(!empty($_SESSION['tmp_files'])) {
+			foreach($_SESSION['tmp_files'] as $f) {
+				if(!empty($f['path']) && is_file($f['path'])) @unlink($f['path']);
+				if(!empty($f['thumb_url'])) {
+					$thumb_rel = str_replace($conf['upload_url'].'tmp/', '', $f['thumb_url']);
+					$thumb_path = $conf['upload_path'].'tmp/'.$thumb_rel;
+					is_file($thumb_path) AND @unlink($thumb_path);
+				}
+			}
+			$_SESSION['tmp_files'] = array();
+		}
+	}
+
 	$filelist += (array)_SESSION('tmp_files');
+	$imagelist = array();
+	$videolist = array();
+	if($route == 'post' && $action == 'update' && !empty($post['imagelist'])) {
+		$imagelist = $post['imagelist'];
+	}
+	if($route == 'post' && $action == 'update' && !empty($post['videolist'])) {
+		$videolist = $post['videolist'];
+	}
+
+	$editorService = new EditorService($conf);
+	$editorAssets = $editorService->getEditorAssets();
+
+	// 读取字数限制安全配置
+	include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+	$sec_post_min_length = SecurityConfigService::get('security_post_min_length', 10);
+	$sec_post_max_length = SecurityConfigService::get('security_post_max_length', 50000);
+	$sec_reply_min_length = SecurityConfigService::get('security_reply_min_length', 5);
+	// 根据是否为主帖选择对应的字数限制
+	$sec_current_min_length = $isfirst ? $sec_post_min_length : $sec_reply_min_length;
+	$sec_current_max_length = $sec_post_max_length;
 ?>
 
 <!--{hook post_start.htm}-->
 
-<div class="row">
-	<div class="col-lg-10 mx-auto">
-		<div class="card">
-			<div class="card-header">
+<div class="d-flex gap-4">
+	<div class="w-100 post-form-wrap mx-auto">
+		<div class="x-card card">
+			<div class="card-body">
 				<?php echo $form_title; ?>
 			</div>
 			<div class="card-body">
-				<form action="<?php echo $form_action;?>" method="post" id="form">
-					<input type="hidden" name="doctype" value="<?php echo $form_doctype;?>" />
+				<form hx-post="<?php echo $form_action;?>" hx-target="#post-msg" hx-swap="innerHTML" hx-encoding="multipart/form-data" id="form">
+					<?php echo CsrfService::input(); ?>
+					<div id="post-msg"></div>
+					<input type="hidden" name="doctype" value="0" />
 					<input type="hidden" name="quotepid" value="<?php echo $quotepid;?>" />
-					
+
 					<!--{hook post_fid_before.htm}-->
 					<?php if($isfirst) { ?>
-					<div class="form-group">
+					<div class="mb-3">
 						<!--{hook post_fid_select_before.htm}-->
-						<select class="custom-select mr-1 w-auto" name="fid">
+						<select class="form-select me-1 w-100 post-fid-select " name="fid">
 							<?php foreach ($forumlist_allowthread as $forum) { ?>
 							<option value="<?php echo $forum['fid']; ?>"><?php echo $forum['name']; ?></option>
 							<?php } ?>
@@ -66,38 +110,53 @@
 						<!--{hook post_fid_select_after.htm}-->
 					</div>
 					<!--{hook post_subject_before.htm}-->
-					<div class="form-group">
-						<input type="text" class="form-control" placeholder="<?php echo lang('subject');?>" name="subject" value="<?php echo $form_subject;?>" id="subject">
+					<div class="mb-3">
+						<input type="text" class="form-control w-100 post-input " placeholder="<?php echo lang('subject');?>" name="subject" value="<?php echo $form_subject;?>" id="subject">
 					</div>
 					<!--{hook post_subject_after.htm}-->
 					<?php } ?>
-					
-					<div class="form-group">
-						<textarea class="form-control" placeholder="<?php echo lang('message');?>" name="message" id="message" style="height: 300px;"><?php echo $form_message;?></textarea>
+
+					<div class="mb-3 position-relative" id="message-editor-wrap">
+					<textarea class="form-control w-100 post-input " placeholder="<?php echo lang('message');?>" name="message" id="message" style="height: 300px; min-height: 200px;"><?php echo $form_message;?></textarea>
+					<div class="form-text text-body-secondary mt-1">
+						<?php echo lang('char_requirement')." {$sec_current_min_length} ".lang('char_unit').lang('char_max_unit')." {$sec_current_max_length} ".lang('char_unit'); ?>
 					</div>
-					
+				</div>
+
 					<!--{hook post_message_after.htm}-->
 
-					<div class="d-flex justify-content-between">
+				<?php if($captcha_post_on): ?>
+				<div class="mb-3" id="captcha-post" data-captcha-scene="post">
+					<!-- <label class="form-label"><?php echo lang('captcha_label');?></label> -->
+					<div class="input-group">
+						<span class="input-group-text"><i class="ti ti-shield-check"></i></span>
+						<input type="text" name="captcha" class="form-control" id="captcha-input-post" hx-on:input="document.getElementById('captcha-error-post').textContent=''" placeholder="<?php echo lang('please_input_captcha');?>" autocomplete="off" required>
+						<img id="captcha-img-post" src="" hx-on:click="captchaRefresh('post')" style="cursor:pointer;height:38px;border-radius:0 20px 20px 0;display:none" title="<?php echo lang('click_to_refresh');?>">
+					</div>
+					<span id="captcha-error-post" class="text-danger small mt-1"></span>
+				</div>
+				<?php endif; ?>
+
+				<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
 						<div class="attachlist_parent">
-							<a class="small text-left" href="javascript:void(0)">
-								<label class="addattach" id="addattach">
-									<i class="icon-folder-open-o"></i> 
-									<?php echo lang('add_attach');?>
-									<input type="file"  multiple="multiple" class="invisible" />
-								</label>
-							</a>
-							<?php echo post_file_list_html($filelist, TRUE);?>
+							<div id="upload-drop-zone" class="border border-dashed rounded-3 p-3 text-center mt-2" style="display:none; border-style: dashed !important;">
+								<i class="ti ti-cloud-upload fs-1 text-muted"></i>
+								<p class="text-muted mb-0 small"><?php echo lang('drag_drop_upload');?></p>
+							</div>
+							<div id="upload-progress-area" class="mt-2" style="display:none;"></div>
+							<div id="upload-preview-grid" class="row g-2 mt-2"></div>
+							<div id="upload-attachment-list" class="mt-2"></div>
+							<?php echo post_file_list_html($filelist, TRUE, $imagelist, $videolist);?>
 							<!--{hook post_bottom_right.htm}-->
 						</div>
-						<div class="text-right">
-							<button type="submit" class="btn btn-primary" id="submit" data-loading-text="<?php echo lang('submiting');?>..."> <?php echo $form_submit_txt;?> </button>
+						<div class="text-end">
+							<button type="submit" class="btn btn-primary post-submit-btn " id="submit" data-loading-text="<?php echo lang('submiting');?>..."> <?php echo $form_submit_txt;?> </button>
 							<!--{hook post_bottom_left.htm}-->
 						</div>
 					</div>
-					
+
 					<!--{hook post_submit_after.htm}-->
-					
+
 				</form>
 			</div>
 		</div>
@@ -106,85 +165,200 @@
 
 <!--{hook post_end.htm}-->
 
+<?php foreach($editorAssets['css'] as $cssUrl): ?>
+<link rel="stylesheet" href="<?php echo $cssUrl;?>">
+<?php endforeach; ?>
+
+<?php foreach($editorAssets['js'] as $jsUrl): ?>
+<script src="<?php echo $jsUrl;?>"></script>
+<?php endforeach; ?>
+
+<?php echo $editorService->renderEditorHtml('message'); ?>
+
 <?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+
+<script src="<?php echo $conf['view_url'];?>js/upload-service.js<?php echo $static_version;?>"></script>
 <script>
 var jform = $('#form');
-var jsubmit = $('#submit');
-var jfid = jform.find('select[name="fid"]');
-jform.on('submit', function() {
-	jform.reset();
-	jsubmit.button('loading');
-	var postdata = jform.serialize();
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
-		if(code == 0) {
-			$.alert(message);
-			jsubmit.button(message).delay(1000).location('<?php echo $location;?>');
-		} else if(xn.is_number(code)) {
-			alert(message);
-			jsubmit.button('reset');
-		} else {
-			$.alert(message);
-			//jform.find('[name="'+code+'"]').alert(message).focus();
-			jsubmit.button('reset');
+
+// htmx 请求前：设置按钮为 loading 状态
+document.getElementById('form').addEventListener('htmx:before:request', function(event) {
+	$('#submit').button('loading');
+});
+
+// htmx 请求后：恢复按钮 + 刷新验证码 + 处理特殊错误
+document.getElementById('form').addEventListener('htmx:after:request', function(event) {
+	$('#submit').button('reset');
+
+	// 每次提交后刷新验证码
+	if(typeof captchaRefresh === 'function') captchaRefresh('post');
+
+	var response = event.detail && event.detail.ctx && event.detail.ctx.response;
+	if(!response || !response.ok) return;
+
+	// 检查 target 中是否有错误消息（htmx 已 swap 进去）
+	setTimeout(function() {
+		var msgEl = document.getElementById('post-msg');
+		if(!msgEl) return;
+		var errDiv = msgEl.querySelector('[data-code]') || msgEl;
+		var errCode = parseInt(errDiv.getAttribute('data-code')) || 0;
+		// 验证码错误 (code -1001)
+		if(errCode === -1001) {
+			var captchaErr = document.getElementById('captcha-error-post');
+			if(captchaErr) captchaErr.textContent = msgEl.textContent || '';
 		}
-	});
-	return false;
+		// 频率限制 (code -1002)：禁用提交按钮并倒计时
+		if(errCode === -1002) {
+			var submitBtn = document.getElementById('submit');
+			if(submitBtn) {
+				submitBtn.disabled = true;
+				var seconds = parseInt(errDiv.getAttribute('data-wait')) || 30;
+				var originalText = submitBtn.textContent.trim();
+				var timer = setInterval(function() {
+					seconds--;
+					if(seconds <= 0) {
+						clearInterval(timer);
+						submitBtn.disabled = false;
+						submitBtn.textContent = originalText;
+					} else {
+						submitBtn.textContent = originalText + ' (' + seconds + 's)';
+					}
+				}, 1000);
+			}
+		}
+	}, 50);
 });
 
-var jattachparent = $('.attachlist_parent');
-$('#addattach').on('change', function(e) {
-	var files = xn.get_files_from_event(e);
-	if (!files) return;
-	
-	// 并发下会 服务端 session 写入会有问题，由客户端控制改为串行
-	if (!jattachparent.find('.attachlist').length) {
-		jattachparent.append('<fieldset class="fieldset"><legend><?php echo lang('uploaded_attach');?></legend><ul class="attachlist"><ul></fieldset>');
-	}
-	
-	var jprogress = jattachparent.find('.progress');
-	if(!jprogress.length) {
-		jprogress = $('<div class="progress"><div class="progress-bar" role="progressbar" style="width: 25%;" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100">25%</div></div>').appendTo(jattachparent);
-	}
-	jprogressbar = jprogress.find('.progress-bar');
+// 初始化 UploadService
+var uploadService = new UploadService({
+    uploadUrl: xn.url('attach-create'),
+    csrfToken: '<?php echo CsrfService::getToken(); ?>',
+    onProgress: function(file, percent) {
+        var fileId = 'progress-' + file.name.replace(/[^a-zA-Z0-9]/g, '_') + '-' + file.size;
+        var progressBar = $('#' + fileId);
+        if (progressBar.length) {
+            progressBar.css('width', percent + '%').text(percent + '%');
+        }
+    },
+    onComplete: function(file, response) {
+        var msg = response.message;
+        var fileId = 'progress-' + file.name.replace(/[^a-zA-Z0-9]/g, '_') + '-' + file.size;
+        $('#' + fileId).closest('.progress').fadeOut(300, function() { $(this).remove(); });
+        refreshProgressArea();
 
-	$.each_sync(files, function(i, callback) {
-		var file = files[i];
-		xn.upload_file(file, xn.url('attach-create'), {is_image: 0}, function(code, message) {
-			if (code != 0) return $.alert(message);
-			// 把文件 append 到附件列表
-			var url = message.url;
-			var filetype = message.filetype;
-			var aid = message.aid;
-			$('.attachlist').append('<li aid="' + aid + '"><a href="' + message.url + '" target="_blank"><i class="icon filetype ' + filetype + '"></i> ' + message.orgfilename + '</a> <a href="javascript:void(0);" class="delete ml-2"><i class="icon-remove"></i> <?php echo lang('delete');?></a></li>');
-			callback();
-			jprogress.hide();
-		}, function(percent) {
-			percent = xn.intval(percent);
-			jprogressbar.css('width', percent+'%');
-			jprogressbar.text(percent+'%');
-			jprogress.show();
-			console.log('progress:'+ percent); 
-		});
-	});
+        if (msg.isimage || UploadService.isImageFile(file)) {
+            addImagePreview(msg);
+        } else {
+            addAttachmentCard(msg);
+        }
+    },
+    onError: function(file, error) {
+        var fileId = 'progress-' + file.name.replace(/[^a-zA-Z0-9]/g, '_') + '-' + file.size;
+        var progressBar = $('#' + fileId);
+        if (progressBar.length) {
+            progressBar.closest('.progress').find('.progress-bar')
+                .removeClass('bg-primary').addClass('bg-danger')
+                .text('<?php echo lang('failed_label');?>');
+        }
+        $.alert(error || '<?php echo lang('upload_failed');?>');
+    },
+    onPreview: function(file, dataUrl) {
+        addLocalPreview(dataUrl, file);
+    },
+    onDragOver: function() {
+        $('#upload-drop-zone').show();
+    },
+    onDragLeave: function() {
+        $('#upload-drop-zone').hide();
+    }
 });
 
-// 删除附件
-jattachparent.on('click', 'a.delete', function() {
-	var jlink = $(this);
-	var jli = jlink.parents('li');
-	var aid = jli.attr('aid');
-	if(!window.confirm(lang.confirm_delete)) return false;
-	$.xpost(xn.url('attach-delete-'+aid), function(code, message) {
-		if(code != 0) return $.alert(message);
-		jlink.parent().remove();
-	});
-	return false;
-})
+// 启用拖拽上传到编辑器区域
+uploadService.enableDragDrop(document.getElementById('message-editor-wrap'));
 
-jform.find('[name="fid"]').checked(<?php echo $fid;?>);
+// 启用粘贴上传到编辑器
+uploadService.enablePaste(document.getElementById('message'));
 
-$('li[data-active="bbs"]').addClass('active');
+// 添加进度条
+function addProgressBar(file) {
+    var fileId = 'progress-' + file.name.replace(/[^a-zA-Z0-9]/g, '_') + '-' + file.size;
+    var fileSize = UploadService.formatFileSize(file.size);
+    var html = '<div class="mb-1">' +
+        '<div class="d-flex justify-content-between align-items-center small mb-1">' +
+            '<span class="text-truncate" style="max-width:70%;">' + file.name + '</span>' +
+            '<span class="text-muted">' + fileSize + '</span>' +
+        '</div>' +
+        '<div class="progress" style="height:6px;">' +
+            '<div class="progress-bar bg-primary upload-progress-bar" id="' + fileId + '" style="width:0%;"></div>' +
+        '</div>' +
+    '</div>';
+    $('#upload-progress-area').append(html).show();
+}
+
+// 刷新进度区域显示状态
+function refreshProgressArea() {
+    var remaining = $('#upload-progress-area').find('.progress').length;
+    if (remaining === 0) {
+        $('#upload-progress-area').hide().empty();
+    }
+}
+
+// 添加本地图片预览（上传中）
+function addLocalPreview(dataUrl, file) {
+    var previewId = 'local-preview-' + file.name.replace(/[^a-zA-Z0-9]/g, '_') + '-' + file.size;
+    if ($('#' + previewId).length) return;
+    var html = '<div class="col-4 col-sm-3 col-md-2" id="' + previewId + '">' +
+        '<div class="x-card card rounded-3 upload-preview-card">' +
+            '<img src="' + dataUrl + '" class="card-img-top" style="height:80px;object-fit:cover;" alt="<?php echo lang('preview');?>">' +
+            '<div class="card-body p-1 text-center"><small class="text-muted text-truncate d-block"><?php echo lang('uploading');?></small></div>' +
+        '</div>' +
+    '</div>';
+    $('#upload-preview-grid').append(html);
+}
+
+// 添加上传完成的图片预览
+function addImagePreview(msg) {
+    var html = '<div class="col-4 col-sm-3 col-md-2">' +
+        '<div class="x-card card rounded-3 upload-preview-card" aid="' + msg.aid + '">' +
+            '<img src="' + (msg.thumb_url || msg.url) + '" class="card-img-top" style="height:80px;object-fit:cover;" alt="' + msg.orgfilename + '">' +
+            '<button type="button" class="btn btn-sm btn-danger btn-remove rounded-circle p-0 attach-delete-btn" style="width:22px;height:22px;line-height:22px;" title="<?php echo lang('delete');?>" onclick="deleteAttach(this, '+msg.aid+')"><i class="ti ti-x" style="font-size:12px;"></i></button>' +
+            '<div class="card-body p-1 text-center"><small class="text-muted text-truncate d-block">' + msg.orgfilename + '</small></div>' +
+        '</div>' +
+    '</div>';
+    var el = $(html);
+    $('#upload-preview-grid').append(el);
+}
+
+// 添加附件卡片
+function addAttachmentCard(msg) {
+    var iconClass = 'ti-file';
+    if (msg.filetype === 'pdf') iconClass = 'ti-file-type-pdf';
+    else if (['doc','docx'].indexOf(msg.filetype) !== -1) iconClass = 'ti-file-type-doc';
+    else if (['xls','xlsx'].indexOf(msg.filetype) !== -1) iconClass = 'ti-file-type-xls';
+    else if (['zip','rar','7z','gz'].indexOf(msg.filetype) !== -1) iconClass = 'ti-file-zip';
+
+    var fileSize = UploadService.formatFileSize(msg.filesize);
+    var html = '<div class="x-card card rounded-3 mb-1" aid="' + msg.aid + '">' +
+        '<div class="card-body p-2 d-flex align-items-center gap-2">' +
+            '<i class="ti ' + iconClass + ' fs-4 text-muted"></i>' +
+            '<div class="flex-grow-1 text-truncate">' +
+                '<a href="' + msg.url + '" target="_blank" class="small text-decoration-none">' + msg.orgfilename + '</a>' +
+                '<div class="text-muted" style="font-size:0.75rem;">' + fileSize + '</div>' +
+            '</div>' +
+            '<button type="button" class="btn btn-sm btn-outline-danger rounded-pill btn-delete-attach attach-delete-btn" title="<?php echo lang('delete');?>" onclick="deleteAttach(this, '+msg.aid+')"><i class="ti ti-trash"></i></button>' +
+        '</div>' +
+    '</div>';
+    var el = $(html);
+    $('#upload-attachment-list').append(el);
+}
+
+<?php if (isset($fid) && $fid): ?>
+jform.find('[name="fid"]').val(<?php echo $fid;?>);
+
 $('li[data-active="fid-<?php echo $fid;?>"]').addClass('active');
+<?php endif; ?>
+
 
 </script>
 

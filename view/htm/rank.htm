@@ -1,0 +1,229 @@
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook rank_start.htm}-->
+
+<div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
+	<div class="d-none d-lg-block col-lg-2">
+		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
+	</div>
+	<div class="col-lg-7" style="min-width:0">
+
+		<!--{hook rank_header.htm}-->
+
+		<!-- Tab + 时间周期 同一行 -->
+		<div class="x-card card mb-3" id="rank-content">
+			<div class="py-1">
+				<div class="d-flex justify-content-between align-items-center flex-wrap">
+					<ul class="nav thread-nav-tabs" role="tablist">
+						<li class="nav-item">
+							<a class="nav-link<?php echo $_lb_tab === 'threads' ? ' active' : '';?>"
+							   href="<?php echo url('rank', array('tab'=>'threads', 'period'=>$_lb_period));?>"
+							   hx-get="<?php echo url('rank', array('tab'=>'threads', 'period'=>$_lb_period));?>"
+							   hx-target="#rank-content" hx-select="#rank-content" hx-swap="outerHTML" hx-push-url="true"><?php echo lang('hot_threads');?></a>
+						</li>
+						<li class="nav-item">
+							<a class="nav-link<?php echo $_lb_tab === 'users' ? ' active' : '';?>"
+						   href="<?php echo url('rank', array('tab'=>'users', 'period'=>$_lb_period));?>"
+						   hx-get="<?php echo url('rank', array('tab'=>'users', 'period'=>$_lb_period));?>"
+						   hx-target="#rank-content" hx-select="#rank-content" hx-swap="outerHTML" hx-push-url="true"><?php echo lang('active_users_tab');?></a>
+						</li>
+						<li class="nav-item">
+							<a class="nav-link<?php echo $_lb_tab === 'credits' ? ' active' : '';?>"
+						   href="<?php echo url('rank', array('tab'=>'credits', 'period'=>$_lb_period));?>"
+						   hx-get="<?php echo url('rank', array('tab'=>'credits', 'period'=>$_lb_period));?>"
+						   hx-target="#rank-content" hx-select="#rank-content" hx-swap="outerHTML" hx-push-url="true"><?php echo lang('credits_ranking');?></a>
+						</li>
+					</ul>
+					<div class="btn-group btn-sm d-none" role="group">
+						<a href="<?php echo url('rank', array('tab'=>$_lb_tab, 'period'=>'week'));?>"
+					   class="btn rounded-pill btn-sm <?php echo $_lb_period === 'week' ? 'btn-primary' : 'btn-outline-primary';?>"
+					   hx-get="<?php echo url('rank', array('tab'=>$_lb_tab, 'period'=>'week'));?>"
+					   hx-target="#rank-content" hx-select="#rank-content" hx-swap="outerHTML" hx-push-url="true"><?php echo lang('this_week');?></a>
+					<a href="<?php echo url('rank', array('tab'=>$_lb_tab, 'period'=>'month'));?>"
+					   class="btn rounded-pill btn-sm <?php echo $_lb_period === 'month' ? 'btn-primary' : 'btn-outline-primary';?>"
+					   hx-get="<?php echo url('rank', array('tab'=>$_lb_tab, 'period'=>'month'));?>"
+					   hx-target="#rank-content" hx-select="#rank-content" hx-swap="outerHTML" hx-push-url="true"><?php echo lang('this_month');?></a>
+					<a href="<?php echo url('rank', array('tab'=>$_lb_tab, 'period'=>'all'));?>"
+					   class="btn rounded-pill btn-sm <?php echo $_lb_period === 'all' ? 'btn-primary' : 'btn-outline-primary';?>"
+					   hx-get="<?php echo url('rank', array('tab'=>$_lb_tab, 'period'=>'all'));?>"
+					   hx-target="#rank-content" hx-select="#rank-content" hx-swap="outerHTML" hx-push-url="true"><?php echo lang('all');?></a>
+					</div>
+				</div>
+			</div>
+	 
+
+		<!-- 内容列表 -->
+ 
+			<div class="card-body p-0">
+				<?php if(empty($_lb_items)) { ?>
+				<!-- 空状态 -->
+				<div class="text-center py-5">
+					<i class="ti ti-chart-bar display-4 text-body-tertiary"></i>
+					<p class="mt-2 text-body-secondary"><?php echo lang('no_data');?></p>
+				</div>
+				<?php } else { ?>
+				<ul class="list-none mb-0">
+					<?php $_rank = 0; foreach($_lb_items as $_item) { $_rank++; ?>
+
+					<?php if($_lb_tab === 'threads') { ?>
+					<!-- 热门帖子列表项 -->
+					<li class="d-flex align-items-center thread-list-item" data-tid="<?php echo $_item['tid'];?>">
+						<div class="me-2 flex-shrink-0 text-center" style="width:32px;">
+							<?php if($_rank == 1): ?>
+							<i class="ti ti-medal fs-4 text-warning"></i>
+							<?php elseif($_rank == 2): ?>
+							<i class="ti ti-medal fs-4 text-secondary"></i>
+							<?php elseif($_rank == 3): ?>
+							<i class="ti ti-medal fs-4" style="color:#cd7f32;"></i>
+							<?php else: ?>
+							<span class="badge bg-secondary"><?php echo $_rank;?></span>
+							<?php endif; ?>
+						</div>
+						<div class="flex-fill py-0.5" style="min-width:0">
+							<div class="subject break-all leading-snug">
+								<a href="<?php echo url('thread-' . $_item['tid']);?>" class="hover-text-primary transition-colors"><?php echo esc_html($_item['title']);?></a>
+							</div>
+							<div class="d-flex align-items-center small mt-1 thread-list-meta">
+								<span class="text-secondary"><?php echo esc_html($_item['author']);?></span>
+								<span class="mx-1 fw-bold">·</span>
+								<span class="text-secondary"><i class="ti ti-message-circle me-1"></i><?php echo $_item['replies'];?></span>
+								<span class="mx-1 fw-bold">·</span>
+								<span class="text-secondary"><i class="ti ti-eye me-1"></i><?php echo $_item['views'];?></span>
+								<?php if(!empty($_item['last_reply_time'])) { ?>
+								<span class="mx-1 fw-bold">·</span>
+								<span class="text-secondary"><?php echo humandate(strtotime($_item['last_reply_time']));?></span>
+								<?php } ?>
+							</div>
+						</div>
+					</li>
+
+					<?php } elseif($_lb_tab === 'users') { ?>
+					<!-- 活跃用户列表项 -->
+					<li class="d-flex align-items-center thread-list-item">
+						<div class="me-2 flex-shrink-0 text-center" style="width:32px;">
+							<?php if($_rank == 1): ?>
+							<i class="ti ti-medal fs-4 text-warning"></i>
+							<?php elseif($_rank == 2): ?>
+							<i class="ti ti-medal fs-4 text-secondary"></i>
+							<?php elseif($_rank == 3): ?>
+							<i class="ti ti-medal fs-4" style="color:#cd7f32;"></i>
+							<?php else: ?>
+							<span class="badge bg-secondary"><?php echo $_rank;?></span>
+							<?php endif; ?>
+						</div>
+						<div class="me-2 flex-shrink-0">
+							<a href="<?php echo url('user-' . $_item['uid']);?>" tabindex="-1">
+								<?php echo avatar_component($_item['uid'], 'md');?>
+							</a>
+						</div>
+						<div class="flex-fill py-0.5" style="min-width:0">
+							<div class="subject break-all leading-snug">
+								<a href="<?php echo url('user-' . $_item['uid']);?>" class="hover-text-primary transition-colors fw-medium"><?php echo esc_html($_item['username']);?></a>
+							</div>
+							<div class="d-flex align-items-center small mt-1 thread-list-meta">
+								<span class="text-secondary"><?php echo lang('posts_label');?> <?php echo $_item['posts'];?></span>
+								<span class="mx-1 fw-bold">·</span>
+								<span class="text-secondary"><i class="ti ti-star me-1"></i><?php echo $_item['reputation'];?></span>
+								<?php if(!empty($_item['registered_at'])) { ?>
+								<span class="mx-1 fw-bold">·</span>
+								<span class="text-secondary"><?php echo date('Y-m-d', strtotime($_item['registered_at']));?></span>
+								<?php } ?>
+							</div>
+						</div>
+					</li>
+
+					<?php } elseif($_lb_tab === 'credits') { ?>
+					<!-- 积分排行列表项 -->
+					<li class="d-flex align-items-center thread-list-item">
+						<div class="me-2 flex-shrink-0 text-center" style="width:32px;">
+							<?php if($_rank == 1): ?>
+							<i class="ti ti-medal fs-4 text-warning"></i>
+							<?php elseif($_rank == 2): ?>
+							<i class="ti ti-medal fs-4 text-secondary"></i>
+							<?php elseif($_rank == 3): ?>
+							<i class="ti ti-medal fs-4" style="color:#cd7f32;"></i>
+							<?php else: ?>
+							<span class="badge bg-secondary"><?php echo $_rank;?></span>
+							<?php endif; ?>
+						</div>
+						<div class="me-2 flex-shrink-0">
+							<a href="<?php echo url('user-' . $_item['uid']);?>" tabindex="-1">
+								<?php echo avatar_component($_item['uid'], 'md');?>
+							</a>
+						</div>
+						<div class="flex-fill py-0.5" style="min-width:0">
+							<div class="subject break-all leading-snug">
+								<a href="<?php echo url('user-' . $_item['uid']);?>" class="hover-text-primary transition-colors fw-medium"><?php echo esc_html($_item['username']);?></a>
+							</div>
+							<div class="d-flex align-items-center small mt-1 thread-list-meta">
+								<span class="text-secondary"><i class="ti ti-star me-1"></i><?php echo lang('credits_label');?> <?php echo $_item['credits'];?></span>
+								<span class="mx-1 fw-bold">·</span>
+								<span class="text-secondary"><i class="ti ti-coin me-1"></i><?php echo lang('golds_label');?> <?php echo $_item['golds'];?></span>
+								<span class="mx-1 fw-bold">·</span>
+								<span class="text-secondary"><?php echo lang('posts_label');?> <?php echo $_item['threads'];?></span>
+							</div>
+						</div>
+					</li>
+					<?php } ?>
+
+					<?php } ?>
+				</ul>
+				<?php } ?>
+
+				<!-- 加载更多 -->
+				<?php if($_lb_has_more) { ?>
+				<div class="text-center py-3">
+					<a href="<?php echo url('rank', array('tab'=>$_lb_tab, 'period'=>$_lb_period, 'page'=>$_lb_page+1));?>"
+					   class="btn btn-outline-primary rounded-pill"
+					   hx-get="<?php echo url('rank', array('tab'=>$_lb_tab, 'period'=>$_lb_period, 'page'=>$_lb_page+1));?>"
+					   hx-target="#rank-content" hx-select="#rank-content" hx-swap="outerHTML" hx-push-url="true">
+						<i class="ti ti-chevron-down me-1"></i><?php echo lang('load_more');?>
+					</a>
+				</div>
+				<?php } ?>
+			</div>
+		</div>
+	</div>
+	<div class="d-none d-lg-block col-lg-3">
+		<?php include _include(APP_PATH.'view/htm/sidebar_right.inc.htm');?>
+	</div>
+</div>
+
+<!--{hook rank_footer.htm}-->
+
+<!--{hook rank_end.htm}-->
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<script src="view/vendor/animejs/anime.umd.min.js"></script>
+<script>
+(function() {
+	var { animate, stagger } = anime;
+	// 排行列表项淡入动画
+	var items = document.querySelectorAll('#rank-content .thread-list-item');
+	if (items.length) {
+		animate(items, {
+			opacity: [0, 1],
+			translateY: [20, 0],
+			delay: stagger(50),
+			duration: 300,
+			ease: 'outQuad'
+		});
+	}
+	// htmx 切换 tab/周期时也触发动画
+	document.addEventListener('htmx:afterSettle', function(e) {
+		if (!e.detail.elt || !e.detail.elt.closest('#rank-content') && e.detail.target !== document.getElementById('rank-content')) return;
+		var newItems = document.querySelectorAll('#rank-content .thread-list-item:not([data-animated])');
+		if (newItems.length) {
+			newItems.forEach(function(el) { el.dataset.animated = '1'; });
+			animate(newItems, {
+				opacity: [0, 1],
+				translateY: [20, 0],
+				delay: stagger(50),
+				duration: 300,
+				ease: 'outQuad'
+			});
+		}
+	});
+})();
+</script>
