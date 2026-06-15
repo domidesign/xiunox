@@ -27,10 +27,13 @@ if(empty($action) || $action == 'list') {
 	
 	} elseif($method == 'POST') {
 		
+		CsrfService::check();
+		
 		$gidarr = param('_gid', array(0));
 		$namearr = param('name', array(''));
 		$creditsfromarr = param('creditsfrom', array(0));
 		$creditstoarr = param('creditsto', array(0));
+		$colorarr = param('color', array(''));
 		$arrlist = array();
 		
 		// hook admin_group_list_post_start.php
@@ -41,6 +44,7 @@ if(empty($action) || $action == 'list') {
 				'name'=>$namearr[$k],
 				'creditsfrom'=>$creditsfromarr[$k],
 				'creditsto'=>$creditstoarr[$k],
+				'color'=>isset($colorarr[$k]) ? $colorarr[$k] : '',
 			);
 			if(!isset($grouplist[$k])) {
 				// 添加 / add
@@ -59,9 +63,11 @@ if(empty($action) || $action == 'list') {
 		}
 		
 		group_list_cache_delete();
-		
+
+		admin_log_create('group_update', 'group', '', '批量更新用户组');
+
 		// hook admin_group_list_post_end.php
-		
+
 		message(0, lang('save_successfully'));
 	}
 
@@ -96,12 +102,20 @@ if(empty($action) || $action == 'list') {
 		$input['allowbanuser'] = form_checkbox('allowbanuser', $_group['allowbanuser']);
 		$input['allowdeleteuser'] = form_checkbox('allowdeleteuser', $_group['allowdeleteuser']);
 		$input['allowviewip'] = form_checkbox('allowviewip', $_group['allowviewip']);
-		
+		$input['color'] = form_text('color', isset($_group['color']) ? $_group['color'] : '');
+
+		// 获取 group_permission 表中的权限数据
+		$saved_perms = PermissionService::getPermissions($_gid);
+		$all_perm_keys = PermissionService::getAllRegisteredKeys();
+		$perm_groups = PermissionService::getGroups();
+
 		// hook admin_group_update_get_end.php
 		
 		include _include(ADMIN_PATH."view/htm/group_update.htm");
 	
 	} elseif($method == 'POST') {	
+		
+		CsrfService::check();
 		
 		$name = param('name');
 		$creditsfrom = param('creditsfrom');
@@ -111,7 +125,8 @@ if(empty($action) || $action == 'list') {
 		$allowpost = param('allowpost', 0);
 		$allowattach = param('allowattach', 0);
 		$allowdown = param('allowdown', 0);
-		
+		$color = param('color', '');
+
 		// hook admin_group_update_post_start.php
 		
 		$arr = array (
@@ -123,7 +138,7 @@ if(empty($action) || $action == 'list') {
 			'allowpost'  => $allowpost,
 			'allowattach'  => $allowattach,
 			'allowdown'  => $allowdown,
-			
+			'color'      => $color,
 		);
 		if($_gid >=1 && $_gid <= 5) {
 			
@@ -146,9 +161,23 @@ if(empty($action) || $action == 'list') {
 		}
 		group_update($_gid, $arr);
 		
+		$icon = param('icon', '');
+		group_update($_gid, array('icon'=>$icon));
+
+		// 保存权限到 group_permission 表
+		$all_perms = PermissionService::getAllRegisteredKeys();
+		$perm_data = array();
+		foreach($all_perms as $key => $def) {
+			$val = param($key, 0);
+			$perm_data[$key] = intval($val);
+		}
+		PermissionService::updatePermissions($_gid, $perm_data);
+
+		admin_log_create('group_update', 'group', strval($_gid), '更新用户组：' . $name);
+
 		// hook admin_group_update_post_end.php
-		
-		message(0, lang('edit_sucessfully'));	
+
+		message(0, lang('edit_sucesfully'));
 	}
 	
 }

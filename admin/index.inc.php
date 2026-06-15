@@ -23,6 +23,8 @@ if(DEBUG < 3) {
 
 $route = param(0, 'index');
 
+$header['csrf_token'] = CsrfService::generate();
+
 switch ($route) {
 	// hook admin_index_route_case_start.php
 	case 'index':		include _include(ADMIN_PATH.'route/index.php'); 	break;
@@ -34,16 +36,21 @@ switch ($route) {
 	case 'user':		include _include(ADMIN_PATH.'route/user.php'); 		break;
 	case 'thread':		include _include(ADMIN_PATH.'route/thread.php'); 		break;
 	case 'plugin':		include _include(ADMIN_PATH.'route/plugin.php'); 	break;
+	case 'theme':		include _include(ADMIN_PATH.'route/theme.php'); 	break;
+	case 'upgrade_phase1':	include _include(ADMIN_PATH.'route/upgrade_phase1.php'); 	break;
+	case 'upgrade_phase1_do':	include _include(ADMIN_PATH.'route/upgrade_phase1_do.php'); 	break;
+	case 'api':		include _include(ADMIN_PATH.'route/api.php'); 	break;
+	case 'log':		include _include(ADMIN_PATH.'route/log.php'); 	break;
+	case 'upgrade':		include _include(ADMIN_PATH.'route/upgrade.php'); 	break;
+	case 'notice':		include _include(APP_PATH.'route/notice.php'); 	break;
 	// hook admin_index_route_case_end.php
-	default: 
+	default:
 		// hook admin_index_route_case_default.php
-		include _include(ADMIN_PATH.'route/index.php'); 	break;
-		/*
 		!is_word($route) AND http_404();
-		$routefile = _include(ADMIN_PATH."route/$route.php");
-		!is_file($routefile) AND  http_404();
-		include $routefile;
-		*/
+		$routefile = ADMIN_PATH."route/$route.php";
+		!is_file($routefile) AND http_404();
+		include _include($routefile);
+		break;
 }
 
 ?>

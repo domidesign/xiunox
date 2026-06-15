@@ -2,16 +2,14 @@
 
 <!--{hook admin_message_start.htm}-->
 
-<div class="row">
-	<div class="col-lg-8 mx-auto">
-		<div class="card">
-			<div class="card-body">
-				<h4 class="card-title text-center">
-					<i class="icon-<?php echo $code == 0 ? 'ok' : 'warning-sign'; ?>"></i> 
-					<?php echo $message;?>
-					
-					<!--{hook admin_message_message_after.htm}-->
-				</h4>
+<div class="mx-auto" style="max-width:42rem">
+	<div class="x-card card">
+		<div class="card-body">
+			<div class="alert <?php echo $code == 0 ? 'alert-success' : 'alert-warning';?>">
+				<i class="ti ti-<?php echo $code == 0 ? 'circle-check' : 'alert-triangle';?> fs-3"></i>
+				<span class="fw-bold fs-5"><?php echo $message;?></span>
+
+				<!--{hook admin_message_message_after.htm}-->
 			</div>
 		</div>
 	</div>

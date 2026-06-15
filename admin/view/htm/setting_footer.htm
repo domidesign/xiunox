@@ -1,0 +1,209 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_setting_footer_start.htm}-->
+
+<div class="">
+	<?php echo admin_tab_active($menu['setting']['tab'], 'footer');?>
+</div>
+
+<div class="x-card  cardrounded-3">
+	<div class="card-body">
+		<form action="<?php echo url('setting-footer');?>" method="post" id="footerForm">
+			<?php echo CsrfService::input(); ?>
+
+			<!-- Tab 导航 -->
+			<ul class="nav nav-tabs mb-3" role="tablist">
+				<li class="nav-item" role="presentation">
+					<button class="nav-link active" data-bs-toggle="tab" data-bs-target="#filingPane" type="button" role="tab">
+						<i class="ti ti-certificate me-1"></i><?php echo lang('admin_filing_info');?>
+					</button>
+				</li>
+				<li class="nav-item" role="presentation">
+					<button class="nav-link" data-bs-toggle="tab" data-bs-target="#contactPane" type="button" role="tab">
+						<i class="ti ti-phone me-1"></i><?php echo lang('admin_contact_info');?>
+					</button>
+				</li>
+				<li class="nav-item" role="presentation">
+					<button class="nav-link" data-bs-toggle="tab" data-bs-target="#linksPane" type="button" role="tab">
+						<i class="ti ti-link me-1"></i><?php echo lang('admin_footer_nav');?>
+					</button>
+				</li>
+				<li class="nav-item" role="presentation">
+					<button class="nav-link" data-bs-toggle="tab" data-bs-target="#copyrightPane" type="button" role="tab">
+						<i class="ti ti-copyright me-1"></i><?php echo lang('admin_copyright_info');?>
+					</button>
+				</li>
+			</ul>
+
+			<div class="tab-content">
+
+				<!-- ====== Tab 1: 备案信息 ====== -->
+				<div class="tab-pane fade show active" id="filingPane" role="tabpanel">
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('admin_icp_number');?></label>
+						<input type="text" class="form-control" name="footer_icp" value="<?php echo esc_html($footer_icp);?>" placeholder="<?php echo lang('admin_icp_placeholder');?>">
+						<div class="form-text"><?php echo lang('admin_icp_desc');?></div>
+					</div>
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('admin_gongan_number');?></label>
+						<input type="text" class="form-control" name="footer_gongan" value="<?php echo esc_html($footer_gongan);?>" placeholder="<?php echo lang('admin_gongan_placeholder');?>">
+						<div class="form-text"><?php echo lang('admin_gongan_desc');?></div>
+					</div>
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('admin_gongan_url');?></label>
+						<input type="text" class="form-control" name="footer_gongan_url" value="<?php echo esc_html($footer_gongan_url);?>" placeholder="https://beian.mps.gov.cn/">
+						<div class="form-text"><?php echo lang('admin_gongan_url_desc');?></div>
+					</div>
+				</div>
+
+				<!-- ====== Tab 2: 联系方式 ====== -->
+				<div class="tab-pane fade" id="contactPane" role="tabpanel">
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('admin_contact_email');?></label>
+						<div class="input-group">
+							<span class="input-group-text"><i class="ti ti-mail"></i></span>
+							<input type="email" class="form-control" name="footer_contact_email" value="<?php echo esc_html($footer_contact_email);?>" placeholder="admin@example.com">
+						</div>
+					</div>
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('admin_contact_phone');?></label>
+						<div class="input-group">
+							<span class="input-group-text"><i class="ti ti-phone"></i></span>
+							<input type="text" class="form-control" name="footer_contact_phone" value="<?php echo esc_html($footer_contact_phone);?>" placeholder="010-12345678">
+						</div>
+					</div>
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('admin_contact_qq');?></label>
+						<div class="input-group">
+							<span class="input-group-text"><i class="ti ti-brand-qq"></i></span>
+							<input type="text" class="form-control" name="footer_contact_qq" value="<?php echo esc_html($footer_contact_qq);?>" placeholder="12345678">
+						</div>
+					</div>
+				</div>
+
+				<!-- ====== Tab 3: 页脚导航 ====== -->
+				<div class="tab-pane fade" id="linksPane" role="tabpanel">
+					<div class="table-responsive">
+						<table class="table table-hover align-middle">
+							<thead>
+								<tr>
+									<th><?php echo lang('admin_col_name');?></th>
+									<th>URL</th>
+									<th style="width:60px"></th>
+								</tr>
+							</thead>
+							<tbody id="linksBody"></tbody>
+						</table>
+					</div>
+					<a role="button" class="text-primary text-decoration-none" id="addLink">
+						<i class="ti ti-plus"></i> <?php echo lang('admin_add_footer_link');?>
+					</a>
+				</div>
+
+				<!-- ====== Tab 4: 版权信息 ====== -->
+				<div class="tab-pane fade" id="copyrightPane" role="tabpanel">
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('admin_copyright_info');?></label>
+						<textarea class="form-control" name="footer_copyright" rows="2" placeholder="<?php echo lang('admin_custom_copyright_placeholder');?>"><?php echo esc_html($footer_copyright);?></textarea>
+						<div class="form-text"><?php echo lang('admin_copyright_html_tag_tip');?></div>
+					</div>
+				</div>
+
+			</div>
+
+			<div class="mt-4 text-center">
+				<button type="submit" class="btn btn-primary rounded-pill" id="submitBtn" style="width:10rem">
+					<i class="ti ti-device-floppy me-1"></i><?php echo lang('confirm');?>
+				</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<!--{hook admin_setting_footer_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+(function() {
+	// 页脚链接数据
+	var footerLinks = <?php echo xn_json_encode($footer_links);?>;
+
+	// 创建链接行
+	function createLinkRow(item) {
+		var tr = document.createElement('tr');
+		var nameVal = (item && item.name) || '';
+		var urlVal = (item && item.url) || '';
+
+		tr.innerHTML =
+			'<td><input type="text" class="form-control form-control-sm" name="link_name[]" value="' + nameVal + '" placeholder="<?php echo lang('admin_link_name_placeholder');?>"></td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="link_url[]" value="' + urlVal + '" placeholder="https://"></td>' +
+			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete');?>"><i class="ti ti-trash"></i></a></td>';
+
+		tr.querySelector('a[title="<?php echo lang('delete');?>"]').addEventListener('click', function(e) {
+			e.preventDefault();
+			tr.remove();
+		});
+
+		return tr;
+	}
+
+	// 渲染已有链接
+	var tbody = document.getElementById('linksBody');
+	footerLinks.forEach(function(item) {
+		tbody.appendChild(createLinkRow(item));
+	});
+
+	// 添加链接
+	document.getElementById('addLink').addEventListener('click', function(e) {
+		e.preventDefault();
+		tbody.appendChild(createLinkRow({}));
+	});
+
+	// 表单提交
+	var form = document.getElementById('footerForm');
+	var submitBtn = document.getElementById('submitBtn');
+	form.addEventListener('submit', function(e) {
+		e.preventDefault();
+
+		submitBtn.disabled = true;
+		submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('admin_saving');?>';
+
+		var formData = new FormData(form);
+
+		fetch(form.action, {
+			method: 'POST',
+			body: formData,
+			headers: {
+				'X-Requested-With': 'XMLHttpRequest'
+			}
+		})
+		.then(function(res) { return res.json(); })
+		.then(function(data) {
+			if (parseInt(data.code) === 0) {
+				showToast(data.message, 'success');
+				submitBtn.innerHTML = '<i class="ti ti-check me-1"></i>' + data.message;
+				submitBtn.classList.remove('btn-primary');
+				submitBtn.classList.add('btn-success');
+				setTimeout(function() {
+					submitBtn.disabled = false;
+					submitBtn.innerHTML = '<i class="ti ti-device-floppy me-1"></i><?php echo lang("confirm");?>';
+					submitBtn.classList.remove('btn-success');
+					submitBtn.classList.add('btn-primary');
+				}, 1500);
+			} else {
+				showToast(data.message, 'error');
+				submitBtn.disabled = false;
+				submitBtn.innerHTML = '<i class="ti ti-device-floppy me-1"></i><?php echo lang("confirm");?>';
+			}
+		})
+		.catch(function(err) {
+			showToast('<?php echo lang('admin_request_failed');?>', 'error');
+			submitBtn.disabled = false;
+			submitBtn.innerHTML = '<i class="ti ti-device-floppy me-1"></i><?php echo lang("confirm");?>';
+		});
+	});
+})();
+</script>
+
+<!--{hook admin_setting_footer_js.htm}-->

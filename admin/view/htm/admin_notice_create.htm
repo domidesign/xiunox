@@ -1,0 +1,132 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<div class="row">
+    <div class="col-12">
+        <div class="btn-group mb-3" role="group">
+            <?php echo admin_tab_active($menu['notice']['tab'], 'post');?>
+        </div>
+
+        <div class="x-card  cardshadow-sm">
+            <ul class="nav nav-tabs mx-3 mt-2" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-send-notice" type="button"><i class="ti ti-send me-1"></i><?php echo lang('admin_send_notice');?></button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-send-announcement" type="button"><i class="ti ti-speakerphone me-1"></i><?php echo lang('admin_send_announcement');?></button>
+                </li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="tab-send-notice" role="tabpanel">
+                    <div class="card-body">
+                        <form action="<?php echo url('notice-create');?>" method="post" id="sendNoticeForm">
+                            <?php echo CsrfService::input(); ?>
+                            <div class="mb-3">
+                                <label class="form-label fw-medium"><?php echo lang('admin_notice_recvuid');?></label>
+                                <input type="text" class="form-control" name="recvuid" placeholder="<?php echo lang('admin_notice_recvuid_placeholder');?>" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-medium"><?php echo lang('admin_notice_content');?></label>
+                                <textarea class="form-control" name="message" rows="3" placeholder="<?php echo lang('admin_notice_content_placeholder');?>" required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary rounded-pill"><i class="ti ti-send me-1"></i><?php echo lang('admin_send_notice');?></button>
+                        </form>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="tab-send-announcement" role="tabpanel">
+                    <div class="card-body">
+                        <form id="announcementForm">
+                            <?php echo CsrfService::input(); ?>
+                            <div class="mb-3">
+                                <label class="form-label fw-medium"><?php echo lang('admin_notice_icon');?></label>
+                                <div class="input-group">
+                                    <span class="input-group-text p-0 px-2 icon-preview" style="min-width:32px;justify-content:center">
+                                        <i class="ti ti-speakerphone"></i>
+                                    </span>
+                                    <input type="text" class="form-control" name="icon" value="ti-speakerphone" placeholder="<?php echo lang('admin_notice_icon_placeholder');?>" id="announcement-icon">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-medium"><?php echo lang('admin_announcement_content');?></label>
+                                <textarea class="form-control" name="message" rows="3" placeholder="<?php echo lang('admin_announcement_content_placeholder');?>" required></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-medium"><?php echo lang('admin_announcement_url');?></label>
+                                <input type="text" class="form-control" name="url" placeholder="https://">
+                            </div>
+                            <button type="submit" class="btn btn-primary rounded-pill"><i class="ti ti-speakerphone me-1"></i><?php echo lang('admin_send_announcement');?></button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+<script src="../view/js/tabler-icon-picker.js"></script>
+<script>
+
+$('#nav li.nav-item-notice').addClass('active');
+
+// 初始化图标选择器
+var iconInput = document.getElementById('announcement-icon');
+var iconPreview = document.querySelector('#tab-send-announcement .icon-preview');
+if(iconInput && iconPreview) {
+    new TablerIconPicker({
+        input: iconInput,
+        preview: iconPreview
+    });
+}
+
+// 发送通知表单提交
+var sendNoticeForm = document.getElementById('sendNoticeForm');
+if(sendNoticeForm) {
+    sendNoticeForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var formData = new FormData(sendNoticeForm);
+        fetch('<?php echo url("notice-create");?>', {
+            method: 'POST',
+            body: formData,
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            if(parseInt(data.code) === 0) {
+                showToast(data.message || '<?php echo lang('admin_send_success');?>', 'success');
+                sendNoticeForm.reset();
+            } else {
+                showToast(data.message || '<?php echo lang('admin_send_failed');?>', 'error');
+            }
+        }).catch(function() {
+            showToast('<?php echo lang('admin_request_failed');?>', 'error');
+        });
+    });
+}
+
+// 发布公告表单提交
+var announceForm = document.getElementById('announcementForm');
+if(announceForm) {
+    announceForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var formData = new FormData(announceForm);
+        fetch('<?php echo url("notice-publish");?>', {
+            method: 'POST',
+            body: formData,
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            if(parseInt(data.code) === 0) {
+                showToast(data.message || '<?php echo lang('admin_publish_success');?>', 'success');
+                announceForm.reset();
+                // 重置图标预览
+                var preview = document.querySelector('#tab-send-announcement .icon-preview');
+                if(preview) preview.innerHTML = '<i class="ti ti-speakerphone"></i>';
+                var iconInp = document.getElementById('announcement-icon');
+                if(iconInp) iconInp.value = 'ti-speakerphone';
+            } else {
+                showToast(data.message || '<?php echo lang('admin_publish_failed');?>', 'error');
+            }
+        }).catch(function() {
+            showToast('<?php echo lang('admin_request_failed');?>', 'error');
+        });
+    });
+}
+
+</script>

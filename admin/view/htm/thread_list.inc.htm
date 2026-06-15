@@ -1,0 +1,110 @@
+<!--{hook admin_thread_list_inc_start.htm}-->
+
+<?php
+// 后台帖子列表组件（独立于前台模板）
+$have_allowtop = 0;
+if(!empty($toplist)) {
+    foreach($toplist as &$_t) {
+        $_t['allowtop'] = forum_access_mod($_t['fid'], $gid, 'allowtop');
+        if($_t['allowtop']) $have_allowtop = 1;
+    }
+    unset($_t);
+}
+if(!empty($threadlist)) {
+    foreach($threadlist as &$_t) {
+        $_t['allowtop'] = !empty($_t['fid']) ? forum_access_mod($_t['fid'], $gid, 'allowtop') : false;
+        if($_t['allowtop']) $have_allowtop = 1;
+    }
+    unset($_t);
+}
+if(!empty($force_show_checkbox)) $have_allowtop = 1;
+?>
+
+<?php
+// 渲染置顶帖
+if(!empty($toplist)) {
+    foreach($toplist as &$_thread) {
+        if(!isset($_thread['top_class']) || !isset($_thread['tid'])){ continue; }
+?>
+<tr class="align-middle <?php echo $_thread['top_class'];?>" data-tid="<?php echo $_thread['tid'];?>">
+    <?php if($have_allowtop) { ?>
+        <?php if(!empty($force_show_checkbox) || $_thread['allowtop']) { ?>
+    <td><input type="checkbox" name="modtid" class="form-check-input" value="<?php echo $_thread['tid']; ?>" <?php echo empty($mod_input_checked) ? '' : 'checked disabled';?> /></td>
+        <?php } else { ?>
+    <td></td>
+        <?php } ?>
+    <?php } ?>
+    <td class="text-secondary small"><?php echo $_thread['tid'];?></td>
+    <td>
+        <div class="subject break-all">
+            <i class="ti ti-pin-filled text-primary me-1"></i>
+            <?php if(!empty($_thread['digest'])) { ?><i class="ti ti-star-filled text-warning me-1" title="<?php echo lang('digest');?>"></i><?php } ?>
+            <a href="<?php echo url("../thread-$_thread[tid]");?>" target="_blank" class="hover-text-primary"><?php echo $_thread['subject'];?></a>
+            <?php if(isset($_thread['audit_status'])): ?>
+                <?php if($_thread['audit_status'] == 0): ?>
+                    <span class="badge bg-warning text-dark ms-1"><?php echo lang('pending_audit');?></span>
+                <?php elseif($_thread['audit_status'] == 2): ?>
+                    <span class="badge bg-danger ms-1"><?php echo lang('rejected_audit');?></span>
+                <?php endif; ?>
+            <?php endif; ?>
+            <?php if($_thread['files'] > 0) { ?><i class="ti ti-paperclip small text-secondary ms-1"></i><?php } ?>
+            <?php if($_thread['closed'] > 0) { ?><i class="ti ti-lock text-secondary ms-1" title="<?php echo lang('closed');?>"></i><?php } ?>
+        </div>
+    </td>
+    <td class="text-nowrap"><span class="username" uid="<?php echo $_thread['uid'];?>"><?php echo $_thread['username'];?></span></td>
+    <td class="text-secondary small text-nowrap"><?php echo $_thread['forumname'];?></td>
+    <td class="text-secondary small text-nowrap"><?php echo $_thread['create_date_fmt'];?></td>
+    <td class="text-center small"><?php echo $_thread['posts'] > 0 ? $_thread['posts'] : '-';?></td>
+</tr>
+<?php
+    }
+    unset($_thread);
+}
+?>
+
+<?php
+// 渲染普通帖子
+if(!empty($threadlist)) { foreach($threadlist as &$_thread) { ?>
+<?php if(!isset($_thread['top_class']) || !isset($_thread['tid'])){ continue; }?>
+<tr class="align-middle <?php echo $_thread['top_class'];?>" data-tid="<?php echo $_thread['tid'];?>">
+    <?php if($have_allowtop) { ?>
+        <?php if(!empty($force_show_checkbox) || $_thread['allowtop']) { ?>
+    <td><input type="checkbox" name="modtid" class="form-check-input" value="<?php echo $_thread['tid']; ?>" <?php echo empty($mod_input_checked) ? '' : 'checked disabled';?> /></td>
+        <?php } else { ?>
+    <td></td>
+        <?php } ?>
+    <?php } ?>
+    <td class="text-secondary small"><?php echo $_thread['tid'];?></td>
+    <td>
+        <div class="subject break-all">
+            <?php if($_thread['top'] > 0) { ?><i class="ti ti-pin-filled text-primary me-1"></i><?php } ?>
+            <?php if(!empty($_thread['digest'])) { ?><i class="ti ti-star-filled text-warning me-1" title="<?php echo lang('digest');?>"></i><?php } ?>
+            <a href="<?php echo url("../thread-$_thread[tid]");?>" target="_blank" class="hover-text-primary"><?php echo $_thread['subject'];?></a>
+            <?php if(isset($_thread['audit_status'])): ?>
+                <?php if($_thread['audit_status'] == 0): ?>
+                    <span class="badge bg-warning text-dark ms-1"><?php echo lang('pending_audit');?></span>
+                <?php elseif($_thread['audit_status'] == 2): ?>
+                    <span class="badge bg-danger ms-1"><?php echo lang('rejected_audit');?></span>
+                <?php endif; ?>
+            <?php endif; ?>
+            <?php if($_thread['files'] > 0) { ?><i class="ti ti-paperclip small text-secondary ms-1"></i><?php } ?>
+            <?php if($_thread['closed'] > 0) { ?><i class="ti ti-lock text-secondary ms-1" title="<?php echo lang('closed');?>"></i><?php } ?>
+        </div>
+    </td>
+    <td class="text-nowrap"><span class="username" uid="<?php echo $_thread['uid'];?>"><?php echo $_thread['username'];?></span></td>
+    <td class="text-secondary small text-nowrap"><?php echo $_thread['forumname'];?></td>
+    <td class="text-secondary small text-nowrap"><?php echo $_thread['create_date_fmt'];?></td>
+    <td class="text-center small"><?php echo $_thread['posts'] > 0 ? $_thread['posts'] : '-';?></td>
+</tr>
+<?php }} ?>
+
+<?php if(empty($toplist) && empty($threadlist)) { ?>
+<tr>
+    <td colspan="7" class="text-center py-4 text-secondary">
+        <i class="ti ti-message-circle fs-1 d-block mb-2"></i>
+        <p class="mb-0"><?php echo lang('no_thread_tip');?></p>
+    </td>
+</tr>
+<?php } ?>
+
+<!--{hook admin_thread_list_inc_end.htm}-->

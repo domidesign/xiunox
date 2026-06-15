@@ -21,7 +21,8 @@ function admin_token_check() {
 	} else {
 		$s = xn_decrypt($admin_token, $key);
 		if(empty($s)) {
-			setcookie('bbs_admin_token', '', 0, '', '', '', TRUE);
+			$cookie_secure = isset($conf['cookie_secure']) ? $conf['cookie_secure'] : false;
+			setcookie('bbs_admin_token', '', array('expires' => 0, 'path' => '', 'domain' => '', 'secure' => $cookie_secure, 'httponly' => true, 'samesite' => 'Lax'));
 			//message(-1, lang('admin_token_error'));
 			message(-1, lang('admin_token_expiry'));
 		}
@@ -31,7 +32,8 @@ function admin_token_check() {
 		// Background / more than 3600 automatic withdrawal.
 		//if($_ip != $longip || $time - $_time > 3600) {
 		if((XN_ADMIN_BIND_IP && $_ip != $longip || !XN_ADMIN_BIND_IP) && $time - $_time > 3600) {
-			setcookie('bbs_admin_token', '', 0, '', '', '', TRUE);
+			$cookie_secure = isset($conf['cookie_secure']) ? $conf['cookie_secure'] : false;
+			setcookie('bbs_admin_token', '', array('expires' => 0, 'path' => '', 'domain' => '', 'secure' => $cookie_secure, 'httponly' => true, 'samesite' => 'Lax'));
 			message(-1, lang('admin_token_expiry'));
 		}
 		
@@ -56,25 +58,44 @@ function admin_token_set() {
 	$s = "$longip	$time";
 	
 	$admin_token = xn_encrypt($s, $key);
-	setcookie('bbs_admin_token', $admin_token, $time + 3600, '',  '', 0, TRUE);
-	
+	$cookie_secure = isset($conf['cookie_secure']) ? $conf['cookie_secure'] : false;
+	$cookie_options = array(
+		'expires' => $time + 3600,
+		'path' => '',
+		'domain' => '',
+		'secure' => $cookie_secure,
+		'httponly' => true,
+		'samesite' => 'Lax',
+	);
+	setcookie('bbs_admin_token', $admin_token, $cookie_options);
+
 	// hook admin_token_set_end.php
 }
 
 function admin_token_clean() {
-	global $time;
-	setcookie('bbs_admin_token', '', $time - 86400, '', '', 0, TRUE);
-	
+	global $time, $conf;
+	$cookie_secure = isset($conf['cookie_secure']) ? $conf['cookie_secure'] : false;
+	$cookie_options = array(
+		'expires' => $time - 86400,
+		'path' => '',
+		'domain' => '',
+		'secure' => $cookie_secure,
+		'httponly' => true,
+		'samesite' => 'Lax',
+	);
+	setcookie('bbs_admin_token', '', $cookie_options);
+
 	// hook admin_token_clean_start.php
 }
 
 // bootstrap style
 function admin_tab_active($arr, $active) {
 	// hook admin_tab_active_start.php
-	$s = '';
+	$s = '<ul class="nav nav-tabs gap-2  ">';
 	foreach ($arr as $k=>$v) {
-		$s .= '<a role="button" class="btn btn-secondary'.($active == $k ? ' active' : '').'" href="'.$v['url'].'">'.$v['text'].'</a>';
+		$s .= '<li class="nav-item"><a class="nav-link '.($active == $k ? ' active' : '').'" href="'.$v['url'].'">'.$v['text'].'</a></li>';
 	}
+	$s .= '</ul>';
 	// hook admin_tab_active_end.php
 	return $s;
 }

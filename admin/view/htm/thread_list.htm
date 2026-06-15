@@ -2,90 +2,109 @@
 
 <!--{hook admin_thread_list_start.htm}-->
 
-<div class="row">
-	<div class="col-12">
-		<div class="btn-group mb-3" role="group">
-			<?php echo admin_tab_active($menu['thread']['tab'], 'list');?>
-		</div>
-	</div>
+<div class="mb-3">
+	<?php echo admin_tab_active($menu['thread']['tab'], 'list');?>
 </div>
 
-<div class="row">
-	<div class="col-12">
+<div class="x-card  cardmb-4 border rounded-3">
+	<div class="card-body">
 		<form action="<?php echo url('thread-scan');?>" method="post" id="form">
-			<div class="card card-body">
-				<h4 class="card-title"><?php echo lang('search_condition');?></h4>
-				<div class="row">
-					<div class="col-md-6">
-						<fieldset class="form-group">
-							<label for="fid"><?php echo lang('forum');?>：</label>
-							<select class="form-control" name="fid" id="fid">
-								<option value="0"></option>
-								<?php foreach ($forumlist as $forum) { ?>
-								<option value="<?php echo $forum['fid']; ?>"><?php echo $forum['name']; ?></option>
-								<?php } ?>
-							</select>
-						</fieldset>
-					</div>
-					<div class="col-md-6">
-						<fieldset class="form-group">
-							<label for="keyword"><?php echo lang('keyword');?>：</label>
-							<input class="form-control" type="text" id="keyword" name="keyword" placeholder="<?php echo lang('keyword');?>" value="" />
-						</fieldset>
-					</div>
+			<?php echo CsrfService::input(); ?>
+			<div class="d-flex flex-wrap gap-3 align-items-end">
+				<div>
+					<label class="form-label fs-6 mb-1"><?php echo lang('forum');?></label>
+					<select class="form-select form-select-sm" name="fid" id="fid">
+						<option value="0"></option>
+						<?php foreach ($forumlist as $forum) { ?>
+						<option value="<?php echo $forum['fid']; ?>"><?php echo $forum['name']; ?></option>
+						<?php } ?>
+					</select>
 				</div>
-				<div class="row">
-					<div class="col-md-6">
-						<fieldset class="form-group">
-							<label for="create_date_start"><?php echo lang('start_date');?>：</label>
-							<input class="form-control" type="date" id="create_date_start" name="create_date_start" placeholder="<?php echo lang('start_date');?>" value="" />
-						</fieldset>
-					</div>
-					<div class="col-md-6">
-						<fieldset class="form-group">
-							<label for="create_date_end"><?php echo lang('end_date');?>：</label>
-							<input class="form-control" type="date" id="create_date_end" name="create_date_end" placeholder="<?php echo lang('end_date');?>" value="" />
-						</fieldset>
-					</div>
+				<div>
+					<label class="form-label fs-6 mb-1"><?php echo lang('keyword');?></label>
+					<input class="form-control form-control-sm" type="text" id="keyword" name="keyword" placeholder="<?php echo lang('keyword');?>" value="" />
 				</div>
-				<div class="row">
-					<div class="col-md-6">
-						<fieldset class="form-group">
-							<label for="create_date_end"><?php echo lang('thread_userip');?>：</label>
-							<input class="form-control" type="text" id="userip" name="userip" placeholder="<?php echo lang('thread_userip');?>" value="" />
-						</fieldset>
-					</div>
-					<div class="col-md-6">
-						<fieldset class="form-group">
-							<label for="create_date_end"><?php echo lang('user');?> ID：</label>
-							<input class="form-control" type="text" id="uid" name="uid" placeholder="<?php echo lang('uid');?>" value="" />
-						</fieldset>
-					</div>
+				<div>
+					<label class="form-label fs-6 mb-1"><?php echo lang('start_date');?></label>
+					<input class="form-control form-control-sm" type="date" id="create_date_start" name="create_date_start" placeholder="<?php echo lang('start_date');?>" value="" />
 				</div>
-				<!--{hook admin_thread_list_search_before.htm}-->
-				<div class="row">
-					<div class="col-md-6">
-						<button type="button" id="search" class="btn btn-primary" data-loading-text="<?php echo lang('searching');?>... "><?php echo lang('search');?></button>
-					</div>
+				<div>
+					<label class="form-label fs-6 mb-1"><?php echo lang('end_date');?></label>
+					<input class="form-control form-control-sm" type="date" id="create_date_end" name="create_date_end" placeholder="<?php echo lang('end_date');?>" value="" />
+				</div>
+				<div>
+					<label class="form-label fs-6 mb-1"><?php echo lang('thread_userip');?></label>
+					<input class="form-control form-control-sm" type="text" id="userip" name="userip" placeholder="<?php echo lang('thread_userip');?>" value="" />
+				</div>
+				<div>
+					<label class="form-label fs-6 mb-1"><?php echo lang('uid_username');?></label>
+					<input class="form-control form-control-sm" type="text" id="uid" name="uid" placeholder="<?php echo lang('uid_username');?>" value="" />
+				</div>
+				<div class="flex-shrink-0">
+					<button type="button" id="search" class="btn btn-primary btn-sm rounded-pill" data-loading-text="<?php echo lang('searching');?>..."><i class="ti ti-search"></i> <?php echo lang('search');?></button>
 				</div>
 			</div>
 		</form>
-		
-		<div class="card">
-			<div class="card-body" id="search_result">
-				<div class="progress mt-4">
-					<div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100" style="width: 0%" id="progress"></div>
-				</div>
-				
-				<?php echo lang('thread_search_result', array('n'=>'<b id="threads">0</b>'));?>, <a href="<?php echo url('thread-found');?>" target="_blank"><b><?php echo lang('click_to_view');?></b></a>
-				<p id="operation" class="hidden mt-4">
-					<button type="button" id="close" class="btn btn-primary" data-loading-text="<?php echo lang('operating');?>... "><i class="icon-lock"></i> <?php echo lang('close');?></button>
-					<button type="button" id="open" class="btn btn-primary" data-loading-text="<?php echo lang('operating');?>... "><i class="icon-unlock"></i> <?php echo lang('open');?></button>
-					<button type="button" id="delete" class="btn btn-danger" data-loading-text="<?php echo lang('operating');?>... "><i class="icon-remove"></i> <?php echo lang('delete');?></button>
-					<!--{hook admin_thread_list_delete_after.htm}-->
-				</p>
+	</div>
+</div>
+
+<div class="x-card  cardrounded-3" id="search_result_card" style="display:none">
+	<div class="card-body p-0">
+		<!-- 批量操作栏 -->
+		<div id="batch_toolbar" class="d-flex flex-wrap align-items-center gap-2 px-3 py-2 border-bottom" style="display:none">
+			<div class="form-check me-2">
+				<input type="checkbox" class="form-check-input" id="checkall" />
+				<label class="form-check-label small" for="checkall"><?php echo lang('admin_thread_select_all');?></label>
 			</div>
+			<span class="text-secondary small" id="selected_count">0 <?php echo lang('admin_thread_col_posts');?></span>
+			<div class="vr mx-1"></div>
+			<button type="button" class="btn btn-sm btn-outline-success" data-op="open" disabled><i class="ti ti-lock-open"></i> <?php echo lang('open');?></button>
+			<button type="button" class="btn btn-sm btn-outline-warning" data-op="close" disabled><i class="ti ti-lock"></i> <?php echo lang('close');?></button>
+			<button type="button" class="btn btn-sm btn-outline-primary" data-op="top" disabled><i class="ti ti-pin"></i> <?php echo lang('top');?></button>
+			<button type="button" class="btn btn-sm btn-outline-info" data-op="digest" disabled><i class="ti ti-star"></i> <?php echo lang('digest');?></button>
+			<button type="button" class="btn btn-sm btn-outline-info" data-op="announcement" disabled><i class="ti ti-megaphone"></i> <?php echo lang('admin_thread_announcement');?></button>
+			<button type="button" class="btn btn-sm btn-outline-secondary" data-op="move" disabled><i class="ti ti-arrows-move"></i> <?php echo lang('move');?></button>
+			<button type="button" class="btn btn-sm btn-outline-danger" data-op="delete" disabled><i class="ti ti-trash"></i> <?php echo lang('delete');?></button>
+			<!-- 移动版块选择（默认隐藏） -->
+			<select id="move_forum" class="form-select form-select-sm d-none" style="width:150px">
+				<option value=""><?php echo lang('admin_thread_please_select_forum');?></option>
+				<?php foreach ($forumlist as $forum) { ?>
+				<option value="<?php echo $forum['fid']; ?>"><?php echo $forum['name']; ?></option>
+				<?php } ?>
+			</select>
 		</div>
+
+		<!-- 帖子列表 -->
+		<table class="table table-hover mb-0 align-middle" id="thread_table">
+			<thead class="table-light">
+				<tr>
+					<th style="width:40px;"></th>
+					<th style="width:60px;"><?php echo lang('admin_thread_col_tid');?></th>
+					<th><?php echo lang('admin_thread_col_subject');?></th>
+					<th style="width:100px;"><?php echo lang('admin_thread_col_author');?></th>
+					<th style="width:100px;"><?php echo lang('admin_thread_col_forum');?></th>
+					<th style="width:140px;"><?php echo lang('admin_thread_col_date');?></th>
+					<th style="width:60px;" class="text-center"><?php echo lang('admin_thread_col_posts');?></th>
+				</tr>
+			</thead>
+			<tbody id="thread_result_list">
+			</tbody>
+		</table>
+	</div>
+
+	<!-- 底部：结果数 + 每页条数 + 翻页 -->
+	<div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2 py-2">
+		<div class="d-flex align-items-center gap-2">
+			<span class="small text-secondary" id="result_info"></span>
+			<select id="pagesize_select" class="form-select form-select-sm" style="width:auto">
+				<option value="20">20</option>
+				<option value="50">50</option>
+				<option value="100" selected>100</option>
+				<option value="200">200</option>
+			</select>
+			<span class="small text-secondary"><?php echo lang('admin_thread_pagesize');?></span>
+		</div>
+		<div id="pagination_area"></div>
 	</div>
 </div>
 
@@ -94,23 +113,59 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-
 var jform = $('#form');
 var jsubmit = $('#search');
-var jopsubmit = $('#operation').find('button');
-var jsearch_result = $('#search_result');
-var jprogress = $('#progress');
-var jthreads = $('#threads');
-var joperation = $('#operation');
+var jsearch_result = $('#search_result_card');
 var jfid = $('#fid');
-var threads = 0; // 符合的条数
-var page = 1;
+var jcheckall = $('#checkall');
+var jbatch_toolbar = $('#batch_toolbar');
+var jbatch_btns = jbatch_toolbar.find('button[data-op]');
+var jmove_forum = $('#move_forum');
+var jpagesize = $('#pagesize_select');
+var jresult_info = $('#result_info');
+var jpagination = $('#pagination_area');
+
+var queueid = '<?php echo $time;?>';
+var threads = 0;
 var pagesize = <?php echo $pagesize;?>;
 var totalpage = <?php echo $totalpage;?>;
 var totalpage_back = totalpage;
 var pagearr = [];
 for(var i=1; i <= totalpage; i++) pagearr.push(i);
 var forumlist = <?php echo xn_json_encode($forumlist_simple);?>;
+var currentFoundPage = 1;
+
+// 加载搜索结果（带翻页）
+function loadThreadResults(page) {
+	page = page || 1;
+	currentFoundPage = page;
+	var ps = parseInt(jpagesize.val()) || 100;
+	var url = '<?php echo url('thread-found-{page}');?>'.replace('{page}', page) + '&pagesize=' + ps;
+	$.get(url, function(html) {
+		var $html = $('<div>').html(html.replace(/<script[\s\S]*?<\/script>/gi, ''));
+		var $tbody = $html.find('tbody');
+		if($tbody.length) {
+			$('#thread_result_list').html($tbody.html());
+		} else {
+			$('#thread_result_list').html('<tr><td colspan="7" class="text-center py-4 text-secondary"><?php echo lang('no_search_result');?></td></tr>');
+		}
+		// 提取分页
+		var $pagination = $html.find('.pagination');
+		if($pagination.length) {
+			jpagination.html($pagination);
+		} else {
+			jpagination.html('');
+		}
+		// 提取总数
+		var totalText = $html.find('[data-total]').data('total');
+		if(totalText) {
+			threads = parseInt(totalText);
+		}
+		jresult_info.html('<?php echo lang('admin_thread_total_found');?>'.replace('{n}', '<b>' + threads + '</b>'));
+		jbatch_toolbar.show();
+		updateBatchButtons();
+	});
+}
 
 jfid.on('change', function() {
 	var fid = $(this).val();
@@ -124,73 +179,139 @@ jfid.on('change', function() {
 	for(var i=1; i <= totalpage; i++) pagearr.push(i);
 });
 
+// 搜索
 jsubmit.on('click', function() {
 	jsubmit.button('loading');
 	var postdata = jform.serializeObject();
 	var url = jform.attr('action');
 	threads = 0;
-	jprogress.width(0);
+	var completedPages = 0;
 	$.each_sync(pagearr, function(i, callback) {
-		postdata.page = pagearr[i];
-		$.xpost(url, postdata, function(code, message) {
-			if(code == 0) {
+		var currentPage = pagearr[i];
+		var currentPostdata = $.extend({}, postdata, {page: currentPage});
+		$.xpost(url, currentPostdata, function(code, message) {
+			completedPages++;
+			if(parseInt(code) == 0) {
 				var tids = message;
 				threads += tids.length;
-				jthreads.html(threads);
-				var percent = (postdata.page / totalpage) * 100;
-				jprogress.width( percent + '%');
-				if(postdata.page == totalpage) {
-					jsubmit.button('reset');
-					jopsubmit.button('reset');
-					joperation.show();
-				}
 			} else {
-				alert(message);
+				showToast(message, 'error');
+			}
+			// 所有页面扫描完毕
+			if(completedPages >= pagearr.length) {
+				jsubmit.button('reset');
+				jsearch_result.show();
+				jresult_info.html('<?php echo lang('admin_thread_total_found');?>'.replace('{n}', '<b>' + threads + '</b>'));
+				if(threads > 0) {
+					loadThreadResults(1);
+				} else {
+					$('#thread_result_list').html('<tr><td colspan="7" class="text-center py-4 text-secondary"><?php echo lang('no_search_result');?></td></tr>');
+					jpagination.html('');
+				}
+				showToast('<?php echo lang('search_complete');?>', 'success');
 			}
 			callback();
 		});
 	});
-	jsearch_result.show();
 	return false;
 });
-$('#nav li.nav-item-thread').addClass('active');
 
+// 每页条数切换
+jpagesize.on('change', function() {
+	if(jsearch_result.is(':visible') && threads > 0) {
+		loadThreadResults(1);
+	}
+});
 
-jopsubmit.on('click', function() {
-	var jthis = $(this);
-	var op = jthis.attr('id');
-	var url = xn.url('thread-operation-'+op);
-	var totalpage = Math.max(1, Math.ceil(threads / pagesize));
-	var jsubmit = jthis;
-	jsubmit.button('loading');
-	var postdata = {};
-	jprogress.val(0);
-	var operation_threads = 0;
-	$.each_sync(pagearr, function(i, callback) {
-		postdata.page = pagearr[i];
-		$.xpost(url, postdata, function(code, message) {
-			if(code == 1) {
-				alert(message);
-			}
-			if(code == 0) {
-				var tids = message;
-				operation_threads += tids.length;
-				jthreads.html(operation_threads);
-				jprogress.val( (postdata.page / totalpage) * 100 );
-				if(postdata.page == totalpage) {
-					jsubmit.button('<?php echo lang('operator_complete');?>');
-					jopsubmit.button('disabled');
-					joperation.show();
-				}
-			} else {
-				alert(message);
-			}
-			callback();
-		});
+// 全选/取消全选
+jcheckall.on('change', function() {
+	var checked = $(this).prop('checked');
+	$('#thread_result_list input[name="modtid"]').prop('checked', checked);
+	updateBatchButtons();
+});
+
+// 委托监听复选框变化
+$('#thread_result_list').on('change', 'input[name="modtid"]', function() {
+	updateBatchButtons();
+});
+
+// 更新批量按钮状态
+function updateBatchButtons() {
+	var checked = $('#thread_result_list input[name="modtid"]:checked');
+	var total = $('#thread_result_list input[name="modtid"]');
+	var count = checked.length;
+	$('#selected_count').text(count + ' <?php echo lang('admin_thread_col_posts');?>');
+	jbatch_btns.prop('disabled', count === 0);
+	jmove_forum.prop('disabled', count === 0);
+	// 全选状态同步
+	jcheckall.prop('checked', total.length > 0 && count === total.length);
+}
+
+// 获取选中的 tid
+function getSelectedTids() {
+	var tids = [];
+	$('#thread_result_list input[name="modtid"]:checked').each(function() {
+		tids.push($(this).val());
 	});
-	jsearch_result.show();
-	return false;
-	
+	return tids;
+}
+
+// 批量操作
+jbatch_btns.on('click', function() {
+	var op = $(this).data('op');
+	var tids = getSelectedTids();
+	if(tids.length === 0) {
+		showToast('<?php echo lang('admin_thread_no_selection');?>', 'warning');
+		return;
+	}
+
+	// 移动操作需要选择目标版块
+	if(op === 'move') {
+		var targetFid = jmove_forum.val();
+		if(!targetFid) {
+			jmove_forum.removeClass('d-none');
+			showToast('<?php echo lang('admin_thread_please_select_forum');?>', 'warning');
+			return;
+		}
+	}
+
+	// 确认对话框
+	var confirmMsg = '';
+	if(op === 'close') confirmMsg = '<?php echo lang('admin_thread_confirm_batch_close');?>';
+	else if(op === 'open') confirmMsg = '<?php echo lang('admin_thread_confirm_batch_open');?>';
+	else if(op === 'delete') confirmMsg = '<?php echo lang('admin_thread_confirm_batch_delete');?>';
+	else if(op === 'announcement') confirmMsg = '<?php echo lang('admin_thread_confirm_batch_announcement');?>';
+	else if(op === 'top') confirmMsg = '<?php echo lang('admin_thread_confirm_batch_top');?>';
+	else if(op === 'digest') confirmMsg = '<?php echo lang('admin_thread_confirm_batch_digest');?>';
+	else if(op === 'move') confirmMsg = '<?php echo lang('admin_thread_move_to_forum');?>';
+	else return;
+
+	XN.confirm(confirmMsg, function() {
+
+	// 执行批量操作
+	var url = '<?php echo url('thread-batch');?>';
+	var postdata = {
+		tids: tids.join(','),
+		op: op,
+		csrf_token: $('input[name="csrf_token"]').val()
+	};
+	if(op === 'move') {
+		postdata.target_fid = jmove_forum.val();
+	}
+	$.xpost(url, postdata, function(code, message) {
+		if(parseInt(code) == 0) {
+			showToast('<?php echo lang('admin_thread_batch_success');?>', 'success');
+			loadThreadResults(currentFoundPage);
+		} else {
+			showToast(message || '<?php echo lang('admin_thread_batch_failed');?>', 'error');
+		}
+	});
+	});
+});
+
+// 移动按钮点击时显示版块选择
+jbatch_toolbar.find('button[data-op="move"]').on('click', function() {
+	jmove_forum.toggleClass('d-none');
 });
 
 </script>

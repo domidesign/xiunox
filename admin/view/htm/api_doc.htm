@@ -1,0 +1,230 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_api_doc_start.htm}-->
+
+<style>
+.api-doc-layout { display: flex; min-height: calc(100vh - 120px); }
+.api-doc-sidebar { width: 240px; flex-shrink: 0; border-right: 1px solid var(--bs-border-color); padding: 1rem 0; position: sticky; top: 0; overflow-y: auto; max-height: calc(100vh - 120px); }
+.api-doc-main { flex: 1; padding: 1rem 1.5rem; overflow-x: auto; }
+.api-doc-search { padding: 0 1rem 1rem; }
+.api-doc-search input { font-size: 0.875rem; }
+.api-nav-group { margin-bottom: 0.5rem; }
+.api-nav-group-title { padding: 0.25rem 1rem; font-size: 0.75rem; text-transform: uppercase; color: var(--bs-body-color); opacity: 0.5; font-weight: 600; }
+.api-nav-item { display: flex; align-items: center; padding: 0.35rem 1rem; cursor: pointer; font-size: 0.8125rem; border-left: 3px solid transparent; transition: all 0.15s; }
+.api-nav-item:hover { background: var(--bs-gray-200); }
+.api-nav-item.active { background: rgba(var(--bs-primary-rgb), 0.1); border-left-color: var(--bs-primary); }
+.api-nav-item .badge { font-size: 0.625rem; min-width: 32px; }
+.api-nav-item .nav-path { margin-left: 0.5rem; color: var(--bs-body-color); opacity: 0.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.api-endpoint-card{ border: 1px solid var(--bs-border-color); border-radius: 0.5rem; margin-bottom: 1rem; overflow: hidden; }
+.api-endpoint-header { display: flex; align-items: center; padding: 0.75rem 1rem; cursor: pointer; gap: 0.75rem; }
+.api-endpoint-header:hover { background: var(--bs-gray-200); }
+.api-endpoint-body { border-top: 1px solid var(--bs-border-color); padding: 1rem; display: none; }
+.api-endpoint-body.show { display: block; }
+.method-badge { font-size: 0.7rem; min-width: 52px; text-align: center; padding: 0.2em 0.5em; border-radius: 3px; font-weight: 700; letter-spacing: 0.5px; }
+.method-GET { background: #61affe; color: #fff; }
+.method-POST { background: #49cc90; color: #fff; }
+.method-PUT { background: #fca130; color: #fff; }
+.method-DELETE { background: #f93e3e; color: #fff; }
+.api-path { font-family: monospace; font-size: 0.875rem; font-weight: 600; }
+.api-auth-badge { font-size: 0.6875rem; }
+.api-section-title { font-size: 0.75rem; text-transform: uppercase; color: var(--bs-body-color); opacity: 0.5; font-weight: 600; margin-bottom: 0.5rem; margin-top: 1rem; }
+.api-json-block { background: #212529; color: #e6e6e6; border-radius: 0.375rem; padding: 0.75rem 1rem; font-size: 0.8125rem; font-family: monospace; overflow-x: auto; position: relative; }
+.api-json-block .copy-btn { position: absolute; top: 0.375rem; right: 0.375rem; }
+.api-info-table { font-size: 0.8125rem; }
+.api-info-table td:first-child { width: 160px; color: var(--bs-body-color); opacity: 0.5; }
+@media (max-width: 992px) {
+    .api-doc-layout { flex-direction: column; }
+    .api-doc-sidebar { width: 100%; max-height: none; position: static; border-right: none; border-bottom: 1px solid var(--bs-border-color); }
+}
+</style>
+
+<div class="api-doc-layout">
+    <div class="api-doc-sidebar">
+        <div class="api-doc-search">
+            <input type="text" class="form-control form-control-sm w-100" id="apiSearchInput" placeholder="<?php echo lang('api_search_placeholder');?>">
+        </div>
+        <?php foreach($apiGroups as $key => $group): ?>
+        <div class="api-nav-group" data-group="<?php echo $key;?>">
+            <div class="api-nav-group-title"><i class="<?php echo $group['icon'];?> me-1"></i><?php echo $group['name'];?></div>
+            <?php foreach($group['endpoints'] as $idx => $ep): ?>
+            <div class="api-nav-item" data-endpoint="<?php echo $key;?>-<?php echo $idx;?>" onclick="scrollToEndpoint('<?php echo $key;?>-<?php echo $idx;?>')">
+                <span class="method-badge method-<?php echo $ep['method'];?>"><?php echo $ep['method'];?></span>
+                <span class="nav-path"><?php echo $ep['path'];?></span>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <div class="api-doc-main">
+        <h5 class="mb-3 fw-bold"><i class="ti ti-book"></i> <?php echo lang('api_doc_title');?></h5>
+
+        <table class="table table-sm table-hover api-info-table mb-4">
+            <tr><td>Base URL</td><td><code><?php echo $baseUrl;?>api/v1/</code></td></tr>
+            <tr><td><?php echo lang('api_response_format');?></td><td><code>JSON {"code": 0, "msg": "ok", "data": {...}}</code></td></tr>
+            <tr><td><?php echo lang('api_auth_method');?></td><td><code>Authorization: Bearer &lt;token&gt;</code></td></tr>
+            <tr><td><?php echo lang('api_token_expire');?></td><td><?php echo $tokenExpire;?> <?php echo lang('day');?></td></tr>
+        </table>
+
+        <?php foreach($apiGroups as $key => $group): ?>
+        <h6 class="mt-4 mb-3 fw-semibold" id="group-<?php echo $key;?>"><i class="<?php echo $group['icon'];?> me-1"></i><?php echo $group['name'];?></h6>
+
+        <?php foreach($group['endpoints'] as $idx => $ep): ?>
+        <div class="api-endpoint-card" id="ep-<?php echo $key;?>-<?php echo $idx;?>" data-search="<?php echo strtolower($ep['method'] . ' ' . $ep['path'] . ' ' . $ep['summary']);?>">
+            <div class="api-endpoint-header" onclick="toggleEndpoint('<?php echo $key;?>-<?php echo $idx;?>')">
+                <span class="method-badge method-<?php echo $ep['method'];?>"><?php echo $ep['method'];?></span>
+                <span class="api-path"><?php echo $ep['path'];?></span>
+                <span class="text-secondary fs-6"><?php echo $ep['summary'];?></span>
+                <?php if($ep['auth']): ?>
+                <span class="badge bg-warning text-dark api-auth-badge "><i class="ti ti-lock"></i><?php echo lang('api_auth_required');?></span>
+                <?php endif; ?>
+                <i class="ti ti-chevron-down ms-auto fs-6 text-secondary"></i>
+            </div>
+            <div class="api-endpoint-body" id="body-<?php echo $key;?>-<?php echo $idx;?>">
+                <?php if(!empty($ep['params'])): ?>
+                <div class="api-section-title"><?php echo lang('api_params');?></div>
+                <div class="overflow-x-auto">
+                    <table class="table table-sm mb-3">
+                        <thead><tr><th><?php echo lang('api_param_name');?></th><th><?php echo lang('api_param_type');?></th><th><?php echo lang('api_param_position');?></th><th><?php echo lang('api_param_required');?></th><th><?php echo lang('api_param_desc');?></th></tr></thead>
+                        <tbody>
+                        <?php foreach($ep['params'] as $p): ?>
+                        <tr>
+                            <td><code><?php echo $p['name'];?></code></td>
+                            <td><span class="badge bg-secondary "><?php echo $p['type'];?></span></td>
+                            <td><span class="badge border border-primary text-primary "><?php echo $p['in'];?></span></td>
+                            <td><?php echo $p['required'] ? '<span class="text-danger">'.lang('api_required_yes').'</span>' : lang('api_required_no');?></td>
+                            <td class="fs-6"><?php echo $p['desc'];?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php endif; ?>
+
+                <?php if($ep['request_example'] !== null): ?>
+                <div class="api-section-title"><?php echo lang('api_request_example');?></div>
+                <div class="api-json-block mb-3">
+                    <button class="btn btn-sm btn-ghost copy-btn" onclick="copyJson(this)"><i class="ti ti-clipboard"></i></button>
+                    <pre class="mb-0"><?php echo json_encode($ep['request_example'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);?></pre>
+                </div>
+                <?php endif; ?>
+
+                <div class="api-section-title"><?php echo lang('api_response_example');?></div>
+                <div class="api-json-block mb-3">
+                    <button class="btn btn-sm btn-ghost copy-btn" onclick="copyJson(this)"><i class="ti ti-clipboard"></i></button>
+                    <pre class="mb-0"><?php echo json_encode($ep['response_example'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);?></pre>
+                </div>
+
+                <?php if(!empty($ep['errors'])): ?>
+                <div class="api-section-title"><?php echo lang('api_error_codes');?></div>
+                <div class="overflow-x-auto">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th><?php echo lang('api_error_code');?></th><th><?php echo lang('api_param_desc');?></th></tr></thead>
+                        <tbody>
+                        <?php foreach($ep['errors'] as $code => $desc): ?>
+                        <tr><td><code><?php echo $code;?></code></td><td><?php echo $desc;?></td></tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php endif; ?>
+
+                <div class="mt-3">
+                    <button class="btn btn-sm btn-primary" onclick="tryInDebug('<?php echo $ep['method'];?>', '<?php echo $ep['path'];?>', <?php echo $ep['auth'] ? 'true' : 'false';?>, <?php echo $ep['request_example'] !== null ? htmlspecialchars(json_encode($ep['request_example']), ENT_QUOTES) : 'null';?>)">
+                        <i class="ti ti-send"></i><?php echo lang('api_try_it');?>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+        <?php endforeach; ?>
+
+        <hr class="my-4">
+
+        <h6 class="mb-3 fw-semibold"><?php echo lang('api_error_code_list');?></h6>
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead><tr><th>code</th><th><?php echo lang('api_error_meaning');?></th></tr></thead>
+                <tbody>
+                <?php foreach($errorCodes as $ec): ?>
+                <tr><td><code><?php echo $ec['code'];?></code></td><td><?php echo $ec['desc'];?></td></tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <h6 class="mt-4 mb-3 fw-semibold"><?php echo lang('api_auth_flow');?></h6>
+        <ol class="ms-3 fs-6" style="list-style-type:decimal">
+            <li><?php echo lang('api_auth_flow_step1');?></li>
+            <li><?php echo lang('api_auth_flow_step2');?></li>
+            <li><?php echo lang('api_auth_flow_step3');?></li>
+            <li><?php echo lang('api_auth_flow_step4');?></li>
+        </ol>
+    </div>
+</div>
+
+<!--{hook admin_api_doc_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+function toggleEndpoint(id) {
+    var body = document.getElementById('body-' + id);
+    body.classList.toggle('show');
+    var card= document.getElementById('ep-' + id);
+    var chevron = card.querySelector('.ti-chevron-down, .ti-chevron-up');
+    if (chevron) {
+        chevron.classList.toggle('ti-chevron-down');
+        chevron.classList.toggle('ti-chevron-up');
+    }
+}
+
+function scrollToEndpoint(id) {
+    var el = document.getElementById('ep-' + id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    var body = document.getElementById('body-' + id);
+    if (!body.classList.contains('show')) {
+        toggleEndpoint(id);
+    }
+    document.querySelectorAll('.api-nav-item').forEach(function(item) {
+        item.classList.remove('active');
+    });
+    var navItem = document.querySelector('[data-endpoint="' + id + '"]');
+    if (navItem) navItem.classList.add('active');
+}
+
+function tryInDebug(method, path, needAuth, bodyData) {
+    var params = new URLSearchParams();
+    params.set('method', method);
+    params.set('endpoint', path.replace(/^\//, ''));
+    if (needAuth) params.set('authtoken', '1');
+    if (bodyData) params.set('body', JSON.stringify(bodyData));
+    window.location.href = '<?php echo url("api-debug");?>&' + params.toString();
+}
+
+function copyJson(btn) {
+    var pre = btn.parentElement.querySelector('pre');
+    navigator.clipboard.writeText(pre.textContent).then(function() {
+        btn.innerHTML = '<i class="ti ti-check"></i>';
+        setTimeout(function() { btn.innerHTML = '<i class="ti ti-clipboard"></i>'; }, 1000);
+    });
+}
+
+document.getElementById('apiSearchInput').addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('.api-endpoint-card').forEach(function(card) {
+        var searchText = card.getAttribute('data-search');
+        card.style.display = (!q || searchText.indexOf(q) >= 0) ? '' : 'none';
+    });
+    document.querySelectorAll('.api-nav-group').forEach(function(group) {
+        var key = group.getAttribute('data-group');
+        var visibleCards = document.querySelectorAll('.api-endpoint-card[data-search*="' + q + '"]');
+        var hasVisible = false;
+        visibleCards.forEach(function(c) {
+            if (c.id.indexOf(key + '-') === 3) hasVisible = true;
+        });
+        group.style.display = (!q || hasVisible) ? '' : 'none';
+    });
+});
+</script>

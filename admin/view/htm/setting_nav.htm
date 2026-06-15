@@ -1,0 +1,364 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_setting_nav_start.htm}-->
+
+<div class=" ">
+	<?php echo admin_tab_active($menu['setting']['tab'], 'nav');?>
+</div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo url('setting-nav');?>" method="post" id="navForm" enctype="multipart/form-data">
+			<?php echo CsrfService::input(); ?>
+
+			<!-- Tab 导航 -->
+			<ul class="nav nav-tabs mb-3" id="navTab" role="tablist">
+				<li class="nav-item" role="presentation">
+					<button class="nav-link active" id="topNavTab" data-bs-toggle="tab" data-bs-target="#topNavPane" type="button" role="tab">
+						<i class="ti ti-layout-navbar me-1"></i><?php echo lang('admin_top_nav')?>
+					</button>
+				</li>
+				<li class="nav-item" role="presentation">
+					<button class="nav-link" id="sideNavTab" data-bs-toggle="tab" data-bs-target="#sideNavPane" type="button" role="tab">
+						<i class="ti ti-layout-sidebar me-1"></i><?php echo lang('admin_side_nav')?>
+					</button>
+				</li>
+				<li class="nav-item" role="presentation">
+					<button class="nav-link" id="discoverTab" data-bs-toggle="tab" data-bs-target="#discoverPane" type="button" role="tab">
+						<i class="ti ti-compass me-1"></i>发现导航
+					</button>
+				</li>
+				<li class="nav-item" role="presentation">
+					<button class="nav-link" id="footerTab" data-bs-toggle="tab" data-bs-target="#footerPane" type="button" role="tab">
+						<i class="ti ti-layout-bottombar me-1"></i><?php echo lang('admin_footer_setting')?>
+					</button>
+				</li>
+			</ul>
+
+			<!-- Tab 内容 -->
+			<div class="tab-content">
+
+				<!-- 顶部导航 -->
+				<div class="tab-pane fade show active" id="topNavPane" role="tabpanel">
+					<div class="table-responsive">
+						<table class="table table-hover align-middle">
+							<thead>
+								<tr>
+									<th style="width:140px"><?php echo lang('admin_col_icon')?></th>
+									<th><?php echo lang('admin_col_name')?></th>
+									<th>Slug</th>
+									<th>URL</th>
+									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
+									<th style="width:50px"></th>
+								</tr>
+							</thead>
+							<tbody id="topNavBody"></tbody>
+						</table>
+					</div>
+					<a role="button" class="text-primary text-decoration-none" id="addTopNav">
+						<i class="ti ti-plus"></i> <?php echo lang('admin_add_top_nav_item')?>
+					</a>
+				</div>
+
+				<!-- 左侧导航 -->
+				<div class="tab-pane fade" id="sideNavPane" role="tabpanel">
+					<div class="table-responsive">
+						<table class="table table-hover align-middle">
+							<thead>
+								<tr>
+									<th style="width:110px"><?php echo lang('admin_col_type')?></th>
+									<th style="width:140px"><?php echo lang('admin_col_icon')?></th>
+									<th><?php echo lang('admin_col_name')?></th>
+									<th>Slug</th>
+									<th>URL</th>
+									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
+									<th style="width:50px"></th>
+								</tr>
+							</thead>
+							<tbody id="sideNavBody"></tbody>
+						</table>
+					</div>
+					<div class="d-flex gap-3">
+						<a role="button" class="text-primary text-decoration-none" id="addSideNav">
+							<i class="ti ti-plus"></i> <?php echo lang('admin_add_side_nav_item')?>
+						</a>
+						<a role="button" class="text-primary text-decoration-none" id="addSideNavTitle">
+							<i class="ti ti-plus"></i> <?php echo lang('admin_add_category_title')?>
+						</a>
+					</div>
+				</div>
+
+				<!-- 发现导航 -->
+				<div class="tab-pane fade" id="discoverPane" role="tabpanel">
+					<p class="text-body-secondary small mb-3">配置"发现"页面的宫格应用列表，每项对应一个应用入口。</p>
+					<div class="table-responsive">
+						<table class="table table-hover align-middle">
+							<thead>
+								<tr>
+									<th style="width:140px"><?php echo lang('admin_col_icon')?></th>
+									<th><?php echo lang('admin_col_name')?></th>
+									<th>Slug</th>
+									<th>URL</th>
+									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
+									<th style="width:50px"></th>
+								</tr>
+							</thead>
+							<tbody id="discoverBody"></tbody>
+						</table>
+					</div>
+					<a role="button" class="text-primary text-decoration-none" id="addDiscover">
+						<i class="ti ti-plus"></i> 添加应用
+					</a>
+				</div>
+
+				<!-- 页脚设置 -->
+				<div class="tab-pane fade" id="footerPane" role="tabpanel">
+
+					<!-- 备案信息 -->
+					<h6 class="fw-semibold mb-3"><i class="ti ti-certificate me-1"></i><?php echo lang('admin_filing_info')?></h6>
+					<div class="row g-3 mb-4">
+						<div class="col-md-4">
+							<label class="form-label"><?php echo lang('admin_icp_number')?></label>
+							<input type="text" class="form-control form-control-sm" name="footer_icp" value="<?php echo esc_html($footer_icp);?>" placeholder="<?php echo lang('admin_icp_placeholder')?>">
+						</div>
+						<div class="col-md-4">
+							<label class="form-label"><?php echo lang('admin_gongan_number')?></label>
+							<input type="text" class="form-control form-control-sm" name="footer_gongan" value="<?php echo esc_html($footer_gongan);?>" placeholder="<?php echo lang('admin_gongan_placeholder')?>">
+						</div>
+						<div class="col-md-4">
+							<label class="form-label"><?php echo lang('admin_gongan_url')?></label>
+							<input type="text" class="form-control form-control-sm" name="footer_gongan_url" value="<?php echo esc_html($footer_gongan_url);?>" placeholder="https://beian.mps.gov.cn/">
+						</div>
+					</div>
+
+					<!-- 版权信息 -->
+					<h6 class="fw-semibold mb-3"><i class="ti ti-copyright me-1"></i><?php echo lang('admin_copyright_info')?></h6>
+					<div class="mb-3">
+						<div class="form-check form-switch mb-2">
+							<input type="hidden" name="footer_show_powered" value="0">
+							<input type="checkbox" class="form-check-input" name="footer_show_powered" id="footerShowPowered" value="1" <?php echo $footer_show_powered ? 'checked' : '';?>>
+							<label class="form-check-label" for="footerShowPowered"><?php echo lang('admin_show_xiuno_copyright')?></label>
+						</div>
+					</div>
+					<div class="mb-3">
+						<label class="form-label"><?php echo lang('admin_custom_copyright')?></label>
+						<textarea class="form-control" name="footer_copyright" rows="2" placeholder="<?php echo lang('admin_custom_copyright_placeholder')?>"><?php echo esc_html($footer_copyright);?></textarea>
+						<div class="form-text"><?php echo lang('admin_copyright_html_tip')?></div>
+					</div>
+
+				</div>
+
+			</div>
+
+			<div class="mt-4">
+				<button type="submit" class="btn btn-primary rounded-pill" id="submitBtn"><?php echo lang('confirm');?></button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<!--{hook admin_setting_nav_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script src="../view/js/tabler-icon-picker.js"></script>
+<script>
+(function() {
+	// ====== 导航数据 ======
+	var topNavItems = <?php echo xn_json_encode($nav_items);?>;
+	var sideNavItems = <?php echo xn_json_encode($sidebar_nav_items);?>;
+	var discoverItems = <?php echo xn_json_encode($discover_items);?>;
+
+	// ====== 导航行创建 ======
+	function createNavRow(prefix, item) {
+		var tr = document.createElement('tr');
+		var iconVal = item.icon || '';
+		var nameVal = item.name || '';
+		var slugVal = item.slug || '';
+		var urlVal = item.url || '';
+		var rankVal = item.rank || 0;
+
+		tr.innerHTML =
+			'<td>' +
+				'<div class="input-group input-group-sm">' +
+					'<span class="input-group-text p-0 px-2 icon-preview" style="min-width:32px;justify-content:center">' +
+						(iconVal ? '<i class="ti ' + iconVal + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
+					'</span>' +
+					'<input type="text" class="form-control form-control-sm" name="' + prefix + '_icon[]" value="' + iconVal + '" placeholder="<?php echo lang('admin_click_to_select')?>" readonly style="cursor:pointer">' +
+				'</div>' +
+			'</td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="' + prefix + '_name[]" value="' + nameVal + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="' + prefix + '_slug[]" value="' + slugVal + '" placeholder="slug"></td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="' + prefix + '_url[]" value="' + urlVal + '" placeholder="URL"></td>' +
+			'<td><input type="number" class="form-control form-control-sm text-center" name="' + prefix + '_rank[]" value="' + rankVal + '"></td>' +
+			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>';
+
+		var iconInput = tr.querySelector('input[name="' + prefix + '_icon[]"]');
+		var iconPreview = tr.querySelector('.icon-preview');
+		new TablerIconPicker({
+			input: iconInput,
+			preview: iconPreview
+		});
+
+		var deleteBtn = tr.querySelector('a[title="<?php echo lang('delete')?>"]');
+		deleteBtn.addEventListener('click', function(e) {
+			e.preventDefault();
+			tr.remove();
+		});
+
+		return tr;
+	}
+
+	function renderNavList(prefix, items, tbodyId) {
+		var tbody = document.getElementById(tbodyId);
+		tbody.innerHTML = '';
+		items.forEach(function(item) {
+			tbody.appendChild(createNavRow(prefix, item));
+		});
+	}
+
+	// ====== 侧边栏导航行（支持类型：link/title） ======
+	function createSideNavRow(item) {
+		var tr = document.createElement('tr');
+		var typeVal = item.type || 'link';
+		var iconVal = item.icon || '';
+		var nameVal = item.name || '';
+		var slugVal = item.slug || '';
+		var urlVal = item.url || '';
+		var rankVal = item.rank || 0;
+		var isTitle = typeVal === 'title';
+
+		tr.setAttribute('data-nav-type', typeVal);
+		tr.innerHTML =
+			'<td>' +
+				'<select class="form-select form-select-sm sidebar-type-select" name="sidebar_type[]">' +
+					'<option value="link"' + (typeVal === 'link' ? ' selected' : '') + '><?php echo lang('admin_type_link');?></option>' +
+					'<option value="title"' + (typeVal === 'title' ? ' selected' : '') + '><?php echo lang('admin_type_title');?></option>' +
+				'</select>' +
+			'</td>' +
+			'<td class="sidebar-icon-cell' + (isTitle ? ' d-none' : '') + '">' +
+				'<div class="input-group input-group-sm">' +
+					'<span class="input-group-text p-0 px-2 icon-preview" style="min-width:32px;justify-content:center">' +
+						(iconVal ? '<i class="ti ' + iconVal + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
+					'</span>' +
+					'<input type="text" class="form-control form-control-sm" name="sidebar_icon[]" value="' + iconVal + '" placeholder="<?php echo lang('admin_click_to_select')?>" readonly style="cursor:pointer">' +
+				'</div>' +
+			'</td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="sidebar_name[]" value="' + nameVal + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
+			'<td class="sidebar-slug-cell' + (isTitle ? ' d-none' : '') + '"><input type="text" class="form-control form-control-sm" name="sidebar_slug[]" value="' + slugVal + '" placeholder="slug"></td>' +
+			'<td class="sidebar-url-cell' + (isTitle ? ' d-none' : '') + '"><input type="text" class="form-control form-control-sm" name="sidebar_url[]" value="' + urlVal + '" placeholder="URL"></td>' +
+			'<td><input type="number" class="form-control form-control-sm text-center" name="sidebar_rank[]" value="' + rankVal + '"></td>' +
+			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>';
+
+		// 类型切换：标题时隐藏图标/Slug/URL
+		var typeSelect = tr.querySelector('.sidebar-type-select');
+		typeSelect.addEventListener('change', function() {
+			var isTitle = this.value === 'title';
+			var iconCell = tr.querySelector('.sidebar-icon-cell');
+			var slugCell = tr.querySelector('.sidebar-slug-cell');
+			var urlCell = tr.querySelector('.sidebar-url-cell');
+			if (isTitle) {
+				iconCell.classList.add('d-none');
+				slugCell.classList.add('d-none');
+				urlCell.classList.add('d-none');
+			} else {
+				iconCell.classList.remove('d-none');
+				slugCell.classList.remove('d-none');
+				urlCell.classList.remove('d-none');
+			}
+		});
+
+		// 图标选择器
+		var iconInput = tr.querySelector('input[name="sidebar_icon[]"]');
+		var iconPreview = tr.querySelector('.icon-preview');
+		new TablerIconPicker({
+			input: iconInput,
+			preview: iconPreview
+		});
+
+		// 删除
+		var deleteBtn = tr.querySelector('a[title="<?php echo lang('delete')?>"]');
+		deleteBtn.addEventListener('click', function(e) {
+			e.preventDefault();
+			tr.remove();
+		});
+
+		return tr;
+	}
+
+	function renderSideNavList(items) {
+		var tbody = document.getElementById('sideNavBody');
+		tbody.innerHTML = '';
+		items.forEach(function(item) {
+			tbody.appendChild(createSideNavRow(item));
+		});
+	}
+
+	renderNavList('nav', topNavItems, 'topNavBody');
+	renderSideNavList(sideNavItems);
+	renderNavList('discover', discoverItems, 'discoverBody');
+
+	document.getElementById('addTopNav').addEventListener('click', function(e) {
+		e.preventDefault();
+		document.getElementById('topNavBody').appendChild(createNavRow('nav', {}));
+	});
+	document.getElementById('addSideNav').addEventListener('click', function(e) {
+		e.preventDefault();
+		document.getElementById('sideNavBody').appendChild(createSideNavRow({type: 'link'}));
+	});
+	document.getElementById('addSideNavTitle').addEventListener('click', function(e) {
+		e.preventDefault();
+		document.getElementById('sideNavBody').appendChild(createSideNavRow({type: 'title'}));
+	});
+	document.getElementById('addDiscover').addEventListener('click', function(e) {
+		e.preventDefault();
+		document.getElementById('discoverBody').appendChild(createNavRow('discover', {}));
+	});
+
+	// ====== 表单提交 ======
+	var form = document.getElementById('navForm');
+	var submitBtn = document.getElementById('submitBtn');
+	form.addEventListener('submit', function(e) {
+		e.preventDefault();
+
+		submitBtn.disabled = true;
+		submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('submiting');?>...';
+
+		var formData = new FormData(form);
+
+		fetch(form.action, {
+			method: 'POST',
+			body: formData,
+			headers: {
+				'X-Requested-With': 'XMLHttpRequest'
+			}
+		})
+		.then(function(res) { return res.json(); })
+		.then(function(data) {
+			if (parseInt(data.code) === 0) {
+				showToast(data.message, 'success');
+				submitBtn.innerHTML = '<i class="ti ti-check me-1"></i>' + data.message;
+				submitBtn.classList.remove('btn-primary');
+				submitBtn.classList.add('btn-success');
+				setTimeout(function() {
+					submitBtn.disabled = false;
+					submitBtn.innerHTML = '<?php echo lang('confirm');?>';
+					submitBtn.classList.remove('btn-success');
+					submitBtn.classList.add('btn-primary');
+				}, 1500);
+			} else {
+				showToast(data.message, 'error');
+				submitBtn.disabled = false;
+				submitBtn.innerHTML = '<?php echo lang('confirm');?>';
+			}
+		})
+		.catch(function(err) {
+			showToast('<?php echo lang('admin_request_failed_retry')?>', 'error');
+			submitBtn.disabled = false;
+			submitBtn.innerHTML = '<?php echo lang('confirm');?>';
+		});
+	});
+})();
+</script>
+
+<!--{hook admin_setting_nav_js.htm}-->

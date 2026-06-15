@@ -1,0 +1,104 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_setting_ai_start.htm}-->
+
+<div class=" ">
+	<?php echo admin_tab_active($menu['setting']['tab'], 'ai');?>
+</div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo url('setting-ai');?>" method="post" id="form">
+			<?php echo CsrfService::input(); ?>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('admin_ai_provider');?></label>
+				<select name="ai_provider" id="ai_provider" class="form-select ">
+					<option value=""><?php echo lang('admin_ai_please_select');?></option>
+					<option value="openai" <?php echo (!empty($ai_config['models']) && isset($ai_config['models']['openai'])) ? 'selected' : '';?>>OpenAI</option>
+					<option value="deepseek" <?php echo (!empty($ai_config['models']) && isset($ai_config['models']['deepseek'])) ? 'selected' : '';?>>DeepSeek</option>
+					<option value="gitee" <?php echo (!empty($ai_config['models']) && isset($ai_config['models']['gitee'])) ? 'selected' : '';?>>Gitee AI</option>
+					<option value="spark" <?php echo (!empty($ai_config['models']) && isset($ai_config['models']['spark'])) ? 'selected' : '';?>><?php echo lang('admin_ai_spark');?></option>
+					<option value="wenxin" <?php echo (!empty($ai_config['models']) && isset($ai_config['models']['wenxin'])) ? 'selected' : '';?>><?php echo lang('admin_ai_wenxin');?></option>
+					<option value="custom" <?php echo (!empty($ai_config['models']) && isset($ai_config['models']['custom'])) ? 'selected' : '';?>><?php echo lang('admin_ai_custom');?></option>
+				</select>
+			</div>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium">API Key</label>
+				<input type="password" name="ai_apikey" id="ai_apikey" class="form-control " value="<?php echo $ai_apikey;?>" placeholder="sk-...">
+			</div>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium">API URL</label>
+				<input type="text" name="ai_endpoint" id="ai_endpoint" class="form-control " value="<?php echo $ai_endpoint;?>" placeholder="https://api.openai.com">
+			</div>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('admin_ai_model_name');?></label>
+				<input type="text" name="ai_model" id="ai_model" class="form-control " value="<?php echo $ai_model;?>" placeholder="gpt-4o-mini">
+			</div>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('admin_ai_continue_prompt')?></label>
+				<textarea name="ai_prompt_continue" id="ai_prompt_continue" class="form-control " rows="3" placeholder="<?php echo lang('admin_ai_continue_placeholder')?>"><?php echo isset($ai_prompt_continue) ? $ai_prompt_continue : '';?></textarea>
+				<small class="text-body-secondary"><?php echo lang('admin_ai_continue_tip')?></small>
+			</div>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('admin_ai_optimize_prompt')?></label>
+				<textarea name="ai_prompt_improve" id="ai_prompt_improve" class="form-control " rows="3" placeholder="<?php echo lang('admin_ai_optimize_placeholder')?>"><?php echo isset($ai_prompt_improve) ? $ai_prompt_improve : '';?></textarea>
+				<small class="text-body-secondary"><?php echo lang('admin_ai_optimize_tip')?></small>
+			</div>
+
+			<div class="mb-4">
+				<button type="submit" class="btn btn-primary  w-100" id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('confirm');?></button>
+			</div>
+
+		</form>
+	</div>
+</div>
+
+<!--{hook admin_setting_ai_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+var jform = $('#form');
+var jsubmit = $('#submit');
+var aiPresets = {
+    openai: {endpoint:'https://api.openai.com', model:'gpt-4o-mini'},
+    deepseek: {endpoint:'https://api.deepseek.com', model:'deepseek-chat'},
+    gitee: {endpoint:'https://ai.gitee.com/v1', model:'DeepSeek-V3'},
+    spark: {endpoint:'https://spark-api-open.xf-yun.com/v1', model:'generalv3.5'},
+    wenxin: {endpoint:'https://qianfan.baidubce.com/v2', model:'ernie-4.0-8k'},
+    custom: {endpoint:'', model:''}
+};
+$('#ai_provider').on('change', function(){
+    var p = aiPresets[$(this).val()];
+    if(p) {
+        $('#ai_endpoint').val(p.endpoint);
+        $('#ai_model').val(p.model);
+    }
+});
+jform.on('submit', function() {
+	jform.reset();
+	jsubmit.button('loading');
+	var postdata = jform.serialize();
+	$.xpost(jform.attr('action'), postdata, function(code, message) {
+		if(code == 0) {
+			showToast(message, 'success');
+			jsubmit.text(message).delay(1000).button('reset');
+		} else if(xn.is_number(code)) {
+			showToast(message, 'error');
+			jsubmit.button('reset');
+		} else {
+			jform.find('[name="'+code+'"]').alert(message).focus();
+			jsubmit.button('reset');
+		}
+	});
+	return false;
+});
+</script>
+
+<!--{hook admin_setting_ai_js.htm}-->

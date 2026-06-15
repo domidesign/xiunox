@@ -2,49 +2,233 @@
 
 <!--{hook admin_setting_smtp_start.htm}-->
 
-<div class="row">
-	<div class="col-12">
-		<div class="btn-group mb-3" role="group">
-			<?php echo admin_tab_active($menu['setting']['tab'], 'smtp');?>
-		</div>
-		<div class="card">
-			<div class="card-body">
-				<form action="<?php echo url('setting-smtp');?>" method="post" id="form">
-					<div class="table-responsive arrlist">
-						<table class="table">
-							<thead>
-								<tr>
-									<th><?php echo lang('email');?></th>
-									<th><?php echo lang('smtp_host');?></th>
-									<th width="100" class="text-center"><?php echo lang('port');?></th>
-									<th><?php echo lang('username');?></th>
-									<th><?php echo lang('password');?></th>
-									<th><?php echo lang('delete');?></th>
-								</tr>
-							<thead>
-							<tbody id="smtp_body">
-								<script type="text/plain" id="smtp_tpl">
-								<tr align="center" rowid="{rowid}">
-									<td><input type="text" class="form-control" name="email[]" value="{email}" placeholder="<?php echo lang('email');?>" /></td>
-									<td><input type="text" class="form-control" name="host[]" value="{host}"  placeholder="<?php echo lang('host');?>" /></td>
-									<td width="100" class="text-center"><input type="text" class="form-control" name="port[]" value="{port}" placeholder="<?php echo lang('port');?>"/></td>
-									<td><input type="text" class="form-control" name="user[]" value="{user}" placeholder="<?php echo lang('username');?>"  /></td>
-									<td><input type="password" class="form-control" name="pass[]" value="{pass}" placeholder="<?php echo lang('password');?>"  /></td>
-									<td><a class="btn row_delete" role="btn"><?php echo lang('delete');?></a></td>
-								</tr>
-								</script>
-							</tbody>
-						</table>
+<div class="">
+	<?php echo admin_tab_active($menu['setting']['tab'], 'smtp');?>
+</div>
+
+<div class="x-card  cardrounded-3">
+	<div class="card-body">
+
+		<!-- 内部 Tab 导航 -->
+		<ul class="nav nav-tabs mb-3" role="tablist">
+			<li class="nav-item" role="presentation">
+				<button class="nav-link active" data-bs-toggle="tab" data-bs-target="#smtpPane" type="button" role="tab">
+					<i class="ti ti-mail me-1"></i><?php echo lang('smtp_server');?>
+				</button>
+			</li>
+			<li class="nav-item" role="presentation">
+				<button class="nav-link" data-bs-toggle="tab" data-bs-target="#templatePane" type="button" role="tab">
+					<i class="ti ti-template me-1"></i><?php echo lang('smtp_email_template');?>
+				</button>
+			</li>
+			<li class="nav-item" role="presentation">
+				<button class="nav-link" data-bs-toggle="tab" data-bs-target="#logPane" type="button" role="tab">
+					<i class="ti ti-list-check me-1"></i><?php echo lang('smtp_send_log');?>
+				</button>
+			</li>
+		</ul>
+
+		<div class="tab-content">
+
+			<!-- ====== Tab 1: SMTP 配置 ====== -->
+			<div class="tab-pane fade show active" id="smtpPane" role="tabpanel">
+				<form action="<?php echo url('setting-smtp');?>" method="post" id="smtpForm">
+					<?php echo CsrfService::input(); ?>
+					<div id="smtp-manager">
+						<div class="table-responsive">
+							<table class="table table-hover align-middle">
+								<thead>
+									<tr>
+										<th style="min-width:180px"><?php echo lang('email');?></th>
+										<th style="min-width:180px"><?php echo lang('smtp_host');?></th>
+										<th style="width:90px"><?php echo lang('port');?></th>
+										<th style="min-width:140px"><?php echo lang('username');?></th>
+										<th style="min-width:160px"><?php echo lang('password');?></th>
+										<th style="width:120px"><?php echo lang('smtp_encryption');?></th>
+										<th style="width:60px"></th>
+									</tr>
+								</thead>
+								<tbody id="smtp-tbody">
+									<?php foreach($smtplist as $i => $smtp): ?>
+									<tr>
+										<td><input type="text" class="form-control form-control-sm" name="email[]" value="<?php echo esc_html($smtp['email']);?>" placeholder="<?php echo lang('email');?>"></td>
+										<td><input type="text" class="form-control form-control-sm" name="host[]" value="<?php echo esc_html($smtp['host']);?>" placeholder="<?php echo lang('smtp_host');?>"></td>
+										<td><input type="text" class="form-control form-control-sm text-center" name="port[]" value="<?php echo esc_html($smtp['port']);?>" placeholder="<?php echo lang('port');?>"></td>
+										<td><input type="text" class="form-control form-control-sm" name="user[]" value="<?php echo esc_html($smtp['user']);?>" placeholder="<?php echo lang('username');?>"></td>
+										<td>
+											<div class="input-group input-group-sm">
+												<input type="password" class="form-control" name="pass[]" value="<?php echo esc_html($smtp['pass']);?>" placeholder="<?php echo lang('password');?>">
+												<button type="button" class="btn btn-outline-secondary" onclick="toggleSmtpPass(this)">
+													<i class="ti ti-eye"></i>
+												</button>
+											</div>
+										</td>
+										<td>
+											<select class="form-select form-select-sm" name="ssl[]" onchange="onSmtpSslChange(this)">
+												<option value="0"<?php echo $smtp['ssl'] == 0 ? ' selected' : '';?>><?php echo lang('smtp_encryption_none');?></option>
+												<option value="1"<?php echo $smtp['ssl'] == 1 ? ' selected' : '';?>>SSL</option>
+												<option value="2"<?php echo $smtp['ssl'] == 2 ? ' selected' : '';?>>TLS</option>
+											</select>
+										</td>
+										<td class="text-center">
+											<button type="button" class="btn btn-outline-danger btn-sm" onclick="removeSmtpRow(this)"><i class="ti ti-trash"></i></button>
+										</td>
+									</tr>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+						</div>
+
+						<div id="smtp-empty" class="text-center text-body-secondary py-4<?php echo !empty($smtplist) ? ' d-none' : '';?>">
+							<i class="ti ti-mail-off fs-1 d-block mb-2"></i>
+							<p><?php echo lang('smtp_no_server_config');?></p>
+						</div>
+
+						<button type="button" onclick="addSmtpRow()" class="btn btn-sm btn-outline-primary rounded-pill">
+							<i class="ti ti-plus me-1"></i> <?php echo lang('smtp_add_server');?>
+						</button>
 					</div>
-					<p><a role="button" class="btn row_add">[+]<?php echo lang('add_new_line');?></a></p>
-					<p class="text-center">
-						<button type="submit" class="btn btn-primary" id="submit" data-loading-text="<?php echo lang('submiting');?>..." style="width: 10rem;"><?php echo lang('confirm');?></button>
-					</p>
+
+					<div class="text-center mt-4">
+						<button type="submit" class="btn btn-primary rounded-pill" style="width:10rem">
+							<i class="ti ti-device-floppy me-1"></i><?php echo lang('confirm');?>
+						</button>
+					</div>
 				</form>
-				<p>
-					注：<a href="https://bbs.xiuno.com/thread-19712.htm" target="_blank">如何设置 SMTP？ / How to set up SMTP ?</a>
+
+				<hr class="my-4">
+
+				<!-- 测试邮件 -->
+				<h6 class="fw-semibold mb-3"><i class="ti ti-send me-2"></i><?php echo lang('smtp_send_test_email');?></h6>
+				<div id="smtp-tester">
+					<div class="row g-2 align-items-end">
+						<div class="col-md-4">
+							<label class="form-label fw-medium"><?php echo lang('smtp_test_email');?></label>
+							<input type="email" class="form-control form-control-sm" id="testEmail" placeholder="<?php echo lang('smtp_test_email_placeholder');?>" oninput="document.getElementById('sendTestBtn').disabled = !this.value.trim()">
+						</div>
+						<div class="col-md-4">
+							<label class="form-label fw-medium"><?php echo lang('smtp_server');?></label>
+							<select class="form-select form-select-sm" id="testSmtpSelect">
+								<?php foreach($smtplist as $i => $smtp): ?>
+								<option value="<?php echo $i;?>"><?php echo esc_html(($smtp['host'] ?: lang('smtp_not_configured')) . ($smtp['user'] ? ' (' . $smtp['user'] . ')' : ''));?></option>
+								<?php endforeach; ?>
+							</select>
+						</div>
+						<div class="col-md-4">
+							<button type="button" id="sendTestBtn" class="btn btn-sm btn-outline-success rounded-pill" disabled onclick="sendTestEmail()">
+								<i class="ti me-1 ti-send"></i>
+								<span><?php echo lang('smtp_send_test_email');?></span>
+							</button>
+						</div>
+					</div>
+					<div id="testResult" class="mt-3 d-none"></div>
+				</div>
+
+				<p class="fs-6 text-body-secondary mt-3 mb-0">
+					<i class="ti ti-info-circle me-1"></i> <a href="https://bbs.xiuno.com/thread-19712.htm" target="_blank" class="text-decoration-underline"><?php echo lang('admin_smtp_how_to_setup');?></a>
 				</p>
 			</div>
+
+			<!-- ====== Tab 2: 邮件模板 ====== -->
+			<div class="tab-pane fade" id="templatePane" role="tabpanel">
+				<form action="<?php echo url('setting-email_template');?>" method="post" id="templateForm">
+					<?php echo CsrfService::input(); ?>
+
+					<?php foreach($email_templates as $key => $tpl): ?>
+					<div class="x-card  card mb-3">
+						<div class="card-header">
+							<h5 class="card-title mb-0">
+								<?php
+								$names = array(
+									'user_create_code' => lang('smtp_template_create_code'),
+									'user_resetpw_code' => lang('smtp_template_resetpw_code'),
+									'email_change_code' => lang('smtp_template_email_change_code'),
+								);
+								echo isset($names[$key]) ? $names[$key] : $key;
+								?>
+							</h5>
+						</div>
+						<div class="card-body">
+							<input type="hidden" name="template_key[]" value="<?php echo $key;?>" />
+							<div class="mb-3">
+								<label class="form-label"><?php echo lang('smtp_email_subject');?></label>
+								<input type="text" class="form-control" name="subject[]" value="<?php echo esc_html($tpl['subject']);?>" />
+							</div>
+							<div class="mb-3">
+								<label class="form-label"><?php echo lang('smtp_email_body');?></label>
+								<textarea class="form-control" name="body[]" rows="8" style="font-family:monospace;font-size:13px;"><?php echo esc_html($tpl['body']);?></textarea>
+							</div>
+							<div class="text-body-secondary small">
+								<i class="ti ti-info-circle"></i> <?php echo lang('smtp_available_vars');?>
+							</div>
+						</div>
+					</div>
+					<?php endforeach; ?>
+
+					<div class="text-center">
+						<button type="submit" class="btn btn-primary rounded-pill" style="width:10rem">
+							<i class="ti ti-device-floppy me-1"></i><?php echo lang('smtp_save_template');?>
+						</button>
+					</div>
+				</form>
+				<div id="template-result"></div>
+			</div>
+
+			<!-- ====== Tab 3: 发送日志 ====== -->
+			<div class="tab-pane fade" id="logPane" role="tabpanel">
+				<!-- 筛选 -->
+				<div class="mb-3">
+					<div class="btn-group" role="group">
+						<a href="<?php echo url('setting-smtp');?>" data-tab="log" class="btn btn-sm <?php echo $email_log_filter < 0 ? 'btn-primary' : 'btn-outline-primary';?> log-filter-btn"><?php echo lang('smtp_filter_all');?></a>
+						<a href="<?php echo url('setting-smtp');?>" data-tab="log" data-status="1" class="btn btn-sm <?php echo $email_log_filter == 1 ? 'btn-success' : 'btn-outline-success';?> log-filter-btn"><?php echo lang('smtp_success');?></a>
+						<a href="<?php echo url('setting-smtp');?>" data-tab="log" data-status="0" class="btn btn-sm <?php echo $email_log_filter === 0 ? 'btn-danger' : 'btn-outline-danger';?> log-filter-btn"><?php echo lang('smtp_failed');?></a>
+					</div>
+				</div>
+
+				<div class="table-responsive">
+					<table class="table table-hover">
+						<thead>
+							<tr>
+								<th>ID</th>
+								<th><?php echo lang('smtp_log_recipient');?></th>
+								<th><?php echo lang('smtp_log_subject');?></th>
+								<th><?php echo lang('smtp_log_smtp_server');?></th>
+								<th><?php echo lang('smtp_log_status');?></th>
+								<th><?php echo lang('smtp_log_time');?></th>
+								<th><?php echo lang('smtp_log_error_msg');?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php if(!empty($email_loglist)): ?>
+							<?php foreach($email_loglist as $log): ?>
+							<tr>
+								<td><?php echo $log['logid'];?></td>
+								<td><?php echo esc_html($log['to_email']);?></td>
+								<td><?php echo esc_html(mb_substr($log['subject'], 0, 40));?></td>
+								<td><?php echo esc_html($log['smtp_host']);?></td>
+								<td>
+									<?php if($log['status']): ?>
+									<span class="badge bg-success"><i class="ti ti-check"></i> <?php echo lang('smtp_success');?></span>
+									<?php else: ?>
+									<span class="badge bg-danger"><i class="ti ti-x"></i> <?php echo lang('smtp_failed');?></span>
+									<?php endif; ?>
+								</td>
+								<td class="small"><?php echo $log['create_date_fmt'];?></td>
+								<td class="small text-body-secondary"><?php echo esc_html(mb_substr($log['error_msg'], 0, 60));?></td>
+							</tr>
+							<?php endforeach; ?>
+							<?php else: ?>
+							<tr><td colspan="7" class="text-center text-body-secondary py-4"><?php echo lang('smtp_no_log_records');?></td></tr>
+							<?php endif; ?>
+						</tbody>
+					</table>
+				</div>
+
+				<?php if(!empty($email_pagination)): ?>
+				<nav><ul class="pagination pagination-boxed justify-content-center"><?php echo $email_pagination;?></ul></nav>
+				<?php endif; ?>
+			</div>
+
 		</div>
 	</div>
 </div>
@@ -54,63 +238,181 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-
-// 模板初始化
-var maxrowid = Math.max(xn.array_keys(smtplist));
-var smtplist = <?php echo xn_json_encode($smtplist);?>;
-var jsmtp_tpl = $('#smtp_tpl');
-var jsmtp_body = $('#smtp_body');
-var tpl = jsmtp_tpl.text();
-function row_add(v) {
-	var s = xn.template(tpl, v);
-	jsmtp_body.append(s);
+// SMTP 管理器：切换密码可见性
+function toggleSmtpPass(btn) {
+    var row = btn.closest('tr');
+    var passInput = row.querySelector('input[name="pass[]"]');
+    var icon = btn.querySelector('i');
+    if (passInput.type === 'password') {
+        passInput.type = 'text';
+        icon.className = 'ti ti-eye-off';
+    } else {
+        passInput.type = 'password';
+        icon.className = 'ti ti-eye';
+    }
 }
-$.each(smtplist, function(k, v) {
-	v.rowid = k;
-	row_add(v);
+
+// SMTP 管理器：SSL 变更自动更新端口
+function onSmtpSslChange(selectEl) {
+    var row = selectEl.closest('tr');
+    var portInput = row.querySelector('input[name="port[]"]');
+    var ssl = parseInt(selectEl.value);
+    if (ssl === 1) { portInput.value = 465; }
+    else if (ssl === 2) { portInput.value = 587; }
+    else { portInput.value = 25; }
+}
+
+// SMTP 管理器：添加行
+function addSmtpRow() {
+    var tbody = document.getElementById('smtp-tbody');
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><input type="text" class="form-control form-control-sm" name="email[]" value="" placeholder="<?php echo lang('email');?>"></td>' +
+        '<td><input type="text" class="form-control form-control-sm" name="host[]" value="" placeholder="<?php echo lang('smtp_host');?>"></td>' +
+        '<td><input type="text" class="form-control form-control-sm text-center" name="port[]" value="25" placeholder="<?php echo lang('port');?>"></td>' +
+        '<td><input type="text" class="form-control form-control-sm" name="user[]" value="" placeholder="<?php echo lang('username');?>"></td>' +
+        '<td><div class="input-group input-group-sm"><input type="password" class="form-control" name="pass[]" value="" placeholder="<?php echo lang('password');?>"><button type="button" class="btn btn-outline-secondary" onclick="toggleSmtpPass(this)"><i class="ti ti-eye"></i></button></div></td>' +
+        '<td><select class="form-select form-select-sm" name="ssl[]" onchange="onSmtpSslChange(this)"><option value="0"><?php echo lang('smtp_encryption_none');?></option><option value="1">SSL</option><option value="2">TLS</option></select></td>' +
+        '<td class="text-center"><button type="button" class="btn btn-outline-danger btn-sm" onclick="removeSmtpRow(this)"><i class="ti ti-trash"></i></button></td>';
+    tbody.appendChild(tr);
+    updateSmtpEmptyState();
+    refreshSmtpSelect();
+}
+
+// SMTP 管理器：删除行
+function removeSmtpRow(btn) {
+    btn.closest('tr').remove();
+    updateSmtpEmptyState();
+    refreshSmtpSelect();
+}
+
+// SMTP 管理器：更新空状态
+function updateSmtpEmptyState() {
+    var tbody = document.getElementById('smtp-tbody');
+    var empty = document.getElementById('smtp-empty');
+    var rows = tbody.querySelectorAll('tr');
+    if (rows.length === 0) {
+        empty.classList.remove('d-none');
+    } else {
+        empty.classList.add('d-none');
+    }
+}
+
+// SMTP 测试：刷新 SMTP 选择列表
+function refreshSmtpSelect() {
+    var select = document.getElementById('testSmtpSelect');
+    var rows = document.querySelectorAll('#smtp-tbody tr');
+    select.innerHTML = '';
+    for (var i = 0; i < rows.length; i++) {
+        var host = rows[i].querySelector('input[name="host[]"]').value || '<?php echo lang('smtp_not_configured');?>';
+        var user = rows[i].querySelector('input[name="user[]"]').value;
+        var option = document.createElement('option');
+        option.value = i;
+        option.textContent = host + (user ? ' (' + user + ')' : '');
+        select.appendChild(option);
+    }
+}
+
+// SMTP 测试：发送测试邮件
+function sendTestEmail() {
+    var testEmail = document.getElementById('testEmail').value.trim();
+    if (!testEmail) return;
+    var testSmtpIndex = document.getElementById('testSmtpSelect').value;
+    var btn = document.getElementById('sendTestBtn');
+    var resultDiv = document.getElementById('testResult');
+
+    btn.disabled = true;
+    btn.querySelector('i').className = 'ti me-1 ti-loader-2';
+    btn.querySelector('span').textContent = '<?php echo lang('smtp_sending');?>';
+    resultDiv.classList.add('d-none');
+
+    var csrfToken = document.querySelector('input[name="csrf_token"]');
+    var csrfValue = csrfToken ? csrfToken.value : '';
+
+    fetch('<?php echo url("setting-smtp_test");?>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+        body: 'test_email=' + encodeURIComponent(testEmail) + '&smtp_index=' + encodeURIComponent(testSmtpIndex) + '&csrf_token=' + encodeURIComponent(csrfValue)
+    }).then(function(res) { return res.json(); })
+    .then(function(data) {
+        var alertClass = data.code == 0 ? 'alert-success' : 'alert-danger';
+        var iconClass = data.code == 0 ? 'ti-circle-check' : 'ti-alert-circle';
+        resultDiv.classList.remove('d-none');
+        resultDiv.innerHTML = '<div class="alert d-flex align-items-center ' + alertClass + '"><i class="ti me-2 ' + iconClass + '"></i><span>' + escHtml(data.message) + '</span></div>';
+        btn.disabled = false;
+        btn.querySelector('i').className = 'ti me-1 ti-send';
+        btn.querySelector('span').textContent = '<?php echo lang('smtp_send_test_email');?>';
+        if (!document.getElementById('testEmail').value.trim()) {
+            btn.disabled = true;
+        }
+    })
+    .catch(function(e) {
+        resultDiv.classList.remove('d-none');
+        resultDiv.innerHTML = '<div class="alert alert-danger d-flex align-items-center"><i class="ti me-2 ti-alert-circle"></i><span><?php echo lang('smtp_request_failed');?>' + escHtml(e.message) + '</span></div>';
+        btn.disabled = false;
+        btn.querySelector('i').className = 'ti me-1 ti-send';
+        btn.querySelector('span').textContent = '<?php echo lang('smtp_send_test_email');?>';
+        if (!document.getElementById('testEmail').value.trim()) {
+            btn.disabled = true;
+        }
+    });
+}
+
+// HTML 转义
+function escHtml(str) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+}
+
+// 日志筛选：拦截按钮点击，用 AJAX 加载日志内容并切换到日志 tab
+document.querySelectorAll('.log-filter-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        var status = btn.getAttribute('data-status');
+        var url = '<?php echo url("setting-email_log");?>' + (status !== null ? '&status=' + status : '');
+        // 直接跳转到对应的独立页面（兼容）
+        window.location = '<?php echo url("setting-email_log");?>' + (status !== null ? '?status=' + status : '');
+    });
 });
 
-var jform = $("#form");
-var jsubmit = $("#submit");
-jform.on('submit', function(){
-	jform.reset();
-	jsubmit.button('loading');
-	var postdata = jform.serialize();
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
-		if(code == 0) {
-			$.alert(message);
-			jsubmit.text(message).delay(1000).button('reset');
-			return;
-		} else {
-			alert(message);
-			jsubmit.button('reset');
-		}
-	});
-	return false;
+// SMTP 设置表单提交
+var jsmtpForm = $('#smtpForm');
+var jsmtpSubmit = jsmtpForm.find('button[type="submit"]');
+jsmtpForm.on('submit', function() {
+    jsmtpSubmit.button('loading');
+    var postdata = jsmtpForm.serialize();
+    $.xpost(jsmtpForm.attr('action'), postdata, function(code, message) {
+        if(code == 0) {
+            showToast(message, 'success');
+            jsmtpSubmit.button('reset');
+        } else if(xn.is_number(code)) {
+            showToast(message, 'error');
+            jsmtpSubmit.button('reset');
+        } else {
+            jsmtpForm.find('[name="'+code+'"]').alert(message).focus();
+            jsmtpSubmit.button('reset');
+        }
+    });
+    return false;
 });
 
-// 删除 delete
-var jarrlist = $('.arrlist');
-var jdelete = $('a.row_delete');
-jarrlist.on('click', 'a.row_delete', function() {
-	var jthis = $(this);
-	var jtr = jthis.parents('tr');
-	var rowid = jtr.attr('rowid');
-	jtr.remove();
-	return false;
+// 邮件模板表单提交
+var jtplForm = $('#templateForm');
+var jtplSubmit = jtplForm.find('button[type="submit"]');
+jtplForm.on('submit', function() {
+    jtplSubmit.button('loading');
+    var postdata = jtplForm.serialize();
+    $.xpost(jtplForm.attr('action'), postdata, function(code, message) {
+        if(code == 0) {
+            showToast(message, 'success');
+            $('#template-result').html('<div class="alert alert-success py-2 mt-3">' + message + '</div>');
+        } else {
+            showToast(message, 'error');
+        }
+        jtplSubmit.button('reset');
+    });
+    return false;
 });
-
-// 增加 add
-var jadd = $('a.row_add');
-jadd.on('click', function() {
-	var v = {email: '', host: '', port: '', user: '', pass: '', rowid: ++maxrowid};
-	row_add(v);
-	return false;
-});
-
-
-$('#nav li.nav-item-setting').addClass('active');
-
 </script>
 
 <!--{hook admin_setting_smtp_js.htm}-->

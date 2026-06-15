@@ -6,7 +6,8 @@ $action = param(1);
 
 // hook admin_thread_start.php
 
-$pagesize = 100;
+$pagesize = param('pagesize', 100);
+if(!in_array($pagesize, array(20, 50, 100, 200))) $pagesize = 100;
 
 if(empty($action) || $action == 'list') {
 
@@ -33,36 +34,30 @@ if(empty($action) || $action == 'list') {
 		);
 	}
 	
-	//$queue_count = queue_count($queueid);
-	
 	// hook admin_thread_list_end.php
 	
 	include _include(ADMIN_PATH."view/htm/thread_list.htm");
 	
 // 全表扫描，每次扫描 1000 条记录
-/*
-	搜索条件，并且关系：
-	create_date (start, end) 
-	last_date (start, end) 
-	fid = 
-	uid =
-	userip =
-	views (start, end)
-	subject like '%keyword%'
-*/
 } elseif($action == 'scan') {
 	
 	$queueid = _SESSION('thread_find_queueid');
 	empty($queueid) AND message(-1, lang('thread_queue_not_exists'));
 	
+	$_uid = param('uid');
+	if(!is_numeric($_uid)) {
+		$_user = user_read_by_username($_uid);
+		$_uid = !empty($_user['uid']) ? $_user['uid'] : 0;
+	}
 	$fid = param('fid', 0);
+	
 	$cond = array();
 	$cond['fid'] = $fid;
 	$cond['create_date_start'] = strtotime(param('create_date_start'));
 	$cond['create_date_end'] = strtotime(param('create_date_end'));
-	$cond['uid'] = param('uid', 0);
+	$cond['uid'] = $_uid;
 	$userip = param('userip');
-	$cond['userip'] = $userip ? ip2long($userip) : 0;
+	$cond['userip'] = $userip ? sprintf('%u', ip2long($userip)) : 0;
 	$cond['keyword'] = param('keyword');
 	$cond['page'] = param('page', 1);
 	
@@ -76,7 +71,6 @@ if(empty($action) || $action == 'list') {
 	if($page == 1) $queueid AND queue_destory($queueid);
 	
 	$tids = array();
-	// 查找到的数据存到 cache，并且返回
 	foreach($threadlist as $thread) {
 		
 		if($cond['fid'] && $thread['fid'] != $cond['fid']) continue; 
@@ -84,10 +78,6 @@ if(empty($action) || $action == 'list') {
 		if($cond['create_date_end'] && $thread['create_date'] > $cond['create_date_end']) continue; 
 		if($cond['uid'] && $thread['uid'] != $cond['uid']) continue; 
 		if($cond['userip'] && $thread['userip'] != $cond['userip']) continue; 
-		//if($cond['views_start'] && $thread['views'] > $cond['views_start']) continue; 
-		//if($cond['views_end'] && $thread['views'] > $cond['views_end']) continue; 
-		//if($cond['posts_start'] && $thread['posts'] > $cond['posts_start']) continue; 
-		//if($cond['posts_end'] && $thread['posts'] > $cond['posts_end']) continue; 
 		if($cond['keyword'] && stripos($thread['subject'], $cond['keyword']) === FALSE) continue; 
 		
 		// hook admin_thread_scan_for.php
@@ -99,7 +89,7 @@ if(empty($action) || $action == 'list') {
 	// hook admin_thread_scan_end.php
 	message(0, $tids);
 	
-// 操作
+// 队列操作（旧接口，保留兼容）
 } elseif($action == 'operation') {
 		
 	$queueid = _SESSION('thread_find_queueid');
@@ -111,10 +101,7 @@ if(empty($action) || $action == 'list') {
 	for($i = 0; $i <= $pagesize; $i++) {
 		$tid = queue_pop($queueid);
 		if(!$tid) {
-			//queue_destory($queueid);
-			//unset($_SESSION['thread_find_queueid']);
 			break;
-			//message(0, '删除全部完成');
 		}
 		if($op == 'delete') {
 			thread_delete($tid);
@@ -122,14 +109,84 @@ if(empty($action) || $action == 'list') {
 			thread_update($tid, array('closed'=>1));
 		} elseif($op == 'open') {
 			thread_update($tid, array('closed'=>0));
+		} elseif($op == 'announcement') {
+			thread_update($tid, array('announcement'=>1));
 		}
 		// hook admin_thread_operation_for.php
 		$tids[] = $tid;
 	}
 	// hook admin_thread_operation_end.php
+	// 记录操作日志
+	if(!empty($tids)) {
+		$op_labels = array('delete'=>'删除', 'close'=>'关闭', 'open'=>'开启', 'announcement'=>'设为公告');
+		admin_log_create('thread_' . $op, 'thread', $tids, ($op_labels[$op] ?? $op) . '主题 ' . count($tids) . ' 篇');
+	}
 	message(0, $tids);
 	
-// 操作
+// 批量操作（新接口，基于选中 tid）
+} elseif($action == 'batch') {
+
+	CsrfService::check();
+
+	$op = param('op');
+	$tids_str = param('tids');
+	$tids = $tids_str ? explode(',', $tids_str) : array();
+	
+	if(empty($tids)) {
+		message(-1, lang('admin_thread_no_selection'));
+	}
+	
+	// hook admin_thread_batch_start.php
+	
+	$success_count = 0;
+	foreach($tids as $tid) {
+		$tid = intval($tid);
+		if($tid <= 0) continue;
+		
+		if($op == 'delete') {
+			thread_delete($tid);
+			$success_count++;
+		} elseif($op == 'close') {
+			thread_update($tid, array('closed'=>1));
+			$success_count++;
+		} elseif($op == 'open') {
+			thread_update($tid, array('closed'=>0));
+			$success_count++;
+		} elseif($op == 'top') {
+			thread_update($tid, array('top'=>1));
+			$success_count++;
+		} elseif($op == 'digest') {
+			$thread = thread_read($tid);
+			$new_digest = !empty($thread['digest']) ? 0 : 1;
+			thread_digest_change($tid, $new_digest, $thread['uid'], $thread['fid']);
+			$success_count++;
+		} elseif($op == 'announcement') {
+			thread_update($tid, array('announcement'=>1));
+			$success_count++;
+		} elseif($op == 'move') {
+			$target_fid = param('target_fid', 0);
+			if($target_fid > 0) {
+				thread_update($tid, array('fid'=>$target_fid));
+				$success_count++;
+			}
+		}
+		// hook admin_thread_batch_for.php
+	}
+	
+	// hook admin_thread_batch_end.php
+	// 记录操作日志
+	if($success_count > 0) {
+		$op_labels = array('delete'=>'删除', 'close'=>'关闭', 'open'=>'开启', 'top'=>'置顶', 'digest'=>'加精', 'announcement'=>'设为公告', 'move'=>'移动');
+		$detail = ($op_labels[$op] ?? $op) . '主题 ' . $success_count . ' 篇';
+		if($op == 'move') {
+			$target_forum = forum_read($target_fid);
+			$detail .= ' → ' . ($target_forum ? $target_forum['name'] : 'fid:' . $target_fid);
+		}
+		admin_log_create($op == 'delete' ? 'thread_batch_delete' : 'thread_' . $op, 'thread', $tids, $detail);
+	}
+	message(0, lang('admin_thread_batch_success') . ' (' . $success_count . ')');
+
+// 搜索结果展示
 } elseif($action == 'found') {	
 
 	$queueid = _SESSION('thread_find_queueid');

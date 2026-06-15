@@ -1,0 +1,118 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<div class="x-card  cardrounded-3">
+    <div class="card-body">
+        <h5 class="card-title"><i class="ti ti-palette"></i> <?php echo lang('admin_theme_setting');?></h5>
+        <p class="text-body-secondary fs-6 mb-4"><?php echo lang('admin_theme_setting_desc');?></p>
+
+        <!-- 主题模式选择 -->
+        <h6 class="text-body-secondary text-uppercase fw-bold small mb-3"><?php echo lang('admin_theme_default');?></h6>
+        <div class="d-grid gap-4 mb-4" style="grid-template-columns:1fr 1fr;">
+            <?php foreach(array('light', 'dark') as $theme) {
+                $is_default = ($theme == $default_theme);
+            ?>
+            <div class="position-relative border overflow-hidden rounded-3 cursor-pointer <?php echo $is_default ? 'border-primary' : 'border-secondary';?>" data-theme-name="<?php echo $theme;?>" onclick="setDefault('<?php echo $theme;?>')" style="cursor:pointer">
+                <div data-bs-theme="<?php echo $theme;?>" class="bg-body text-body w-100">
+                    <div class="d-grid" style="grid-template-columns:1fr 4fr;grid-template-rows:repeat(3,1fr);">
+                        <div class="bg-body-secondary" style="grid-column:1;grid-row:1/3;"></div>
+                        <div class="bg-body-tertiary" style="grid-column:1;grid-row:3;"></div>
+                        <div class="bg-body d-flex flex-column gap-1 p-2" style="grid-column:2;grid-row:1/4;">
+                            <div class="fw-bold small"><?php echo $theme === 'light' ? lang('admin_theme_light_label') : lang('admin_theme_dark_label');?></div>
+                            <div class="d-flex flex-wrap gap-1">
+                                <div class="bg-primary d-flex align-items-center justify-content-center rounded" style="width:1rem;height:1rem;"><div class="text-white fw-bold" style="font-size:0.75rem">A</div></div>
+                                <div class="bg-secondary d-flex align-items-center justify-content-center rounded" style="width:1rem;height:1rem;"><div class="text-white fw-bold" style="font-size:0.75rem">A</div></div>
+                                <div class="bg-success d-flex align-items-center justify-content-center rounded" style="width:1rem;height:1rem;"><div class="text-white fw-bold" style="font-size:0.75rem">A</div></div>
+                                <div class="bg-dark d-flex align-items-center justify-content-center rounded" style="width:1rem;height:1rem;"><div class="text-white fw-bold" style="font-size:0.75rem">A</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <?php if($is_default) { ?>
+                <div class="position-absolute top-0 end-0 z-1 m-2"><span class="badge bg-primary rounded-pill"><i class="ti ti-star-filled" style="font-size:0.75rem"></i> <?php echo lang('admin_theme_default');?></span></div>
+                <?php } ?>
+            </div>
+            <?php } ?>
+        </div>
+
+        <!-- 主题色选择 -->
+        <h6 class="text-body-secondary text-uppercase fw-bold small mb-3"><?php echo lang('admin_theme_brand_color');?></h6>
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <?php
+            $color_presets = array(
+                'blue'   => array('hex' => '#2563eb', 'label' => lang('admin_theme_color_blue')),
+                'green'  => array('hex' => '#16a34a', 'label' => lang('admin_theme_color_green')),
+                'purple' => array('hex' => '#9333ea', 'label' => lang('admin_theme_color_purple')),
+                'red'    => array('hex' => '#dc2626', 'label' => lang('admin_theme_color_red')),
+                'orange' => array('hex' => '#ea580c', 'label' => lang('admin_theme_color_orange')),
+            );
+            foreach ($color_presets as $name => $item) {
+            ?>
+            <div class="text-center">
+                <div class="color-preset-item mx-auto mb-1 <?php echo ($name === $current_brand) ? 'active' : '';?>" data-color="<?php echo $name;?>" onclick="selectBrand('<?php echo $name;?>')">
+                    <div class="color-preset-swatch" style="background:<?php echo $item['hex'];?>"></div>
+                </div>
+                <div class="small text-body-secondary"><?php echo $item['label'];?></div>
+            </div>
+            <?php } ?>
+        </div>
+    </div>
+</div>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<style>
+.color-preset-item {
+    display: inline-flex;
+    cursor: pointer;
+    padding: 0.1875rem;
+    border-radius: 50%;
+    border: 2.5px solid transparent;
+    transition: border-color 0.2s ease, transform 0.15s ease;
+}
+.color-preset-item:hover {
+    transform: scale(1.1);
+}
+.color-preset-item.active {
+    border-color: var(--bs-body-color);
+}
+.color-preset-swatch {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+}
+</style>
+
+<script>
+var csrf_token = '<?php echo $header["csrf_token"];?>';
+var _currentBrand = '<?php echo $current_brand;?>';
+
+function setDefault(theme) {
+    $.xpost('<?php echo url("theme-default");?>', {theme: theme, csrf_token: csrf_token}, function(code, message) {
+        if(code == 0) {
+            var label = theme === 'light' ? '<?php echo lang('admin_theme_light_label');?>' : '<?php echo lang('admin_theme_dark_label');?>';
+            showToast('<?php echo lang('admin_theme_current');?>' + label + '<?php echo lang('admin_theme_default');?>', 'success');
+            setTimeout(function() { location.reload(); }, 1000);
+        } else {
+            showToast(message, 'error');
+        }
+    });
+}
+
+function selectBrand(name) {
+    localStorage.setItem('theme-color', name);
+    document.documentElement.setAttribute('data-theme', name);
+    // 清除旧的 inline style 自定义色（如果用户之前设置过）
+    ['primary','success','warning','danger','info'].forEach(function(n) {
+        localStorage.removeItem('theme-color-' + n);
+    });
+    localStorage.removeItem('theme-color-body-bg-light');
+    localStorage.removeItem('theme-color-body-bg-dark');
+
+    document.querySelectorAll('.color-preset-item').forEach(function(el) {
+        el.classList.toggle('active', el.getAttribute('data-color') === name);
+    });
+    _currentBrand = name;
+    showToast('<?php echo lang('admin_theme_brand_color');?>' + ' ' + name, 'success');
+}
+</script>

@@ -1,0 +1,160 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_setting_upload_start.htm}-->
+
+<div class=" ">
+	<?php echo admin_tab_active($menu['setting']['tab'], 'upload');?>
+</div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo url('setting-upload');?>" method="post" id="form">
+			<?php echo CsrfService::input(); ?>
+
+			<!-- 文件大小限制 -->
+			<h6 class="fw-semibold mb-3"><i class="ti ti-dimensions me-2"></i><?php echo lang('admin_upload_size_section');?></h6>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('admin_upload_max_image_size');?></label>
+				<div class="input-group" style="max-width:300px;">
+					<input type="number" name="upload_max_image_size" id="upload_max_image_size" class="form-control rounded-pill" value="<?php echo $upload_max_image_size_mb;?>" min="1" max="100">
+					<span class="input-group-text rounded-pill">MB</span>
+				</div>
+				<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('admin_upload_max_image_size_tip');?></p>
+			</div>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('admin_upload_max_file_size');?></label>
+				<div class="input-group" style="max-width:300px;">
+					<input type="number" name="upload_max_file_size" id="upload_max_file_size" class="form-control rounded-pill" value="<?php echo $upload_max_file_size_mb;?>" min="1" max="200">
+					<span class="input-group-text rounded-pill">MB</span>
+				</div>
+				<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('admin_upload_max_file_size_tip');?></p>
+			</div>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('admin_upload_max_video_size');?></label>
+				<div class="input-group" style="max-width:300px;">
+					<input type="number" name="upload_max_video_size" id="upload_max_video_size" class="form-control rounded-pill" value="<?php echo $upload_max_video_size_mb;?>" min="1" max="500">
+					<span class="input-group-text rounded-pill">MB</span>
+				</div>
+				<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('admin_upload_max_video_size_tip');?></p>
+			</div>
+
+			<hr class="my-4">
+
+			<!-- 缩略图设置 -->
+			<h6 class="fw-semibold mb-3"><i class="ti ti-photo me-2"></i><?php echo lang('admin_upload_thumb_section');?></h6>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('admin_upload_thumb_enabled');?></label>
+				<br>
+				<?php echo form_radio_yes_no('upload_thumb_enabled', $upload_thumb_enabled);?>
+			</div>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('admin_upload_thumb_width');?></label>
+				<div class="input-group" style="max-width:300px;">
+					<input type="number" name="upload_thumb_width" id="upload_thumb_width" class="form-control rounded-pill" value="<?php echo $upload_thumb_width;?>" min="50" max="1000">
+					<span class="input-group-text rounded-pill">px</span>
+				</div>
+				<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('admin_upload_thumb_width_tip');?></p>
+			</div>
+
+			<hr class="my-4">
+
+			<!-- 允许的文件类型 -->
+			<h6 class="fw-semibold mb-3"><i class="ti ti-file-spark me-2"></i><?php echo lang('admin_upload_type_section');?></h6>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('admin_upload_allowed_image_types');?></label>
+				<div class="d-flex flex-wrap gap-3">
+					<?php foreach($image_type_options as $type) {
+						$_checked = in_array($type, $allowed_image_types) ? ' checked' : '';
+					?>
+					<div class="form-check">
+						<input class="form-check-input" type="checkbox" name="upload_allowed_image_types[]" value="<?php echo $type;?>" id="img_type_<?php echo $type;?>"<?php echo $_checked;?>>
+						<label class="form-check-label" for="img_type_<?php echo $type;?>">.<?php echo $type;?></label>
+					</div>
+					<?php } ?>
+				</div>
+			</div>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('admin_upload_allowed_video_types');?></label>
+				<div class="d-flex flex-wrap gap-3">
+					<?php foreach($video_type_options as $type) {
+						$_checked = in_array($type, $allowed_video_types) ? ' checked' : '';
+					?>
+					<div class="form-check">
+						<input class="form-check-input" type="checkbox" name="upload_allowed_video_types[]" value="<?php echo $type;?>" id="vid_type_<?php echo $type;?>"<?php echo $_checked;?>>
+						<label class="form-check-label" for="vid_type_<?php echo $type;?>">.<?php echo $type;?></label>
+					</div>
+					<?php } ?>
+				</div>
+			</div>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('admin_upload_allowed_file_types');?></label>
+				<div class="d-flex flex-wrap gap-3">
+					<?php foreach($file_type_options as $type) {
+						$_checked = in_array($type, $allowed_file_types) ? ' checked' : '';
+					?>
+					<div class="form-check">
+						<input class="form-check-input" type="checkbox" name="upload_allowed_file_types[]" value="<?php echo $type;?>" id="file_type_<?php echo $type;?>"<?php echo $_checked;?>>
+						<label class="form-check-label" for="file_type_<?php echo $type;?>">.<?php echo $type;?></label>
+					</div>
+					<?php } ?>
+				</div>
+			</div>
+
+			<hr class="my-4">
+
+			<!-- 存储设置 -->
+			<h6 class="fw-semibold mb-3"><i class="ti ti-cloud-upload me-2"></i><?php echo lang('admin_upload_storage_section');?></h6>
+
+			<div class="mb-4">
+				<label class="form-label fw-medium"><?php echo lang('admin_upload_driver');?></label>
+				<select name="upload_driver" id="upload_driver" class="form-select rounded-pill" style="max-width:300px;">
+					<option value="local" <?php echo $upload_driver == 'local' ? 'selected' : '';?>><?php echo lang('admin_upload_driver_local');?></option>
+					<option value="oss" <?php echo $upload_driver == 'oss' ? 'selected' : '';?>><?php echo lang('admin_upload_driver_oss');?></option>
+				</select>
+				<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('admin_upload_driver_tip');?></p>
+			</div>
+
+			<div class="mb-4">
+				<button type="submit" class="btn btn-primary rounded-pill w-100" id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('confirm');?></button>
+			</div>
+
+		</form>
+	</div>
+</div>
+
+<!--{hook admin_setting_upload_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+var jform = $('#form');
+var jsubmit = $('#submit');
+jform.on('submit', function() {
+	jform.reset();
+	jsubmit.button('loading');
+	var postdata = jform.serialize();
+	$.xpost(jform.attr('action'), postdata, function(code, message) {
+		if(code == 0) {
+			showToast(message, 'success');
+			jsubmit.text(message).delay(1000).button('reset');
+		} else if(xn.is_number(code)) {
+			showToast(message, 'error');
+			jsubmit.button('reset');
+		} else {
+			jform.find('[name="'+code+'"]').alert(message).focus();
+			jsubmit.button('reset');
+		}
+	});
+	return false;
+});
+</script>
+
+<!--{hook admin_setting_upload_js.htm}-->

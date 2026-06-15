@@ -1,0 +1,67 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<div class="">
+    <?php echo admin_tab_active($menu['setting']['tab'], 'email_log');?>
+</div>
+
+<div class="x-card card">
+    <div class="card-header">
+        <h3 class="card-title"><i class="ti ti-mail"></i> 邮件发送日志</h3>
+    </div>
+    <div class="card-body">
+        <!-- 筛选 -->
+        <div class="mb-3">
+            <div class="btn-group" role="group">
+                <a href="<?php echo url('setting-email_log');?>" class="btn btn-sm <?php echo $filter_status < 0 ? 'btn-primary' : 'btn-outline-primary';?>">全部</a>
+                <a href="<?php echo url('setting-email_log', array('status'=>1));?>" class="btn btn-sm <?php echo $filter_status == 1 ? 'btn-success' : 'btn-outline-success';?>">成功</a>
+                <a href="<?php echo url('setting-email_log', array('status'=>0));?>" class="btn btn-sm <?php echo $filter_status === 0 ? 'btn-danger' : 'btn-outline-danger';?>">失败</a>
+            </div>
+        </div>
+
+        <!-- 日志表格 -->
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>收件人</th>
+                        <th>主题</th>
+                        <th>SMTP服务器</th>
+                        <th>状态</th>
+                        <th>时间</th>
+                        <th>错误信息</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if(!empty($loglist)): ?>
+                    <?php foreach($loglist as $log): ?>
+                    <tr>
+                        <td><?php echo $log['logid'];?></td>
+                        <td><?php echo esc_html($log['to_email']);?></td>
+                        <td><?php echo esc_html(mb_substr($log['subject'], 0, 40));?></td>
+                        <td><?php echo esc_html($log['smtp_host']);?></td>
+                        <td>
+                            <?php if($log['status']): ?>
+                            <span class="badge bg-success"><i class="ti ti-check"></i> 成功</span>
+                            <?php else: ?>
+                            <span class="badge bg-danger"><i class="ti ti-x"></i> 失败</span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="small"><?php echo $log['create_date_fmt'];?></td>
+                        <td class="small text-body-secondary"><?php echo esc_html(mb_substr($log['error_msg'], 0, 60));?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                    <?php else: ?>
+                    <tr><td colspan="7" class="text-center text-body-secondary py-4">暂无日志记录</td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <?php if(!empty($pagination)): ?>
+        <nav><ul class="pagination pagination-boxed justify-content-center"><?php echo $pagination;?></ul></nav>
+        <?php endif; ?>
+    </div>
+</div>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>

@@ -25,7 +25,7 @@ if(empty($action) || $action == 'list') {
 	
 	if($keyword) {
 		!in_array($srchtype, $allowtype) AND $srchtype = 'uid';
-		$cond[$srchtype] = $srchtype == 'create_ip' ? ip2long($keyword) : $keyword; 
+		$cond[$srchtype] = $srchtype == 'create_ip' ? sprintf('%u', ip2long($keyword)) : $keyword; 
 	}
 
 	// hook admin_user_list_cond_after.php
@@ -65,6 +65,8 @@ if(empty($action) || $action == 'list') {
 
 	} elseif ($method == 'POST') {
 
+		CsrfService::check();
+
 		$email = param('email');
 		$username = param('username');
 		$password = param('password');
@@ -89,13 +91,15 @@ if(empty($action) || $action == 'list') {
 			'salt'=>$salt,
 			'gid'=>$_gid,
 			'email'=>$email,
-			'create_ip'=>ip2long(ip()),
+			'create_ip'=>$longip,
 			'create_date'=>$time
 		));
 		$r === FALSE AND message(-1, lang('create_failed'));
-		
+
+		admin_log_create('user_create', 'user', strval($r), '创建用户：' . $username);
+
 		// hook admin_user_create_post_end.php
-		
+
 		message(0, lang('create_successfully'));
 
 	}
@@ -127,6 +131,8 @@ if(empty($action) || $action == 'list') {
 
 	} elseif($method == 'POST') {
 
+		CsrfService::check();
+
 		$email = param('email');
 		$username = param('username');
 		$password = param('password');
@@ -147,34 +153,44 @@ if(empty($action) || $action == 'list') {
 			$_user AND $_user['uid'] != $_uid AND message('username', lang('user_already_exists'));
 		}
 		
+		// 安全修改密码（使用专用函数，绕过 user_update 白名单）
+		if($password) {
+			password_md5($password);
+			$r = user_change_password($_uid, $password, '', TRUE);
+			$r === FALSE AND message(-1, lang('update_failed'));
+		}
+		
+		// 安全修改用户组（使用专用函数，绕过 user_update 白名单）
+		if($_gid != $old['gid']) {
+			$r = user_change_group($_uid, $_gid);
+			$r === FALSE AND message(-1, lang('update_failed'));
+		}
+		
 		$arr = array();
 		$arr['email'] = $email;
 		$arr['username'] = $username;
-		$arr['gid'] = $_gid;
-		
-		if($password) {
-			$salt = xn_rand(16);
-			$arr['password'] = md5(md5($password).$salt);
-			$arr['salt'] = $salt;
-		}
 		
 		// hook admin_user_update_post_exec_before.php
 		
 		// 仅仅更新发生变化的部分 / only update changed field
 		$update = array_diff_value($arr, $old);
-		empty($update) AND message(-1, lang('data_not_changed'));
+		if(!empty($update)) {
+			$r = user_update($_uid, $update);
+			$r === FALSE AND message(-1, lang('update_failed'));
+		}
 
-		$r = user_update($_uid, $update);
-		$r === FALSE AND message(-1, lang('update_failed'));
-		
+		admin_log_create('user_update', 'user', strval($_uid), '更新用户信息：' . $old['username']);
+
 		// hook admin_user_update_post_end.php
-		
+
 		message(0, lang('update_successfully'));
 	}
 
 } elseif($action == 'delete') {
 
 	if($method != 'POST') message(-1, 'Method Error.');
+
+	CsrfService::check();
 
 	$_uid = param('uid', 0);
 	
@@ -186,13 +202,15 @@ if(empty($action) || $action == 'list') {
 
 	$r = user_delete($_uid);
 	$r === FALSE AND message(-1, lang('delete_failed'));
-	
+
+	admin_log_create('user_delete', 'user', strval($_uid), '删除用户：' . $_user['username']);
+
 	// hook admin_user_delete_end.php
-	
+
 	message(0, lang('delete_successfully'));
 	
 }
 
-// hook admin_user_start.php
+// hook admin_user_end.php
 
 ?>

@@ -1,0 +1,116 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_setting_credits_start.htm}-->
+
+<div class=" ">
+	<?php echo admin_tab_active($menu['setting']['tab'], 'credits');?>
+</div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo url('setting-credits');?>" method="post" id="form">
+			<?php echo CsrfService::input(); ?>
+
+			<!-- 防刷设置 -->
+			<h6 class="fw-semibold mb-3"><i class="ti ti-shield me-2"></i><?php echo lang('admin_credits_daily_limit');?></h6>
+
+			<div class="mb-4">
+ 				<div class="input-group" style="max-width:300px;">
+					<input type="number" name="credits_daily_limit" id="credits_daily_limit" class="form-control rounded-pill" value="<?php echo $credits_daily_limit;?>" min="0" max="9999">
+					<span class="input-group-text rounded-pill"><?php echo lang('unit_times')?></span>
+				</div>
+				<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('admin_credits_daily_limit_tip');?></p>
+			</div>
+
+		
+
+			<!-- 日志设置 -->
+			<h6 class="fw-semibold mb-3"><i class="ti ti-clock me-2"></i><?php echo lang('admin_credits_log_retention_days');?></h6>
+
+			<div class="mb-4">
+				 
+				<div class="input-group" style="max-width:300px;">
+					<input type="number" name="credits_log_retention_days" id="credits_log_retention_days" class="form-control rounded-pill" value="<?php echo $credits_log_retention_days;?>" min="1" max="3650">
+					<span class="input-group-text rounded-pill"><?php echo lang('day')?></span>
+				</div>
+				<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('admin_credits_log_retention_days_tip');?></p>
+			</div>
+
+		
+
+			<!-- 积分类型 -->
+			<h6 class="fw-semibold mb-3"><i class="ti ti-coins me-2"></i><?php echo lang('admin_credits_types');?></h6>
+
+			<div class="mb-4">
+				 
+				<div class="d-flex flex-wrap gap-3">
+					<?php foreach($all_credits_types as $ct) {
+						$_checked = in_array($ct, $credits_types) ? ' checked' : '';
+						$_label = lang('admin_credits_type_'.$ct);
+					?>
+					<div class="form-check">
+						<input class="form-check-input" type="checkbox" name="credits_types[]" value="<?php echo $ct;?>" id="credits_type_<?php echo $ct;?>"<?php echo $_checked;?>>
+						<label class="form-check-label" for="credits_type_<?php echo $ct;?>"><?php echo $_label;?></label>
+					</div>
+					<?php } ?>
+				</div>
+				<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('admin_credits_types_tip');?></p>
+			</div>
+
+			<!-- 积分类型名称 -->
+			<h6 class="fw-semibold mb-3"><i class="ti ti-edit me-2"></i><?php echo lang('admin_credits_type_names');?></h6>
+			<p class="fs-6 text-body-secondary mb-3"><?php echo lang('admin_credits_type_names_tip');?></p>
+
+			<div class="row mb-3">
+				<div class="col-md-4 mb-2">
+					<label class="form-label fw-medium"><?php echo lang('admin_credits_name_label');?></label>
+					<input type="text" name="credits_name" value="<?php echo $credits_name;?>" class="form-control rounded-pill" maxlength="10" placeholder="<?php echo lang('admin_credits_name_placeholder');?>">
+				</div>
+				<div class="col-md-4 mb-2">
+					<label class="form-label fw-medium"><?php echo lang('admin_golds_name_label');?></label>
+					<input type="text" name="golds_name" value="<?php echo $golds_name;?>" class="form-control rounded-pill" maxlength="10" placeholder="<?php echo lang('admin_golds_name_placeholder');?>">
+				</div>
+				<div class="col-md-4 mb-2">
+					<label class="form-label fw-medium"><?php echo lang('admin_rmbs_name_label');?></label>
+					<input type="text" name="rmbs_name" value="<?php echo $rmbs_name;?>" class="form-control rounded-pill" maxlength="10" placeholder="<?php echo lang('admin_rmbs_name_placeholder');?>">
+				</div>
+			</div>
+
+		 
+
+			<div class="mb-4">
+				<button type="submit" class="btn btn-primary rounded-pill w-100" id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('confirm');?></button>
+			</div>
+
+		</form>
+	</div>
+</div>
+
+<!--{hook admin_setting_credits_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+var jform = $('#form');
+var jsubmit = $('#submit');
+jform.on('submit', function() {
+	jform.reset();
+	jsubmit.button('loading');
+	var postdata = jform.serialize();
+	$.xpost(jform.attr('action'), postdata, function(code, message) {
+		if(code == 0) {
+			showToast(message, 'success');
+			jsubmit.text(message).delay(1000).button('reset');
+		} else if(xn.is_number(code)) {
+			showToast(message, 'error');
+			jsubmit.button('reset');
+		} else {
+			jform.find('[name="'+code+'"]').alert(message).focus();
+			jsubmit.button('reset');
+		}
+	});
+	return false;
+});
+</script>
+
+<!--{hook admin_setting_credits_js.htm}-->

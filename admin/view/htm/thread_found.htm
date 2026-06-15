@@ -2,29 +2,35 @@
 
 <!--{hook admin_thread_found_start.htm}-->
 
-<div class="row">
-	<div class="col-12">
-		<div class="card">
-			<div class="card-body">
-				<ul class="list-unstyled threadlist mb-0">
-					<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm');?>
-				</ul>
-			</div>
-		</div>
-		
-		<nav><ul class="pagination justify-content-center"><?php echo $pagination; ?></ul></nav>
-		
+<div class="x-card  cardrounded-3">
+	<div class="card-body p-0">
+		<table class="table table-hover mb-0 align-middle">
+			<thead class="table-light">
+				<tr>
+					<th style="width:40px;"></th>
+					<th style="width:60px;"><?php echo lang('admin_thread_col_tid');?></th>
+					<th><?php echo lang('admin_thread_col_subject');?></th>
+					<th style="width:100px;"><?php echo lang('admin_thread_col_author');?></th>
+					<th style="width:100px;"><?php echo lang('admin_thread_col_forum');?></th>
+					<th style="width:140px;"><?php echo lang('admin_thread_col_date');?></th>
+					<th style="width:60px;" class="text-center"><?php echo lang('admin_thread_col_posts');?></th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php $mod_input_checked = 0;?>
+				<?php $force_show_checkbox = TRUE;?>
+				<?php include _include(ADMIN_PATH.'view/htm/thread_list.inc.htm');?>
+			</tbody>
+		</table>
 	</div>
+</div>
+
+<div class="d-flex justify-content-center mt-4" data-total="<?php echo $total;?>">
+	<nav><ul class="pagination pagination-boxed justify-content-center"><?php echo $pagination; ?></ul></nav>
 </div>
 
 <!--{hook admin_thread_found_end.htm}-->
 
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
-<script>
-$('.threadlist').base_href('../');
-</script>
-
-
 <!--{hook admin_thread_found_js.htm}-->
-

@@ -1,0 +1,240 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_plugin_scanner_start.htm}-->
+
+<div class="x-card card">
+	<div class="card-body">
+		<div class="d-flex justify-content-between align-items-center mb-4">
+			<h5 class="fw-bold d-flex align-items-center gap-2"><i class="ti ti-shield-check"></i> <?php echo lang('plugin_scanner_title');?></h5>
+			<div class="d-flex gap-1">
+				<a href="javascript:void(0)" class="admin-quick-link" onclick="exportCSV()"><i class="ti ti-download"></i> <?php echo lang('plugin_scanner_export_csv');?></a>
+				<a href="<?php echo url('plugin-scanner');?>" class="admin-quick-link"><i class="ti ti-refresh"></i> <?php echo lang('plugin_scanner_refresh');?></a>
+			</div>
+		</div>
+		<p class="text-secondary fs-6 mb-3">
+			<?php echo lang('plugin_scanner_desc');?>
+			<?php echo lang('plugin_scanner_scanned');?> <b class="text-success"><?php echo count($pluginList);?></b> <?php echo lang('plugin_scanner_plugins');?> <?php echo lang('plugin_scanner_with_issues');?> <b class="text-primary"><?php echo array_sum(array_column($rulesSummary, 'count'));?></b> <?php echo lang('plugin_scanner_rules');?>
+		</p>
+
+		<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+			<select class="form-select form-select-sm" id="pluginFilter" style="max-width:260px">
+				<option value=""><?php echo lang('plugin_scanner_all_plugins');?></option>
+				<?php foreach($pluginList as $p): ?>
+				<option value="<?php echo $p['dir'];?>"><?php echo $p['name'];?> (<?php echo $p['dir'];?>)</option>
+				<?php endforeach; ?>
+			</select>
+			<select class="form-select form-select-sm" id="severityFilter" style="max-width:120px">
+				<option value="all"><?php echo lang('plugin_scanner_all_level');?></option>
+				<option value="fatal"><?php echo lang('plugin_scanner_fatal');?></option>
+				<option value="warning"><?php echo lang('plugin_scanner_warning');?></option>
+				<option value="medium"><?php echo lang('plugin_scanner_medium');?></option>
+				<option value="info"><?php echo lang('plugin_scanner_info');?></option>
+			</select>
+			<button type="button" class="btn btn-sm btn-primary" onclick="startScan()">
+				<i class="ti ti-search"></i> <?php echo lang('plugin_scanner_start');?>
+			</button>
+			<span class="spinner-border spinner-border-sm text-primary d-none" id="scanSpinner"></span>
+			<span class="fs-6 text-secondary" id="scanStatus"></span>
+		</div>
+
+		<div class="accordion mb-3" id="rulesAccordion">
+			<div class="accordion-item">
+				<h2 class="accordion-header">
+					<button class="accordion-button collapsed py-2 fs-6" type="button" data-bs-toggle="collapse" data-bs-target="#rulesDetail">
+						<?php echo lang('plugin_scanner_rule_detail');?> (<?php echo count($rulesSummary);?> <?php echo lang('plugin_scanner_categories');?>)
+					</button>
+				</h2>
+				<div id="rulesDetail" class="accordion-collapse collapse" data-bs-parent="#rulesAccordion">
+					<div class="accordion-body">
+						<table class="table table-sm table-hover">
+							<thead>
+								<tr><th><?php echo lang('plugin_scanner_category');?></th><th><?php echo lang('plugin_scanner_desc_col');?></th><th><?php echo lang('plugin_scanner_severity');?></th><th><?php echo lang('plugin_scanner_rule_count');?></th></tr>
+							</thead>
+							<tbody>
+								<?php foreach($rulesSummary as $cat => $info): ?>
+								<tr>
+									<td><code  style="font-size:0.75rem"><?php echo $cat;?></code></td>
+									<td class="fs-6"><?php echo $info['name'];?></td>
+									<td><span class="badge <?php echo $info['severity'] === 'fatal' ? 'bg-danger' : ($info['severity'] === 'warning' ? 'bg-warning text-dark' : ($info['severity'] === 'medium' ? 'bg-primary' : 'bg-secondary'));?> "><?php echo $info['severity'];?></span></td>
+									<td><?php echo $info['count'];?></td>
+								</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div id="scanError" class="d-none">
+			<div class="alert alert-danger py-2 fs-6 mb-3">
+				<i class="ti ti-alert-triangle"></i>
+				<span id="scanErrorMsg"></span>
+			</div>
+		</div>
+
+		<div id="scanResults" class="d-none">
+			<div class="mb-3" id="scanSummary"></div>
+			<div class="overflow-x-auto">
+				<table class="table table-sm table-hover">
+					<thead>
+						<tr>
+							<th><?php echo lang('plugin_scanner_plugin_col');?></th>
+							<th><?php echo lang('plugin_scanner_version_col');?></th>
+							<th><?php echo lang('plugin_scanner_file_col');?></th>
+							<th><?php echo lang('plugin_scanner_line_col');?></th>
+							<th><?php echo lang('plugin_scanner_severity');?></th>
+							<th><?php echo lang('plugin_scanner_match');?></th>
+							<th><?php echo lang('plugin_scanner_suggestion');?></th>
+						</tr>
+					</thead>
+					<tbody id="resultBody">
+					</tbody>
+				</table>
+			</div>
+		</div>
+
+		<div id="noResults" class="text-center py-5 text-body-secondary">
+			<i class="ti ti-shield-check fs-1 d-block mb-2"></i>
+			<?php echo lang('plugin_scanner_click_start');?>
+		</div>
+	</div>
+</div>
+
+<!--{hook admin_plugin_scanner_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+var scanData = [];
+
+function startScan() {
+	var spinner = document.getElementById('scanSpinner');
+	var statusEl = document.getElementById('scanStatus');
+	var noRes = document.getElementById('noResults');
+	var resultsDiv = document.getElementById('scanResults');
+	var errorDiv = document.getElementById('scanError');
+	var pluginDir = document.getElementById('pluginFilter').value;
+
+	noRes.classList.add('d-none');
+	resultsDiv.classList.add('d-none');
+	errorDiv.classList.add('d-none');
+	spinner.classList.remove('d-none');
+	statusEl.textContent = '<?php echo lang('plugin_scanner_scanning');?>';
+
+	var url = '<?php echo url("plugin-scanner-do");?>';
+	if (pluginDir) {
+		url += '?dir=' + encodeURIComponent(pluginDir);
+	}
+
+	fetch(url)
+		.then(function(res) { return res.json(); })
+		.then(function(data) {
+			spinner.classList.add('d-none');
+			if (!data || (data.error)) {
+				statusEl.textContent = '<?php echo lang('plugin_scanner_error');?>';
+				document.getElementById('scanErrorMsg').textContent = data ? data.error : '<?php echo lang('plugin_scanner_server_empty');?>';
+				errorDiv.classList.remove('d-none');
+				noRes.classList.remove('d-none');
+				return;
+			}
+			scanData = data;
+			renderResults(data);
+			resultsDiv.classList.remove('d-none');
+			statusEl.textContent = '<?php echo lang('plugin_scanner_scan_done');?>';
+		})
+		.catch(function(err) {
+			spinner.classList.add('d-none');
+			statusEl.textContent = '<?php echo lang('plugin_scanner_scan_failed');?>';
+			var msg = '<?php echo lang('plugin_scanner_request_failed');?>';
+			msg += '<?php echo lang('plugin_scanner_server_abnormal');?>';
+			document.getElementById('scanErrorMsg').textContent = msg;
+			errorDiv.classList.remove('d-none');
+			noRes.classList.remove('d-none');
+		});
+}
+
+function renderResults(data) {
+	var totalIssues = 0;
+	var totalFatal = 0;
+	var totalWarning = 0;
+	var pluginsWithIssues = 0;
+	data.forEach(function(p) {
+		totalIssues += p.total;
+		totalFatal += p.fatal;
+		totalWarning += p.warning;
+		if (p.total > 0) pluginsWithIssues++;
+	});
+
+	var isSinglePlugin = data.length === 1;
+	var alertClass = totalFatal > 0 ? 'alert-danger' : (totalWarning > 0 ? 'alert-warning' : 'alert-success');
+	var icon = totalFatal > 0 ? 'alert-triangle' : (totalWarning > 0 ? 'exclamation-circle' : 'circle-check');
+	var summaryHtml = '<div class="alert ' + alertClass + ' py-2 fs-6">';
+	summaryHtml += '<i class="ti ti-' + icon + '"></i> ';
+	if (isSinglePlugin && data[0]) {
+		summaryHtml += '<b>' + data[0].name + '</b> (' + data[0].dir + ') ';
+		summaryHtml += '<?php echo lang('plugin_scanner_found');?> <b>' + totalIssues + '</b><?php echo lang('plugin_scanner_issues_unit');?>';
+	} else {
+		summaryHtml += '<?php echo lang('plugin_scanner_scanned');?> ' + data.length + '<?php echo lang('plugin_scanner_plugins_count');?>' + pluginsWithIssues + '<?php echo lang('plugin_scanner_issues_count');?> <b>' + totalIssues + '</b><?php echo lang('plugin_scanner_issues_unit');?>';
+	}
+	if(totalFatal > 0) summaryHtml += '（<span class="fw-bold text-danger">' + totalFatal + '<?php echo lang('plugin_scanner_fatal_count');?></span>';
+	if(totalWarning > 0) summaryHtml += ' <span class="fw-bold text-warning">' + totalWarning + '<?php echo lang('plugin_scanner_warning_count');?></span>';
+	if(totalFatal > 0 || totalWarning > 0) summaryHtml += '）';
+	summaryHtml += '</div>';
+	document.getElementById('scanSummary').innerHTML = summaryHtml;
+
+	var bodyHtml = '';
+	data.forEach(function(plugin) {
+		if(plugin.total === 0) return;
+		var issues = plugin.issues;
+		issues.forEach(function(issue) {
+			var sevClass = issue.severity === 'fatal' ? 'bg-danger' : (issue.severity === 'warning' ? 'bg-warning text-dark' : (issue.severity === 'medium' ? 'bg-primary' : 'bg-secondary'));
+			var sevText = issue.severity === 'fatal' ? '<?php echo lang('plugin_scanner_fatal');?>' : (issue.severity === 'warning' ? '<?php echo lang('plugin_scanner_warning');?>' : (issue.severity === 'medium' ? '<?php echo lang('plugin_scanner_medium');?>' : '<?php echo lang('plugin_scanner_info');?>'));
+
+			bodyHtml += '<tr data-severity="' + issue.severity + '">';
+			bodyHtml += '<td><span class="fw-semibold">' + plugin.dir + '</span><br><small class="text-secondary">' + plugin.name + '</small></td>';
+			bodyHtml += '<td class="fs-6">' + plugin.version + '</td>';
+			bodyHtml += '<td class="fs-6"><code>' + issue.file + '</code></td>';
+			bodyHtml += '<td class="fs-6 text-center">' + (issue.line || '-') + '</td>';
+			bodyHtml += '<td><span class="badge ' + sevClass + ' ">' + sevText + '</span></td>';
+			bodyHtml += '<td class="fs-6"><code class="break-all" style="font-size:0.75rem">' + escapeHtml(issue.context || issue.match) + '</code></td>';
+			bodyHtml += '<td class="fs-6"><span class="text-body">' + escapeHtml(issue.suggestion) + '</span></td>';
+			bodyHtml += '</tr>';
+		});
+	});
+
+	if(bodyHtml === '') {
+		bodyHtml = '<tr><td colspan="7" class="text-center text-success py-4"><i class="ti ti-circle-check fs-5"></i> <?php echo lang('plugin_scanner_all_pass');?></td></tr>';
+	}
+
+	document.getElementById('resultBody').innerHTML = bodyHtml;
+	filterResults();
+}
+
+function filterResults() {
+	var filter = document.getElementById('severityFilter').value;
+	var rows = document.querySelectorAll('#resultBody tr');
+	rows.forEach(function(row) {
+		if(filter === 'all') {
+			row.style.display = '';
+		} else {
+			var sev = row.getAttribute('data-severity');
+			row.style.display = (sev === filter) ? '' : 'none';
+		}
+	});
+}
+
+function exportCSV() {
+	var pluginDir = document.getElementById('pluginFilter').value;
+	var url = '<?php echo url("plugin-scanner-export");?>';
+	if (pluginDir) {
+		url += '?dir=' + encodeURIComponent(pluginDir);
+	}
+	window.location.href = url;
+}
+
+function escapeHtml(str) {
+	if (!str) return '';
+	return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+</script>

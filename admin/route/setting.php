@@ -5,6 +5,7 @@
 $action = param(1);
 
 include _include(APP_PATH.'model/smtp.func.php');
+include _include(APP_PATH.'model/email_log.func.php');
 $smtplist = smtp_init(APP_PATH.'conf/smtp.conf.php');
 // hook admin_setting_start.php
 
@@ -23,7 +24,8 @@ if($action == 'base') {
 		$input['user_create_on'] = form_radio_yes_no('user_create_on', $conf['user_create_on']);
 		$input['user_create_email_on'] = form_radio_yes_no('user_create_email_on', $conf['user_create_email_on']);
 		$input['user_resetpw_on'] = form_radio_yes_no('user_resetpw_on', $conf['user_resetpw_on']);
-		$input['lang'] = form_select('lang', array('zh-cn'=>lang('lang_zh_cn'), 'zh-tw'=>lang('lang_zh_tw'), 'en-us'=>lang('lang_en_us'), 'ru-ru'=>lang('lang_ru_ru'), 'th-th'=>lang('lang_th_th')), $conf['lang']);
+		$input['cache_disable'] = form_radio_yes_no('cache_disable', isset($conf['cache_disable']) ? $conf['cache_disable'] : 0);
+		$input['lang'] = form_select('lang', array('zh-cn'=>lang('lang_zh_cn'), 'zh-tw'=>lang('lang_zh_tw'), 'en-us'=>lang('lang_en_us'), 'ru-ru'=>lang('lang_ru_ru'), 'th-th'=>lang('lang_th_th'), 'ja-jp'=>lang('lang_ja_jp'), 'ko-kr'=>lang('lang_ko_kr')), $conf['lang']);
 		
 		$header['title'] = lang('admin_site_setting');
 		$header['mobile_title'] =lang('admin_site_setting');
@@ -34,12 +36,15 @@ if($action == 'base') {
 		
 	} else {
 		
+		CsrfService::check();
+		
 		$sitebrief = param('sitebrief', '', FALSE);
 		$sitename = param('sitename', '', FALSE);
 		$runlevel = param('runlevel', 0);
 		$user_create_on = param('user_create_on', 0);
 		$user_create_email_on = param('user_create_email_on', 0);
 		$user_resetpw_on = param('user_resetpw_on', 0);
+		$cache_disable = param('cache_disable', 0);
 		
 		$_lang = param('lang');
 		
@@ -52,12 +57,73 @@ if($action == 'base') {
 		$replace['user_create_on'] = $user_create_on;
 		$replace['user_create_email_on'] = $user_create_email_on;
 		$replace['user_resetpw_on'] = $user_resetpw_on;
+		$replace['cache_disable'] = $cache_disable;
 		$replace['lang'] = $_lang;
 		
 		file_replace_var(APP_PATH.'conf/conf.php', $replace);
-	
+
 		// hook admin_setting_base_post_end.php
-		
+
+		admin_log_create('setting_site', 'setting', '', '修改站点设置');
+		message(0, lang('modify_successfully'));
+	}
+
+} elseif($action == 'ai') {
+
+	// hook admin_setting_ai_get_post.php
+
+	if($method == 'GET') {
+
+		// hook admin_setting_ai_get_start.php
+
+		$ai_config = isset($conf['ai']) ? $conf['ai'] : [];
+		$ai_apikey = '';
+		$ai_endpoint = '';
+		$ai_model = '';
+		$ai_prompt_continue = isset($ai_config['promptContinue']) ? $ai_config['promptContinue'] : '';
+		$ai_prompt_improve = isset($ai_config['promptImprove']) ? $ai_config['promptImprove'] : '';
+		if(!empty($ai_config['models'])) {
+			$firstModel = reset($ai_config['models']);
+			$ai_apikey = isset($firstModel['apiKey']) ? $firstModel['apiKey'] : '';
+			$ai_endpoint = isset($firstModel['endpoint']) ? $firstModel['endpoint'] : '';
+			$ai_model = isset($firstModel['model']) ? $firstModel['model'] : '';
+		}
+
+		$header['title'] = 'AI 设置';
+		$header['mobile_title'] = 'AI 设置';
+
+		// hook admin_setting_ai_get_end.php
+
+		include _include(ADMIN_PATH.'view/htm/setting_ai.htm');
+
+	} else {
+
+		CsrfService::check();
+
+		$ai_provider = param('ai_provider');
+		$ai_apikey = param('ai_apikey');
+		$ai_endpoint = param('ai_endpoint');
+		$ai_model = param('ai_model');
+		$ai_prompt_continue = param('ai_prompt_continue', '', false);
+		$ai_prompt_improve = param('ai_prompt_improve', '', false);
+
+		$ai_config = [];
+		if(!empty($ai_provider) && !empty($ai_apikey)) {
+			$model_config = ['apiKey' => $ai_apikey];
+			if(!empty($ai_endpoint)) $model_config['endpoint'] = $ai_endpoint;
+			if(!empty($ai_model)) $model_config['model'] = $ai_model;
+			$ai_config['models'] = [$ai_provider => $model_config];
+			$ai_config['bubblePanelEnable'] = true;
+			$ai_config['bubblePanelModel'] = $ai_provider;
+		}
+		if(!empty($ai_prompt_continue)) $ai_config['promptContinue'] = $ai_prompt_continue;
+		if(!empty($ai_prompt_improve)) $ai_config['promptImprove'] = $ai_prompt_improve;
+		$ai_replace = array('ai' => $ai_config);
+		file_replace_var(APP_PATH.'conf/conf.php', $ai_replace);
+
+		// hook admin_setting_ai_post_end.php
+
+		admin_log_create('setting_ai', 'setting', '', '修改AI设置');
 		message(0, lang('modify_successfully'));
 	}
 
@@ -74,12 +140,43 @@ if($action == 'base') {
 	
 		$smtplist = smtp_find();
 		$maxid = smtp_maxid();
+
+		// 加载邮件模板数据
+		$email_templates = array();
+		$tpl_confile = APP_PATH . 'conf/email_templates.conf.php';
+		if(is_file($tpl_confile)) {
+			$email_templates = include $tpl_confile;
+		}
+		if(!is_array($email_templates)) $email_templates = array();
+		$default_tpl_keys = array('user_create_code', 'user_resetpw_code', 'email_change_code');
+		foreach($default_tpl_keys as $dk) {
+			if(!isset($email_templates[$dk])) {
+				$default_templates = include APP_PATH . 'conf/email_templates.conf.php';
+				if(isset($default_templates[$dk])) {
+					$email_templates[$dk] = $default_templates[$dk];
+				}
+			}
+		}
+
+		// 加载邮件日志数据
+		$email_log_filter = param('status', -1);
+		$email_log_cond = array();
+		if($email_log_filter >= 0) {
+			$email_log_cond['status'] = intval($email_log_filter);
+		}
+		$email_log_page = 1;
+		$email_log_pagesize = 15;
+		$email_loglist = email_log_find($email_log_cond, array('logid'=>-1), $email_log_page, $email_log_pagesize);
+		$email_log_totalnum = email_log_count($email_log_cond);
+		$email_pagination = pagination(url("setting-email_log-{page}"), $email_log_totalnum, $email_log_page, $email_log_pagesize);
 		
 		// hook admin_setting_smtp_get_end.php
 		
 		include _include(ADMIN_PATH."view/htm/setting_smtp.htm");
 	
 	} else {
+		
+		CsrfService::check();
 		
 		// hook admin_setting_smtp_post_start.php
 		
@@ -88,6 +185,7 @@ if($action == 'base') {
 		$port = param('port', array(0));
 		$user = param('user', array(''));
 		$pass = param('pass', array(''));
+		$ssl = param('ssl', array(0));
 		
 		$smtplist = array();
 		foreach ($email as $k=>$v) {
@@ -97,15 +195,707 @@ if($action == 'base') {
 				'port'=>$port[$k],
 				'user'=>$user[$k],
 				'pass'=>$pass[$k],
+				'ssl'=>intval($ssl[$k]),
 			);
 		}
 		$r = file_put_contents_try(APP_PATH.'conf/smtp.conf.php', "<?php\r\nreturn ".var_export($smtplist,true).";\r\n?>");
 		!$r AND message(-1, lang('conf/smtp.conf.php', array('file'=>'conf/smtp.conf.php')));
-		
+
 		// hook admin_setting_smtp_post_end.php
-		
+
+		admin_log_create('setting_smtp', 'setting', '', '修改SMTP设置');
 		message(0, lang('save_successfully'));
 	}
+
+} elseif($action == 'smtp_test') {
+
+	$method != 'POST' AND message(-1, lang('method_error'));
+	CsrfService::check();
+
+	include _include(XIUNOPHP_PATH.'xn_send_mail.func.php');
+
+	$test_email = param('test_email');
+	$smtp_index = param('smtp_index', 0);
+
+	empty($test_email) AND message(-1, '请输入测试邮箱');
+	!filter_var($test_email, FILTER_VALIDATE_EMAIL) AND message(-1, '邮箱格式不正确');
+
+	$smtplist = include _include(APP_PATH.'conf/smtp.conf.php');
+	if(!is_array($smtplist) || empty($smtplist)) {
+		message(-1, '未配置 SMTP 服务器');
+	}
+
+	// 如果指定了索引，使用对应的 SMTP，否则随机选择
+	if(isset($smtplist[$smtp_index]) && !empty($smtplist[$smtp_index]['host'])) {
+		$smtp = $smtplist[$smtp_index];
+	} else {
+		$smtp = xn_smtp_get();
+	}
+
+	if(empty($smtp)) {
+		message(-1, '无有效的 SMTP 配置');
+	}
+
+	$subject = '测试邮件 - ' . $conf['sitename'];
+	$body = '<h3>测试邮件</h3><p>这是一封来自 <strong>' . esc_html($conf['sitename']) . '</strong> 的测试邮件。</p><p>如果您收到此邮件，说明 SMTP 配置正确。</p><p>发送时间：' . date('Y-m-d H:i:s') . '</p>';
+
+	$r = xn_send_mail($smtp, $conf['sitename'], $test_email, $subject, $body);
+
+	if($r === TRUE) {
+		message(0, '测试邮件发送成功，请检查收件箱');
+	} else {
+		$error_msg = is_string($r) ? $r : '未知错误';
+		message(-1, '测试邮件发送失败：' . $error_msg);
+	}
+
+} elseif($action == 'upload') {
+
+	// hook admin_setting_upload_get_post.php
+
+	if($method == 'GET') {
+
+		// hook admin_setting_upload_get_start.php
+
+		// 文件大小限制（从配置读取，单位MB用于显示）
+		$upload_max_image_size = isset($conf['upload_max_image_size']) ? intval($conf['upload_max_image_size']) : 10485760;
+		$upload_max_file_size = isset($conf['upload_max_file_size']) ? intval($conf['upload_max_file_size']) : 20971520;
+		$upload_max_video_size = isset($conf['upload_max_video_size']) ? intval($conf['upload_max_video_size']) : 104857600;
+		$upload_max_image_size_mb = intval($upload_max_image_size / 1048576);
+		$upload_max_file_size_mb = intval($upload_max_file_size / 1048576);
+		$upload_max_video_size_mb = intval($upload_max_video_size / 1048576);
+
+		// 缩略图设置
+		$upload_thumb_enabled = isset($conf['upload_thumb_enabled']) ? intval($conf['upload_thumb_enabled']) : 1;
+		$upload_thumb_width = isset($conf['upload_thumb_width']) ? intval($conf['upload_thumb_width']) : 200;
+
+		// 允许的文件类型
+		$upload_allowed_image_types_str = isset($conf['upload_allowed_image_types']) ? $conf['upload_allowed_image_types'] : 'jpg,jpeg,png,gif,webp,bmp';
+		$upload_allowed_video_types_str = isset($conf['upload_allowed_video_types']) ? $conf['upload_allowed_video_types'] : 'mp4,webm,ogg,avi,rm,rmvb';
+		$upload_allowed_file_types_str = isset($conf['upload_allowed_file_types']) ? $conf['upload_allowed_file_types'] : 'doc,xls,ppt,docx,xlsx,pptx,pdf,txt,zip,gz,rar,7z';
+
+		$allowed_image_types = explode(',', $upload_allowed_image_types_str);
+		$allowed_video_types = explode(',', $upload_allowed_video_types_str);
+		$allowed_file_types = explode(',', $upload_allowed_file_types_str);
+
+		// 可选类型列表
+		$image_type_options = array('jpg','jpeg','png','gif','webp','bmp');
+		$video_type_options = array('mp4','webm','ogg','avi','rm','rmvb');
+		$file_type_options = array('doc','xls','ppt','docx','xlsx','pptx','pdf','txt','zip','gz','rar','7z');
+
+		// 存储驱动
+		$upload_driver = isset($conf['upload_driver']) ? $conf['upload_driver'] : 'local';
+
+		$header['title'] = lang('admin_setting_upload');
+		$header['mobile_title'] = lang('admin_setting_upload');
+
+		// hook admin_setting_upload_get_end.php
+
+		include _include(ADMIN_PATH.'view/htm/setting_upload.htm');
+
+	} else {
+
+		CsrfService::check();
+
+		// hook admin_setting_upload_post_start.php
+
+		// 文件大小限制（前端传MB，存储为字节）
+		$upload_max_image_size_mb = param('upload_max_image_size', 10);
+		$upload_max_file_size_mb = param('upload_max_file_size', 20);
+		$upload_max_video_size_mb = param('upload_max_video_size', 100);
+		$upload_max_image_size = intval($upload_max_image_size_mb) * 1048576;
+		$upload_max_file_size = intval($upload_max_file_size_mb) * 1048576;
+		$upload_max_video_size = intval($upload_max_video_size_mb) * 1048576;
+
+		// 缩略图设置
+		$upload_thumb_enabled = param('upload_thumb_enabled', 0);
+		$upload_thumb_width = param('upload_thumb_width', 200);
+
+		// 允许的文件类型
+		$upload_allowed_image_types_arr = param('upload_allowed_image_types', array());
+		$upload_allowed_video_types_arr = param('upload_allowed_video_types', array());
+		$upload_allowed_file_types_arr = param('upload_allowed_file_types', array());
+		$upload_allowed_image_types = implode(',', $upload_allowed_image_types_arr);
+		$upload_allowed_video_types = implode(',', $upload_allowed_video_types_arr);
+		$upload_allowed_file_types = implode(',', $upload_allowed_file_types_arr);
+
+		// 存储驱动
+		$upload_driver = param('upload_driver', 'local');
+		if(!in_array($upload_driver, array('local', 'oss'))) {
+			$upload_driver = 'local';
+		}
+
+		$replace = array();
+		$replace['upload_max_image_size'] = $upload_max_image_size;
+		$replace['upload_max_file_size'] = $upload_max_file_size;
+		$replace['upload_max_video_size'] = $upload_max_video_size;
+		$replace['upload_thumb_enabled'] = $upload_thumb_enabled;
+		$replace['upload_thumb_width'] = $upload_thumb_width;
+		$replace['upload_allowed_image_types'] = $upload_allowed_image_types;
+		$replace['upload_allowed_video_types'] = $upload_allowed_video_types;
+		$replace['upload_allowed_file_types'] = $upload_allowed_file_types;
+		$replace['upload_driver'] = $upload_driver;
+
+		file_replace_var(APP_PATH.'conf/conf.php', $replace);
+
+		// hook admin_setting_upload_post_end.php
+
+		admin_log_create('setting_upload', 'setting', '', '修改上传设置');
+		message(0, lang('modify_successfully'));
+	}
+
+} elseif($action == 'nav') {
+
+	// hook admin_setting_nav_get_post.php
+
+	if($method == 'GET') {
+
+		// hook admin_setting_nav_get_start.php
+
+		$nav_items = isset($conf['nav_items']) ? $conf['nav_items'] : array();
+		$sidebar_nav_items = isset($conf['sidebar_nav_items']) ? $conf['sidebar_nav_items'] : array();
+		$discover_items = isset($conf['discover_items']) ? $conf['discover_items'] : array();
+
+		// 按 rank 排序，同 rank 时分类标题排在链接前面
+		$nav_sort = function($a, $b) {
+			$ra = intval($a['rank'] ?? 0);
+			$rb = intval($b['rank'] ?? 0);
+			if ($ra !== $rb) return $ra - $rb;
+			$ta = ($a['type'] ?? 'link') === 'title' ? 0 : 1;
+			$tb = ($b['type'] ?? 'link') === 'title' ? 0 : 1;
+			return $ta - $tb;
+		};
+		usort($nav_items, $nav_sort);
+		usort($sidebar_nav_items, $nav_sort);
+
+		// 页脚配置数据
+		$footer_config = isset($conf['footer']) ? $conf['footer'] : array();
+		$footer_icp = isset($footer_config['icp']) ? $footer_config['icp'] : '';
+		$footer_gongan = isset($footer_config['gongan']) ? $footer_config['gongan'] : '';
+		$footer_gongan_url = isset($footer_config['gongan_url']) ? $footer_config['gongan_url'] : '';
+		$footer_copyright = isset($footer_config['copyright']) ? $footer_config['copyright'] : '';
+		$footer_show_powered = isset($footer_config['show_powered']) ? intval($footer_config['show_powered']) : 1;
+
+		$header['title'] = lang('admin_setting_nav');
+		$header['mobile_title'] = lang('admin_setting_nav');
+
+		// hook admin_setting_nav_get_end.php
+
+		include _include(ADMIN_PATH.'view/htm/setting_nav.htm');
+
+	} else {
+
+		CsrfService::check();
+
+		// hook admin_setting_nav_post_start.php
+
+		// 顶部导航
+		$nav_icon = param('nav_icon', array(''));
+		$nav_name = param('nav_name', array(''));
+		$nav_slug = param('nav_slug', array(''));
+		$nav_url = param('nav_url', array(''));
+		$nav_rank = param('nav_rank', array(0));
+
+		$nav_items = array();
+		foreach ($nav_icon as $k=>$v) {
+			if(empty($nav_name[$k]) && empty($nav_url[$k])) continue;
+			$nav_items[] = array(
+				'icon'=>$nav_icon[$k],
+				'name'=>$nav_name[$k],
+				'slug'=>$nav_slug[$k],
+				'url'=>$nav_url[$k],
+				'rank'=>intval($nav_rank[$k]),
+			);
+		}
+
+		// 左侧导航
+		$sidebar_icon = param('sidebar_icon', array(''));
+		$sidebar_name = param('sidebar_name', array(''));
+		$sidebar_slug = param('sidebar_slug', array(''));
+		$sidebar_url = param('sidebar_url', array(''));
+		$sidebar_rank = param('sidebar_rank', array(0));
+		$sidebar_type = param('sidebar_type', array('link'));
+
+		$sidebar_nav_items = array();
+		foreach ($sidebar_icon as $k=>$v) {
+			if(empty($sidebar_name[$k])) continue;
+			$sidebar_nav_items[] = array(
+				'type'=>isset($sidebar_type[$k]) ? $sidebar_type[$k] : 'link',
+				'icon'=>$sidebar_icon[$k],
+				'name'=>$sidebar_name[$k],
+				'slug'=>$sidebar_slug[$k],
+				'url'=>$sidebar_url[$k],
+				'rank'=>intval($sidebar_rank[$k]),
+			);
+		}
+
+		$replace = array();
+		$replace['nav_items'] = $nav_items;
+		$replace['sidebar_nav_items'] = $sidebar_nav_items;
+
+		// 发现导航列表
+		$discover_icons = param('discover_icon', array());
+		$discover_names = param('discover_name', array());
+		$discover_slugs = param('discover_slug', array());
+		$discover_urls = param('discover_url', array());
+		$discover_ranks = param('discover_rank', array());
+		$discover_items = array();
+		for($i = 0; $i < count($discover_names); $i++) {
+			if(empty($discover_names[$i]) && empty($discover_urls[$i])) continue;
+			$discover_items[] = array(
+				'icon' => $discover_icons[$i] ?? '',
+				'name' => $discover_names[$i] ?? '',
+				'slug' => $discover_slugs[$i] ?? '',
+				'url' => $discover_urls[$i] ?? '',
+				'rank' => intval($discover_ranks[$i] ?? 0),
+			);
+		}
+		$replace['discover_items'] = $discover_items;
+
+		// 页脚设置
+		$footer_icp = param('footer_icp', '');
+		$footer_gongan = param('footer_gongan', '');
+		$footer_gongan_url = param('footer_gongan_url', '');
+		$footer_copyright = param('footer_copyright', '', FALSE);
+		$footer_show_powered = param('footer_show_powered', 0);
+
+		$replace['footer'] = array(
+		    'icp' => $footer_icp,
+		    'gongan' => $footer_gongan,
+		    'gongan_url' => $footer_gongan_url,
+		    'copyright' => $footer_copyright,
+		    'show_powered' => $footer_show_powered,
+		);
+
+		file_replace_var(APP_PATH.'conf/conf.php', $replace);
+
+		// hook admin_setting_nav_post_end.php
+
+		admin_log_create('setting_nav', 'setting', '', '修改导航设置');
+		message(0, lang('save_successfully'));
+	}
+
+} elseif($action == 'credits') {
+
+	// hook admin_setting_credits_get_post.php
+
+	if($method == 'GET') {
+
+		// hook admin_setting_credits_get_start.php
+
+		$credits_daily_limit = isset($conf['credits_daily_limit']) ? intval($conf['credits_daily_limit']) : 10;
+		$credits_log_retention_days = isset($conf['credits_log_retention_days']) ? intval($conf['credits_log_retention_days']) : 90;
+		$credits_types = isset($conf['credits_types']) ? $conf['credits_types'] : array('credits', 'golds', 'rmbs');
+		$credits_name = isset($conf['credits_name']) ? $conf['credits_name'] : '积分';
+		$golds_name = isset($conf['golds_name']) ? $conf['golds_name'] : '金币';
+		$rmbs_name = isset($conf['rmbs_name']) ? $conf['rmbs_name'] : '人民币';
+
+		// 所有可选积分类型
+		$all_credits_types = array('credits', 'golds', 'rmbs');
+
+		$header['title'] = lang('admin_setting_credits');
+		$header['mobile_title'] = lang('admin_setting_credits');
+
+		// hook admin_setting_credits_get_end.php
+
+		include _include(ADMIN_PATH.'view/htm/setting_credits.htm');
+
+	} else {
+
+		CsrfService::check();
+
+		// hook admin_setting_credits_post_start.php
+
+		$credits_daily_limit = param('credits_daily_limit', 10);
+		$credits_log_retention_days = param('credits_log_retention_days', 90);
+		$credits_types = param('credits_types', array());
+		$credits_name = param('credits_name', '积分', FALSE);
+		$golds_name = param('golds_name', '金币', FALSE);
+		$rmbs_name = param('rmbs_name', '人民币', FALSE);
+
+		if(empty($credits_types)) {
+			message(-1, lang('admin_credits_types_min_one'));
+		}
+
+		$replace = array();
+		$replace['credits_daily_limit'] = intval($credits_daily_limit);
+		$replace['credits_log_retention_days'] = intval($credits_log_retention_days);
+		$replace['credits_types'] = $credits_types;
+		$replace['credits_name'] = $credits_name;
+		$replace['golds_name'] = $golds_name;
+		$replace['rmbs_name'] = $rmbs_name;
+
+		file_replace_var(APP_PATH.'conf/conf.php', $replace);
+
+		// hook admin_setting_credits_post_end.php
+
+		admin_log_create('setting_credits', 'setting', '', '修改积分设置');
+		message(0, lang('modify_successfully'));
+	}
+} elseif($action == 'email_log') {
+
+	if($method == 'GET') {
+		$page = param(2, 1);
+		$pagesize = 20;
+		$filter_status = param('status', -1);
+
+		$cond = array();
+		if($filter_status >= 0) {
+			$cond['status'] = intval($filter_status);
+		}
+
+		$loglist = email_log_find($cond, array('logid'=>-1), $page, $pagesize);
+		$totalnum = email_log_count($cond);
+		$pagination = pagination(url("setting-email_log-{page}"), $totalnum, $page, $pagesize);
+
+		$header['title'] = '邮件发送日志';
+		$header['mobile_title'] = '邮件发送日志';
+
+		include _include(ADMIN_PATH."view/htm/setting_email_log.htm");
+	}
+} elseif($action == 'permalink') {
+
+	// hook admin_setting_permalink_get_post.php
+
+	if($method == 'GET') {
+
+		// hook admin_setting_permalink_get_start.php
+
+		$url_rewrite_on = isset($conf['url_rewrite_on']) ? intval($conf['url_rewrite_on']) : 0;
+
+		// 生成各风格的示例 URL
+		$example_thread_url = url('thread-123.htm');
+		$example_user_url = url('user-1.htm');
+		$example_forum_url = url('forum-7.htm');
+
+		// 保存当前配置的示例 URL 用于对比
+		$example_urls = array(
+			0 => array(
+				'thread' => '/?thread-123.htm',
+				'user' => '/?user-1.htm',
+				'forum' => '/?forum-7.htm',
+			),
+			1 => array(
+				'thread' => '/thread-123.htm',
+				'user' => '/user-1.htm',
+				'forum' => '/forum-7.htm',
+			),
+			3 => array(
+				'thread' => '/thread/123',
+				'user' => '/user/1',
+				'forum' => '/forum/7',
+			),
+		);
+
+		// Nginx rewrite 规则
+		// 宝塔面板用户：复制"宝塔伪静态"内容到网站设置→伪静态
+		// 自建 Nginx 用户：复制"完整配置"内容到 nginx.conf 的 server 块内
+		$nginx_rules = '# ========== 宝塔面板 / 伪静态配置 ==========
+# 复制以下内容到 宝塔面板→网站→设置→伪静态
+# 注意：不要包含 server 块，只放 location 指令
+
+# 后台伪静态（必须放在前台之前）
+location /admin/ {
+    try_files $uri $uri/ /admin/index.php$is_args$args;
+}
+
+# 前台伪静态
+location / {
+    try_files $uri $uri/ /index.php$is_args$args;
+}
+
+# ========== 自建 Nginx 完整配置 ==========
+# 以下为完整 server 块参考，自建 Nginx 用户按需修改
+# 宝塔面板用户请忽略此部分
+
+# HTTP 强制跳转 HTTPS
+#server {
+#    listen 80;
+#    server_name your-domain.com;
+#    return 301 https://$host$request_uri;
+#}
+#
+#server {
+#    listen 443 ssl http2;
+#    server_name your-domain.com;
+#
+#    ssl_certificate     /path/to/cert.pem;
+#    ssl_certificate_key /path/to/key.pem;
+#
+#    # HSTS
+#    add_header Strict-Transport-Security "max-age=31536000" always;
+#
+#    root /path/to/xiuno;
+#    index index.php index.html;
+#
+#    location /admin/ {
+#        try_files $uri $uri/ /admin/index.php$is_args$args;
+#    }
+#
+#    location / {
+#        try_files $uri $uri/ /index.php$is_args$args;
+#    }
+#
+#    location ~ \.php$ {
+#        fastcgi_pass unix:/tmp/php-cgi.sock;
+#        fastcgi_index index.php;
+#        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+#        include fastcgi_params;
+#    }
+#
+#    location ~ \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+#        expires 30d;
+#        access_log off;
+#    }
+#
+#    location ~ /\. {
+#        deny all;
+#    }
+#}';
+
+		// Apache rewrite 规则（HTTPS 优化）
+		// 根目录 .htaccess 和 admin/.htaccess 已内置，Apache 用户无需额外配置
+		$apache_rules = '# 根目录 .htaccess（已内置，无需手动配置）
+RewriteEngine On
+
+# HTTP 强制跳转 HTTPS
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# HSTS 安全头（可选）
+Header always set Strict-Transport-Security "max-age=31536000"
+
+# 伪静态核心规则
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [L,QSA]
+
+# 禁止访问隐藏文件
+<FilesMatch "^\.">
+    Deny from all
+</FilesMatch>
+
+# ============================================
+# admin/.htaccess（已内置，无需手动配置）
+# ============================================
+# 后台伪静态规则与根目录相同，但转发到 admin/index.php
+# RewriteRule ^(.*)$ index.php [L,QSA]
+# 此文件已自动创建在 admin/ 目录下';
+
+		$header['title'] = lang('admin_setting_permalink');
+		$header['mobile_title'] = lang('admin_setting_permalink');
+
+		// hook admin_setting_permalink_get_end.php
+
+		include _include(ADMIN_PATH.'view/htm/setting_permalink.htm');
+
+	} else {
+
+		CsrfService::check();
+
+		$url_rewrite_on = param('url_rewrite_on', 0);
+		$skip_detect = param('skip_detect', 0);
+		// 只允许 0, 1, 3
+		if(!in_array($url_rewrite_on, array(0, 1, 3))) {
+			$url_rewrite_on = 0;
+		}
+
+		// hook admin_setting_permalink_post_start.php
+
+		$old_url_rewrite_on = isset($conf['url_rewrite_on']) ? intval($conf['url_rewrite_on']) : 0;
+
+		// 保存新设置
+		$replace = array();
+		$replace['url_rewrite_on'] = $url_rewrite_on;
+		file_replace_var(APP_PATH.'conf/conf.php', $replace);
+
+		// 如果切换到需要 rewrite 的模式，检测 rewrite 是否生效
+		if($url_rewrite_on > 0 && $url_rewrite_on != $old_url_rewrite_on && !$skip_detect) {
+			// 清理 tmp 缓存，确保新配置生效
+			$tmp_path = isset($conf['tmp_path']) ? $conf['tmp_path'] : APP_PATH.'tmp/';
+			$tmp_files = glob($tmp_path.'*.php');
+			if($tmp_files) {
+				foreach($tmp_files as $f) {
+					@unlink($f);
+				}
+			}
+
+			// 构建测试 URL：使用新格式请求首页
+			$base_url = http_url_path();
+			$test_url = '';
+			if($url_rewrite_on == 1) {
+				$test_url = $base_url . 'index.htm';
+			} elseif($url_rewrite_on == 3) {
+				$test_url = $base_url . 'index';
+			}
+
+			// 发起 HTTP 请求检测（支持 HTTPS）
+			$rewrite_ok = FALSE;
+			if($test_url) {
+				// 优先使用 curl（更可靠，支持 HTTPS）
+				if(function_exists('curl_init')) {
+					$ch = curl_init();
+					curl_setopt($ch, CURLOPT_URL, $test_url);
+					curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+					curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+					curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+					curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+					curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+					curl_setopt($ch, CURLOPT_NOBODY, false);
+					$response = curl_exec($ch);
+					$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+					curl_close($ch);
+					// 2xx 或 3xx 响应码都说明 rewrite 生效
+					if($response !== FALSE && $http_code > 0 && $http_code < 500) {
+						$rewrite_ok = TRUE;
+					}
+				} else {
+					// 回退到 file_get_contents，同时支持 HTTPS
+					$ctx = stream_context_create(array(
+						'http' => array(
+							'method' => 'GET',
+							'timeout' => 5,
+							'follow_location' => 0,
+						),
+						'ssl' => array(
+							'verify_peer' => false,
+							'verify_peer_name' => false,
+						),
+					));
+					$response = @file_get_contents($test_url, false, $ctx);
+					if($response !== FALSE) {
+						$rewrite_ok = TRUE;
+					}
+				}
+			}
+
+			if(!$rewrite_ok) {
+				// 回滚设置
+				$rollback = array();
+				$rollback['url_rewrite_on'] = $old_url_rewrite_on;
+				file_replace_var(APP_PATH.'conf/conf.php', $rollback);
+
+				message(-1, lang('admin_permalink_detect_fail'));
+			}
+		}
+
+		// hook admin_setting_permalink_post_end.php
+
+		admin_log_create('setting_seo', 'setting', '', '修改永久链接设置：url_rewrite_on=' . $url_rewrite_on);
+		message(0, lang('admin_permalink_detect_success'));
+	}
+
+} elseif($action == 'email_template') {
+
+    if($method == 'GET') {
+        $confile = APP_PATH . 'conf/email_templates.conf.php';
+        $templates = array();
+        if(is_file($confile)) {
+            $templates = include $confile;
+        }
+        if(!is_array($templates)) $templates = array();
+
+        // 确保所有默认模板都存在
+        $default_keys = array('user_create_code', 'user_resetpw_code', 'email_change_code');
+        foreach($default_keys as $key) {
+            if(!isset($templates[$key])) {
+                // 加载默认模板
+                $default_templates = include APP_PATH . 'conf/email_templates.conf.php';
+                if(isset($default_templates[$key])) {
+                    $templates[$key] = $default_templates[$key];
+                }
+            }
+        }
+
+        $header['title'] = '邮件模板设置';
+        $header['mobile_title'] = '邮件模板设置';
+
+        include _include(ADMIN_PATH."view/htm/setting_email_template.htm");
+
+    } else {
+        CsrfService::check();
+
+        $template_keys = param('template_key', array());
+        $subjects = param('subject', array(''));
+        $bodies = param('body', array('', ''));  // 注意 body 可能有 HTML
+
+        $templates = array();
+        foreach($template_keys as $k => $key) {
+            if(empty($key)) continue;
+            $templates[$key] = array(
+                'subject' => $subjects[$k],
+                'body' => $bodies[$k],
+            );
+        }
+
+        $r = file_put_contents_try(APP_PATH.'conf/email_templates.conf.php', "<?php\r\nreturn ".var_export($templates, true).";\r\n?>");
+        !$r AND message(-1, '保存失败，请检查 conf 目录权限');
+
+        admin_log_create('setting_email_tpl', 'setting', '', '修改邮件模板设置');
+        message(0, lang('save_successfully'));
+    }
+
+} elseif($action == 'display') {
+
+	// hook admin_setting_display_get_post.php
+
+	if($method == 'GET') {
+
+		// hook admin_setting_display_get_start.php
+
+		$status_labels = thread_status_labels();
+
+		$header['title'] = lang('admin_setting_display');
+		$header['mobile_title'] = lang('admin_setting_display');
+
+		// hook admin_setting_display_get_end.php
+
+		include _include(ADMIN_PATH.'view/htm/setting_display.htm');
+
+	} else {
+
+		CsrfService::check();
+
+		// hook admin_setting_display_post_start.php
+
+		$status_key = param('status_key', array());
+		$status_icon = param('status_icon', array(''));
+		$status_text = param('status_text', array(''));
+		$show_icons = param('show_icon_val', array());
+		$show_texts = param('show_text_val', array());
+		$status_color = param('status_color_text', array('#6c757d'));
+		$status_text_color = param('status_text_color_text', array('#ffffff'));
+		$status_rank = param('status_rank', array(0));
+
+		$labels = array();
+		foreach($status_key as $k => $key) {
+			if(empty($key)) continue;
+			$color = $status_color[$k];
+			if(!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
+				$color = '#6c757d';
+			}
+			$text_color = isset($status_text_color[$k]) ? $status_text_color[$k] : '#ffffff';
+			if(!preg_match('/^#[0-9a-fA-F]{6}$/', $text_color)) {
+				$text_color = '#ffffff';
+			}
+			$labels[$key] = array(
+				'icon' => $status_icon[$k],
+				'text' => $status_text[$k],
+				'show_icon' => !empty($show_icons[$k]) ? true : false,
+				'show_text' => !empty($show_texts[$k]) ? true : false,
+				'color' => $color,
+				'text_color' => $text_color,
+				'rank' => intval($status_rank[$k]),
+			);
+		}
+
+		kv_set('thread_status_labels', xn_json_encode($labels));
+
+		// hook admin_setting_display_post_end.php
+
+		admin_log_create('setting_display', 'setting', '', '修改显示设置');
+		message(0, lang('save_successfully'));
+	}
+
 }
 
 // hook admin_setting_end.php

@@ -1,62 +1,55 @@
-	<?php !isset($user['avatar_url']) AND $user['avatar_url'] = ''; ?>
+<?php !isset($user['avatar_url']) AND $user['avatar_url'] = ''; ?>
 
-	<!--{hook header_nav_start.htm}-->
-	
-	<header class="navbar navbar-expand-md navbar-dark bg-dark" id="header">
-		<div class="container">
-			<!-- 左：折叠菜单的图标 ☰ -->
-			<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#nav" aria-controls="navbar_collapse" aria-expanded="false" aria-label="<?php echo lang('toggler_menu');?>">
-				<span class="navbar-toggler-icon"></span>
+<!--{hook admin_header_nav_start.htm}-->
+
+<nav class="admin-topnav">
+	<div class="d-flex align-items-center gap-2">
+		<button type="button" class="icon-btn d-lg-none" id="sidebarToggleBtn" aria-label="Toggle sidebar">
+			<i class="ti ti-list fs-5"></i>
+		</button>
+		<nav aria-label="breadcrumb">
+			<ol class="breadcrumb mb-0">
+				<li class="breadcrumb-item"><a href="./"><i class="ti ti-home"></i></a></li>
+				<li class="breadcrumb-item active" aria-current="page"><?php echo $header['title'];?></li>
+			</ol>
+		</nav>
+	</div>
+	<div class="d-flex align-items-center gap-2">
+		<button type="button" class="icon-btn" id="theme-toggle" aria-label="Toggle theme">
+			<i class="ti ti-sun-filled" id="theme-icon-light"></i>
+			<i class="ti ti-moon-filled d-none" id="theme-icon-dark"></i>
+		</button>
+		<div class="dropdown">
+			<button type="button" class="icon-btn dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="<?php echo lang('switch_language');?>">
+				<i class="ti ti-language"></i>
 			</button>
-			
-			<!-- 中：LOGO -->
-			<a class="navbar-brand" href="<?php echo $header['mobile_link'];?>">
-				<img src="../view/img/logo.png" class="logo-2">
-				<?php if($header['mobile_title']) { ?>
-					<span class="d-md-none"><?php echo $header['mobile_title'];?></span>
-				<?php } ?>
-			</a>
-			
-			<!--- 右：用户 --->
-			<a class="navbar-brand d-md-none" href="../" title="<?php echo lang('front_index_page');?>"><i class="icon-home"></i></a>
-			
-			<!--{hook admin_header_nav_logo_after.htm}-->
-			<div class="collapse navbar-collapse" id="nav">
-				<!-- 左侧：版块 -->
-				<ul class="navbar-nav mr-auto">
-					<!--{hook admin_header_nav_start.htm}-->
-						
-					<li class="nav-item home">
-						<a class="nav-link" href="./"><i class="icon-home"></i> <?php echo lang('admin_index_page');?></a>
-					</li>
-					<?php foreach ($menu as $k=>$v) { ?>
-					<li class="nav-item nav-item-<?php echo $k;?>">
-						<a class="nav-link" href="<?php echo $v['url'];?>"><i class="<?php echo $v['icon'];?>"></i> <?php echo $v['text'];?></a>
-					</li>
-					<?php  } ?>
-					
-					<!--{hook admin_header_nav_end.htm}-->
-				</ul>
-				<!-- 右侧：用户 -->
-				<ul class="navbar-nav">
-					<!--{hook admin_header_nav_user_start.htm}-->
-					
-					<li class="nav-item">
-						<a class="nav-link" href="../<?php echo url('my');?>">
-							<img class="avatar-1" src="<?php echo (strpos($user['avatar_url'], '//') === FALSE ? '../' : '').$user['avatar_url'];?>">
-							<?php echo isset($user['username']) ? $user['username'] : '';?>
-						</a>
-					</li>
-					<li class="nav-item">
-						<a class="nav-link" href="../"><i class="icon-home"></i> <?php echo lang('front_index_page');?></a>
-					</li>
-					<li class="nav-item">
-						<a class="nav-link" href="<?php echo url('index-logout');?>"><i class="icon-sign-out"></i> <?php echo lang('logout');?></a>
-					</li>
-					
-					<!--{hook admin_header_nav_user_end.htm}-->
-				</ul>
-			</div>
+			<ul class="dropdown-menu dropdown-menu-end shadow rounded-3 p-2" style="min-width:8rem">
+				<?php
+				$_langs = array('zh-cn'=>lang('lang_zh_cn'), 'zh-tw'=>lang('lang_zh_tw'), 'en-us'=>lang('lang_en_us'), 'ja-jp'=>lang('lang_ja_jp'), 'ko-kr'=>lang('lang_ko_kr'), 'ru-ru'=>lang('lang_ru_ru'), 'th-th'=>lang('lang_th_th'));
+				foreach ($_langs as $_code => $_name) {
+					$_active = ($conf['lang'] == $_code) ? ' active' : '';
+					echo '<li><a class="dropdown-item rounded-2'.$_active.'" href="javascript:void(0)" onclick="document.cookie=\'lang='.$_code.';path=/;max-age=31536000\';location.reload();">'.$_name.'</a></li>';
+				}
+				?>
+			</ul>
 		</div>
-	</header>
-	<!--{hook header_nav_footer.htm}-->
+		<a href="../" class="icon-btn" target="_blank" title="<?php echo lang('front_index_page');?>">
+			<i class="ti ti-smart-home"></i>
+		</a>
+		<div class="dropdown">
+			<button type="button" class="nav-action dropdown-toggle p-1" data-bs-toggle="dropdown" aria-expanded="false">
+				<?php if ($user['avatar_url']) { ?>
+				<img src="<?php echo (strpos($user['avatar_url'], '//') === FALSE ? '../' : '').$user['avatar_url'];?>" class="avatar-sm rounded-circle" alt="">
+				<?php } else { ?>
+				<div class="avatar-sm rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold" style="font-size:0.75rem">
+					<?php echo strtoupper(substr($user['username'], 0, 1));?>
+				</div>
+				<?php } ?>
+			</button>
+			<ul class="dropdown-menu dropdown-menu-end shadow rounded-1 p-2" style="min-width:8rem">
+				<li><a class="dropdown-item rounded-2" href="<?php echo url('index-logout');?>"><i class="ti ti-logout me-2"></i><?php echo lang('logout');?></a></li>
+			</ul>
+		</div>
+	</div>
+</nav>
+<!--{hook admin_header_nav_footer.htm}-->

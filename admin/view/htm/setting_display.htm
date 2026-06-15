@@ -1,0 +1,187 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_setting_display_start.htm}-->
+
+<div class=" ">
+	<?php echo admin_tab_active($menu['setting']['tab'], 'display');?>
+</div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo url('setting-display');?>" method="post" id="displayForm">
+			<?php echo CsrfService::input(); ?>
+
+			<h6 class="fw-semibold mb-3"><i class="ti ti-tags me-1"></i><?php echo lang('admin_thread_status_labels');?></h6>
+			<p class="text-body-secondary small mb-3"><?php echo lang('admin_thread_status_labels_desc');?></p>
+
+			<div class="table-responsive">
+				<table class="table table-hover align-middle">
+					<thead>
+						<tr>
+							<th style="width:100px"><?php echo lang('admin_col_status_type');?></th>
+							<th style="width:160px"><?php echo lang('admin_col_icon');?></th>
+							<th style="width:80px" class="text-center"><?php echo lang('admin_col_show_icon');?></th>
+							<th style="width:100px"><?php echo lang('admin_col_text');?></th>
+							<th style="width:80px" class="text-center"><?php echo lang('admin_col_show_text');?></th>
+							<th style="width:120px"><?php echo lang('admin_col_bg_color');?></th>
+							<th style="width:120px"><?php echo lang('admin_col_text_color');?></th>
+							<th style="width:60px" class="text-center"><?php echo lang('admin_col_sort');?></th>
+						</tr>
+					</thead>
+					<tbody id="statusLabelsBody"></tbody>
+				</table>
+			</div>
+
+			<div class="mt-4">
+				<button type="submit" class="btn btn-primary rounded-pill" id="submitBtn"><?php echo lang('confirm');?></button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<!--{hook admin_setting_display_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script src="../view/js/tabler-icon-picker.js"></script>
+<script>
+(function() {
+	// 状态标签数据
+	var statusLabels = <?php echo xn_json_encode($status_labels);?>;
+
+	// 状态类型定义（只读）
+	var statusTypes = {
+		'top': '<?php echo lang('admin_status_top');?>',
+		'digest': '<?php echo lang('admin_status_digest');?>',
+		'closed': '<?php echo lang('admin_status_closed');?>',
+		'image': '<?php echo lang('admin_status_image');?>',
+		'video': '<?php echo lang('admin_status_video');?>',
+		'attachment': '<?php echo lang('admin_status_attachment');?>'
+	};
+
+	// 创建状态标签行
+	function createStatusRow(key, item) {
+		var tr = document.createElement('tr');
+		var iconVal = item.icon || '';
+		var textVal = item.text || '';
+		var colorVal = item.color || '#6c757d';
+		var textColorVal = item.text_color || '#ffffff';
+		var rankVal = item.rank || 0;
+		var showIconVal = item.show_icon !== false ? true : false;
+		var showTextVal = item.show_text !== false ? true : false;
+		var typeName = statusTypes[key] || key;
+
+		tr.innerHTML =
+			'<td>' +
+				'<input type="hidden" name="status_key[]" value="' + key + '">' +
+				'<span class="fw-medium">' + typeName + '</span>' +
+			'</td>' +
+			'<td>' +
+				'<div class="input-group input-group-sm">' +
+					'<span class="input-group-text p-0 px-2 icon-preview" style="min-width:32px;justify-content:center">' +
+						(iconVal ? '<i class="ti ' + iconVal + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
+					'</span>' +
+					'<input type="text" class="form-control form-control-sm" name="status_icon[]" value="' + iconVal + '" placeholder="<?php echo lang('admin_no_icon_placeholder');?>">' +
+				'</div>' +
+			'</td>' +
+			'<td class="text-center"><div class="form-check form-switch d-inline-block"><input type="hidden" name="show_icon_val[]" value="' + (showIconVal ? '1' : '0') + '"><input class="form-check-input" type="checkbox" name="show_icon_chk[]" value="1"' + (showIconVal ? ' checked' : '') + ' onchange="this.previousElementSibling.value=this.checked?\'1\':\'0\'"></div></td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="status_text[]" value="' + textVal + '" placeholder="<?php echo lang('admin_no_text_placeholder');?>"></td>' +
+			'<td class="text-center"><div class="form-check form-switch d-inline-block"><input type="hidden" name="show_text_val[]" value="' + (showTextVal ? '1' : '0') + '"><input class="form-check-input" type="checkbox" name="show_text_chk[]" value="1"' + (showTextVal ? ' checked' : '') + ' onchange="this.previousElementSibling.value=this.checked?\'1\':\'0\'"></div></td>' +
+			'<td>' +
+				'<div class="input-group input-group-sm">' +
+					'<input type="color" class="form-control form-control-color" name="status_color[]" value="' + colorVal + '" style="width:40px;padding:2px">' +
+					'<input type="text" class="form-control form-control-sm" name="status_color_text[]" value="' + colorVal + '" placeholder="#0d6efd" style="max-width:100px">' +
+				'</div>' +
+			'</td>' +
+			'<td>' +
+				'<div class="input-group input-group-sm">' +
+					'<input type="color" class="form-control form-control-color" name="status_text_color[]" value="' + textColorVal + '" style="width:40px;padding:2px">' +
+					'<input type="text" class="form-control form-control-sm" name="status_text_color_text[]" value="' + textColorVal + '" placeholder="#ffffff" style="max-width:100px">' +
+				'</div>' +
+			'</td>' +
+			'<td><input type="number" class="form-control form-control-sm text-center" name="status_rank[]" value="' + rankVal + '"></td>';
+
+		// 图标选择器
+		var iconInput = tr.querySelector('input[name="status_icon[]"]');
+		var iconPreview = tr.querySelector('.icon-preview');
+		new TablerIconPicker({
+			input: iconInput,
+			preview: iconPreview
+		});
+
+		// 背景颜色选择器同步
+		var colorPicker = tr.querySelector('input[name="status_color[]"]');
+		var colorText = tr.querySelector('input[name="status_color_text[]"]');
+		colorPicker.addEventListener('input', function() {
+			colorText.value = colorPicker.value;
+		});
+		colorText.addEventListener('input', function() {
+			if(/^#[0-9a-fA-F]{6}$/.test(colorText.value)) {
+				colorPicker.value = colorText.value;
+			}
+		});
+
+		// 文字颜色选择器同步
+		var textColorPicker = tr.querySelector('input[name="status_text_color[]"]');
+		var textColorText = tr.querySelector('input[name="status_text_color_text[]"]');
+		textColorPicker.addEventListener('input', function() {
+			textColorText.value = textColorPicker.value;
+		});
+		textColorText.addEventListener('input', function() {
+			if(/^#[0-9a-fA-F]{6}$/.test(textColorText.value)) {
+				textColorPicker.value = textColorText.value;
+			}
+		});
+
+		return tr;
+	}
+
+	// 渲染状态标签列表
+	var tbody = document.getElementById('statusLabelsBody');
+	var keys = ['top', 'digest', 'closed', 'image', 'video', 'attachment'];
+	keys.forEach(function(key) {
+		var item = statusLabels[key] || {};
+		tbody.appendChild(createStatusRow(key, item));
+	});
+	// 表单提交
+	var form = document.getElementById('displayForm');
+	var submitBtn = document.getElementById('submitBtn');
+	form.addEventListener('submit', function(e) {
+		e.preventDefault();
+		submitBtn.disabled = true;
+		submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('submiting');?>...';
+		var formData = new FormData(form);
+		fetch(form.action, {
+			method: 'POST',
+			headers: {'X-Requested-With': 'XMLHttpRequest'},
+			body: formData
+		})
+		.then(function(res) { return res.json(); })
+		.then(function(data) {
+			if (parseInt(data.code) === 0) {
+				showToast(data.message, 'success');
+				submitBtn.innerHTML = '<i class="ti ti-check me-1"></i>' + data.message;
+				submitBtn.classList.remove('btn-primary');
+				submitBtn.classList.add('btn-success');
+				setTimeout(function() {
+					submitBtn.disabled = false;
+					submitBtn.innerHTML = '<?php echo lang('confirm');?>';
+					submitBtn.classList.remove('btn-success');
+					submitBtn.classList.add('btn-primary');
+				}, 1500);
+			} else {
+				showToast(data.message, 'error');
+				submitBtn.disabled = false;
+				submitBtn.innerHTML = '<?php echo lang('confirm');?>';
+			}
+		})
+		.catch(function(err) {
+			showToast('<?php echo lang('admin_request_failed');?>', 'error');
+			submitBtn.disabled = false;
+			submitBtn.innerHTML = '<?php echo lang('confirm');?>';
+		});
+	});
+})();
+</script>
+
+<!--{hook admin_setting_display_js.htm}-->

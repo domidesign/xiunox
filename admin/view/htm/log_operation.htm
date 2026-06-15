@@ -1,0 +1,124 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_log_operation_start.htm}-->
+
+<div class=" ">
+	<?php echo admin_tab_active($menu['log']['tab'], 'operation');?>
+</div>
+
+<div class="x-card  cardrounded-3">
+	<div class="card-body">
+		<!-- 筛选表单 -->
+		<form onsubmit="return doSearch();" class="mb-4">
+			<div class="row g-3 align-items-end">
+				<div class="col-auto">
+					<label class="form-label fw-medium"><?php echo lang('admin_log_filter_uid');?></label>
+					<input type="number" name="uid" class="form-control rounded-pill" value="<?php echo $filter_uid;?>" placeholder="UID" style="width:100px;">
+				</div>
+				<div class="col-auto">
+					<label class="form-label fw-medium"><?php echo lang('admin_op_target_type');?></label>
+					<select name="target_type" class="form-select rounded-pill" style="width:120px;">
+						<?php foreach($target_type_options as $val => $label) { ?>
+						<option value="<?php echo $val;?>" <?php echo $filter_target_type == $val ? 'selected' : '';?>><?php echo $label;?></option>
+						<?php } ?>
+					</select>
+				</div>
+				<div class="col-auto">
+					<label class="form-label fw-medium"><?php echo lang('admin_log_col_action');?></label>
+					<select name="log_action" class="form-select rounded-pill" style="width:130px;">
+						<?php foreach($action_options as $val => $label) { ?>
+						<option value="<?php echo $val;?>" <?php echo $filter_action == $val ? 'selected' : '';?>><?php echo $label;?></option>
+						<?php } ?>
+					</select>
+				</div>
+				<div class="col-auto">
+					<label class="form-label fw-medium"><?php echo lang('admin_log_filter_date_start');?></label>
+					<input type="date" name="date_start" class="form-control rounded-pill" value="<?php echo $filter_date_start;?>" style="width:160px;">
+				</div>
+				<div class="col-auto">
+					<label class="form-label fw-medium"><?php echo lang('admin_log_filter_date_end');?></label>
+					<input type="date" name="date_end" class="form-control rounded-pill" value="<?php echo $filter_date_end;?>" style="width:160px;">
+				</div>
+				<div class="col-auto">
+					<button type="submit" class="btn btn-primary rounded-pill"><i class="ti ti-search me-1"></i><?php echo lang('search');?></button>
+				</div>
+			</div>
+		</form>
+
+		<!-- 数据表格 -->
+		<div class="table-responsive">
+			<table class="table table-hover align-middle">
+				<thead>
+					<tr>
+						<th><?php echo lang('admin_log_col_uid');?></th>
+						<th><?php echo lang('admin_log_col_username');?></th>
+						<th><?php echo lang('admin_op_target_type');?></th>
+						<th><?php echo lang('admin_log_col_action');?></th>
+						<th><?php echo lang('admin_log_col_target');?></th>
+						<th><?php echo lang('admin_log_col_detail');?></th>
+						<th><?php echo lang('admin_log_col_ip');?></th>
+						<th><?php echo lang('admin_log_col_time');?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php if(empty($logs)) { ?>
+					<tr><td colspan="8" class="text-center text-body-secondary py-4"><?php echo lang('admin_no_data')?></td></tr>
+					<?php } else { foreach($logs as $log) { ?>
+					<tr>
+						<td><?php echo $log['uid'];?></td>
+						<td><?php echo isset($users[$log['uid']]) ? esc_html($users[$log['uid']]) : '-';?></td>
+						<td><span class="badge bg-secondary"><?php echo isset($target_type_labels[$log['target_type']]) ? $target_type_labels[$log['target_type']] : esc_html($log['target_type']);?></span></td>
+						<td><span class="badge bg-info"><?php echo isset($action_labels[$log['action']]) ? $action_labels[$log['action']] : esc_html($log['action']);?></span></td>
+						<td><?php echo esc_html($log['target_ids']);?></td>
+						<td><span class="d-inline-block text-truncate" style="max-width:300px;" title="<?php echo esc_html($log['detail']);?>"><?php echo esc_html($log['detail']);?></span></td>
+						<td><?php echo $log['ip_fmt'];?></td>
+						<td><?php echo $log['create_date_fmt'];?></td>
+					</tr>
+					<?php }} ?>
+				</tbody>
+			</table>
+		</div>
+
+		<!-- 分页 -->
+		<?php if($count > $pagesize) { ?>
+		<nav>
+			<ul class="pagination pagination-boxed justify-content-center">
+				<?php
+				$total_pages = ceil($count / $pagesize);
+				$query_params = http_build_query(array_filter(array('uid'=>$filter_uid, 'log_action'=>$filter_action, 'target_type'=>$filter_target_type, 'date_start'=>$filter_date_start, 'date_end'=>$filter_date_end)));
+				for($i = 1; $i <= min($total_pages, 20); $i++) {
+					$url = url('log-operation') . ($query_params ? '&'.$query_params : '') . '&page='.$i;
+				?>
+				<li class="page-item <?php echo $page == $i ? 'active' : '';?>"><a class="page-link" href="<?php echo $url;?>"><?php echo $i;?></a></li>
+				<?php } ?>
+			</ul>
+		</nav>
+		<?php } ?>
+
+		<div class="text-body-secondary fs-6"><?php echo lang('admin_total_records', array('n'=>$count))?></div>
+	</div>
+</div>
+
+<!--{hook admin_log_operation_end.htm}-->
+
+<!-- 搜索表单JS：修复GET表单导致URL双问号问题 -->
+<script>
+function doSearch() {
+    var base = '<?php echo url('log-operation');?>';
+    var params = [];
+    var uid = document.querySelector('[name="uid"]').value;
+    if(uid) params.push('uid=' + encodeURIComponent(uid));
+    var log_action = document.querySelector('[name="log_action"]').value;
+    if(log_action) params.push('log_action=' + encodeURIComponent(log_action));
+    var target_type = document.querySelector('[name="target_type"]').value;
+    if(target_type) params.push('target_type=' + encodeURIComponent(target_type));
+    var date_start = document.querySelector('[name="date_start"]').value;
+    if(date_start) params.push('date_start=' + encodeURIComponent(date_start));
+    var date_end = document.querySelector('[name="date_end"]').value;
+    if(date_end) params.push('date_end=' + encodeURIComponent(date_end));
+    window.location.href = base + (params.length ? '&' + params.join('&') : '');
+    return false;
+}
+</script>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>

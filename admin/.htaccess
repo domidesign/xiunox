@@ -1,0 +1,21 @@
+# Xiuno BBS 后台伪静态规则
+# 将 /admin/setting-permalink.htm 等请求转发到 /admin/index.php
+
+RewriteEngine On
+
+# HTTP 强制跳转 HTTPS
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# 伪静态核心规则：非文件非目录的请求转发到 admin/index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [L,QSA]
+
+# 禁止访问隐藏文件
+<FilesMatch "^\.">
+    Deny from all
+</FilesMatch>
+
+# 禁止目录浏览
+Options -Indexes

@@ -2,50 +2,46 @@
 
 <!--{hook admin_user_create_start.htm}-->
 
-<div class="row">
-	<div class="col-lg-8 mx-auto">
-		<div class="btn-group mb-3" role="group">
-			<?php echo admin_tab_active($menu['user']['tab'], 'create');?>
-		</div>
-		<div class="card">
-			<div class="card-body">
-				<!--
-				<h4 class="card-title"><?php echo lang('create_user');?></h4>
-				-->
-				<form action="<?php echo url("user-create");?>" method="post" id="form">
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label"><?php echo lang('email');?>：</label>
-						<div class="col-sm-10">
-							<?php echo $input['email'];?>
-						</div>
+<div class=" " style="max-width:48rem">
+	<div class="mb-3">
+		<?php echo admin_tab_active($menu['user']['tab'], 'create');?>
+	</div>
+	<div class="x-card card">
+		<div class="card-body">
+			<form action="<?php echo url("user-create");?>" method="post" id="form">
+				<?php echo CsrfService::input(); ?>
+				<div class="d-flex gap-4 align-items-center mb-3">
+					<label class="form-label" style="width:25%"><?php echo lang('email');?>：</label>
+					<div style="width:75%">
+						<?php echo $input['email'];?>
 					</div>
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label"><?php echo lang('username');?>：</label>
-						<div class="col-sm-10">
-							<?php echo $input['username'];?>
-						</div>
+				</div>
+				<div class="d-flex gap-4 align-items-center mb-3">
+					<label class="form-label" style="width:25%"><?php echo lang('username');?>：</label>
+					<div style="width:75%">
+						<?php echo $input['username'];?>
 					</div>
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label"><?php echo lang('password');?>：</label>
-						<div class="col-sm-10">
-							<?php echo $input['password'];?>
-						</div>
+				</div>
+				<div class="d-flex gap-4 align-items-center mb-3">
+					<label class="form-label" style="width:25%"><?php echo lang('password');?>：</label>
+					<div style="width:75%">
+						<?php echo $input['password'];?>
 					</div>
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label"><?php echo lang('user_group');?>：</label>
-						<div class="col-sm-10">
-							<?php echo $input['_gid'];?>
-						</div>
+				</div>
+				<div class="d-flex gap-4 align-items-center mb-3">
+					<label class="form-label" style="width:25%"><?php echo lang('user_group');?>：</label>
+					<div style="width:75%">
+						<?php echo $input['_gid'];?>
 					</div>
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label"></label>
-						<div class="col-sm-10">
-							<button type="submit" class="btn btn-primary btn-block" id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('confirm');?></button>
-							<a role="button" class="btn btn-secondary btn-block mt-3" href="javascript:history.back();"><?php echo lang('back');?></a>
-						</div>
+				</div>
+				<div class="d-flex gap-4 align-items-center mb-3">
+					<label class="form-label" style="width:25%"></label>
+					<div style="width:75%">
+						<button type="submit" class="btn btn-primary w-100" id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('confirm');?></button>
+						<a class="admin-back-link d-block mt-3" href="javascript:history.back();"><i class="ti ti-arrow-left"></i> <?php echo lang('admin_back');?></a>
 					</div>
-				</form>
-			</div>
+				</div>
+			</form>
 		</div>
 	</div>
 </div>
@@ -64,10 +60,10 @@ jform.on('submit', function() {
 	var postdata = jform.serialize();
 	$.xpost(jform.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
-			$.alert(message);
+			showToast(message, 'success');
 			jsubmit.text(message).delay(1000).location(xn.url('user-list'));
 		} else if(xn.is_number(code)) {
-			alert(message);
+			showToast(message, 'error');
 			jsubmit.button('reset');
 		} else {
 			jform.find('[name="'+code+'"]').alert(message).focus();
@@ -76,8 +72,6 @@ jform.on('submit', function() {
 	});
 	return false;
 });
-
-$('#nav li.nav-item-user').addClass('active');
 
 </script>
 

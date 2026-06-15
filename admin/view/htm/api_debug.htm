@@ -1,0 +1,383 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_api_debug_start.htm}-->
+
+<style>
+.debug-history-item { padding: 0.35rem 0.75rem; cursor: pointer; font-size: 0.8125rem; border-bottom: 1px solid var(--bs-border-color); display: flex; align-items: center; gap: 0.5rem; }
+.debug-history-item:hover { background: var(--bs-gray-200); }
+.debug-history-item .hist-method { font-size: 0.625rem; min-width: 32px; }
+.debug-history-item .hist-path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.debug-history-item .hist-meta { font-size: 0.6875rem; color: var(--bs-body-color); opacity: 0.5; }
+.json-key { color: #f97583; }
+.json-string { color: #9ecbff; }
+.json-number { color: #79c0ff; }
+.json-bool { color: #ff7b72; }
+.json-null { color: #ff7b72; }
+</style>
+
+<div class="row g-4">
+	<div class="col-lg-3">
+		<div class="x-card  cardmb-4 rounded-1">
+			<div class="card-body">
+				<div class="d-flex justify-content-between align-items-center">
+					<h6 class="fw-semibold"><i class="ti ti-clock"></i> <?php echo lang('api_debug_request_history');?></h6>
+					<button class="btn btn-sm btn-ghost" onclick="clearHistory()"><i class="ti ti-trash"></i><?php echo lang('api_debug_clear');?></button>
+				</div>
+			</div>
+			<div class="p-0" id="historyList" style="max-height:200px; overflow-y:auto;">
+				<p class="text-secondary fs-6 p-2 mb-0"><?php echo lang('api_debug_no_history');?></p>
+			</div>
+		</div>
+
+		<div class="x-card card">
+			<div class="card-body">
+				<div class="d-flex justify-content-between align-items-center">
+					<h6 class="fw-semibold"><i class="ti ti-key"></i> <?php echo lang('api_debug_active_token');?> <span class="badge bg-secondary "><?php echo $tokenCount;?></span></h6>
+				</div>
+				<?php if($tokens) { ?>
+				<div class="overflow-x-auto mt-2">
+					<table class="table table-sm table-hover">
+						<thead>
+							<tr><th><?php echo lang('api_debug_uid');?></th><th><?php echo lang('api_debug_token_col');?></th><th><?php echo lang('api_debug_expire');?></th><th></th></tr>
+						</thead>
+						<tbody>
+							<?php foreach($tokens as $t) { ?>
+							<tr>
+								<td><?php echo $t['uid'];?></td>
+								<td><code  style="font-size:0.75rem" title="<?php echo lang('api_debug_copy');?>" style="cursor:pointer" onclick="copyText('<?php echo $t['token'];?>')"><?php echo substr($t['token'], 0, 12);?>...</code></td>
+								<td  style="font-size:0.75rem"><?php echo date('m-d H:i', $t['expires_at']);?></td>
+								<td>
+									<a href="javascript:void(0)" class="text-danger" style="font-size:0.75rem" onclick="revokeToken(<?php echo $t['id'];?>, '<?php echo substr($t['token'], 0, 12);?>...')"><i class="ti ti-trash"></i></a>
+								</td>
+							</tr>
+							<?php } ?>
+						</tbody>
+					</table>
+				</div>
+				<?php } else { ?>
+				<p class="text-secondary fs-6 mb-0 mt-2"><?php echo lang('api_debug_no_token');?></p>
+				<?php } ?>
+			</div>
+		</div>
+	</div>
+
+	<div class="col-lg-9">
+		<div class="x-card  cardmb-4 rounded-1">
+			<div class="card-body">
+				<div class="d-flex justify-content-between align-items-center mb-4">
+					<h5 class="fw-bold"><i class="ti ti-terminal-2"></i> <?php echo lang('api_debug_tool');?></h5>
+					<a href="<?php echo url('api-doc');?>" class="admin-quick-link"><i class="ti ti-book"></i> <?php echo lang('api_debug_api_doc');?></a>
+				</div>
+				<form id="apiTestForm" onsubmit="return false;">
+					<div class="d-flex flex-wrap gap-2 mb-3">
+						<div>
+							<select class="form-select form-select-sm" id="apiMethod" style="width:100px;">
+								<option value="GET">GET</option>
+								<option value="POST">POST</option>
+								<option value="PUT">PUT</option>
+								<option value="DELETE">DELETE</option>
+							</select>
+						</div>
+						<div class="flex-fill" style="min-width:0">
+							<label class="form-control form-control-sm w-100 d-flex align-items-center gap-0">
+								<span class="text-secondary" style="font-size:0.75rem">/api/v1/</span>
+								<input type="text" class="flex-grow-1" id="apiEndpoint" placeholder="thread" value="thread" />
+							</label>
+						</div>
+						<div>
+							<button type="button" class="btn btn-primary btn-sm" onclick="sendApiRequest()" id="sendBtn"><i class="ti ti-send"></i><?php echo lang('api_debug_send');?></button>
+						</div>
+					</div>
+
+					<div class="mb-3">
+						<label class="fs-6 text-secondary mb-1 d-block">Authorization Token</label>
+						<div class="d-flex gap-1">
+							<input type="text" class="form-control form-control-sm flex-fill" id="apiToken" placeholder="<?php echo lang('api_debug_token_placeholder');?>">
+							<button type="button" class="btn btn-sm btn-ghost" onclick="fillOrGenerateToken()" id="fillTokenBtn"><i class="ti ti-key"></i><?php echo lang('api_debug_fill_token');?></button>
+							<button type="button" class="btn btn-sm btn-ghost" onclick="copyText(document.getElementById('apiToken').value)" title="<?php echo lang('api_debug_copy');?>"><i class="ti ti-clipboard"></i></button>
+						</div>
+					</div>
+
+					<div class="mb-3" id="apiBodyGroup">
+						<label class="fs-6 text-secondary mb-1 d-block">Request Body (JSON)</label>
+						<div class="position-relative">
+							<textarea class="form-control form-control-sm w-100" id="apiBody" rows="4" placeholder='<?php echo lang("api_debug_body_placeholder");?>'></textarea>
+							<button type="button" class="btn btn-sm btn-ghost position-absolute" style="top:0.25rem;right:0.25rem" onclick="formatBody()" title="<?php echo lang('api_debug_format');?>"><i class="ti ti-code"></i></button>
+						</div>
+					</div>
+
+					<div class="mb-3">
+						<label class="fs-6 text-secondary mb-1 d-block"><?php echo lang('api_debug_quick_endpoints');?></label>
+						<div class="d-flex flex-wrap gap-1">
+							<button type="button" class="btn btn-sm btn-ghost" onclick="setEndpoint('GET','site')"><?php echo lang('api_debug_site_info');?></button>
+							<button type="button" class="btn btn-sm btn-ghost" onclick="setEndpoint('GET','thread')"><?php echo lang('api_debug_thread_list');?></button>
+							<button type="button" class="btn btn-sm btn-ghost" onclick="setEndpoint('GET','forum')"><?php echo lang('api_debug_forum_list');?></button>
+							<button type="button" class="btn btn-sm btn-ghost" onclick="setEndpoint('POST','user?action=login')"><?php echo lang('api_debug_login');?></button>
+							<button type="button" class="btn btn-sm btn-ghost" onclick="setEndpoint('POST','thread')"><?php echo lang('api_debug_create_thread');?></button>
+							<button type="button" class="btn btn-sm btn-ghost" onclick="setEndpoint('GET','post?tid=1')"><?php echo lang('api_debug_reply_list');?></button>
+							<button type="button" class="btn btn-sm btn-ghost" onclick="setEndpoint('GET','notify')"><?php echo lang('api_debug_notify_list');?></button>
+							<button type="button" class="btn btn-sm btn-ghost" onclick="setEndpoint('GET','search?q=<?php echo lang('api_debug_test_query');?>')"><?php echo lang('api_debug_search');?></button>
+						</div>
+					</div>
+				</form>
+			</div>
+		</div>
+
+		<div class="x-card card">
+			<div class="card-body">
+				<div class="d-flex justify-content-between align-items-center">
+					<h6 class="fw-semibold"><i class="ti ti-arrow-back-up"></i> <?php echo lang('api_debug_response');?></h6>
+					<div class="d-flex align-items-center gap-2">
+						<span class="fs-6 text-secondary" id="apiDuration"></span>
+						<span class="badge" id="apiStatusCode">--</span>
+						<button class="btn btn-sm btn-ghost" onclick="copyResponse()" title="<?php echo lang('api_debug_copy');?>"><i class="ti ti-clipboard"></i></button>
+					</div>
+				</div>
+				<div id="apiResponse" class="bg-dark text-white rounded-1 p-3 mt-2" style="min-height:200px; max-height:500px; overflow:auto;">
+					<pre class="mb-0 text-secondary fs-6"><?php echo lang('api_debug_click_send');?></pre>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!--{hook admin_api_debug_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+var latestTokens = <?php echo json_encode($tokens ?: []);?>;
+var lastResponse = '';
+
+(function() {
+	var params = new URLSearchParams(window.location.search);
+	var m = params.get('method');
+	var e = params.get('endpoint');
+	var b = params.get('body');
+	var at = params.get('authtoken');
+	if (m) document.getElementById('apiMethod').value = m;
+	if (e) document.getElementById('apiEndpoint').value = e;
+	if (b) document.getElementById('apiBody').value = JSON.stringify(JSON.parse(b), null, 2);
+	if (at && latestTokens.length > 0) document.getElementById('apiToken').value = latestTokens[0].token;
+	updateBodyVisibility();
+	loadHistory();
+})();
+
+function setEndpoint(method, endpoint) {
+	document.getElementById('apiMethod').value = method;
+	document.getElementById('apiEndpoint').value = endpoint;
+	document.getElementById('apiBody').value = '';
+	updateBodyVisibility();
+}
+
+function updateBodyVisibility() {
+	var m = document.getElementById('apiMethod').value;
+	document.getElementById('apiBodyGroup').style.display = (m === 'POST' || m === 'PUT') ? 'block' : 'none';
+}
+
+function fillOrGenerateToken() {
+	if(latestTokens.length > 0) {
+		document.getElementById('apiToken').value = latestTokens[0].token;
+		return;
+	}
+	var csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+	var btn = document.getElementById('fillTokenBtn');
+	btn.disabled = true;
+	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('api_debug_generating');?>';
+	$.xpost('<?php echo url("api-debug");?>', {op: 'generate_token', uid: 1, csrf_token: csrfToken}, function(code, message) {
+		if(code == 0) {
+			document.getElementById('apiToken').value = message.token;
+			latestTokens.unshift(message);
+			btn.innerHTML = '<i class="ti ti-key"></i><?php echo lang('api_debug_fill_token');?>';
+			btn.disabled = false;
+		} else {
+			showToast(message, 'error');
+			btn.innerHTML = '<i class="ti ti-key"></i><?php echo lang('api_debug_fill_token');?>';
+			btn.disabled = false;
+		}
+	});
+}
+
+function formatBody() {
+	var el = document.getElementById('apiBody');
+	if (!el.value.trim()) return;
+	try {
+		el.value = JSON.stringify(JSON.parse(el.value), null, 2);
+	} catch(e) {
+		showToast('<?php echo lang('api_debug_json_error');?>', 'error');
+	}
+}
+
+function sendApiRequest() {
+	var method = document.getElementById('apiMethod').value;
+	var endpoint = document.getElementById('apiEndpoint').value;
+	var token = document.getElementById('apiToken').value;
+	var body = document.getElementById('apiBody').value;
+
+	var url = '../api/v1/' + endpoint;
+	var startTime = performance.now();
+	var btn = document.getElementById('sendBtn');
+	btn.disabled = true;
+
+	var ajaxOpts = {
+		url: url,
+		type: method,
+		dataType: 'text',
+		beforeSend: function(xhr) {
+			if(token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+		},
+		complete: function() {
+			btn.disabled = false;
+		},
+		success: function(res) {
+			var duration = Math.round(performance.now() - startTime);
+			var data;
+			try { data = JSON.parse(res); } catch(e) { data = res; }
+			showResponse(200, data, duration);
+			addHistory(method, endpoint, 200, duration);
+		},
+		error: function(xhr) {
+			var duration = Math.round(performance.now() - startTime);
+			try {
+				showResponse(xhr.status, JSON.parse(xhr.responseText), duration);
+			} catch(e) {
+				showResponse(xhr.status, {error: xhr.statusText}, duration);
+			}
+			addHistory(method, endpoint, xhr.status, duration);
+		}
+	};
+
+	if(method === 'POST' || method === 'PUT') {
+		if(body) {
+			try {
+				ajaxOpts.data = JSON.parse(body);
+			} catch(e) {
+				showToast('<?php echo lang('api_debug_json_error');?>', 'error');
+				btn.disabled = false;
+				return;
+			}
+		}
+	} else {
+		ajaxOpts.data = {};
+	}
+
+	$.ajax(ajaxOpts);
+}
+
+function syntaxHighlight(json) {
+	if (typeof json !== 'string') {
+		json = JSON.stringify(json, null, 2);
+	}
+	json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
+		var cls = 'json-number';
+		if (/^"/.test(match)) {
+			if (/:$/.test(match)) {
+				cls = 'json-key';
+			} else {
+				cls = 'json-string';
+			}
+		} else if (/true|false/.test(match)) {
+			cls = 'json-bool';
+		} else if (/null/.test(match)) {
+			cls = 'json-null';
+		}
+		return '<span class="' + cls + '">' + match + '</span>';
+	});
+}
+
+function showResponse(code, data, duration) {
+	var statusEl = document.getElementById('apiStatusCode');
+	statusEl.textContent = code;
+	statusEl.className = 'badge ' + (code >= 200 && code < 300 ? 'bg-success' : 'bg-danger');
+
+	var durationEl = document.getElementById('apiDuration');
+	durationEl.textContent = duration ? duration + ' ms' : '';
+
+	var resEl = document.getElementById('apiResponse');
+	lastResponse = JSON.stringify(data, null, 2);
+	resEl.innerHTML = '<pre class="mb-0 fs-6">' + syntaxHighlight(data) + '</pre>';
+}
+
+function copyResponse() {
+	if (!lastResponse) return;
+	navigator.clipboard.writeText(lastResponse).then(function() {
+		showToast('<?php echo lang('api_debug_copied_response');?>', 'info');
+	});
+}
+
+function copyText(text) {
+	if (!text) return;
+	navigator.clipboard.writeText(text).then(function() {
+		showToast('<?php echo lang('api_debug_copied');?>', 'info');
+	});
+}
+
+function addHistory(method, endpoint, statusCode, duration) {
+	var history = JSON.parse(localStorage.getItem('api_debug_history') || '[]');
+	history.unshift({
+		method: method,
+		endpoint: endpoint,
+		status: statusCode,
+		duration: duration,
+		time: new Date().toLocaleTimeString()
+	});
+	if (history.length > 20) history = history.slice(0, 20);
+	localStorage.setItem('api_debug_history', JSON.stringify(history));
+	renderHistory();
+}
+
+function loadHistory() {
+	renderHistory();
+}
+
+function renderHistory() {
+	var history = JSON.parse(localStorage.getItem('api_debug_history') || '[]');
+	var container = document.getElementById('historyList');
+	if (history.length === 0) {
+		container.innerHTML = '<p class="text-secondary fs-6 p-2 mb-0"><?php echo lang('api_debug_no_history');?></p>';
+		return;
+	}
+	var html = '';
+	history.forEach(function(item, idx) {
+		var statusClass = item.status >= 200 && item.status < 300 ? 'bg-success' : 'bg-danger';
+		html += '<div class="debug-history-item" onclick="loadFromHistory(' + idx + ')">';
+		html += '<span class="method-badge method-' + item.method + ' hist-method">' + item.method + '</span>';
+		html += '<span class="hist-path">' + item.endpoint + '</span>';
+		html += '<span class="badge ' + statusClass + '" style="font-size:0.6rem">' + item.status + '</span>';
+		html += '<span class="hist-meta">' + item.duration + 'ms</span>';
+		html += '</div>';
+	});
+	container.innerHTML = html;
+}
+
+function loadFromHistory(idx) {
+	var history = JSON.parse(localStorage.getItem('api_debug_history') || '[]');
+	var item = history[idx];
+	if (!item) return;
+	document.getElementById('apiMethod').value = item.method;
+	document.getElementById('apiEndpoint').value = item.endpoint;
+	updateBodyVisibility();
+}
+
+function clearHistory() {
+	localStorage.removeItem('api_debug_history');
+	renderHistory();
+}
+
+function revokeToken(id, name) {
+	XN.confirm('<?php echo lang("api_debug_confirm_revoke");?> ' + name + '？', function() {
+	var csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+	$.xpost('<?php echo url("api-token_delete-" );?>' + id, {csrf_token: csrfToken}, function(code, message) {
+		if(code == 0) {
+			showToast('<?php echo lang("api_debug_token_revoked");?>', 'success');
+			setTimeout(function(){ location.reload(); }, 1000);
+		} else {
+			showToast(message, 'error');
+		}
+	});
+	});
+}
+
+document.getElementById('apiMethod').addEventListener('change', updateBodyVisibility);
+</script>

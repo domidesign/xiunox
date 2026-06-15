@@ -1,0 +1,78 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<div class="x-card card">
+    <div class="card-body">
+        <h3 class="card-title"><i class="ti ti-icons"></i> <?php echo lang('admin_icon_preview');?> · <span id="iconCount">0</span> <?php echo lang('admin_icon_count_unit');?></h3>
+        <p class="text-body-secondary fs-6 mb-4"><?php echo lang('admin_icon_preview_desc');?> <a href="https://tabler.io/icons" target="_blank" class="text-primary">Tabler Icons</a></p>
+
+        <div class="mb-4">
+            <input type="text" class="form-control " id="iconSearch" placeholder="<?php echo lang('admin_icon_search_placeholder');?>" autocomplete="off">
+        </div>
+
+        <div class="row g-2" id="iconGrid">
+        </div>
+    </div>
+</div>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script src="../view/js/tabler-icon-picker.js"></script>
+<script>
+// 存储动态加载的图标列表
+var allIcons = [];
+
+var iconGrid = document.getElementById('iconGrid');
+var searchInput = document.getElementById('iconSearch');
+var iconCountEl = document.getElementById('iconCount');
+
+// 渲染图标网格
+function renderIcons(filter) {
+    iconGrid.innerHTML = '';
+    var filtered = filter ? allIcons.filter(function(name) {
+        return name.toLowerCase().indexOf(filter.toLowerCase()) !== -1;
+    }) : allIcons;
+
+    filtered.forEach(function(name) {
+        var col = document.createElement('div');
+        col.className = 'col-6 col-sm-4 col-md-3 col-lg-2';
+        col.innerHTML = '<div class="icon-item text-center p-3 border rounded-3 cursor-pointer" data-icon="' + name + '" title="' + name + '">' +
+            '<i class="ti ' + name + '" style="font-size:1.5rem"></i>' +
+            '<div class="small text-body-secondary mt-1 text-truncate">' + name.replace('ti-', '') + '</div>' +
+            '</div>';
+        iconGrid.appendChild(col);
+    });
+}
+
+// 点击复制图标代码
+iconGrid.addEventListener('click', function(e) {
+    var item = e.target.closest('.icon-item');
+    if (!item) return;
+    var iconName = item.getAttribute('data-icon');
+    var code = '<i class="ti ' + iconName + '"></i>';
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(code).then(function() {
+            showToast('<?php echo lang('admin_icon_copied');?>');
+        });
+    } else {
+        var ta = document.createElement('textarea');
+        ta.value = code;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('<?php echo lang('admin_icon_copied');?>');
+    }
+});
+
+// 搜索过滤
+searchInput.addEventListener('input', function() {
+    renderIcons(this.value);
+});
+
+// 动态加载图标列表并渲染
+TablerIconPicker.getIconList().then(function(icons) {
+    allIcons = icons;
+    iconCountEl.innerText = allIcons.length;
+    renderIcons('');
+});
+</script>

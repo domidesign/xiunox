@@ -1,0 +1,134 @@
+<?php
+// 此模板通过 htmx 加载到 credits_rule.htm 的 #forumRulePanel 中
+// 不包含 header/footer，仅渲染版块规则表单
+?>
+<form action="<?php echo url('credits_rule-forum-' . $fid);?>" method="post" id="forumForm">
+	<?php echo CsrfService::input(); ?>
+	<input type="hidden" name="fid" value="<?php echo $fid;?>">
+
+	<h6 class="fw-semibold mb-3">
+		<i class="ti ti-layout-board me-2"></i>
+		<?php echo isset($all_forums[$fid]) ? esc_html($all_forums[$fid]['name']) : 'FID:'.$fid;?>
+		<small class="text-body-secondary ms-2"><?php echo lang('admin_credits_rule_forum');?></small>
+	</h6>
+
+	<div class="table-responsive">
+		<table class="table table-hover align-middle mb-0">
+			<thead>
+				<tr>
+					<th style="width:20%;"><?php echo lang('admin_credits_rule_label');?></th>
+					<th style="width:12%;"><?php echo lang('admin_credits_rule_credits_change');?> (<?php echo lang('admin_credits_rule_global_value');?>)</th>
+					<th style="width:12%;"><?php echo lang('admin_credits_rule_golds_change');?> (<?php echo lang('admin_credits_rule_global_value');?>)</th>
+					<th style="width:12%;"><?php echo lang('admin_credits_rule_rmbs_change');?> (<?php echo lang('admin_credits_rule_global_value');?>)</th>
+					<th style="width:12%;"><?php echo lang('admin_credits_rule_override');?></th>
+					<th style="width:32%;"><?php echo lang('admin_credits_rule_override_value');?> (<?php echo lang('admin_credits_rule_override_format');?>)</th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php
+				// 12 个内置事件（与全局规则一致）
+				$builtin_events = array(
+					'thread_post'    => lang('admin_credits_event_thread_post'),
+					'reply_post'     => lang('admin_credits_event_reply_post'),
+					'thread_digest'  => lang('admin_credits_event_thread_digest'),
+					'thread_top'     => lang('admin_credits_event_thread_top'),
+					'thread_delete'  => lang('admin_credits_event_thread_delete'),
+					'reply_delete'   => lang('admin_credits_event_reply_delete'),
+					'be_liked'       => lang('admin_credits_event_be_liked'),
+					'like'           => lang('admin_credits_event_like'),
+					'be_commented'   => lang('admin_credits_event_be_commented'),
+					'favorite'       => lang('admin_credits_event_favorite'),
+					'be_favorited'   => lang('admin_credits_event_be_favorited'),
+					'daily_login'    => lang('admin_credits_event_daily_login'),
+				);
+
+				foreach($builtin_events as $event => $label):
+					$_global = isset($globalRuleMap[$event]) ? $globalRuleMap[$event] : array();
+					$_g_credits = isset($_global['credits_change']) ? intval($_global['credits_change']) : 0;
+					$_g_golds = isset($_global['golds_change']) ? intval($_global['golds_change']) : 0;
+					$_g_rmbs = isset($_global['rmbs_change']) ? intval($_global['rmbs_change']) : 0;
+
+					$_forum = isset($forumRuleMap[$event]) ? $forumRuleMap[$event] : array();
+					$_has_override = !empty($_forum);
+					$_f_credits = isset($_forum['credits_change']) ? intval($_forum['credits_change']) : $_g_credits;
+					$_f_golds = isset($_forum['golds_change']) ? intval($_forum['golds_change']) : $_g_golds;
+					$_f_rmbs = isset($_forum['rmbs_change']) ? intval($_forum['rmbs_change']) : $_g_rmbs;
+				?>
+				<tr>
+					<td>
+						<input type="hidden" name="events[]" value="<?php echo $event;?>">
+						<span class="fw-medium"><?php echo $label;?></span>
+						<code class="ms-2 text-body-secondary fs-7"><?php echo $event;?></code>
+					</td>
+					<td>
+						<span class="text-body-secondary"><?php echo $_g_credits >= 0 ? '+' : '';?><?php echo $_g_credits;?></span>
+					</td>
+					<td>
+						<span class="text-body-secondary"><?php echo $_g_golds >= 0 ? '+' : '';?><?php echo $_g_golds;?></span>
+					</td>
+					<td>
+						<span class="text-body-secondary"><?php echo $_g_rmbs >= 0 ? '+' : '';?><?php echo $_g_rmbs;?></span>
+					</td>
+					<td>
+						<div class="form-check form-switch">
+							<input class="form-check-input override-switch" type="checkbox" name="override_<?php echo $event;?>" value="1" id="override_<?php echo $event;?>"<?php echo $_has_override ? ' checked' : '';?>>
+						</div>
+					</td>
+					<td>
+						<div class="d-flex gap-1 align-items-center flex-wrap">
+							<input type="number" name="credits_change_<?php echo $event;?>" value="<?php echo $_f_credits;?>" class="form-control form-control-sm rounded-pill override-input" style="width:70px;" min="-999" max="999"<?php echo $_has_override ? '' : ' disabled';?>>
+							<input type="number" name="golds_change_<?php echo $event;?>" value="<?php echo $_f_golds;?>" class="form-control form-control-sm rounded-pill override-input" style="width:70px;" min="-999" max="999"<?php echo $_has_override ? '' : ' disabled';?>>
+							<input type="number" name="rmbs_change_<?php echo $event;?>" value="<?php echo $_f_rmbs;?>" class="form-control form-control-sm rounded-pill override-input" style="width:70px;" min="-999" max="999"<?php echo $_has_override ? '' : ' disabled';?>>
+						</div>
+						<?php if(!$_has_override):?>
+						<small class="text-body-secondary mt-1 d-block"><i class="ti ti-info-circle me-1"></i><?php echo lang('admin_credits_rule_use_global');?></small>
+						<?php endif;?>
+					</td>
+				</tr>
+				<?php endforeach;?>
+			</tbody>
+		</table>
+	</div>
+
+	<div class="mt-4">
+		<button type="submit" class="btn btn-primary rounded-pill w-100" id="forumSubmit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('admin_credits_rule_save');?></button>
+	</div>
+</form>
+
+<script>
+// 版块规则表单提交
+var jforumForm = $('#forumForm');
+var jforumSubmit = $('#forumSubmit');
+jforumForm.on('submit', function() {
+	jforumSubmit.button('loading');
+	var postdata = jforumForm.serialize();
+	$.xpost(jforumForm.attr('action'), postdata, function(code, message) {
+		if(code == 0) {
+			showToast(message, 'success');
+			jforumSubmit.button('reset');
+		} else if(xn.is_number(code)) {
+			showToast(message, 'error');
+			jforumSubmit.button('reset');
+		} else {
+			jforumForm.find('[name="'+code+'"]').alert(message).focus();
+			jforumSubmit.button('reset');
+		}
+	});
+	return false;
+});
+
+// 覆盖开关：控制覆盖值输入框的启用/禁用
+document.querySelectorAll('.override-switch').forEach(function(sw) {
+	sw.addEventListener('change', function() {
+		var row = this.closest('tr');
+		var inputs = row.querySelectorAll('.override-input');
+		inputs.forEach(function(input) {
+			input.disabled = !sw.checked;
+		});
+		var hint = row.querySelector('small.text-body-secondary');
+		if(hint) {
+			hint.style.display = sw.checked ? 'none' : '';
+		}
+	});
+});
+</script>

@@ -1,0 +1,306 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_attach_manage_start.htm}-->
+
+<!-- 统计仪表 -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="x-card  cardrounded-3">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0"><span class="avatar avatar-sm rounded-circle bg-primary bg-opacity-10"><i class="ti ti-paperclip text-primary"></i></span></div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="mb-1 text-body-secondary fs-6"><?php echo lang('admin_attach_stats_total');?></h6>
+                        <h4 class="mb-0 fw-semibold"><?php echo $stats['total'];?></h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="x-card  cardrounded-3">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0"><span class="avatar avatar-sm rounded-circle bg-success bg-opacity-10"><i class="ti ti-database text-success"></i></span></div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="mb-1 text-body-secondary fs-6"><?php echo lang('admin_attach_stats_size');?></h6>
+                        <h4 class="mb-0 fw-semibold"><?php echo $stats['total_size_fmt'];?></h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="x-card  cardrounded-3">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0"><span class="avatar avatar-sm rounded-circle bg-danger bg-opacity-10"><i class="ti ti-alert-triangle text-danger"></i></span></div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="mb-1 text-body-secondary fs-6"><?php echo lang('admin_attach_stats_orphan');?></h6>
+                        <h4 class="mb-0 fw-semibold"><?php echo $stats['orphan_count'];?></h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="x-card  cardrounded-3">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0"><span class="avatar avatar-sm rounded-circle bg-info bg-opacity-10"><i class="ti ti-chart-pie text-info"></i></span></div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="mb-1 text-body-secondary fs-6"><?php echo lang('admin_attach_stats_type');?></h6>
+                        <div class="d-flex flex-wrap gap-2 fs-6">
+                            <span class="text-body-secondary"><?php echo lang('admin_attach_type_image');?>: <?php echo $stats['type_stats']['image'];?></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 类型分布进度条 -->
+<?php if($stats['total'] > 0) { ?>
+<div class="x-card  cardrounded-3 mb-4">
+    <div class="card-body py-3">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <?php
+            $type_colors = array('image'=>'primary', 'video'=>'danger', 'audio'=>'warning', 'document'=>'info', 'archive'=>'success', 'other'=>'secondary');
+            $type_labels = array('image'=>lang('admin_attach_type_image'), 'video'=>lang('admin_attach_type_video'), 'audio'=>lang('admin_attach_type_audio'), 'document'=>lang('admin_attach_type_document'), 'archive'=>lang('admin_attach_type_archive'), 'other'=>lang('admin_attach_type_other'));
+            foreach($stats['type_stats'] as $type => $count) {
+                $pct = $stats['total'] > 0 ? round($count / $stats['total'] * 100, 1) : 0;
+                $color = isset($type_colors[$type]) ? $type_colors[$type] : 'secondary';
+                $label = isset($type_labels[$type]) ? $type_labels[$type] : $type;
+                if($count == 0) continue;
+            ?>
+            <div class="d-flex align-items-center gap-1" style="min-width:120px;">
+                <span class="fs-6 text-body-secondary"><?php echo $label;?></span>
+                <div class="progress flex-grow-1" style="height:6px;min-width:40px;">
+                    <div class="progress-bar bg-<?php echo $color;?>" style="width:<?php echo $pct;?>%"></div>
+                </div>
+                <span class="fs-6 fw-medium"><?php echo $count;?></span>
+            </div>
+            <?php } ?>
+        </div>
+    </div>
+</div>
+<?php } ?>
+
+<!-- 筛选表单 + 清理按钮 -->
+<div class="x-card  cardrounded-3">
+    <div class="card-body">
+        <form id="searchForm" class="mb-3" onsubmit="return handleSearch(event)">
+            <div class="row g-3 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label fw-medium fs-6"><?php echo lang('admin_attach_filter_type');?></label>
+                    <select name="type_category" class="form-select rounded-pill" style="width:120px;">
+                        <option value=""><?php echo lang('admin_attach_filter_type');?></option>
+                        <option value="image" <?php echo $filter_type == 'image' ? 'selected' : '';?>><?php echo lang('admin_attach_type_image');?></option>
+                        <option value="video" <?php echo $filter_type == 'video' ? 'selected' : '';?>><?php echo lang('admin_attach_type_video');?></option>
+                        <option value="audio" <?php echo $filter_type == 'audio' ? 'selected' : '';?>><?php echo lang('admin_attach_type_audio');?></option>
+                        <option value="document" <?php echo $filter_type == 'document' ? 'selected' : '';?>><?php echo lang('admin_attach_type_document');?></option>
+                        <option value="archive" <?php echo $filter_type == 'archive' ? 'selected' : '';?>><?php echo lang('admin_attach_type_archive');?></option>
+                        <option value="other" <?php echo $filter_type == 'other' ? 'selected' : '';?>><?php echo lang('admin_attach_type_other');?></option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label fw-medium fs-6"><?php echo lang('admin_attach_filter_orphan');?></label>
+                    <select name="orphan" class="form-select rounded-pill" style="width:120px;">
+                        <option value=""><?php echo lang('admin_attach_filter_orphan_all');?></option>
+                        <option value="1" <?php echo $filter_orphan === '1' ? 'selected' : '';?>><?php echo lang('admin_attach_filter_orphan_only');?></option>
+                        <option value="0" <?php echo $filter_orphan === '0' ? 'selected' : '';?>><?php echo lang('admin_attach_filter_orphan_normal');?></option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label fw-medium fs-6"><?php echo lang('admin_attach_filter_keyword');?></label>
+                    <input type="text" name="keyword" class="form-control rounded-pill" value="<?php echo esc_html($filter_keyword);?>" placeholder="<?php echo lang('admin_attach_filter_keyword');?>" style="width:160px;">
+                </div>
+                <div class="col-auto">
+                    <label class="form-label fw-medium fs-6"><?php echo lang('admin_attach_filter_sort');?></label>
+                    <select name="sort" class="form-select rounded-pill" style="width:130px;">
+                        <option value="date_desc" <?php echo $sort == 'date_desc' ? 'selected' : '';?>><?php echo lang('admin_attach_sort_date_desc');?></option>
+                        <option value="date_asc" <?php echo $sort == 'date_asc' ? 'selected' : '';?>><?php echo lang('admin_attach_sort_date_asc');?></option>
+                        <option value="size_desc" <?php echo $sort == 'size_desc' ? 'selected' : '';?>><?php echo lang('admin_attach_sort_size_desc');?></option>
+                        <option value="size_asc" <?php echo $sort == 'size_asc' ? 'selected' : '';?>><?php echo lang('admin_attach_sort_size_asc');?></option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label fw-medium fs-6"><?php echo lang('admin_attach_pagesize');?></label>
+                    <select name="pagesize" class="form-select rounded-pill" style="width:80px;">
+                        <option value="20" <?php echo $pagesize == 20 ? 'selected' : '';?>>20</option>
+                        <option value="50" <?php echo $pagesize == 50 ? 'selected' : '';?>>50</option>
+                        <option value="100" <?php echo $pagesize == 100 ? 'selected' : '';?>>100</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary rounded-pill"><i class="ti ti-search me-1"></i><?php echo lang('search');?></button>
+                </div>
+                <div class="col-auto ms-auto">
+                    <button type="button" id="btnCleanOrphan" class="btn btn-outline-danger rounded-pill" data-orphan-count="<?php echo $stats['orphan_count'];?>"><i class="ti ti-trash me-1"></i><?php echo lang('admin_attach_clean_orphan');?> (<?php echo $stats['orphan_count'];?>)</button>
+                </div>
+            </div>
+        </form>
+
+        <!-- 附件列表 -->
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th style="width:60px;"><?php echo lang('admin_attach_col_id');?></th>
+                        <th><?php echo lang('admin_attach_col_filename');?></th>
+                        <th style="width:80px;"><?php echo lang('admin_attach_col_type');?></th>
+                        <th style="width:90px;"><?php echo lang('admin_attach_col_size');?></th>
+                        <th style="width:120px;"><?php echo lang('admin_attach_col_user');?></th>
+                        <th style="width:130px;"><?php echo lang('admin_attach_col_time');?></th>
+                        <th style="width:120px;"><?php echo lang('admin_attach_col_ref');?></th>
+                        <th style="width:60px;"><?php echo lang('admin_attach_col_status');?></th>
+                        <th style="width:80px;"><?php echo lang('admin_attach_col_action');?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if(empty($attachlist)) { ?>
+                    <tr><td colspan="9" class="text-center text-body-secondary py-4"><?php echo lang('admin_no_data')?></td></tr>
+                    <?php } else { foreach($attachlist as $attach) {
+                        $is_orphan = $attach['is_orphan'];
+                        // 确定关联对象显示
+                        $ref_html = '';
+                        if($attach['pid'] > 0) {
+                            $ref_tid = isset($tid_from_pid[$attach['pid']]) ? $tid_from_pid[$attach['pid']] : 0;
+                            if($is_orphan) {
+                                $ref_html = '<span class="text-body-secondary">'.lang('admin_attach_deleted').'</span>';
+                            } else {
+                                $ref_html = '<a href="'.url('../thread-'.$ref_tid).'" target="_blank">'.lang('admin_attach_reply').' #'.$attach['pid'].'</a>';
+                            }
+                        } elseif($attach['tid'] > 0) {
+                            if($is_orphan) {
+                                $ref_html = '<span class="text-body-secondary">'.lang('admin_attach_deleted').'</span>';
+                            } else {
+                                $ref_html = '<a href="'.url('../thread-'.$attach['tid']).'" target="_blank">'.lang('admin_attach_thread').' #'.$attach['tid'].'</a>';
+                            }
+                        } else {
+                            $ref_html = '<span class="text-body-secondary">'.lang('admin_attach_no_ref').'</span>';
+                        }
+
+                        // 确定类型标签
+                        $ext = pathinfo($attach['orgfilename'], PATHINFO_EXTENSION);
+                        $type_label = lang('admin_attach_type_other');
+                        $type_badge = 'secondary';
+                        $ext_lower = strtolower($ext);
+                        $is_image = in_array($ext_lower, array('jpg','jpeg','png','gif','bmp','webp'));
+                        $is_video = in_array($ext_lower, array('mp4','avi','rm','rmvb','wmv','webm'));
+                        $is_audio = in_array($ext_lower, array('mp3','wav','wma','ogg'));
+                        $is_previewable = $is_image || $is_video || $is_audio;
+                        if($is_image) { $type_label = lang('admin_attach_type_image'); $type_badge = 'primary'; }
+                        elseif($is_video) { $type_label = lang('admin_attach_type_video'); $type_badge = 'danger'; }
+                        elseif($is_audio) { $type_label = lang('admin_attach_type_audio'); $type_badge = 'warning'; }
+                        elseif(in_array($ext_lower, array('doc','docx','xls','xlsx','ppt','pptx','pdf','txt','c','cpp'))) { $type_label = lang('admin_attach_type_document'); $type_badge = 'info'; }
+                        elseif(in_array($ext_lower, array('zip','rar','7z','gz','tar','bz'))) { $type_label = lang('admin_attach_type_archive'); $type_badge = 'success'; }
+                        // 构建附件URL
+                        $attach_url = $conf['upload_url'].'attach/'.$attach['filename'];
+                    ?>
+                    <tr data-aid="<?php echo $attach['aid'];?>" data-orphan="<?php echo $is_orphan ? 1 : 0;?>">
+                        <td><?php echo $attach['aid'];?></td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <?php if($is_image) { ?>
+                                <img src="<?php echo $attach_url;?>" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:4px;flex-shrink:0;">
+                                <?php } elseif($is_video) { ?>
+                                <span class="flex-shrink-0 d-inline-flex align-items-center justify-content-center bg-danger bg-opacity-10 rounded" style="width:32px;height:32px;"><i class="ti ti-player-play text-danger"></i></span>
+                                <?php } elseif($is_audio) { ?>
+                                <span class="flex-shrink-0 d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 rounded" style="width:32px;height:32px;"><i class="ti ti-music text-warning"></i></span>
+                                <?php } ?>
+                                <span class="d-inline-block text-truncate" style="max-width:180px;" title="<?php echo esc_html($attach['orgfilename']);?>"><?php echo esc_html($attach['orgfilename']);?></span>
+                            </div>
+                        </td>
+                        <td><span class="badge bg-<?php echo $type_badge;?>"><?php echo $type_label;?></span></td>
+                        <td><?php echo format_filesize($attach['filesize']);?></td>
+                        <td>
+                            <?php if(isset($users[$attach['uid']])) { ?>
+                            <a href="<?php echo url('../user-'.$attach['uid']);?>" target="_blank"><?php echo esc_html($users[$attach['uid']]);?></a>
+                            <span class="text-body-secondary fs-6">(<?php echo $attach['uid'];?>)</span>
+                            <?php } else { ?>
+                            <span class="text-body-secondary">UID:<?php echo $attach['uid'];?></span>
+                            <?php } ?>
+                        </td>
+                        <td class="fs-6"><?php echo date('Y-m-d H:i', $attach['create_date']);?></td>
+                        <td><?php echo $ref_html;?></td>
+                        <td>
+                            <?php if($is_orphan) { ?>
+                            <span class="badge bg-danger"><?php echo lang('admin_attach_orphan');?></span>
+                            <?php } else { ?>
+                            <span class="badge bg-success"><?php echo lang('admin_attach_normal');?></span>
+                            <?php } ?>
+                        </td>
+                        <td class="d-flex align-items-center gap-1">
+                            <?php if($is_previewable) { ?>
+                            <a href="<?php echo $attach_url;?>" target="_blank" class="btn btn-sm p-0 border-0 text-primary" title="<?php echo lang('admin_attach_view');?>"><i class="ti ti-eye"></i></a>
+                            <?php } ?>
+                            <?php if($is_orphan) { ?>
+                            <button type="button" class="btn btn-sm p-0 border-0 text-danger btn-delete-attach" data-aid="<?php echo $attach['aid'];?>" data-orphan="1" title="<?php echo lang('admin_attach_delete');?>"><i class="ti ti-trash"></i></button>
+                            <?php } else { ?>
+                            <button type="button" class="btn btn-sm p-0 border-0 text-secondary btn-delete-attach" data-aid="<?php echo $attach['aid'];?>" data-orphan="0" title="<?php echo lang('admin_attach_force_delete');?>"><i class="ti ti-trash"></i></button>
+                            <?php } ?>
+                        </td>
+                    </tr>
+                    <?php }} ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 分页 -->
+        <?php if($count > $pagesize) { ?>
+        <nav>
+            <ul class="pagination pagination-boxed justify-content-center">
+                <?php
+                $total_pages = ceil($count / $pagesize);
+                $query_params = http_build_query(array_filter(array('type_category'=>$filter_type, 'orphan'=>$filter_orphan, 'keyword'=>$filter_keyword, 'sort'=>$sort, 'pagesize'=>$pagesize)));
+                for($i = 1; $i <= min($total_pages, 20); $i++) {
+                    $url = url('attach-list') . ($query_params ? '&'.$query_params : '') . '&page='.$i;
+                ?>
+                <li class="page-item <?php echo $page == $i ? 'active' : '';?>"><a class="page-link" href="<?php echo $url;?>"><?php echo $i;?></a></li>
+                <?php } ?>
+                <?php if($total_pages > 20) { ?>
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                <?php } ?>
+            </ul>
+        </nav>
+        <?php } ?>
+
+        <div class="text-body-secondary fs-6"><?php echo lang('admin_total_records', array('n'=>$count))?></div>
+    </div>
+</div>
+
+<!-- 确认删除弹窗 -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title" id="deleteModalTitle"><?php echo lang('admin_attach_delete');?></h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="deleteModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary rounded-pill btn-sm" data-bs-dismiss="modal"><?php echo lang('cancel');?></button>
+                <button type="button" class="btn btn-danger rounded-pill btn-sm" id="btnConfirmDelete"><?php echo lang('confirm_delete_btn');?></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!--{hook admin_attach_manage_end.htm}-->
+
+<script>
+// 搜索表单：构建正确的 Xiuno 路由 URL
+function handleSearch(e) {
+    e.preventDefault();
+    var form = document.getElementById('searchForm');
+    var params = new URLSearchParams(new FormData(form));
+    window.location.href = '<?php echo url('attach-list');?>&' + params.toString();
+    return false;
+}
+</script>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script src="../view/js/attach_manage.js<?php echo $static_version;?>"></script>

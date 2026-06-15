@@ -13,41 +13,23 @@
 
 			<?php echo xn_debug_info();?>
 		</div>
-	</main>
+        <div class="d-flex justify-content-end text-muted p-2">  Powered by <a class="mx-2" href="https://www.xiunox.org/" target="_blank">  XIUNOX </a> Based on  Xiuno BBS 4.0.4 </div>
+
+	</div>
+
+    
+	</div>
+
+	<div id="toast-container" style="position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 
 	<!--{hook admin_footer_footer_before.htm}-->
 	
-	<footer class="text-muted small bg-dark py-4" id="footer">
-		<div class="container">
-			<div class="row">
-				<div class="col">
-					<!--{hook footer_footer_left_start.htm}-->
-					Powered by <b>Xiuno BBS <span><?php echo $conf['version'];?></span></b>
-					<!--{hook footer_footer_left_end.htm}-->
-				</div>
-				<div class="col text-right">
-					<!--{hook footer_footer_right_start.htm}-->
-					Time: <b><?php echo substr(microtime(1) - $starttime, 0, 5);?></b>, SQL: <b><?php echo count($db->sqls);?></b>
-					<!--{hook footer_footer_right_end.htm}-->
-				</div>
-			</div>
-		</div>
-	</footer>
-	
-	<!--{hook admin_footer_footer_after.htm}-->
-	
-	<!--[if lt IE 9]>
-	<script>window.location = '<?php echo url('browser');?>';</script>
-	<![endif]-->
-	
-	<!--{hook admin_footer_js_before.htm}-->
-	
 	<script src="../lang/<?php echo $conf['lang'];?>/bbs.js<?php echo $static_version;?>"></script>
-	<script src="../view/js/jquery-3.1.0.js<?php echo $static_version;?>"></script>
-	<script src="../view/js/popper.js<?php echo $static_version;?>"></script>
-	<script src="../view/js/bootstrap.js<?php echo $static_version;?>"></script>
+	<script src="../view/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+	<script src="../view/vendor/chartjs/chart.umd.min.js"></script>
+	<script src="../view/js/jquery-3.7.1.min.js<?php echo $static_version;?>"></script>
 	<script src="../view/js/xiuno.js<?php echo $static_version;?>"></script>
-	<script src="../view/js/bootstrap-plugin.js<?php echo $static_version;?>"></script>
+	<script src="../view/js/xiuno-modern.js<?php echo $static_version;?>"></script>
 	<script src="../view/js/async.js<?php echo $static_version;?>"></script>
 	<script src="../view/js/form.js<?php echo $static_version;?>"></script>
 	<script>
@@ -56,9 +38,106 @@
 	var fid = <?php echo $fid;?>;
 	</script>
 	<script src="../view/js/bbs.js<?php echo $static_version;?>"></script>
+	<script src="../view/js/bootstrap-plugin.js<?php echo $static_version;?>"></script>
 	
 	<!--{hook admin_footer_js_after.htm}-->
 	
+<script>
+(function(){
+    var sidebar = document.getElementById('adminSidebar');
+    var overlay = document.getElementById('sidebarOverlay');
+    var closeBtn = document.getElementById('sidebarCloseBtn');
+    var toggleBtn = document.getElementById('sidebarToggleBtn');
+    var mainArea = document.querySelector('.admin-main');
+
+    // 同步侧栏宽度到主区域 margin-left
+    function syncSidebarWidth() {
+        if (sidebar && mainArea && window.innerWidth >= 992) {
+            mainArea.style.marginLeft = sidebar.offsetWidth + 'px';
+        }
+    }
+
+    syncSidebarWidth();
+    if (window.ResizeObserver && sidebar) {
+        new ResizeObserver(syncSidebarWidth).observe(sidebar);
+    }
+    window.addEventListener('resize', function() {
+        if (window.innerWidth < 992 && mainArea) {
+            mainArea.style.marginLeft = '0';
+        } else {
+            syncSidebarWidth();
+        }
+    });
+
+    function openMobileSidebar() {
+        if (sidebar) sidebar.classList.add('show');
+        if (overlay) overlay.classList.add('show');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeMobileSidebar() {
+        if (sidebar) sidebar.classList.remove('show');
+        if (overlay) overlay.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', function() {
+            if (sidebar && sidebar.classList.contains('show')) {
+                closeMobileSidebar();
+            } else {
+                openMobileSidebar();
+            }
+        });
+    }
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+            closeMobileSidebar();
+        });
+    }
+
+    if (overlay) {
+        overlay.addEventListener('click', function() {
+            closeMobileSidebar();
+        });
+    }
+})();
+
+(function(){
+	var current = localStorage.getItem('theme') || 'light';
+	var iconLight = document.getElementById('theme-icon-light');
+	var iconDark = document.getElementById('theme-icon-dark');
+	if(iconLight && iconDark) {
+		if(current === 'dark') {
+			iconLight.classList.add('d-none');
+			iconDark.classList.remove('d-none');
+		} else {
+			iconLight.classList.remove('d-none');
+			iconDark.classList.add('d-none');
+		}
+	}
+})();
+
+document.getElementById('theme-toggle').addEventListener('click', function() {
+	var current = document.documentElement.getAttribute('data-bs-theme') || 'light';
+	var next = current === 'dark' ? 'light' : 'dark';
+	document.documentElement.setAttribute('data-bs-theme', next);
+	localStorage.setItem('theme', next);
+	var iconLight = document.getElementById('theme-icon-light');
+	var iconDark = document.getElementById('theme-icon-dark');
+	if(iconLight && iconDark) {
+		if(next === 'dark') {
+			iconLight.classList.add('d-none');
+			iconDark.classList.remove('d-none');
+		} else {
+			iconLight.classList.remove('d-none');
+			iconDark.classList.add('d-none');
+		}
+	}
+});
+</script>
+
 </body>
 </html>
 

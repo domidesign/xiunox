@@ -1,0 +1,100 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<div class="row">
+    <div class="col-12">
+        <div class="btn-group mb-3" role="group">
+            <?php echo admin_tab_active($menu['notice']['tab'], 'list');?>
+        </div>
+
+        <div class="x-card  cardshadow-sm">
+            <ul class="nav nav-tabs mx-3 mt-2" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-notice-list" type="button"><i class="ti ti-list me-1"></i><?php echo lang('admin_notice_list');?></button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-announcement-list" type="button"><i class="ti ti-speakerphone me-1"></i><?php echo lang('admin_announcement_list');?></button>
+                </li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="tab-notice-list" role="tabpanel">
+                    <div class="card-body p-0">
+                        <ul class="list-group list-group-flush mb-0">
+                            <?php include _include(ADMIN_PATH.'view/htm/admin_notice_list.inc.htm'); ?>
+                        </ul>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="tab-announcement-list" role="tabpanel">
+                    <div class="card-body">
+                        <div id="announcement-list-content">
+                            <p class="text-body-secondary small"><?php echo lang('admin_loading');?></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+<script>
+
+$('#nav li.nav-item-notice').addClass('active');
+
+// 删除
+$('.confirm').on('click', function() {
+    var nid = $(this).data('nid');
+    var postdata = {nid: nid, csrf_token: '<?php echo $header["csrf_token"];?>'};
+	$.confirm('<?php echo lang('admin_confirm_delete_question')?>', function() {
+	    	$.xpost(xn.url('notice-delete'), postdata, function(code, message) {
+			if(code != 0) return showToast(message, 'error');
+			window.location.reload();
+		});
+	});
+});
+
+// 全局公告 tab：首次切换时加载公告列表
+var announcementLoaded = false;
+document.querySelector('button[data-bs-target="#tab-announcement-list"]').addEventListener('shown.bs.tab', function() {
+    if(announcementLoaded) return;
+    var container = document.getElementById('announcement-list-content');
+    fetch('<?php echo url("notice-announcement_list");?>', {
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    }).then(function(r) { return r.text(); }).then(function(html) {
+        container.innerHTML = html;
+        announcementLoaded = true;
+        bindAnnouncementDelete();
+    }).catch(function() {
+        container.innerHTML = '<p class="text-body-secondary small"><?php echo lang('admin_load_failed');?></p>';
+    });
+});
+
+// 公告列表中的删除按钮
+function bindAnnouncementDelete() {
+    document.querySelectorAll('#announcement-list-content .confirm').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var nid = this.getAttribute('data-nid');
+            if(!nid) return;
+            XN.confirm('<?php echo lang('admin_confirm_delete_question');?>', function() {
+            var csrfToken = document.querySelector('meta[name="csrf-token"]');
+            var data = {nid: nid, csrf_token: csrfToken ? csrfToken.getAttribute('content') : ''};
+            fetch('<?php echo url("notice-delete");?>', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
+                body: Object.keys(data).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(data[k]); }).join('&')
+            }).then(function(r) { return r.json(); }).then(function(json) {
+                if(parseInt(json.code) === 0) {
+                    var item = document.getElementById('announcement-item-' + nid);
+                    if(item) item.remove();
+                    showToast('<?php echo lang('admin_delete_success');?>', 'success');
+                } else {
+                    showToast(json.message || '<?php echo lang('admin_delete_failed');?>', 'error');
+                }
+            }).catch(function() {
+                showToast('<?php echo lang('admin_request_failed');?>', 'error');
+            });
+            });
+        });
+    });
+}
+
+</script>

@@ -1,0 +1,160 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_upgrade_start.htm}-->
+
+<div class="mb-3">
+	<?php echo admin_tab_active($menu['other']['tab'], 'upgrade');?>
+</div>
+
+<div class="mx-auto" style="max-width:48rem">
+	<div class="x-card card">
+		<div class="card-body">
+			<div class="d-flex justify-content-between align-items-center mb-4">
+				<h5 class="fw-bold d-flex align-items-center gap-2"><i class="ti ti-circle-arrow-up"></i><?php echo lang('admin_upgrade_title');?></h5>
+				<span class="badge bg-secondary " id="currentVersion"><?php echo $conf['version'] ?? '?';?></span>
+			</div>
+
+			<div id="prerequisitesAlert" class="alert alert-warning py-2 d-none"></div>
+
+			<div class="mb-4">
+				<div class="d-flex align-items-center gap-2 mb-2">
+					<span class="fw-semibold"><?php echo lang('admin_upgrade_current_version');?></span>
+					<code><?php echo $conf['version'] ?? '0.0.0';?></code>
+					<i class="ti ti-arrow-right"></i>
+					<span class="fw-semibold"><?php echo lang('admin_upgrade_target_version');?></span>
+					<code>1.0.1</code>
+				</div>
+			</div>
+
+			<div id="stepsContainer">
+				<?php foreach($steps as $i => $step): ?>
+				<div class="step-item d-flex align-items-start mb-2 pb-2 border-bottom" id="step-<?php echo $step['id'];?>">
+					<div class="step-icon me-3 flex-shrink-0" style="width:32px; height:32px; border-radius:50%; background:var(--bs-gray-300); display:flex; align-items:center; justify-content:center;">
+						<span class="step-number fw-bold" style="font-size:0.75rem"><?php echo $i + 1;?></span>
+					</div>
+					<div class="flex-fill" style="min-width:0">
+						<div class="fw-semibold"><?php echo $step['name'];?></div>
+						<div class="fs-6 text-secondary"><?php echo $step['description'];?></div>
+						<div class="step-result fs-6 mt-1"></div>
+					</div>
+					<div class="step-status ms-2 flex-shrink-0">
+						<span class="text-secondary fs-6"><?php echo lang('admin_upgrade_waiting');?></span>
+					</div>
+				</div>
+				<?php endforeach; ?>
+			</div>
+
+			<div class="mb-3" id="logArea"></div>
+
+			<div class="d-flex justify-content-between">
+				<div>
+					<button type="button" class="btn btn-outline-secondary d-none" id="retryBtn" onclick="location.reload()"><i class="ti ti-refresh"></i><?php echo lang('admin_upgrade_retry');?></button>
+				</div>
+				<div>
+					<button type="button" class="btn btn-primary" id="startBtn" onclick="startUpgrade()">
+					<i class="ti ti-player-play-filled"></i><?php echo lang('admin_upgrade_start');?>
+				</button>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!--{hook admin_upgrade_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+var steps = <?php echo json_encode($steps);?>;
+var currentStep = 0;
+
+function startUpgrade() {
+	var btn = document.getElementById('startBtn');
+	btn.disabled = true;
+	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_upgrade_upgrading');?>';
+	document.getElementById('prerequisitesAlert').classList.add('d-none');
+	currentStep = 0;
+	runNextStep();
+}
+
+function runNextStep() {
+	if(currentStep >= steps.length) {
+		finishUpgrade();
+		return;
+	}
+
+	var step = steps[currentStep];
+	var stepEl = document.getElementById('step-' + step.id);
+	var iconEl = stepEl.querySelector('.step-icon');
+	var statusEl = stepEl.querySelector('.step-status');
+	var resultEl = stepEl.querySelector('.step-result');
+
+	iconEl.style.background = 'var(--bs-primary)';
+	iconEl.style.color = '#fff';
+	iconEl.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+	statusEl.innerHTML = '<span class="text-primary fs-6"><?php echo lang('admin_upgrade_executing');?></span>';
+	resultEl.innerHTML = '';
+
+	$.ajax({
+		url: '<?php echo url("upgrade-do");?>',
+		type: 'POST',
+		data: { step: step.id },
+		dataType: 'json',
+		success: function(res) {
+			iconEl.innerHTML = res.ok ? '<i class="ti ti-check text-white"></i>' : '<i class="ti ti-exclamation-circle text-white"></i>';
+			iconEl.style.background = res.ok ? 'var(--bs-success, #198754)' : 'var(--bs-danger, #dc3545)';
+			statusEl.innerHTML = res.ok ? '<span class="text-success fs-6"><?php echo lang('admin_upgrade_complete');?></span>' : '<span class="text-danger fs-6"><?php echo lang('admin_upgrade_failed');?></span>';
+
+			var detailHtml = res.message || '';
+			if(res.results && res.results.length > 0) {
+				detailHtml += '<div class="mt-1" style="font-size:0.75rem">';
+				$.each(res.results, function(i, r) {
+					var icon = r.ok ? '<i class="ti ti-check text-success"></i>' : '<i class="ti ti-x text-danger"></i>';
+					detailHtml += '<div>' + icon + ' ' + (r.name || '') + ' — ' + r.message + '</div>';
+				});
+				detailHtml += '</div>';
+			}
+			resultEl.innerHTML = detailHtml;
+
+			if(!res.ok) {
+				showUpgradeError(res.message);
+				return;
+			}
+
+			currentStep++;
+			runNextStep();
+		},
+		error: function(xhr) {
+			iconEl.innerHTML = '<i class="ti ti-x text-white"></i>';
+			iconEl.style.background = 'var(--bs-danger, #dc3545)';
+			statusEl.innerHTML = '<span class="text-danger fs-6"><?php echo lang('admin_upgrade_failed');?></span>';
+			var errMsg = '<?php echo lang('admin_upgrade_request_failed');?>';
+			if(xhr.responseText) {
+				errMsg += '<?php echo lang('admin_upgrade_server_returned');?>' + xhr.responseText.substring(0, 200) + '<?php echo lang('admin_upgrade_close_bracket');?>';
+			}
+			resultEl.innerHTML = errMsg;
+			showUpgradeError(errMsg);
+		}
+	});
+}
+
+function finishUpgrade() {
+	var btn = document.getElementById('startBtn');
+	btn.disabled = true;
+	btn.innerHTML = '<i class="ti ti-check"></i><?php echo lang('admin_upgrade_done');?>';
+	btn.className = 'btn btn-success';
+
+	var logArea = document.getElementById('logArea');
+	logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i><?php echo lang('admin_upgrade_success_msg');?><b>1.0.1</b></div>';
+}
+
+function showUpgradeError(msg) {
+	var btn = document.getElementById('startBtn');
+	btn.innerHTML = '<i class="ti ti-refresh"></i><?php echo lang('admin_upgrade_retry');?>';
+	btn.className = 'btn btn-warning';
+	btn.disabled = false;
+
+	var logArea = document.getElementById('logArea');
+	logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + msg + '</div>';
+}
+</script>

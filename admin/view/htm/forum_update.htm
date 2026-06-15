@@ -2,97 +2,133 @@
 
 <!--{hook admin_forum_update_start.htm}-->
 
-<div class="row">
-	<div class="col-12">
-		<div class="card">
-			<div class="card-body">
-				<form action="<?php echo url("forum-update-$_fid");?>" method="post" id="form">
-					<h4 class="card-title"><?php echo lang('forum_edit');?> - <?php echo $_forum['name'];?></h4>
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label" for="name"><?php echo lang('forum_name');?>：</label>
-						<div class="col-sm-10">
-							<?php echo $input['name'];?>
-						</div>
+<?php $accesslist = G('accesslist');?>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo url("forum-update-$_fid");?>" method="post" enctype="multipart/form-data" id="form">
+			<?php echo CsrfService::input(); ?>
+			<h4 class="card-title"><i class="ti ti-message-circle"></i> <?php echo lang('forum_edit');?> - <?php echo $_forum['name'];?></h4>
+			<div class="d-flex gap-4 align-items-center mb-3">
+				<label class="form-label" style="width:25%"><?php echo lang('admin_label_icon')?>：</label>
+				<div style="width:75%" class="d-flex align-items-center gap-3">
+					<div id="icon_preview" class="border rounded-3 p-2" style="min-width:64px;min-height:64px;display:flex;align-items:center;justify-content:center">
+						<?php
+						$icon_val = isset($_forum['icon']) ? $_forum['icon'] : '';
+						if(!empty($icon_val) && (strpos($icon_val, '.') !== false || strpos($icon_val, '/') !== false)) {
+							echo '<img src="'.$icon_val.'" style="max-width:56px;max-height:56px" class="rounded" />';
+						} elseif(!empty($icon_val)) {
+							echo '<i class="'.$icon_val.'" style="font-size:2rem"></i>';
+						} else {
+							echo '<i class="ti ti-message-circle text-body-secondary" style="font-size:2rem"></i>';
+						}
+						?>
 					</div>
-					<!--{hook admin_forum_update_forum_name_after.htm}-->
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label" for="name"><?php echo lang('rank');?>：</label>
-						<div class="col-sm-3">
-							<?php echo $input['rank'];?>
-						</div>
+					<div>
+						<input type="file" class="form-control rounded-pill" name="icon" id="icon_input" accept="image/jpeg,image/png,image/gif,image/webp" style="max-width:300px" />
+						<span class="text-body-secondary small"><?php echo lang('admin_icon_upload_tip')?></span>
 					</div>
-					<!--{hook admin_forum_update_forum_rank_after.htm}-->
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label" for="brief"><?php echo lang('forum_brief');?>：</label>
-						<div class="col-sm-10">
-							<?php echo $input['brief'];?>
-						</div>
-					</div>
-					<!--{hook admin_forum_update_forum_brief_after.htm}-->
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label" for="announcement"><?php echo lang('forum_announcement');?>：</label>
-						<div class="col-sm-10">
-							<?php echo $input['announcement'];?>
-						</div>
-					</div>
-					<!--{hook admin_forum_update_forum_announcement_after.htm}-->
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label" for="moduids"><?php echo lang('moderator');?>：</label>
-						<div class="col-sm-10">
-							<?php echo $input['modnames'];?>
-							<p class="small text-muted mt-2" id="modnames"><?php echo lang('forum_moduid_format_tips');?></p>
-						</div>
-					</div>
-					<!--{hook admin_forum_update_privilete_before.htm}-->
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label" for="accesson"><?php echo lang('user_privilege');?>：</label>
-						<div class="col-sm-10">
-							<p><label><?php echo $input['accesson'];?> <?php echo lang('enable');?></label></p>
-							<div class="table-responsive <?php echo $_forum['accesson'] ? '' : 'collapse';?>" id="accesslist_div">
-								<table class="table  text-small" id="accesslist" style="min-width: 700px;">
-									<thead>
-										<tr align="center">
-											<td width="60"><?php echo lang('checkall');?></td>
-											<td align="left"><?php echo lang('user_group');?></td>
-											<td width="80"><?php echo lang('allow_view');?></td>
-											<td width="60"><?php echo lang('allow_thread');?></td>
-											<td width="60"><?php echo lang('allow_post');?></td>
-											<td width="60"><?php echo lang('allow_upload');?></td>
-											<td width="60"><?php echo lang('allow_download');?></td>
-											<!--{hook admin_forum_update_access_title_end.htm}-->
-										</tr>
-									<thead>
-									<tbody>
-										<?php foreach ($accesslist as &$access) { ?>
-										<tr align="center">								
-											<td><label class="custom-input c-checkbox"><input type="checkbox" name="checkall" /></label></td>
-											<td align="left"><?php echo $access['name']; ?></td>
-											<td><label class="custom-input ccustom-checkbox"><input type="checkbox" name="allowread[<?php echo $access['gid']; ?>]" value="1"<?php echo ($access['allowread'] ? 'checked' : ''); ?> /></label></td>
-											<td><label class="custom-input ccustom-checkbox"><input type="checkbox" name="allowthread[<?php echo $access['gid']; ?>]" value="1"<?php echo ($access['allowthread'] ? 'checked' : ''); ?> /></label></td>
-											<td><label class="custom-input ccustom-checkbox"><input type="checkbox" name="allowpost[<?php echo $access['gid']; ?>]" value="1"<?php echo ($access['allowpost'] ? 'checked' : ''); ?> /></label></td>
-											<td><label class="custom-input ccustom-checkbox"><input type="checkbox" name="allowattach[<?php echo $access['gid']; ?>]" value="1"<?php echo ($access['allowattach'] ? 'checked' : ''); ?> /></label></td>
-											<td><label class="custom-input ccustom-checkbox"><input type="checkbox" name="allowdown[<?php echo $access['gid']; ?>]" value="1"<?php echo ($access['allowdown'] ? 'checked' : ''); ?> /></label></td>
-											<!--{hook admin_forum_update_access_input_end.htm}-->
-										</tr>
-										<?php } ?>
-									</tbody>
-								</table>
-							
-							</div>
-						</div>
-					</div>
-					<!--{hook admin_forum_update_privilete_after.htm}-->
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label"></label>
-						<div class="col-sm-10">
-							<button type="submit" class="btn btn-primary btn-block" id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('confirm');?></button>
-							<a role="button" class="btn btn-secondary btn-block mt-3" href="javascript:history.back();"><?php echo lang('back');?></a>
-						</div>
-					</div>
-					<!--{hook admin_forum_update_submit_after.htm}-->
-				</form>
+				</div>
 			</div>
-		</div>
+			<div class="d-flex gap-4 align-items-center mb-3">
+				<label class="form-label" style="width:25%" for="name"><?php echo lang('forum_name');?>：</label>
+				<div style="width:75%">
+					<?php echo $input['name'];?>
+				</div>
+			</div>
+			<!--{hook admin_forum_update_forum_name_after.htm}-->
+			<div class="d-flex gap-4 align-items-center mb-3">
+				<label class="form-label" style="width:25%" for="type"><?php echo lang('admin_forum_type');?>：</label>
+				<div style="width:75%">
+					<?php echo $input['type'];?>
+				</div>
+			</div>
+			<div class="d-flex gap-4 align-items-center mb-3" id="fup_row">
+				<label class="form-label" style="width:25%" for="fup"><?php echo lang('admin_forum_parent');?>：</label>
+				<div style="width:75%">
+					<?php echo $input['fup'];?>
+				</div>
+			</div>
+			<div class="d-flex gap-4 align-items-center mb-3">
+				<label class="form-label" style="width:25%" for="name"><?php echo lang('rank');?>：</label>
+				<div style="width:25%">
+					<?php echo $input['rank'];?>
+				</div>
+			</div>
+			<!--{hook admin_forum_update_forum_rank_after.htm}-->
+			<div class="d-flex gap-4 align-items-center mb-3">
+				<label class="form-label" style="width:25%" for="brief"><?php echo lang('forum_brief');?>：</label>
+				<div style="width:75%">
+					<?php echo $input['brief'];?>
+				</div>
+			</div>
+			<!--{hook admin_forum_update_forum_brief_after.htm}-->
+			<div class="d-flex gap-4 align-items-center mb-3">
+				<label class="form-label" style="width:25%" for="announcement"><?php echo lang('forum_announcement');?>：</label>
+				<div style="width:75%">
+					<?php echo $input['announcement'];?>
+				</div>
+			</div>
+			<!--{hook admin_forum_update_forum_announcement_after.htm}-->
+			<div class="d-flex gap-4 align-items-center mb-3" id="moduids_row">
+				<label class="form-label" style="width:25%" for="moduids"><?php echo lang('moderator');?>：</label>
+				<div style="width:75%">
+					<?php echo $input['modnames'];?>
+					<p class="fs-6 text-body-secondary mt-2" id="modnames"><?php echo lang('forum_moduid_format_tips');?></p>
+				</div>
+			</div>
+			<!--{hook admin_forum_update_privilete_before.htm}-->
+			<div class="d-flex gap-4 align-items-start mb-3">
+				<label class="form-label" style="width:25%" for="accesson"><?php echo lang('user_privilege');?>：</label>
+				<div style="width:75%">
+					<input type="hidden" name="accesson" value="1" />
+					<div class="overflow-x-auto" id="accesslist_div">
+						<table class="table table-hover fs-6" id="accesslist" style="min-width: 700px;">
+							<thead>
+								<tr align="center">
+									<td width="60"><?php echo lang('checkall');?></td>
+									<td align="left"><?php echo lang('user_group');?></td>
+									<td width="80"><?php echo lang('allow_view');?></td>
+									<td width="60"><?php echo lang('allow_thread');?></td>
+									<td width="60"><?php echo lang('allow_post');?></td>
+									<td width="60"><?php echo lang('allow_upload');?></td>
+									<td width="60"><?php echo lang('allow_download');?></td>
+									<td width="60"><?php echo lang('admin_thread_audit')?></td>
+									<td width="60"><?php echo lang('admin_reply_audit')?></td>
+									<!--{hook admin_forum_update_access_title_end.htm}-->
+								</tr>
+							<thead>
+							<tbody>
+								<?php foreach ($accesslist as &$access) { ?>
+								<tr align="center">
+									<td><label class="d-flex align-items-center justify-content-center"><input type="checkbox" class="form-check-input" name="checkall" /></label></td>
+								<td align="left"><?php echo $access['name']; ?></td>
+								<td><label class="d-flex align-items-center justify-content-center"><input type="checkbox" class="form-check-input" name="allowread[<?php echo $access['gid']; ?>]" value="1"<?php echo ($access['allowread'] ? 'checked' : ''); ?> /></label></td>
+								<td><label class="d-flex align-items-center justify-content-center"><input type="checkbox" class="form-check-input" name="allowthread[<?php echo $access['gid']; ?>]" value="1"<?php echo ($access['allowthread'] ? 'checked' : ''); ?> /></label></td>
+								<td><label class="d-flex align-items-center justify-content-center"><input type="checkbox" class="form-check-input" name="allowpost[<?php echo $access['gid']; ?>]" value="1"<?php echo ($access['allowpost'] ? 'checked' : ''); ?> /></label></td>
+								<td><label class="d-flex align-items-center justify-content-center"><input type="checkbox" class="form-check-input" name="allowattach[<?php echo $access['gid']; ?>]" value="1"<?php echo ($access['allowattach'] ? 'checked' : ''); ?> /></label></td>
+								<td><label class="d-flex align-items-center justify-content-center"><input type="checkbox" class="form-check-input" name="allowdown[<?php echo $access['gid']; ?>]" value="1"<?php echo ($access['allowdown'] ? 'checked' : ''); ?> /></label></td>
+									<td><label class="d-flex align-items-center justify-content-center"><input type="checkbox" class="form-check-input" name="allowthreadaudit[<?php echo $access['gid']; ?>]" value="1"<?php echo (!empty($access['allowthreadaudit']) ? ' checked' : ''); ?> /></label></td>
+									<td><label class="d-flex align-items-center justify-content-center"><input type="checkbox" class="form-check-input" name="allowpostaudit[<?php echo $access['gid']; ?>]" value="1"<?php echo (!empty($access['allowpostaudit']) ? ' checked' : ''); ?> /></label></td>
+									<!--{hook admin_forum_update_access_input_end.htm}-->
+								</tr>
+								<?php } ?>
+							</tbody>
+						</table>
+
+					</div>
+				</div>
+			</div>
+			<!--{hook admin_forum_update_privilete_after.htm}-->
+			<div class="d-flex gap-4 align-items-center mb-3">
+				<label class="form-label" style="width:25%"></label>
+				<div style="width:75%">
+					<button type="submit" class="btn btn-primary w-100" id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('confirm');?></button>
+					<a class="admin-back-link d-block mt-3" href="javascript:history.back();"><i class="ti ti-arrow-left"></i> <?php echo lang('admin_back');?></a>
+				</div>
+			</div>
+			<!--{hook admin_forum_update_submit_after.htm}-->
+		</form>
 	</div>
 </div>
 
@@ -105,34 +141,48 @@
 var jform = $("#form");
 var jsubmit = $("#submit");
 jform.on('submit', function(){
-	jform.reset();
-	jsubmit.button('loading');
-	var postdata = jform.serialize();
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
-		if(code == 0) {
-			$.alert(message);
-			jsubmit.text(message).delay(3000).button('reset');
-			return;
-		} else {
-			$.alert(message);
-			jsubmit.button('reset');
+	jsubmit.prop('disabled', true).text('<?php echo lang('admin_submitting')?>');
+	var postdata = new FormData(this);
+	$.ajax({
+		url: jform.attr('action'),
+		type: 'POST',
+		data: postdata,
+		processData: false,
+		contentType: false,
+		success: function(r) {
+			if(r.code == 0) {
+				showToast(r.message, 'success');
+				setTimeout(function() { window.location = xn.url('forum-list'); }, 1500);
+			} else {
+				showToast(r.message, 'error');
+				jsubmit.prop('disabled', false).text('<?php echo lang('confirm');?>');
+			}
 		}
 	});
 	return false;
 });
 
-
+var jfup_row = $('#fup_row');
+var jmoduids_row = $('#moduids_row');
+var jtype = jform.find('select[name="type"]');
+function toggleFupRow() {
+	if(jtype.val() == 1) {
+		jfup_row.hide();
+	} else {
+		jfup_row.show();
+	}
+}
+function toggleModRow() {
+	if(jtype.val() == '1') { jmoduids_row.hide(); } else { jmoduids_row.show(); }
+}
+jtype.on('change', function() {
+	toggleFupRow();
+	toggleModRow();
+});
+toggleFupRow();
+toggleModRow();
 
 var jaccesslist = $('#accesslist_div');
-
-// toggle
-jform.find('input[name="accesson"]').on('click', function() {
-	//jaccesslist.collapse('toggle'); bootstrap toggler have bug
-	jaccesslist.toggle('fast');
-	return true;
-});
-
-// 全选
 jaccesslist.find('tr').each(function(k, v) {
 	var jtr = $(v);
 	jtr.find('td').eq(0).find('input[type="checkbox"]').on('click', function() {
@@ -140,27 +190,17 @@ jaccesslist.find('tr').each(function(k, v) {
 	});
 });
 
-// 版主姓名：
-/*
-var jmoduids = jform.find('input[name="moduids"]');
-var jmodnames = $('#modnames');
-jmoduids.on('keyup blur', function(e) {
-	if(e.type == 'keyup' && e.keyCode != 188) return;
-	jmoduids.tooltip('dispose');
-	$.xget(xn.url('forum-getname-'+xn.urlencode(jmoduids.val())), function(code, message) {
-		if(code > 0) {
-			jmoduids.alert(message).focus();
-		} else if(code ==0) {
-			jmodnames.text(message);
-		} else {
-			alert(message);
-			//$.alert(message);
-		}
-	});
+// 图标文件预览
+$('#icon_input').on('change', function() {
+	var file = this.files[0];
+	if(file) {
+		var reader = new FileReader();
+		reader.onload = function(e) {
+			$('#icon_preview').html('<img src="'+e.target.result+'" style="max-width:56px;max-height:56px" class="rounded" />');
+		};
+		reader.readAsDataURL(file);
+	}
 });
-*/
-
-$('#nav li.nav-item-forum').addClass('active');
 </script>
 
 <!--{hook admin_forum_update_js.htm}-->

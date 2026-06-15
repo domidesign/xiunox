@@ -2,51 +2,50 @@
 
 <!--{hook admin_group_list_start.htm}-->
 
-<div class="row">
-	<div class="col-12">
-		<div class="btn-group mb-3" role="group">
-			<?php echo admin_tab_active($menu['user']['tab'], 'group');?>
-		</div>
-		<div class="card">
-			<div class="card-body">
-				<form action="<?php echo url('group-list');?>" method="post" id="form">
-					<!--
-					<h5 class="card-title"><?php echo lang('group_list');?></h5>
-					-->
-					<div class="table-responsive arrlist">
-						<table class="table" style="min-width: 800px">
-							<thead>
-								<tr>
-									<th width="100"  class="text-center"><?php echo lang('group_id');?></th>
-									<th><?php echo lang('group_name');?></th>
-									<th class="text-center"><?php echo lang('group_credits_from');?></th>
-									<th class="text-center"><?php echo lang('group_credits_to');?></th>
-									<th class="text-center"><?php echo lang('edit');?></th>
-									<th class="text-center"><?php echo lang('delete');?></th>
-								</tr>
-							<thead>
-							<tbody>
-								<?php foreach($grouplist as $_gid=>$_group) { ?>
-								<tr align="center" rowid="<?php echo $_gid; ?>">
-									<td class="50"><input type="text" class="form-control" name="_gid[<?php echo $_gid;?>]" value="<?php echo $_group['gid']; ?>"  placeholder="<?php echo lang('group_id');?>" /></td>
-									<td><input type="text" class="form-control" name="name[<?php echo $_gid;?>]" value="<?php echo $_group['name']; ?>" placeholder="<?php echo lang('group_name');?>" /></td>
-									<td><input type="text" class="form-control" name="creditsfrom[<?php echo $_gid;?>]" value="<?php echo $_group['creditsfrom']; ?>" placeholder="<?php echo lang('group_credits_from');?>"/></td>
-									<td><input type="text" class="form-control" name="creditsto[<?php echo $_gid;?>]" value="<?php echo $_group['creditsto']; ?>" placeholder="<?php echo lang('group_credits_to');?>"  /></td>
-									<td><a class="btn row_edit" role="btn"><?php echo lang('edit');?></a></td>
-									<td><?php if(!in_array($_gid, $system_group)) { ?><a class="btn row_delete" role="btn"><?php echo lang('delete');?></a><?php } ?></td>
-								</tr>
-								<?php } ?>
-							</tbody>
-						</table>
+<?php echo admin_tab_active($menu['user']['tab'], 'group');?>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo url('group-list');?>" method="post" id="form">
+			<?php echo CsrfService::input(); ?>
+			<div class="arrlist space-y-3">
+				<div class="d-none d-md-grid gap-2 text-center text-body-secondary text-sm font-medium" style="grid-template-columns:48px 80px 1fr 60px 100px 100px 40px 40px;">
+					<div><?php echo lang('admin_col_icon')?></div>
+					<div><?php echo lang('group_id');?></div>
+					<div><?php echo lang('group_name');?></div>
+					<div><?php echo lang('admin_col_color')?></div>
+					<div><?php echo lang('group_credits_from');?></div>
+					<div><?php echo lang('group_credits_to');?></div>
+					<div><?php echo lang('edit');?></div>
+					<div><?php echo lang('delete');?></div>
+				</div>
+				<?php foreach($grouplist as $_gid=>$_group) { ?>
+				<div class="group-item d-flex flex-wrap align-items-center gap-2 py-3  rounded-3" rowid="<?php echo $_gid; ?>" style="display:grid !important; gap:8px; grid-template-columns:48px 80px 1fr 60px 100px 100px 40px 40px;">
+					<div class="text-center icon-preview-span">
+						<span style="font-size:1.5rem"><?php echo !empty($_group['icon']) ? '<i class="'.$_group['icon'].'"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>'; ?></span>
 					</div>
-					<p><a role="button" class="btn row_add">[+]<?php echo lang('add_new_line');?></a></p>
-					<p class="text-center">
-						<button type="submit" class="btn btn-primary" id="submit" data-loading-text="<?php echo lang('submiting');?>..." style="width: 10rem;"><?php echo lang('confirm');?></button>
-					</p>
-				</form>
-				<p class="small text-grey"><?php echo lang('tips');?>：<?php echo lang('forum_edit_tip');?></p>
+					<input type="text" class="form-control form-control-sm" name="_gid[<?php echo $_gid;?>]" value="<?php echo $_group['gid']; ?>" placeholder="<?php echo lang('group_id');?>" style="width:80px;" />
+					<input type="text" class="form-control form-control-sm" name="name[<?php echo $_gid;?>]" value="<?php echo $_group['name']; ?>" placeholder="<?php echo lang('group_name');?>" />
+					<input type="color" class="form-control form-control-color p-0" name="color[<?php echo $_gid;?>]" value="<?php echo isset($_group['color']) && $_group['color'] ? $_group['color'] : '#6c757d';?>" style="width:40px;height:30px" title="<?php echo isset($_group['color']) ? $_group['color'] : '';?>" />
+					<input type="text" class="form-control form-control-sm" name="creditsfrom[<?php echo $_gid;?>]" value="<?php echo $_group['creditsfrom']; ?>" placeholder="<?php echo lang('group_credits_from');?>" style="width:100px;" />
+					<input type="text" class="form-control form-control-sm" name="creditsto[<?php echo $_gid;?>]" value="<?php echo $_group['creditsto']; ?>" placeholder="<?php echo lang('group_credits_to');?>" style="width:100px;" />
+					<a class="row-action row_edit text-center" role="button" title="<?php echo lang('edit');?>"><i class="ti ti-pencil"></i></a>
+					<?php if(!in_array($_gid, $system_group)) { ?>
+					<a class="row-action row_delete text-center" role="button" title="<?php echo lang('delete');?>"><i class="ti ti-trash"></i></a>
+					<?php } else { ?>
+					<span class="text-center text-body-secondary"></span>
+					<?php } ?>
+				</div>
+				<?php } ?>
 			</div>
-		</div>
+			<div class="mt-4">
+				<a role="button" class="row_add text-primary"><i class="ti ti-plus"></i> <?php echo lang('add_new_line');?></a>
+			</div>
+			<div class="mt-4 text-center">
+				<button type="submit" class="btn btn-primary" id="submit" data-loading-text="<?php echo lang('submiting');?>..." style="width: 10rem;"><?php echo lang('confirm');?></button>
+			</div>
+		</form>
+		<p class="text-secondary mt-3" style="font-size:0.75rem"><?php echo lang('tips');?>：<?php echo lang('forum_edit_tip');?></p>
 	</div>
 </div>
 
@@ -55,8 +54,6 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-
-//if(!debug) $.alert('<?php echo lang('group_edit_tips');?>', 4);
 
 var maxgid = <?php echo $maxgid;?>;
 
@@ -68,58 +65,54 @@ jform.on('submit', function(){
 	var postdata = jform.serialize();
 	$.xpost(jform.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
-			$.alert(message);
+			showToast(message, 'success');
 			jsubmit.text(message).delay(3000).location();
 			return;
 		} else {
-			alert(message);
+			showToast(message, 'error');
 			jsubmit.button('reset');
 		}
 	});
 	return false;
 });
 
-// 编辑
 var jarrlist = $('.arrlist');
 var jedit = $('a.row_edit');
 jarrlist.on('click', 'a.row_edit', function() {
 	var jthis = $(this);
-	var jtr = jthis.parents('tr');
+	var jtr = jthis.parents('.group-item');
 	var rowid = jtr.attr('rowid');
 	window.location = xn.url('group-update-'+rowid);
 });
 
-// 删除
 var jdelete = $('a.row_delete');
 jarrlist.on('click', 'a.row_delete', function() {
 	var jthis = $(this);
-	var jtr = jthis.parents('tr');
+	var jtr = jthis.parents('.group-item');
 	var rowid = jtr.attr('rowid');
 	jtr.remove();
 	return false;
 });
-// 增加
 var jadd = $('a.row_add');
 jadd.on('click', function() {
-	var jclone = jarrlist.find('tr').last().clone();
-	jclone.insertAfter(jarrlist.find('tr').last());
+	var jclone = jarrlist.find('.group-item').last().clone();
+	jclone.insertAfter(jarrlist.find('.group-item').last());
 	var jgid = jclone.find('input[name^="_gid"]');
-	//var rowid = xn.intval(jgid.val()) + 1;
 	var rowid = ++maxgid;
 	jgid.val(rowid);
 	jclone.attr('rowid', rowid);
 	
-	// 清空值
+	// 更新图标为默认图标
+	jclone.find('.icon-preview-span').html('<i class="ti ti-circle-dot text-body-secondary"></i>');
+	
+	// 清空输入框
 	jclone.find('input').not('[name^="_gid"]').val('');
-	
-	// 修改 [] 中的值为 rowid
+
 	jclone.find('input').attr_name_index(rowid);
-	
+
 	return false;
 });
 
-
-$('#nav li.nav-item-user').addClass('active');
 
 </script>
 

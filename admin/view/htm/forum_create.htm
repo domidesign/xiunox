@@ -1,0 +1,148 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_forum_create_start.htm}-->
+
+<div class="x-card  cardrounded-3">
+	<div class="card-body">
+		<form action="<?php echo url('forum-create');?>" method="post" enctype="multipart/form-data" id="form">
+			<?php echo CsrfService::input(); ?>
+			<h4 class="card-title mb-4"><i class="ti ti-plus"></i> <?php echo lang('admin_add_forum')?></h4>
+
+			<!-- 图标上传 -->
+			<div class="d-flex gap-4 align-items-center mb-3">
+				<label class="form-label" style="width:25%"><?php echo lang('admin_label_icon')?>：</label>
+				<div style="width:75%" class="d-flex align-items-center gap-3">
+					<div id="icon_preview" class="border rounded-3 p-2" style="min-width:64px;min-height:64px;display:flex;align-items:center;justify-content:center">
+						<i class="ti ti-message-circle text-body-secondary" style="font-size:2rem"></i>
+					</div>
+					<div>
+						<input type="file" class="form-control rounded-pill" name="icon" id="icon_input" accept="image/jpeg,image/png,image/gif,image/webp" style="max-width:300px" />
+						<span class="text-body-secondary small"><?php echo lang('admin_icon_upload_tip')?></span>
+					</div>
+				</div>
+			</div>
+
+			<!-- 版块名称 -->
+			<div class="d-flex gap-4 align-items-center mb-3">
+				<label class="form-label" style="width:25%"><?php echo lang('admin_label_forum_name')?>：</label>
+				<div style="width:75%">
+					<input type="text" class="form-control rounded-pill" name="name" value="" required style="max-width:300px" />
+				</div>
+			</div>
+
+			<!-- 版块类型 -->
+			<div class="d-flex gap-4 align-items-center mb-3">
+				<label class="form-label" style="width:25%"><?php echo lang('admin_label_forum_type')?>：</label>
+				<div style="width:75%">
+					<select name="type" id="type_select" class="form-select rounded-pill" style="max-width:200px">
+						<option value="0"><?php echo lang('admin_forum')?></option>
+						<option value="1"><?php echo lang('admin_category')?></option>
+					</select>
+				</div>
+			</div>
+
+			<!-- 上级分区（分区类型时隐藏） -->
+			<div class="d-flex gap-4 align-items-center mb-3" id="fup_row">
+				<label class="form-label" style="width:25%"><?php echo lang('admin_label_parent_category')?>：</label>
+				<div style="width:75%">
+					<select name="fup" class="form-select rounded-pill" style="max-width:200px">
+						<option value="0"><?php echo lang('admin_option_none')?></option>
+						<?php foreach($categories as $cat) { ?>
+						<option value="<?php echo $cat['fid'];?>"><?php echo $cat['name'];?></option>
+						<?php } ?>
+					</select>
+				</div>
+			</div>
+
+			<!-- 排序 -->
+			<div class="d-flex gap-4 align-items-center mb-3">
+				<label class="form-label" style="width:25%"><?php echo lang('admin_label_rank')?>：</label>
+				<div style="width:25%">
+					<input type="number" class="form-control rounded-pill" name="rank" value="0" />
+				</div>
+			</div>
+
+			<!-- 简介 -->
+			<div class="d-flex gap-4 align-items-center mb-3">
+				<label class="form-label" style="width:25%"><?php echo lang('admin_label_brief')?>：</label>
+				<div style="width:75%">
+					<textarea class="form-control" name="brief" rows="3"></textarea>
+				</div>
+			</div>
+
+			<!-- 公告 -->
+			<div class="d-flex gap-4 align-items-center mb-3">
+				<label class="form-label" style="width:25%"><?php echo lang('admin_label_announcement')?>：</label>
+				<div style="width:75%">
+					<textarea class="form-control" name="announcement" rows="3"></textarea>
+				</div>
+			</div>
+
+			<!-- 提交 -->
+			<div class="d-flex gap-4 align-items-center mb-3">
+				<label class="form-label" style="width:25%"></label>
+				<div style="width:75%">
+					<button type="submit" class="btn btn-primary rounded-pill" id="submit" style="width:10rem"><?php echo lang('admin_confirm_create')?></button>
+					<a class="d-block mt-3" href="<?php echo url('forum-list');?>"><i class="ti ti-arrow-left"></i> <?php echo lang('admin_back_to_forum_manage')?></a>
+				</div>
+			</div>
+		</form>
+	</div>
+</div>
+
+<!--{hook admin_forum_create_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+var jform = $("#form");
+var jsubmit = $("#submit");
+
+// 表单提交（含文件上传，使用 FormData）
+jform.on('submit', function() {
+	var postdata = new FormData(this);
+	jsubmit.prop('disabled', true).text('<?php echo lang('admin_submitting')?>');
+	$.ajax({
+		url: jform.attr('action'),
+		type: 'POST',
+		data: postdata,
+		processData: false,
+		contentType: false,
+		success: function(r) {
+			if(r.code == 0) {
+				showToast(r.message, 'success');
+				setTimeout(function() { window.location = xn.url('forum-list'); }, 1500);
+			} else {
+				showToast(r.message, 'error');
+				jsubmit.prop('disabled', false).text('<?php echo lang('admin_confirm_create')?>');
+			}
+		}
+	});
+	return false;
+});
+
+// 版块类型切换：分区时隐藏上级分区
+var jtype = $('#type_select');
+var jfup_row = $('#fup_row');
+function toggleFupRow() {
+	if(jtype.val() == '1') {
+		jfup_row.hide();
+	} else {
+		jfup_row.show();
+	}
+}
+jtype.on('change', toggleFupRow);
+toggleFupRow();
+
+// 图标上传预览
+$('#icon_input').on('change', function() {
+	var file = this.files[0];
+	if(file) {
+		var reader = new FileReader();
+		reader.onload = function(e) {
+			$('#icon_preview').html('<img src="'+e.target.result+'" style="max-width:56px;max-height:56px" class="rounded" />');
+		};
+		reader.readAsDataURL(file);
+	}
+});
+</script>

@@ -1,0 +1,81 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<div class=""><?php echo admin_tab_active($menu['security']['tab'], 'captcha');?></div>
+
+<div class="x-card card">
+    <div class="card-body">
+        <form action="<?php echo url('security-captcha');?>" method="post" id="form">
+            <?php echo CsrfService::input(); ?>
+
+            <?php foreach(CaptchaService::SCENES as $scene):
+                $scene_config = isset($captcha_config[$scene]) ? $captcha_config[$scene] : ['enabled'=>0, 'type'=>'gd_image'];
+                $scene_label = array(
+                    'login' => lang('admin_captcha_login'),
+                    'register' => lang('admin_captcha_register'),
+                    'post' => lang('admin_captcha_post'),
+                    'resetpw' => lang('admin_captcha_resetpw'),
+                );
+                $label = isset($scene_label[$scene]) ? $scene_label[$scene] : $scene;
+            ?>
+            <div class="mb-4">
+                <label class="form-label fw-medium"><?php echo $label;?></label>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" name="captcha_<?php echo $scene;?>_enabled" id="captcha_<?php echo $scene;?>_enabled" value="1" <?php echo !empty($scene_config['enabled']) ? 'checked' : '';?>>
+                        <label class="form-check-label" for="captcha_<?php echo $scene;?>_enabled"><?php echo !empty($scene_config['enabled']) ? lang('admin_status_on') : lang('admin_status_off');?></label>
+                    </div>
+                    <select class="form-select" name="captcha_<?php echo $scene;?>_type" style="max-width:200px;">
+                        <option value="gd_image" <?php echo ($scene_config['type'] ?? 'gd_image') == 'gd_image' ? 'selected' : '';?>><?php echo lang('admin_captcha_image')?></option>
+                        <option value="gd_math" <?php echo ($scene_config['type'] ?? 'gd_image') == 'gd_math' ? 'selected' : '';?>><?php echo lang('admin_captcha_math')?></option>
+                    </select>
+                </div>
+            </div>
+            <?php endforeach; ?>
+
+            <div class="mb-4">
+                <button type="submit" class="btn btn-primary w-100" id="submit"><?php echo lang('admin_save_config')?></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+// 表单提交
+document.getElementById('form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = this;
+    var formData = new FormData(form);
+    var btn = document.getElementById('submit');
+    btn.disabled = true;
+    btn.textContent = '<?php echo lang('admin_submitting')?>...';
+
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        var type = parseInt(data.code) === 0 ? 'success' : 'danger';
+        XN.toast(data.message, type);
+        btn.disabled = false;
+        btn.textContent = '<?php echo lang('admin_save_config')?>';
+    })
+    .catch(function(err) {
+        btn.disabled = false;
+        btn.textContent = '<?php echo lang('admin_save_config')?>';
+    });
+});
+
+// 开关标签同步
+document.querySelectorAll('#form .form-switch input').forEach(function(input) {
+    input.addEventListener('change', function() {
+        var label = this.nextElementSibling;
+        if(label && label.classList.contains('form-check-label')) {
+            label.textContent = this.checked ? '<?php echo lang('admin_status_on') ?>' : '<?php echo lang('admin_status_off') ?>';
+        }
+    });
+});
+</script>

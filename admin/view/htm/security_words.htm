@@ -1,0 +1,176 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<div class=""><?php echo admin_tab_active($menu['security']['tab'], 'words');?></div>
+
+<div class="x-card card">
+	<div class="card-body">
+
+		<!-- 操作区：批量导入 / 文件导入 / 测试过滤 三栏 -->
+		<div class="row g-4 mb-4">
+			<div class="col-lg-4">
+				<h6 class="fw-semibold mb-3"><i class="ti ti-file-import me-1"></i><?php echo lang('admin_sensitive_batch_import')?></h6>
+				<form id="import-form" action="<?php echo url('security-words');?>" method="post">
+					<?php echo CsrfService::input(); ?>
+					<input type="hidden" name="word_action" value="import">
+					<textarea class="form-control mb-2" name="words_text" rows="5" placeholder="<?php echo lang('admin_sensitive_placeholder')?>"></textarea>
+					<button type="submit" class="btn btn-outline-primary rounded-pill btn-sm">
+						<i class="ti ti-file-import me-1"></i><?php echo lang('admin_btn_import')?>
+					</button>
+				</form>
+			</div>
+			<div class="col-lg-4">
+				<h6 class="fw-semibold mb-3"><i class="ti ti-upload me-1"></i><?php echo lang('admin_sensitive_file_import')?></h6>
+				<form id="file-import-form" action="<?php echo url('security-words');?>" method="post" enctype="multipart/form-data">
+					<?php echo CsrfService::input(); ?>
+					<input type="hidden" name="word_action" value="import_file">
+					<input type="file" class="form-control rounded-pill mb-2" name="words_file" accept=".txt" required>
+					<div class="form-text mb-2"><?php echo lang('admin_sensitive_file_tip')?></div>
+					<button type="submit" class="btn btn-outline-primary rounded-pill btn-sm">
+						<i class="ti ti-upload me-1"></i><?php echo lang('admin_sensitive_upload_import')?>
+					</button>
+				</form>
+			</div>
+			<div class="col-lg-4">
+				<h6 class="fw-semibold mb-3"><i class="ti ti-search me-1"></i><?php echo lang('admin_test_filter')?></h6>
+				<input type="text" class="form-control rounded-pill mb-2" id="test-text" placeholder="<?php echo lang('admin_test_filter_placeholder')?>">
+				<button class="btn btn-outline-secondary rounded-pill btn-sm mb-2" type="button" id="test-btn">
+					<i class="ti ti-search me-1"></i><?php echo lang('admin_btn_test')?>
+				</button>
+				<div id="test-result"></div>
+			</div>
+		</div>
+
+		<hr>
+
+		<!-- 敏感词列表 -->
+		<div class="d-flex justify-content-between align-items-center mb-3">
+			<h6 class="fw-semibold mb-0"><i class="ti ti-list me-1"></i><?php echo lang('admin_sensitive_list')?> <span class="badge bg-secondary"><?php echo count($sensitive_words);?></span></h6>
+			<?php if(!empty($sensitive_words)): ?>
+			<button type="button" class="btn btn-outline-danger btn-sm rounded-pill" id="clear-btn">
+				<i class="ti ti-trash me-1"></i><?php echo lang('admin_clear_all')?>
+			</button>
+			<?php endif; ?>
+		</div>
+		<?php if(empty($sensitive_words)): ?>
+		<div class="text-center text-body-secondary py-4">
+			<i class="ti ti-filter-off fs-2 d-block mb-2"></i>
+			<?php echo lang('admin_no_sensitive_words')?>
+		</div>
+		<?php else: ?>
+		<div class="d-flex flex-wrap gap-2">
+			<?php foreach($sensitive_words as $word): ?>
+			<span class="badge bg-light text-dark border d-inline-flex align-items-center gap-1 py-2 px-3">
+				<?php echo esc_html($word);?>
+				<button type="button" class="btn-close btn-close-dark word-delete" style="font-size:0.6em;"
+					data-word="<?php echo esc_html($word);?>" title="<?php echo lang('delete')?>"></button>
+			</span>
+			<?php endforeach; ?>
+		</div>
+		<?php endif; ?>
+
+	</div>
+</div>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+// 删除敏感词
+document.querySelectorAll('.word-delete').forEach(function(btn) {
+	btn.addEventListener('click', function() {
+		var word = this.getAttribute('data-word');
+		XN.confirm('<?php echo lang('admin_confirm_delete_word')?>' + word + '？', function() {
+			XN.post('<?php echo url('security-words');?>', { word_action: 'delete', word: word }, function(code, message) {
+				if(code == 0) {
+					showToast(message, 'success');
+					setTimeout(function(){ location.reload(); }, 800);
+				} else {
+					showToast(message, 'error');
+				}
+			});
+		});
+	});
+});
+
+// 清空全部
+var clearBtn = document.getElementById('clear-btn');
+if(clearBtn) {
+	clearBtn.addEventListener('click', function() {
+		XN.confirm('<?php echo lang('admin_confirm_clear_all_words')?>', function() {
+			XN.post('<?php echo url('security-words');?>', { word_action: 'clear' }, function(code, message) {
+				if(code == 0) {
+					showToast(message, 'success');
+					setTimeout(function(){ location.reload(); }, 800);
+				} else {
+					showToast(message, 'error');
+				}
+			});
+		});
+	});
+};
+
+// 测试过滤
+document.getElementById('test-btn').addEventListener('click', function() {
+	var text = document.getElementById('test-text').value.trim();
+	if(!text) return;
+	var resultDiv = document.getElementById('test-result');
+	var words = JSON.parse('<?php echo addslashes(json_encode($sensitive_words, JSON_UNESCAPED_UNICODE));?>');
+	var matched = [];
+	words.forEach(function(w) {
+		if(text.indexOf(w) !== -1) matched.push(w);
+	});
+	if(matched.length > 0) {
+		resultDiv.innerHTML = '<div class="alert alert-warning py-2 mb-0"><i class="ti ti-alert-triangle me-1"></i><?php echo lang('admin_filter_hit')?><strong>' + matched.join('、') + '</strong></div>';
+	} else {
+		resultDiv.innerHTML = '<div class="alert alert-success py-2 mb-0"><i class="ti ti-circle-check me-1"></i><?php echo lang('admin_filter_no_hit')?></div>';
+	}
+});
+
+document.getElementById('test-text').addEventListener('keyup', function(e) {
+	if(e.key === 'Enter') document.getElementById('test-btn').click();
+});
+
+// 批量导入表单
+var jimportForm = $('#import-form');
+jimportForm.on('submit', function() {
+	var postdata = jimportForm.serialize();
+	$.xpost(jimportForm.attr('action'), postdata, function(code, message) {
+		if(code == 0) {
+			showToast(message, 'success');
+			setTimeout(function(){ location.reload(); }, 800);
+		} else {
+			showToast(message, 'error');
+		}
+	});
+	return false;
+});
+
+// 文件导入表单
+var jfileForm = $('#file-import-form');
+jfileForm.on('submit', function() {
+	var formData = new FormData(this);
+	var jsubmit = jfileForm.find('button[type="submit"]');
+	jsubmit.button('loading');
+	$.ajax({
+		url: jfileForm.attr('action'),
+		type: 'POST',
+		data: formData,
+		processData: false,
+		contentType: false,
+		success: function(r) {
+			var s = xn.json_decode(r);
+			if(s && s.code == 0) {
+				showToast(s.message, 'success');
+				setTimeout(function(){ location.reload(); }, 800);
+			} else {
+				showToast(s && s.message ? s.message : '<?php echo lang('admin_import_failed');?>', 'error');
+			}
+			jsubmit.button('reset');
+		},
+		error: function() {
+			showToast('<?php echo lang('admin_request_failed');?>', 'error');
+			jsubmit.button('reset');
+		}
+	});
+	return false;
+});
+</script>

@@ -28,19 +28,27 @@ if(empty($action) || $action == 'list') {
 	
 	} elseif($method == 'POST') {
 		
+		CsrfService::check();
+		
 		$fidarr = param('fid', array(0));
 		$namearr = param('name', array(''));
 		$rankarr = param('rank', array(0));
 		$iconarr = param('icon', array(''));
+		$typearr = param('type', array(0));
+		$fuparr = param('fup', array(0));
 		
 		// hook admin_forum_list_post_start.php
 		
 		$arrlist = array();
 		foreach($fidarr as $k=>$v) {
+			$type_val = array_value($typearr, $k, 0);
+			$fup_val = $type_val == 1 ? 0 : array_value($fuparr, $k, 0);
 			$arr = array(
 				'fid'=>$k,
 				'name'=>array_value($namearr, $k),
-				'rank'=>array_value($rankarr, $k)
+				'rank'=>array_value($rankarr, $k),
+				'type'=>$type_val,
+				'fup'=>$fup_val,
 			);
 			
 			if(!isset($forumlist[$k])) {
@@ -50,18 +58,9 @@ if(empty($action) || $action == 'list') {
 				// hook admin_forum_list_update_before.php
 				forum_update($k, $arr);
 			}
-			// icon
-			if(!empty($iconarr[$k])) {
-				
-				$s = array_value($iconarr, $k);
-				$data = substr($s, strpos($s, ',') + 1);
-				$data = base64_decode($data);
-				
-				$iconfile = "../upload/forum/$k.png";
-				file_put_contents($iconfile, $data);
-				
-				forum_update($k, array('icon'=>$time));
-			}
+			// icon - 存储 Tabler Icon 类名
+			$icon_val = array_value($iconarr, $k, '');
+			forum_update($k, array('icon'=>$icon_val));
 			
 			// hook admin_forum_list_post_loop_end.php
 		}
@@ -76,12 +75,122 @@ if(empty($action) || $action == 'list') {
 		}
 		
 		forum_list_cache_delete();
-		
+
+		admin_log_create('forum_update', 'forum', '', '批量更新版块列表');
+
 		// hook admin_forum_list_post_end.php
-		
-		
-		
+
+
+
 		message(0, lang('save_successfully'));
+	}
+
+} elseif($action == 'create') {
+
+	// hook admin_forum_create_get_post.php
+
+	if($method == 'GET') {
+
+		$header['title']        = '添加版块';
+		$header['mobile_title'] = '添加版块';
+
+		// hook admin_forum_create_get_start.php
+
+		// 获取分区列表用于上级版块下拉
+		$categories = forum_find_categories();
+
+		$input = array();
+		$input['name'] = form_text('name', '');
+		$input['rank'] = form_text('rank', 0);
+		$input['brief'] = form_textarea('brief', '', '100%', 80);
+		$input['announcement'] = form_textarea('announcement', '', '100%', 80);
+
+		$type_options = array(0=>'版块', 1=>'分区');
+		$input['type'] = form_select('type', $type_options, 0);
+
+		$category_options = array(0=>'无');
+		foreach($categories as $cat) {
+			$category_options[$cat['fid']] = $cat['name'];
+		}
+		$input['fup'] = form_select('fup', $category_options, 0);
+
+		// hook admin_forum_create_get_end.php
+
+		include _include(ADMIN_PATH."view/htm/forum_create.htm");
+
+	} elseif($method == 'POST') {
+
+		CsrfService::check();
+
+		$name = param('name');
+		$type = param('type', 0);
+		$fup = param('fup', 0);
+		$rank = param('rank', 0);
+		$brief = param('brief', '', FALSE);
+		$announcement = param('announcement', '', FALSE);
+
+		// 分区类型无上级
+		if($type == 1) $fup = 0;
+
+		// hook admin_forum_create_post_start.php
+
+		$arr = array(
+			'name' => $name,
+			'type' => $type,
+			'fup' => $fup,
+			'rank' => $rank,
+			'brief' => $brief,
+			'announcement' => $announcement,
+			'icon' => '',
+		);
+
+		// 先创建版块获取 fid
+		$r = forum_create($arr);
+		if($r === FALSE) {
+			message(-1, lang('create_failed'));
+		}
+
+		// 获取新创建的 fid
+		$fid = forum_maxid();
+
+		// 处理图标上传
+		if(isset($_FILES['icon']) && $_FILES['icon']['error'] == 0) {
+			$icon_file = $_FILES['icon'];
+			$allowed_exts = array('jpg', 'jpeg', 'png', 'gif', 'webp');
+			$max_size = 2 * 1024 * 1024; // 2MB
+
+			// 验证文件大小
+			if($icon_file['size'] > $max_size) {
+				message(-1, '图标文件大小不能超过2MB');
+			}
+
+			// 验证文件类型
+			$ext = strtolower(pathinfo($icon_file['name'], PATHINFO_EXTENSION));
+			if(!in_array($ext, $allowed_exts)) {
+				message(-1, '图标仅支持 jpg/png/gif/webp 格式');
+			}
+
+			// 创建上传目录
+			$upload_dir = APP_PATH.'upload/forum/';
+			if(!is_dir($upload_dir)) {
+				mkdir($upload_dir, 0777, TRUE);
+			}
+
+			// 保存图标文件
+			$icon_path = 'upload/forum/'.$fid.'.'.$ext;
+			$save_path = APP_PATH.$icon_path;
+			if(move_uploaded_file($icon_file['tmp_name'], $save_path)) {
+				forum_update($fid, array('icon' => $icon_path));
+			}
+		}
+
+		forum_list_cache_delete();
+
+		admin_log_create('forum_create', 'forum', strval($fid), '创建版块：' . $name);
+
+		// hook admin_forum_create_post_end.php
+
+		message(0, lang('create_successfully'));
 	}
 
 } elseif($action == 'update') {
@@ -120,6 +229,19 @@ if(empty($action) || $action == 'list') {
 		$input['accesson'] = form_checkbox('accesson', $_forum['accesson']);
 		$input['modnames'] = form_text('modnames', user_ids_to_names($_forum['moduids']));
 		
+		$type_options = array(0=>'版块', 1=>'分区');
+		$input['type'] = form_select('type', $type_options, isset($_forum['type']) ? $_forum['type'] : 0);
+		
+		$category_options = array(0=>'无');
+		$categories = forum_find_categories();
+		foreach($categories as $cat) {
+			if($cat['fid'] != $_fid) {
+				$category_options[$cat['fid']] = $cat['name'];
+			}
+		}
+		$input['fup'] = form_select('fup', $category_options, isset($_forum['fup']) ? $_forum['fup'] : 0);
+		$input['icon'] = form_text('icon', isset($_forum['icon']) ? $_forum['icon'] : '');
+
 		// hook admin_forum_update_get_end.php
 		
 		
@@ -127,13 +249,20 @@ if(empty($action) || $action == 'list') {
 	
 	} elseif($method == 'POST') {	
 		
+		CsrfService::check();
+		
 		$name = param('name');
 		$rank = param('rank', 0);
 		$brief = param('brief', '', FALSE);
 		$announcement = param('announcement', '', FALSE);
 		$modnames = param('modnames');
-		$accesson = param('accesson', 0);
+		$accesson = param('accesson', 1);
 		$moduids = user_names_to_ids($modnames);
+		$type = param('type', 0);
+		$fup = param('fup', 0);
+		$icon = param('icon', '');
+		
+		if($type == 1) $fup = 0;
 		
 		// hook admin_forum_update_post_start.php
 		
@@ -144,30 +273,61 @@ if(empty($action) || $action == 'list') {
 			'announcement' => $announcement,
 			'moduids' => $moduids,
 			'accesson' => $accesson,
+			'type' => $type,
+			'fup' => $fup,
+			'icon' => $icon,
 		);
+
+		// 处理图标上传
+		if(isset($_FILES['icon']) && $_FILES['icon']['error'] == 0) {
+			$icon_file = $_FILES['icon'];
+			$allowed_exts = array('jpg', 'jpeg', 'png', 'gif', 'webp');
+			$max_size = 2 * 1024 * 1024; // 2MB
+
+			// 验证文件大小
+			if($icon_file['size'] <= $max_size) {
+				// 验证文件类型
+				$ext = strtolower(pathinfo($icon_file['name'], PATHINFO_EXTENSION));
+				if(in_array($ext, $allowed_exts)) {
+					// 创建上传目录
+					$upload_dir = APP_PATH.'upload/forum/';
+					if(!is_dir($upload_dir)) {
+						mkdir($upload_dir, 0777, TRUE);
+					}
+
+					// 保存图标文件
+					$icon_path = 'upload/forum/'.$_fid.'.'.$ext;
+					$save_path = APP_PATH.$icon_path;
+					if(move_uploaded_file($icon_file['tmp_name'], $save_path)) {
+						$arr['icon'] = $icon_path;
+					}
+				}
+			}
+		}
 
 		// hook admin_forum_update_post_before.php
 		
 		forum_update($_fid, $arr);
 		
-		if($accesson) {
-			$allowread = param('allowread', array(0));
-			$allowthread = param('allowthread', array(0));
-			$allowpost = param('allowpost', array(0));
-			$allowattach = param('allowattach', array(0));
-			$allowdown = param('allowdown', array(0));
-			foreach($grouplist as $_gid=>$v) {
-				$access = array (
-					'allowread'=>array_value($allowread, $_gid, 0),
-					'allowthread'=>array_value($allowthread, $_gid, 0),
-					'allowpost'=>array_value($allowpost, $_gid, 0),
-					'allowattach'=>array_value($allowattach, $_gid, 0),
-					'allowdown'=>array_value($allowdown, $_gid, 0),
-				);
-				forum_access_replace($_fid, $_gid, $access);
-			}
-		} else {
-			forum_access_delete_by_fid($_fid);
+		// 权限默认开启，始终保存权限设置
+		$allowread = param('allowread', array(0));
+		$allowthread = param('allowthread', array(0));
+		$allowpost = param('allowpost', array(0));
+		$allowattach = param('allowattach', array(0));
+		$allowdown = param('allowdown', array(0));
+		$allowthreadaudit = param('allowthreadaudit', array(0));
+		$allowpostaudit = param('allowpostaudit', array(0));
+		foreach($grouplist as $_gid=>$v) {
+			$access = array (
+				'allowread'=>array_value($allowread, $_gid, 0),
+				'allowthread'=>array_value($allowthread, $_gid, 0),
+				'allowpost'=>array_value($allowpost, $_gid, 0),
+				'allowattach'=>array_value($allowattach, $_gid, 0),
+				'allowdown'=>array_value($allowdown, $_gid, 0),
+				'allowthreadaudit'=>array_value($allowthreadaudit, $_gid, 0),
+				'allowpostaudit'=>array_value($allowpostaudit, $_gid, 0),
+			);
+			forum_access_replace($_fid, $_gid, $access);
 		}
 		
 		
@@ -175,7 +335,9 @@ if(empty($action) || $action == 'list') {
 		// hook admin_forum_update_post_end.php
 		
 		forum_list_cache_delete();
-		
+
+		admin_log_create('forum_update', 'forum', strval($_fid), '更新版块：' . $name);
+
 		message(0, lang('edit_sucessfully'));	
 	}
 
@@ -211,25 +373,18 @@ if(empty($action) || $action == 'list') {
 	empty($_forum) AND message(-1, lang('forum_not_exists'));
 	
 	in_array($_fid, $system_forum) AND message(-1, 'Not allowed');;
-	
+
 	// hook admin_forum_delete_start.php
-	
-	$threadlist = thread_find_by_fid($_fid, 1, 20);
-	if(!empty($threadlist)) {
-		message(-1, lang('forum_delete_thread_before_delete_forum'));
-	}
-	
-	$sublist = forum_find_son_list($forumlist, $_fid);
-	if(!empty($sublist)) {
-		message(-1, lang('forum_please_delete_sub_forum'));
-	}
-	
+
+	// forum_delete 已处理级联删除（子版块 fup 清零、帖子删除、权限记录删除）
 	forum_delete($_fid);
 	
 	forum_list_cache_delete();
-	
+
+	admin_log_create('forum_delete', 'forum', strval($_fid), '删除版块：' . $_forum['name']);
+
 	// hook admin_forum_delete_end.php
-	
+
 	message(0, lang('forum_delete_successfully'));
 	
 }

@@ -1,0 +1,341 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<div class=""><?php echo admin_tab_active($menu['security']['tab'], 'audit');?></div>
+<div class="x-card card">
+<!-- 审核内容标签页 -->
+<ul class="nav nav-tabs mb-3" id="audit-tabs">
+    <li class="nav-item">
+        <a class="nav-link active" data-tab="threads" href="javascript:;">
+            <i class="ti ti-message-2 me-1"></i><?php echo lang('admin_pending_threads');?>
+            <?php if(!empty($pending_thread_count)): ?><span class="badge bg-warning ms-1"><?php echo intval($pending_thread_count);?></span><?php endif; ?>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-tab="comments" href="javascript:;">
+            <i class="ti ti-message me-1"></i><?php echo lang('admin_pending_posts');?>
+            <?php if(!empty($pending_post_count)): ?><span class="badge bg-warning ms-1"><?php echo intval($pending_post_count);?></span><?php endif; ?>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-tab="profiles" href="javascript:;">
+            <i class="ti ti-user-edit me-1"></i><?php echo lang('admin_pending_profiles');?>
+            <?php if(!empty($pending_profile_count)): ?><span class="badge bg-warning ms-1"><?php echo intval($pending_profile_count);?></span><?php endif; ?>
+        </a>
+    </li>
+</ul>
+
+<!-- 待审主题 -->
+<div class="audit-tab-content" id="tab-threads">
+    <div class="x-card card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><?php echo lang('admin_pending_threads')?></span>
+            <?php if(!empty($pending_threads)): ?>
+            <button type="button" class="btn btn-success btn-sm" id="batch-approve-thread"><?php echo lang('admin_batch_approve')?></button>
+            <?php endif; ?>
+        </div>
+        <div class="card-body">
+            <?php if(empty($pending_threads)): ?>
+            <div class="text-center text-body-secondary py-4"><?php echo lang('admin_no_pending_threads')?></div>
+            <?php else: ?>
+            <div class="table-responsive">
+                <table class="table admin-table align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width:40px;"><input type="checkbox" class="form-check-input" id="select-all-thread"></th>
+                            <th><?php echo lang('admin_col_title')?></th>
+                            <th><?php echo lang('admin_col_author')?></th>
+                            <th><?php echo lang('admin_col_forum')?></th>
+                            <th><?php echo lang('operation')?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach($pending_threads as $thread): ?>
+                        <tr>
+                            <td><input type="checkbox" class="form-check-input thread-check" value="<?php echo $thread['tid'];?>"></td>
+                            <td><a href="<?php echo url('../thread-' . $thread['tid']);?>" target="_blank"><?php echo esc_html($thread['subject']);?></a></td>
+                            <td><?php echo esc_html($thread['username'] ?? '');?></td>
+                            <td><?php echo esc_html($thread['forum_name'] ?? '');?></td>
+                            <td>
+                                <a href="javascript:;" class="row-action audit-approve" data-type="thread" data-id="<?php echo $thread['tid'];?>">
+                                    <i class="ti ti-check"></i><?php echo lang('admin_action_approve')?>
+                                </a>
+                                <a href="javascript:;" class="row-action text-danger audit-reject" data-type="thread" data-id="<?php echo $thread['tid'];?>">
+                                    <i class="ti ti-x"></i><?php echo lang('admin_action_reject')?>
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<!-- 待审回帖 -->
+<div class="audit-tab-content" id="tab-comments" style="display:none;">
+    <div class="x-card card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><?php echo lang('admin_pending_posts')?></span>
+            <?php if(!empty($pending_posts)): ?>
+            <button type="button" class="btn btn-success btn-sm" id="batch-approve-post"><?php echo lang('admin_batch_approve')?></button>
+            <?php endif; ?>
+        </div>
+        <div class="card-body">
+            <?php if(empty($pending_posts)): ?>
+            <div class="text-center text-body-secondary py-4"><?php echo lang('admin_no_pending_posts')?></div>
+            <?php else: ?>
+            <div class="table-responsive">
+                <table class="table admin-table align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width:40px;"><input type="checkbox" class="form-check-input" id="select-all-post"></th>
+                            <th><?php echo lang('admin_col_content_summary')?></th>
+                            <th><?php echo lang('admin_col_author')?></th>
+                            <th><?php echo lang('admin_col_parent_thread')?></th>
+                            <th><?php echo lang('operation')?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach($pending_posts as $post): ?>
+                        <tr>
+                            <td><input type="checkbox" class="form-check-input post-check" value="<?php echo $post['pid'];?>"></td>
+                            <td><?php echo esc_html(mb_substr($post['message'] ?? '', 0, 80));?></td>
+                            <td><?php echo esc_html($post['username'] ?? '');?></td>
+                            <td><a href="<?php echo url('../thread-' . $post['tid']);?>" target="_blank"><?php echo esc_html(mb_substr($post['subject'] ?? '', 0, 20));?></a></td>
+                            <td>
+                                <a href="javascript:;" class="row-action audit-approve" data-type="post" data-id="<?php echo $post['pid'];?>">
+                                    <i class="ti ti-check"></i><?php echo lang('admin_action_approve')?>
+                                </a>
+                                <a href="javascript:;" class="row-action text-danger audit-reject" data-type="post" data-id="<?php echo $post['pid'];?>">
+                                    <i class="ti ti-x"></i><?php echo lang('admin_action_reject')?>
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<!-- 待审资料 -->
+<div class="audit-tab-content" id="tab-profiles" style="display:none;">
+    <div class="x-card card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><?php echo lang('admin_pending_profiles')?></span>
+            <?php if(!empty($pending_profiles)): ?>
+            <button type="button" class="btn btn-success btn-sm" id="batch-approve-profile"><?php echo lang('admin_batch_approve')?></button>
+            <?php endif; ?>
+        </div>
+        <div class="card-body">
+            <?php if(empty($pending_profiles)): ?>
+            <div class="text-center text-body-secondary py-4"><?php echo lang('admin_no_pending_profiles')?></div>
+            <?php else: ?>
+            <div class="table-responsive">
+                <table class="table admin-table align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width:40px;"><input type="checkbox" class="form-check-input" id="select-all-profile"></th>
+                            <th><?php echo lang('admin_col_user')?></th>
+                            <th><?php echo lang('admin_col_changed_field')?></th>
+                            <th><?php echo lang('admin_col_old_value')?></th>
+                            <th><?php echo lang('admin_col_new_value')?></th>
+                            <th><?php echo lang('admin_col_submit_time')?></th>
+                            <th><?php echo lang('operation')?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach($pending_profiles as $pa): ?>
+                        <tr>
+                            <td><input type="checkbox" class="form-check-input profile-check" value="<?php echo $pa['id'];?>"></td>
+                            <td>
+                                <?php if(!empty($pa['avatar_url'])): ?>
+                                <img class="rounded-circle me-1" src="<?php echo $pa['avatar_url'];?>" style="width:24px;height:24px" onerror="this.src='/view/img/avatar.png'">
+                                <?php endif; ?>
+                                <?php echo esc_html($pa['username'] ?? '');?>
+                            </td>
+                            <td>
+                                <?php
+                                $field_labels = array('avatar'=>lang('admin_field_avatar'), 'signature'=>lang('admin_field_signature'), 'username'=>lang('admin_field_username'));
+                                echo $field_labels[$pa['field_name']] ?? $pa['field_name'];
+                                ?>
+                            </td>
+                            <?php if($pa['field_name'] == 'avatar'): ?>
+                            <td style="max-width:120px;">
+                                <span class="text-body-secondary"><?php echo lang('admin_avatar_replaced');?></span>
+                            </td>
+                            <td style="max-width:120px;">
+                                <img src="<?php echo $pa['avatar_url'];?>" style="width:48px;height:48px;border-radius:50%;" onerror="this.src='/view/img/avatar.png'">
+                            </td>
+                            <?php else: ?>
+                            <td class="text-truncate" style="max-width:120px;" title="<?php echo esc_html($pa['old_value']);?>"><?php echo esc_html(mb_substr($pa['old_value'], 0, 30));?></td>
+                            <td class="text-truncate" style="max-width:120px;" title="<?php echo esc_html($pa['new_value']);?>"><?php echo esc_html(mb_substr($pa['new_value'], 0, 30));?></td>
+                            <?php endif; ?>
+                            <td><?php echo date('Y-m-d H:i', $pa['create_date']);?></td>
+                            <td>
+                                <a href="javascript:;" class="row-action audit-profile-approve" data-id="<?php echo $pa['id'];?>">
+                                    <i class="ti ti-check"></i><?php echo lang('admin_action_approve')?>
+                                </a>
+                                <a href="javascript:;" class="row-action text-danger audit-profile-reject" data-id="<?php echo $pa['id'];?>">
+                                    <i class="ti ti-x"></i><?php echo lang('admin_action_reject')?>
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<!-- 审核日志 -->
+<?php if(!empty($audit_logs)): ?>
+<div class="x-card  cardmt-3">
+    <div class="card-header"><i class="ti ti-history me-1"></i><?php echo lang('admin_audit_log')?></div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table admin-table align-middle">
+                <thead>
+                    <tr><th><?php echo lang('admin_col_operator')?></th><th><?php echo lang('admin_col_type')?></th><th><?php echo lang('admin_col_target_id')?></th><th><?php echo lang('operation')?></th><th><?php echo lang('admin_col_reason')?></th><th><?php echo lang('admin_log_col_time')?></th></tr>
+                </thead>
+                <tbody>
+                    <?php foreach($audit_logs as $log): ?>
+                    <tr>
+                        <td><?php echo esc_html($log['username'] ?? '');?></td>
+                        <td><span class="badge bg-light text-dark"><?php
+                            if($log['target_type'] == 'thread') {
+                                echo lang('admin_type_thread');
+                            } elseif($log['target_type'] == 'post') {
+                                echo lang('admin_type_post');
+                            } elseif($log['target_type'] == 'profile') {
+                                echo lang('admin_type_profile');
+                            } else {
+                                echo esc_html($log['target_type']);
+                            }
+                        ?></span></td>
+                        <td><?php echo intval($log['target_id']);?></td>
+                        <td><?php if($log['action'] == 'approve'): ?><span class="badge bg-success"><?php echo lang('admin_action_approve')?></span><?php else: ?><span class="badge bg-danger"><?php echo lang('admin_action_reject')?></span><?php endif; ?></td>
+                        <td><?php echo esc_html($log['reason'] ?? '');?></td>
+                        <td><?php echo esc_html($log['create_date_fmt'] ?? '');?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+</div>
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+var csrf_token = '<?php echo $header["csrf_token"];?>';
+
+// 标签页切换
+$('#audit-tabs .nav-link').on('click', function() {
+    $('#audit-tabs .nav-link').removeClass('active');
+    $(this).addClass('active');
+    $('.audit-tab-content').hide();
+    $('#tab-' + $(this).data('tab')).show();
+});
+
+// 审核通过（帖子/回帖）
+$('.audit-approve').on('click', function() {
+    var type = $(this).data('type');
+    var id = $(this).data('id');
+    $.xpost('<?php echo url('security-audit');?>', {csrf_token: csrf_token, audit_action: 'approve', target_type: type, target_id: id}, function(code, message) {
+        if(code == 0) {
+            showToast(message, 'success');
+            setTimeout(function(){ location.reload(); }, 800);
+        } else { showToast(message, 'error'); }
+    });
+});
+
+// 审核驳回（帖子/回帖）
+$('.audit-reject').on('click', function() {
+    var type = $(this).data('type');
+    var id = $(this).data('id');
+    var reason = prompt('<?php echo lang('admin_reject_reason_prompt')?>');
+    $.xpost('<?php echo url('security-audit');?>', {csrf_token: csrf_token, audit_action: 'reject', target_type: type, target_id: id, reason: reason || ''}, function(code, message) {
+        if(code == 0) {
+            showToast(message, 'success');
+            setTimeout(function(){ location.reload(); }, 800);
+        } else { showToast(message, 'error'); }
+    });
+});
+
+// 全选
+$('#select-all-thread').on('change', function() {
+    $('.thread-check').prop('checked', this.checked);
+});
+$('#select-all-post').on('change', function() {
+    $('.post-check').prop('checked', this.checked);
+});
+
+// 批量通过 - 帖子
+$('#batch-approve-thread').on('click', function() {
+    var ids = [];
+    $('.thread-check:checked').each(function(){ ids.push($(this).val()); });
+    if(ids.length === 0) { showToast('<?php echo lang('admin_please_select_first')?>', 'warning'); return; }
+    $.xpost('<?php echo url('security-audit');?>', {csrf_token: csrf_token, audit_action: 'batch_approve', target_type: 'thread', ids: ids}, function(code, message) {
+        if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 800); }
+        else { showToast(message, 'error'); }
+    });
+});
+
+// 批量通过 - 回帖
+$('#batch-approve-post').on('click', function() {
+    var ids = [];
+    $('.post-check:checked').each(function(){ ids.push($(this).val()); });
+    if(ids.length === 0) { showToast('<?php echo lang('admin_please_select_first')?>', 'warning'); return; }
+    $.xpost('<?php echo url('security-audit');?>', {csrf_token: csrf_token, audit_action: 'batch_approve', target_type: 'post', ids: ids}, function(code, message) {
+        if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 800); }
+        else { showToast(message, 'error'); }
+    });
+});
+
+// 资料审核通过
+$('.audit-profile-approve').on('click', function() {
+    var id = $(this).data('id');
+    $.xpost('<?php echo url('security-audit');?>', {csrf_token: csrf_token, audit_action: 'profile_approve', audit_id: id}, function(code, message) {
+        if(code == 0) {
+            showToast(message, 'success');
+            setTimeout(function(){ location.reload(); }, 800);
+        } else { showToast(message, 'error'); }
+    });
+});
+
+// 资料审核驳回
+$('.audit-profile-reject').on('click', function() {
+    var id = $(this).data('id');
+    var reason = prompt('<?php echo lang('admin_reject_reason_prompt')?>');
+    $.xpost('<?php echo url('security-audit');?>', {csrf_token: csrf_token, audit_action: 'profile_reject', audit_id: id, reason: reason || ''}, function(code, message) {
+        if(code == 0) {
+            showToast(message, 'success');
+            setTimeout(function(){ location.reload(); }, 800);
+        } else { showToast(message, 'error'); }
+    });
+});
+
+// 资料全选
+$('#select-all-profile').on('change', function() {
+    $('.profile-check').prop('checked', this.checked);
+});
+
+// 资料批量通过
+$('#batch-approve-profile').on('click', function() {
+    var ids = [];
+    $('.profile-check:checked').each(function(){ ids.push($(this).val()); });
+    if(ids.length === 0) { showToast('<?php echo lang('admin_please_select_first')?>', 'warning'); return; }
+    $.xpost('<?php echo url('security-audit');?>', {csrf_token: csrf_token, audit_action: 'profile_batch_approve', ids: ids}, function(code, message) {
+        if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 800); }
+        else { showToast(message, 'error'); }
+    });
+});
+</script>

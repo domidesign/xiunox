@@ -2,140 +2,223 @@
 
 <!--{hook admin_forum_list_start.htm}-->
 
-<div class="row">
-	<div class="col-12">
-		<div class="card">
-			<div class="card-body">
-				<form action="<?php echo url('forum-list');?>" method="post" id="form">
-					<div class="table-responsive arrlist">
-						<table class="table" style="min-width: 800px">
-							<thead>
-								<tr align="center">
-									<th width="80"><?php echo lang('forum_id');?></th>
-									<th width="60" align="left"><?php echo lang('forum_icon');?></th>
-									<th width="130"></th>
-									<th><?php echo lang('forum_name');?></th>
-									<th width="100"><?php echo lang('forum_rank');?></th>
-									<th width="100" class="text-center"><?php echo lang('forum_edit');?></th>
-									<th width="100" class="text-center"><?php echo lang('forum_delete');?></th>
-								</tr>
-							<thead>
-							<tbody>
-								<?php foreach($forumlist as $_fid=>$_forum) { ?>
-								<tr align="center" rowid="<?php echo $_fid; ?>">
-									<td class="50"><input type="text" class="form-control" name="fid[<?php echo $_fid;?>]" value="<?php echo $_forum['fid']; ?>"  placeholder="<?php echo lang('forum_id');?>" /></td>
-									<td align="left">
-										<img src="../<?php echo $_forum['icon_url']; ?>" class="forum" width="48" id="img_<?php echo $_fid;?>" />
-									</td>
-									<td>
-										<input type="file" multiple="multiple" accept=".jpg,.jpeg,.png,.gif,.bmp" class="form-control" name="icon[<?php echo $_fid;?>]" value="" data-assoc="img_<?php echo $_fid;?>" placeholder="<?php echo lang('forum_icon');?>" />
-									</td>
-									<td><input type="text" class="form-control" name="name[<?php echo $_fid;?>]" value="<?php echo $_forum['name']; ?>" placeholder="<?php echo lang('forum_name');?>" /></td>
-									<td><input type="text" class="form-control" name="rank[<?php echo $_fid;?>]" value="<?php echo $_forum['rank']; ?>" placeholder="<?php echo lang('forum_rank');?>" /></td>
-									<td><a class="btn row_edit" role="button" tabindex="0"><?php echo lang('forum_edit');?></a></td>
-									<td><a class="btn row_delete" role="button" tabindex="0"><?php echo lang('forum_delete');?></a></td>
-								</tr>
-								<?php } ?>
-							</tbody>
-						</table>
+<?php
+// 分类：type=1 的版块
+$categories = array();
+// 子版块映射：以分区 fid 为 key
+$sub_forums_map = array();
+// 孤儿版块：无父分区或父分区不是分区的版块
+$orphans = array();
+
+foreach($forumlist as $_fid=>$_forum) {
+	if(!empty($_forum['type']) && $_forum['type'] == 1) {
+		$categories[$_fid] = $_forum;
+		$sub_forums_map[$_fid] = array();
+	} elseif(!empty($_forum['fup']) && isset($forumlist[$_forum['fup']]) && !empty($forumlist[$_forum['fup']]['type']) && $forumlist[$_forum['fup']]['type'] == 1) {
+		// 仅当父版块是分区（type=1）时才归入子版块，否则归入孤儿版块
+		$sub_forums_map[$_forum['fup']][$_fid] = $_forum;
+	} else {
+		$orphans[$_fid] = $_forum;
+	}
+}
+?>
+
+<div class="x-card  cardrounded-3">
+	<!-- 卡片头部：标题 + 添加按钮 -->
+	<div class="card-header bg-transparent d-flex align-items-center justify-content-between">
+		<h5 class="card-title mb-0 fs-6"><?php echo lang('admin_forum_manage');?></h5>
+		<a href="<?php echo url('forum-create');?>" class="btn btn-primary btn-sm rounded-pill">
+			<i class="ti ti-plus"></i> <?php echo lang('admin_add_forum')?>
+		</a>
+	</div>
+
+	<div class="card-body">
+
+		<?php if(empty($categories) && empty($orphans)): ?>
+		<!-- 空状态 -->
+		<div class="text-center py-5">
+			<i class="ti ti-messages text-body-tertiary" style="font-size:3rem"></i>
+			<p class="mt-3 text-body-secondary"><?php echo lang('admin_no_sub_forums');?></p>
+			<a href="<?php echo url('forum-create');?>" class="btn btn-primary btn-sm rounded-pill">
+				<i class="ti ti-plus"></i> <?php echo lang('admin_add_forum')?>
+			</a>
+		</div>
+		<?php else: ?>
+
+		<?php foreach($categories as $_fid=>$_forum) { ?>
+		<!-- 分区卡片 -->
+		<div class="admin-card mb-3" rowid="<?php echo $_fid;?>">
+			<div class="card-header d-flex align-items-center gap-2">
+				<!-- 分区图标 -->
+				<?php if(!empty($_forum['icon_url']) && (strpos($_forum['icon_url'], '.') !== false || strpos($_forum['icon_url'], '/') !== false)): ?>
+					<img src="<?php echo $_forum['icon_url'];?>" width="24" height="24" class="rounded-1">
+				<?php else: ?>
+					<i class="ti ti-category text-primary"></i>
+				<?php endif; ?>
+				<!-- 分区名称 -->
+				<span class="fw-semibold"><?php echo esc_html($_forum['name']);?></span>
+				<!-- 类型标签 -->
+				<span class="badge bg-primary bg-opacity-10 text-primary ms-1"><?php echo lang('admin_category');?></span>
+				<!-- 排序 -->
+				<span class="badge bg-secondary bg-opacity-10 text-secondary"><?php echo lang('forum_rank');?>：<?php echo $_forum['rank'];?></span>
+				<!-- 操作按钮 -->
+				<div class="ms-auto d-flex gap-1">
+					<a class="row-action row_edit" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
+					<a class="row-action row_delete" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
+				</div>
+			</div>
+
+			<?php
+			$sub_forums = isset($sub_forums_map[$_fid]) ? $sub_forums_map[$_fid] : array();
+			if(!empty($sub_forums)) { ?>
+			<ul class="list-group list-group-flush">
+				<?php foreach($sub_forums as $sfid=>$sf) { ?>
+				<li class="list-group-item d-flex align-items-center gap-2 px-3 py-2 forum-row" rowid="<?php echo $sfid;?>">
+					<?php if(!empty($sf['icon_url']) && (strpos($sf['icon_url'], '.') !== false || strpos($sf['icon_url'], '/') !== false)): ?>
+						<img src="<?php echo $sf['icon_url'];?>" width="28" height="28" class="rounded-1 flex-shrink-0">
+					<?php else: ?>
+						<i class="ti ti-message-circle text-body-secondary flex-shrink-0"></i>
+					<?php endif; ?>
+					<span class="fw-medium flex-grow-1"><?php echo esc_html($sf['name']);?></span>
+					<span class="badge bg-secondary bg-opacity-10 text-secondary"><?php echo lang('forum_rank');?>：<?php echo $sf['rank'];?></span>
+					<div class="ms-1 d-flex gap-1">
+						<a class="row-action row_edit" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
+						<a class="row-action row_delete" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
 					</div>
-					<p><a role="button" class="btn row_add">[+]<?php echo lang('add_new_line');?></a></p>
-					<p class="text-center">
-						<button type="submit" class="btn btn-primary" id="submit" data-loading-text="<?php echo lang('submiting');?>..." style="width: 10rem;"><?php echo lang('confirm');?></button>
-					</p>
-				</form>
-				<p class="small text-grey"><?php echo lang('tips');?>：<?php echo lang('forum_edit_tip');?></p>
+				</li>
+				<?php } ?>
+			</ul>
+			<?php } else { ?>
+			<div class="text-center py-3 text-body-secondary small"><?php echo lang('admin_no_sub_forums');?></div>
+			<?php } ?>
+		</div>
+		<?php } ?>
+
+		<?php if(!empty($orphans)) { ?>
+		<!-- 孤儿版块（无父分区的版块） -->
+		<div class="admin-card mb-3">
+			<div class="card-header d-flex align-items-center gap-2" style="background:var(--bs-warning-bg-subtle)">
+				<i class="ti ti-alert-triangle text-warning"></i>
+				<span class="fw-semibold"><?php echo lang('admin_uncategorized_forums')?></span>
+			</div>
+			<ul class="list-group list-group-flush">
+				<?php foreach($orphans as $_fid=>$_forum) {
+					if(!empty($_forum['type']) && $_forum['type'] == 1) continue;
+				?>
+				<li class="list-group-item d-flex align-items-center gap-2 px-3 py-2 forum-row" rowid="<?php echo $_fid;?>">
+					<?php if(!empty($_forum['icon_url']) && (strpos($_forum['icon_url'], '.') !== false || strpos($_forum['icon_url'], '/') !== false)): ?>
+						<img src="<?php echo $_forum['icon_url'];?>" width="28" height="28" class="rounded-1 flex-shrink-0">
+					<?php else: ?>
+						<i class="ti ti-message-circle text-body-secondary flex-shrink-0"></i>
+					<?php endif; ?>
+					<span class="fw-medium flex-grow-1"><?php echo esc_html($_forum['name']);?></span>
+					<span class="badge bg-secondary bg-opacity-10 text-secondary"><?php echo lang('forum_rank');?>：<?php echo $_forum['rank'];?></span>
+					<div class="ms-1 d-flex gap-1">
+						<a class="row-action row_edit" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
+						<a class="row-action row_delete" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
+					</div>
+				</li>
+				<?php } ?>
+			</ul>
+		</div>
+		<?php } ?>
+
+		<?php endif; ?>
+
+		<p class="text-body-secondary small mt-3 mb-0"><i class="ti ti-info-circle"></i> <?php echo lang('tips');?>：<?php echo lang('forum_edit_tip');?></p>
+	</div>
+</div>
+
+<!-- 删除确认弹窗 -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered">
+		<div class="modal-content border-0 rounded-1">
+			<div class="modal-header border-0">
+				<h5 class="modal-title" id="deleteModalLabel"><?php echo lang('admin_confirm_delete_title')?></h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="<?php echo lang('close')?>"></button>
+			</div>
+			<div class="modal-body">
+				<?php echo lang('admin_confirm_delete_forum_msg')?>
+			</div>
+			<div class="modal-footer border-0">
+				<button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal"><?php echo lang('cancel')?></button>
+				<button type="button" class="btn btn-danger rounded-pill" id="confirmDeleteBtn"><?php echo lang('admin_confirm_delete_title')?></button>
 			</div>
 		</div>
 	</div>
 </div>
 
-
 <!--{hook admin_forum_list_end.htm}-->
 
-
+<style>
+.forum-row { transition: background 0.15s ease; }
+.forum-row:hover { background: rgba(var(--bs-primary-rgb), 0.05) !important; }
+[data-bs-theme="dark"] .forum-row:hover { background: rgba(37,99,235,0.15) !important; }
+.admin-card.list-group-item { border-color: var(--bs-border-color); background: transparent; }
+</style>
 
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
+(function() {
+	// CSRF 令牌
+	var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
 
+	// 删除弹窗实例
+	var deleteModalEl = document.getElementById('deleteModal');
+	var deleteModal = new bootstrap.Modal(deleteModalEl);
+	var deleteFidInput = null;
 
-//if(!debug) $.alert('<?php echo lang('forum_edit_tip');?>');
-
-var maxfid = <?php echo $maxfid;?>;
-
-var jform = $("#form");
-var jsubmit = $("#submit");
-
-jform.base64_encode_file(); // 对文件进行 base64 编码，处理文件上传，很方便
-
-jform.on('submit', function(){
-	jform.reset();
-	var postdata = jform.serialize();
-	jsubmit.button('loading');
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
-		if(code == 0) {
-			$.alert(message);
-			jsubmit.text(message).delay(3000).location();
-			return;
-		} else {
-			alert(message);
-			jsubmit.button('reset');
+	// 编辑按钮：跳转到编辑页面
+	document.addEventListener('click', function(e) {
+		var editBtn = e.target.closest('.row_edit');
+		if (editBtn) {
+			var row = editBtn.closest('[rowid]');
+			if (!row) return;
+			var fid = row.getAttribute('rowid');
+			window.location = xn.url('forum-update-' + fid);
 		}
 	});
-	return false;
-});
 
-// 编辑
-var jarrlist = $('.arrlist');
-var jedit = $('a.row_edit');
-jarrlist.on('click', 'a.row_edit', function() {
-	var jthis = $(this);
-	var jtr = jthis.parents('tr');
-	var rowid = jtr.attr('rowid');
-	window.location = xn.url('forum-update-'+rowid);
-});
+	// 删除按钮：弹出确认弹窗
+	document.addEventListener('click', function(e) {
+		var deleteBtn = e.target.closest('.row_delete');
+		if (deleteBtn) {
+			e.preventDefault();
+			var row = deleteBtn.closest('[rowid]');
+			if (!row) return;
+			var fid = row.getAttribute('rowid');
 
-// 删除
-var jdelete = $('a.row_delete');
-jarrlist.on('click', 'a.row_delete', function() {
-	var jthis = $(this);
-	var jtr = jthis.parents('tr');
-	var rowid = jtr.attr('rowid');
-	if(rowid == 1) {
-		$.alert('<?php echo lang('forum_cant_delete_system_reserved');?>');
-		return;
-	}
-	jtr.remove();
-	return false;
-});
-// 增加
-var jadd = $('a.row_add');
-jadd.on('click', function() {
-	var jclone = jarrlist.find('tr').last().clone();
-	jclone.insertAfter(jarrlist.find('tr').last());
-	var jfid = jclone.find('input[name^="fid"]');
-	//var rowid = xn.intval(jfid.val()) + 1;
-	var rowid = ++maxfid;
-	jfid.val(rowid);
-	jclone.attr('rowid', rowid);
-	
-	// 清空值
-	jclone.find('input').not('[name^="fid"]').val('');
-	
-	// 修改 [] 中的值为 rowid
-	jclone.find('input').attr_name_index(rowid);
-	
-	// 图片缩略
-	jclone.find('img.forum').attr('id', 'img_'+rowid).attr('src', '../view/img/forum.png');
-	jclone.find('input[type="file"]').attr('data-assoc', 'img_'+rowid);
-	
-	return false;
-});
+			// 系统保留版块不可删除
+			if (fid == '1') {
+				showToast('<?php echo lang('forum_cant_delete_system_reserved');?>', 'error');
+				return;
+			}
 
+			// 记录待删除的 fid，显示弹窗
+			deleteFidInput = fid;
+			deleteModal.show();
+		}
+	});
 
-$('#nav li.nav-item-forum').addClass('active');
+	// 确认删除：AJAX 请求
+	document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+		if (!deleteFidInput) return;
+		var fid = deleteFidInput;
+		var url = xn.url('forum-delete-' + fid);
+		var postdata = 'csrf_token=' + encodeURIComponent(csrfToken);
 
+		$.xpost(url, postdata, function(code, message) {
+			if (code == 0) {
+				deleteModal.hide();
+				// 刷新页面
+				window.location.reload();
+			} else {
+				showToast(message, 'error');
+			}
+		});
+	});
+})();
 </script>
 
 <!--{hook admin_forum_list_js.htm}-->

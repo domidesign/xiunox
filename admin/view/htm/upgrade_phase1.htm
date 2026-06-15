@@ -1,0 +1,184 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm'); ?>
+
+<h4 class="fw-bold mb-1"><?php echo lang('db_upgrade_title');?></h4>
+<p class="text-secondary fs-6 mb-4"><?php echo lang('db_upgrade_subtitle');?></p>
+
+<div class="mb-3">
+	<?php echo admin_tab_active($menu['other']['tab'], 'upgrade_phase1');?>
+</div>
+
+<div class="x-card  cardmt-3 rounded-1">
+	<div class="card-body">
+		<h5 class="card-title"><i class="ti ti-info-circle"></i> <?php echo lang('db_upgrade_instructions');?></h5>
+		<p class="mt-2"><?php echo lang('db_upgrade_instructions_desc');?></p>
+		<ul class="ms-3 mt-2 fs-6" style="list-style-type:disc">
+			<li><strong>password_hash</strong> - <?php echo lang('db_upgrade_item_password_hash');?></li>
+			<li><strong>login_attempts</strong> - <?php echo lang('db_upgrade_item_login_attempts');?></li>
+			<li><strong>last_login_ip</strong> - <?php echo lang('db_upgrade_item_last_login_ip');?></li>
+			<li><strong>last_login_time</strong> - <?php echo lang('db_upgrade_item_last_login_time');?></li>
+			<li><strong>banned_until</strong> - <?php echo lang('db_upgrade_item_banned_until');?></li>
+			<li><strong>user_login_log</strong> - <?php echo lang('db_upgrade_item_user_login_log');?></li>
+		</ul>
+		<div class="alert alert-info mt-3">
+			<i class="ti ti-info-circle"></i>
+			<strong><?php echo lang('db_upgrade_note');?></strong> <?php echo lang('db_upgrade_note_desc');?>
+		</div>
+	</div>
+</div>
+
+<div class="x-card  cardmt-3 rounded-1">
+	<div class="card-body">
+		<h5 class="card-title"><i class="ti ti-player-play-filled"></i> <?php echo lang('db_upgrade_method1');?></h5>
+		<div class="mt-3">
+			<button type="button" class="btn btn-primary btn-lg" id="btn-upgrade">
+				<i class="ti ti-database"></i> <?php echo lang('db_upgrade_execute');?>
+			</button>
+			<div id="upgrade-results" class="mt-3"></div>
+		</div>
+	</div>
+</div>
+
+<div class="x-card  cardmt-3 rounded-1">
+	<div class="card-body">
+		<h5 class="card-title"><i class="ti ti-code"></i> <?php echo lang('db_upgrade_method2');?></h5>
+		<p class="mt-2 fs-6"><?php echo lang('db_upgrade_manual_desc');?></p>
+		<div class="mt-2">
+			<button type="button" class="btn btn-sm btn-ghost" id="btn-copy">
+				<i class="ti ti-clipboard"></i> <?php echo lang('db_upgrade_copy_sql');?>
+			</button>
+			<span id="copy-tip" class="text-success fs-6 ml-2 d-none"><?php echo lang('db_upgrade_copied_tip');?></span>
+		</div>
+		<div class="bg-dark text-white rounded p-3 mt-3" style="font-size:0.75rem;max-height: 400px; overflow-y: auto;">
+			<pre><code id="sql-content">-- ============================================
+-- <?php echo lang('db_upgrade_sql_comment_title');?>
+-- <?php echo lang('db_upgrade_sql_comment_backup');?>
+-- ============================================
+
+-- 1. <?php echo lang('db_upgrade_sql_comment_add_password_hash');?>
+ALTER TABLE `bbs_user` ADD COLUMN `password_hash` VARCHAR(255) NOT NULL DEFAULT '' COMMENT 'bcrypt password hash' AFTER `salt`;
+
+-- 2. <?php echo lang('db_upgrade_sql_comment_add_login_attempts');?>
+ALTER TABLE `bbs_user` ADD COLUMN `login_attempts` INT NOT NULL DEFAULT 0 COMMENT 'login failure count' AFTER `password_hash`;
+
+-- 3. <?php echo lang('db_upgrade_sql_comment_add_last_login_ip');?>
+ALTER TABLE `bbs_user` ADD COLUMN `last_login_ip` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'last login IP' AFTER `login_attempts`;
+
+-- 4. <?php echo lang('db_upgrade_sql_comment_add_last_login_time');?>
+ALTER TABLE `bbs_user` ADD COLUMN `last_login_time` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'last login time' AFTER `last_login_ip`;
+
+-- 5. <?php echo lang('db_upgrade_sql_comment_add_banned_until');?>
+ALTER TABLE `bbs_user` ADD COLUMN `banned_until` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'login ban expiry' AFTER `last_login_time`;
+
+-- 6. <?php echo lang('db_upgrade_sql_comment_create_login_log');?>
+DROP TABLE IF EXISTS `bbs_user_login_log`;
+CREATE TABLE `bbs_user_login_log` (
+  id INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  uid INT(11) UNSIGNED NOT NULL DEFAULT 0 COMMENT 'user id',
+  ip INT(11) UNSIGNED NOT NULL DEFAULT 0 COMMENT 'login IP',
+  time INT(11) UNSIGNED NOT NULL DEFAULT 0 COMMENT 'login time',
+  success TINYINT NOT NULL DEFAULT 0 COMMENT '1=success, 0=failure',
+  user_agent VARCHAR(255) NOT NULL DEFAULT '' COMMENT 'browser user agent',
+  PRIMARY KEY (id),
+  KEY uid (uid),
+  KEY time (time)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+-- ============================================
+-- <?php echo lang('db_upgrade_sql_comment_done');?>
+-- ============================================</code></pre>
+		</div>
+	</div>
+</div>
+
+<div class="x-card  cardmt-3 rounded-1">
+	<div class="card-body">
+		<h5 class="card-title"><i class="ti ti-list-check"></i> <?php echo lang('db_upgrade_status');?></h5>
+		<div class="overflow-x-auto mt-2">
+			<table class="table table-sm table-hover" id="status-table">
+				<thead>
+					<tr>
+						<th><?php echo lang('db_upgrade_item');?></th>
+						<th><?php echo lang('db_upgrade_status_col');?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td colspan="2" class="text-center text-secondary">
+							<span class="spinner-border spinner-border-sm"></span>
+							<?php echo lang('db_upgrade_detecting');?>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</div>
+</div>
+
+<div class="mt-3">
+	<a href="./" class="admin-back-link"><i class="ti ti-arrow-left"></i> <?php echo lang('db_upgrade_back');?></a>
+</div>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm'); ?>
+
+<script>
+$(function() {
+	checkStatus();
+
+	$('#btn-copy').on('click', function() {
+		var sql = $('#sql-content').text();
+		navigator.clipboard.writeText(sql).then(function() {
+			$('#copy-tip').removeClass('d-none');
+			setTimeout(function() {
+				$('#copy-tip').addClass('d-none');
+			}, 3000);
+		});
+	});
+
+	$('#btn-upgrade').on('click', function() {
+		var btn = $(this);
+		btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> <?php echo lang('db_upgrade_upgrading');?>');
+
+		$.xpost('./?admin-upgrade_phase1_do.htm', {}, function(code, data) {
+			btn.prop('disabled', false).html('<i class="ti ti-database"></i> <?php echo lang('db_upgrade_execute');?>');
+
+			if(code == 0) {
+				var html = '<div class="alert alert-success"><i class="ti ti-circle-check"></i><?php echo lang('db_upgrade_complete');?></div>';
+				$('#upgrade-results').html(html);
+				checkStatus();
+			} else {
+				$('#upgrade-results').html('<div class="alert alert-danger"><i class="ti ti-alert-triangle"></i><?php echo lang('db_upgrade_failed');?>' + data + '</div>');
+			}
+		});
+	});
+
+	function checkStatus() {
+		$.xpost('./?admin-upgrade_phase1_do.htm', {}, function(code, data) {
+			if(code == 0) {
+				var items = [
+					{key: 0, name: '<?php echo lang('db_upgrade_js_password_hash');?>'},
+					{key: 1, name: '<?php echo lang('db_upgrade_js_login_attempts');?>'},
+					{key: 2, name: '<?php echo lang('db_upgrade_js_last_login_ip');?>'},
+					{key: 3, name: '<?php echo lang('db_upgrade_js_last_login_time');?>'},
+					{key: 4, name: '<?php echo lang('db_upgrade_js_banned_until');?>'},
+					{key: 5, name: '<?php echo lang('db_upgrade_js_user_login_log');?>'}
+				];
+
+				var html = '';
+				items.forEach(function(item, idx) {
+					var status = data[idx];
+					var statusText = status == 'success' ? '<span class="text-success"><i class="ti ti-check"></i> <?php echo lang('db_upgrade_success');?></span>' :
+									(status == 'skipped' ? '<span class="text-secondary"><i class="ti ti-minus"></i> <?php echo lang('db_upgrade_skipped');?></span>' :
+									'<span class="text-danger"><i class="ti ti-x"></i> <?php echo lang('db_upgrade_fail');?></span>');
+					html += '<tr><td>' + item.name + '</td><td>' + statusText + '</td></tr>';
+				});
+
+				$('#status-table tbody').html(html);
+			} else {
+				$('#status-table tbody').html('<tr><td colspan="2" class="text-center text-danger"><?php echo lang('db_upgrade_detect_failed');?></td></tr>');
+			}
+		});
+	}
+});
+</script>
+
+<!--{hook admin_other_cache_js.htm}-->

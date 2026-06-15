@@ -2,75 +2,92 @@
 
 <!--{hook admin_user_list_start.htm}-->
 
-<div class="row">
-	<div class="col-12">
-		<div class="btn-group mb-3" role="group">
-			<?php echo admin_tab_active($menu['user']['tab'], 'list');?>
+<?php echo admin_tab_active($menu['user']['tab'], 'list');?>
+
+<div class="x-card  cardrounded-3 border">
+	<div class="card-body">
+		<div class="d-flex flex-wrap gap-2 mb-4">
+			<div>
+<select id="srchtype" value="<?php echo $srchtype; ?>" class="form-select form-select-sm flex-shrink-0" style="min-width:120px">
+				<option value=""><?php echo lang('search_type');?></option>
+				<option value="uid"><?php echo lang('uid');?>：</option>
+				<option value="username" selected><?php echo lang('username');?>：</option>
+				<option value="email"><?php echo lang('email');?>：</option>
+				<option value="gid"><?php echo lang('user_group');?>：</option>
+				<option value="create_ip"><?php echo lang('create_ip');?>：</option>
+				<!--{hook admin_user_list_option_create_ip_after.htm}-->
+			</select>
+			</div>
+			<div>
+<input type="text" id="keyword" placeholder="<?php echo lang('keyword');?>" value="<?php echo $keyword; ?>"  class="form-control form-control-sm flex-grow-1" style="min-width:150px" />
+			
+			</div>
+			
+			<button id="search" class="btn btn-primary btn-sm flex-shrink-0"><i class="ti ti-search"></i> <?php echo lang('search');?></button>
+		</div>
+
+		<div class="table-responsive">
+		<table class="table table-hover align-middle" id="userlist">
+			<thead>
+				<tr>
+					<th style="width:40px"><input type="checkbox" class="form-check-input" id="checkAll" /></th>
+					<th>UID</th>
+					<th><?php echo lang('email');?></th>
+					<th><?php echo lang('username');?></th>
+					<th><?php echo lang('user_group');?></th>
+					<th style="min-width:120px"><?php echo lang('create_date');?></th>
+					<th style="min-width:100px">IP</th>
+					<th style="width:50px"></th>
+				</tr>
+			</thead>
+			<tbody>
+			<?php foreach($userlist as &$_user){ ?>
+				<tr uid="<?php echo $_user['uid']; ?>">
+					<td><input type="checkbox" class="form-check-input" name="delete" /></td>
+					<td class="text-body-secondary"><?php echo $_user['uid']; ?></td>
+					<!--{hook admin_user_list_id_td_after.htm}-->
+					<td class="text-truncate" style="max-width:200px"><?php echo $_user['email']; ?></td>
+					<td class="text-truncate" style="max-width:150px"><?php echo $_user['username']; ?></td>
+					<td>
+						<?php
+						$group_color = isset($_user['group_color']) && $_user['group_color'] ? $_user['group_color'] : '#6c757d';
+						$group_icon = isset($_user['group_icon_class']) && $_user['group_icon_class'] ? $_user['group_icon_class'] : '';
+						?>
+						<span class="badge" style="background-color:<?php echo $group_color;?>;color:#fff">
+							<?php if($group_icon) { ?><i class="<?php echo $group_icon;?>" style="font-size:0.7rem"></i> <?php } ?>
+							<?php echo $_user['groupname']; ?>
+						</span>
+					</td>
+					<td class="text-body-secondary text-sm"><?php echo date('Y-n-j H:i', $_user['create_date']); ?></td>
+					<td><a href="https://bbs.xiuno.com/ip.htm?ip=<?php echo $_user['create_ip_fmt']; ?>" target="_blank" class="text-body-secondary text-sm"><?php echo $_user['create_ip_fmt']; ?></a></td>
+					<td><a href="<?php echo url("user-update-$_user[uid]"); ?>" class="row-action" title="<?php echo lang('edit');?>"><i class="ti ti-pencil"></i></a></td>
+				</tr>
+			<?php } ?>
+			</tbody>
+		</table>
+		</div>
+
+		 
+		<div class="d-flex justify-content-between align-items-center">
+			<button class="btn btn-danger btn-sm" id="confirm"><i class="ti ti-trash"></i> <?php echo lang('delete');?></button>
+			<nav><ul class="pagination pagination-boxed justify-content-center"><?php echo $pagination; ?></ul></nav>
 		</div>
 	</div>
 </div>
 
-<div class="row">
-	<div class="col-md-2 mb-3">
-		<select id="srchtype" value="<?php echo $srchtype; ?>" class="form-control">
-			<option value=""><?php echo lang('search_type');?></option>
-			<option value="uid"><?php echo lang('uid');?>：</option>
-			<option value="username" selected><?php echo lang('username');?>：</option>
-			<option value="email"><?php echo lang('email');?>：</option>
-			<option value="gid"><?php echo lang('user_group');?>：</option>
-			<option value="create_ip"><?php echo lang('create_ip');?>：</option>
-			<!--{hook admin_user_list_option_create_ip_after.htm}-->
-		</select>
-	</div>
-	<div class="col-md-3 mb-3">
-		<input type="text" id="keyword" placeholder="<?php echo lang('keyword');?>" value="<?php echo $keyword; ?>"  class="form-control" />
-	</div>
-	<div class="col-md-2 mb-3">
-		<button id="search" class="form-control btn btn-primary"><?php echo lang('search');?></button>
-	</div>
-</div>
-
-<div class="row">
-	<div class="col-lg-12">
-		<div class="card">
-			<div class="card-body">
-				<div class="table-responsive">
-					<table class="table" style="min-width: 800px">
-						<thead>
-							<tr>
-								<th width="60" class="text-center"><?php echo lang('delete');?></th>
-								<th width="50">ID：</th>
-								<!--{hook admin_user_list_id_th_after.htm}-->
-								<th width="150"><?php echo lang('email');?></th>
-								<th width="150"><?php echo lang('username');?></th>
-								<th width="100"><?php echo lang('user_group');?></th>
-								<th width="100"><?php echo lang('create_date');?></th>
-								<th width="100"><?php echo lang('create_ip');?></th>
-								<th width="60"><?php echo lang('operation');?></th>
-							</tr>
-						</thead>
-						<tbody id="userlist">
-					<?php foreach($userlist as &$_user){ ?>
-						<tr uid="<?php echo $_user['uid']; ?>">
-							<td class="text-center"><input type="checkbox" name="delete" /></td>
-							<td><?php echo $_user['uid']; ?></td>
-							<!--{hook admin_user_list_id_td_after.htm}-->
-							<td><?php echo $_user['email']; ?></td>
-							<td><?php echo $_user['username']; ?></td>
-							<td><?php echo $_user['groupname']; ?></td>
-							<td><?php echo $_user['create_date_fmt']; ?></td>
-							<td><?php echo $_user['create_ip_fmt']; ?></td>
-							<td><a href="<?php echo url("user-update-$_user[uid]"); ?>"><?php echo lang('edit');?></a></td>
-						</tr>
-					<?php } ?>
-						</tbody>
-					</table>
-				</div>
-				<hr class="mt-0" />
-				<p><button class="btn btn-sm ml-3" id="confirm"><?php echo lang('delete');?></button></p>
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1">
+	<div class="modal-dialog modal-dialog-centered">
+		<div class="modal-content border-0 rounded-1">
+			<div class="modal-header border-0">
+				<h5 class="modal-title"><?php echo lang('confirm_delete_title');?></h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+			</div>
+			<div class="modal-body"><?php echo lang('confirm_delete_user_msg');?></div>
+			<div class="modal-footer border-0">
+				<button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?php echo lang('cancel');?></button>
+				<button type="button" class="btn btn-danger" id="confirmDeleteBtn"><?php echo lang('confirm_delete_btn');?></button>
 			</div>
 		</div>
-		<nav><ul class="pagination justify-content-center"><?php echo $pagination; ?></ul></nav>
 	</div>
 </div>
 
@@ -103,24 +120,53 @@ jkeyword.on('keydown', function(e) {
 	if(e.keyCode == 13) jsearch.trigger('click');
 });
 
-// 删除选中的用户
+var deleteModalEl = document.getElementById('confirmDeleteModal');
+var deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
+var pendingDeleteChecked = null;
+
 jconfirm.on('click', function(){
 	var jchecked = juserlist.find('input[name="delete"]').filter(function(){ return this.checked; });
-	if(jchecked.length < 1) return alert("<?php echo lang('please_check_delete_user');?>");
-	if(!window.confirm("<?php echo lang('user_delete_confirm');?>")) return false;
+	if(jchecked.length < 1) return showToast("<?php echo lang('please_check_delete_user');?>", 'error');
+	pendingDeleteChecked = jchecked;
+	if(deleteModal) {
+		deleteModal.show();
+	} else {
+		XN.confirm("<?php echo lang('user_delete_confirm');?>", function() {
+			executeDelete(jchecked);
+		});
+	}
+});
+
+function executeDelete(jchecked) {
 	jchecked.each(function() {
-		jtr = $(this).parents('tr');
+		jtr = $(this).closest('tr');
 		var uid = jtr.attr('uid');
-		if(uid == 1) return alert('<?php echo lang('user_admin_cant_be_deleted');?>');
+		if(uid == 1) return showToast('<?php echo lang('user_admin_cant_be_deleted');?>', 'error');
 		$.xpost(xn.url('user-delete'), {uid:uid}, function(code, message) {
-			if(code != 0) return $.alert(message);
+			if(code != 0) return showToast(message, 'error');
 			jtr.remove();
 		});
 	});
-});
+}
 
+if(document.getElementById('confirmDeleteBtn')) {
+	document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+		if(pendingDeleteChecked) {
+			executeDelete(pendingDeleteChecked);
+			pendingDeleteChecked = null;
+		}
+		if(deleteModal) deleteModal.hide();
+	});
+}
 
-$('#nav li.nav-item-user').addClass('active');
+// 全选/取消全选
+var checkAll = document.getElementById('checkAll');
+if(checkAll) {
+	checkAll.addEventListener('change', function() {
+		var checkboxes = document.querySelectorAll('#userlist input[name="delete"]');
+		checkboxes.forEach(function(cb) { cb.checked = checkAll.checked; });
+	});
+}
 
 </script>
 

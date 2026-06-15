@@ -1,0 +1,161 @@
+<?php
+$route_menu_map = array(
+	'index' => 'home',
+	'setting' => 'setting',
+	'forum' => 'forum',
+	'friendlink' => 'friendlink',
+	'group' => 'user',
+	'other' => 'other',
+	'user' => 'user',
+	'thread' => 'thread',
+	'attach' => 'attach',
+	'plugin' => 'plugin',
+	'theme' => 'theme',
+	'upgrade_phase1' => 'other',
+	'upgrade_phase1_do' => 'other',
+	'api' => 'api',
+	'upgrade' => 'other',
+	'icon_preview' => 'icon_preview',
+	'log' => 'log',
+	'security' => 'security',
+	'notice' => 'notice',
+);
+if($route == 'plugin' && param(1) == 'scanner') {
+	$active_nav = 'scanner';
+} elseif($route == 'other' && param(1) == 'icon_preview') {
+	$active_nav = 'icon_preview';
+} else {
+	$active_nav = isset($route_menu_map[$route]) ? $route_menu_map[$route] : 'home';
+}
+
+$nav_section_map = array(
+	'setting' => 'general',
+	'forum' => 'content',
+	'friendlink' => 'content',
+	'thread' => 'content',
+	'attach' => 'content',
+	'user' => 'content',
+	'group' => 'content',
+	'security' => 'other',
+	'plugin' => 'extension',
+	'theme' => 'extension',
+	'scanner' => 'extension',
+	'api' => 'extension',
+	'other' => 'other',
+	'icon_preview' => 'other',
+	'log' => 'other',
+	'notice' => 'other',
+);
+
+$nav_icon_map = array(
+	'home' => 'ti-dashboard',
+	'setting' => 'ti-settings',
+	'forum' => 'ti-message-circle',
+	'thread' => 'ti-file-text',
+	'attach' => 'ti-paperclip',
+	'user' => 'ti-users',
+	'group' => 'ti-shield-lock',
+	'security' => 'ti-shield-lock',
+	'plugin' => 'ti-puzzle',
+	'theme' => 'ti-palette',
+	'scanner' => 'ti-search',
+	'api' => 'ti-code',
+	'other' => 'ti-tool',
+	'icon_preview' => 'ti-icons',
+	'log' => 'ti-file-text',
+	'notice' => 'ti-bell',
+	'friendlink' => 'ti-link',
+);
+
+$nav_text_map = array(
+	'home' => lang('admin_dashboard'),
+	'setting' => lang('admin_site_setting'),
+	'forum' => lang('admin_forum_manage'),
+	'thread' => lang('admin_thread_manage'),
+	'attach' => lang('admin_attach_manage'),
+	'user' => lang('admin_user_manage'),
+	'group' => lang('admin_user_group'),
+	'security' => lang('admin_security_setting_short'),
+	'plugin' => lang('admin_plugin_manage'),
+	'theme' => lang('admin_theme_manage'),
+	'scanner' => lang('admin_plugin_scanner'),
+	'notice' => lang('admin_system_notice'),
+	'api' => 'API',
+	'other' => lang('admin_system_tools'),
+	'icon_preview' => lang('admin_icon_preview'),
+	'log' => lang('admin_log_short'),
+	'friendlink' => lang('friendlink'),
+);
+?>
+<!--{hook admin_sidebar_start.htm}-->
+
+<div class="sidenav-menu" id="adminSidebar">
+	<a href="./" class="logo">
+		<span class="logo logo-light">
+			<span class="logo-lg"><img src="../view/img/logo.png" alt="logo"></span>
+			<span class="logo-sm"><img src="../view/img/logo.png" alt="small logo" style="max-width:32px;"></span>
+		</span>
+		<span class="logo logo-dark">
+			<span class="logo-lg"><img src="../view/img/logo.png" alt="dark logo"></span>
+			<span class="logo-sm"><img src="../view/img/logo.png" alt="small logo" style="max-width:32px;"></span>
+		</span>
+	</a>
+
+	<button type="button" class="sidebar-close-btn d-lg-none" id="sidebarCloseBtn">
+		<i class="ti ti-x"></i>
+	</button>
+
+	<div class="sidenav-scrollbar" id="sidenavScrollbar">
+		<div id="sidenav-menu">
+			<ul class="side-nav">
+				<li class="side-nav-item">
+					<a href="./" data-nav="home" class="side-nav-link <?php echo $active_nav == 'home' ? 'active' : '';?>">
+						<span class="menu-icon"><i class="ti ti-dashboard"></i></span>
+						<span class="menu-text"><?php echo lang('admin_dashboard');?></span>
+					</a>
+				</li>
+				<?php
+				$grouped = array();
+				foreach ($menu as $k=>$v) {
+					$section_key = isset($nav_section_map[$k]) ? $nav_section_map[$k] : 'other';
+					if (!isset($grouped[$section_key])) {
+						$grouped[$section_key] = array();
+					}
+					$grouped[$section_key][] = $k;
+				}
+
+				$section_order = array('general', 'content', 'extension', 'other');
+				$section_labels = array(
+					'general' => '',
+					'content' => lang('admin_content'),
+					'extension' => lang('admin_extension'),
+					'other' => lang('admin_other'),
+				);
+
+				foreach ($section_order as $sec) {
+					if (!isset($grouped[$sec]) || empty($grouped[$sec])) continue;
+					$sec_label = isset($section_labels[$sec]) ? $section_labels[$sec] : '';
+					if ($sec_label !== '') {
+				?>
+				<li class="side-nav-title"><?php echo $sec_label;?></li>
+				<?php
+					}
+					foreach ($grouped[$sec] as $nav_key) {
+						$icon = isset($nav_icon_map[$nav_key]) ? $nav_icon_map[$nav_key] : 'ti-circle';
+						$text = isset($nav_text_map[$nav_key]) ? $nav_text_map[$nav_key] : ucfirst($nav_key);
+				?>
+				<li class="side-nav-item">
+					<a href="<?php echo $menu[$nav_key]['url'];?>" data-nav="<?php echo $nav_key;?>" class="side-nav-link <?php echo $active_nav == $nav_key ? 'active' : '';?>">
+						<span class="menu-icon"><i class="ti <?php echo $icon;?>"></i></span>
+						<span class="menu-text"><?php echo $text;?></span>
+					</a>
+				</li>
+				<?php } ?>
+				<?php } ?>
+				<!--{hook admin_sidebar_end.htm}-->
+			</ul>
+		</div>
+	</div>
+</div>
+
+<div class="admin-sidebar-overlay" id="sidebarOverlay"></div>

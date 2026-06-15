@@ -2,92 +2,468 @@
 
 <!--{hook admin_index_start.htm}-->
 
-<div class="row line-height-3">
-	<div class="col-12">
-				
-		<!--{hook admin_index_site_stat_before.htm}-->
+<?php if(!empty($install_dir_exists)) { ?>
+<div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+    <i class="ti ti-alert-triangle fs-4 me-2"></i>
+    <div>
+        <strong>安全警告：</strong>安装目录 <code>install/</code> 未删除，存在安全隐患！攻击者可能通过该目录重新安装覆盖数据库。
+        <br>请立即手动删除 <code>install/</code> 目录（路径：<code><?php echo APP_PATH.'install/'; ?></code>）
+    </div>
+</div>
+<?php } ?>
 
-		<h3><?php echo lang('admin_index');?></h3>
-		<div class="card">
-			<div class="card-body">
-				<h5 class="card-title"><?php echo lang('site_stat_info');?></h5>
-				<div class="row">
-					<div class="col-md-4"><span class="text-muted"><?php echo lang('threads');?>：</span><?php echo $stat['threads']; ?></div>
-					<div class="col-md-4"><span class="text-muted"><?php echo lang('posts');?>：</span><?php echo $stat['posts']; ?></div>
-					<div class="col-md-4"><span class="text-muted"><?php echo lang('users');?>：</span><?php echo $stat['users']; ?></div>
-					
-					<div class="col-md-4"><span class="text-muted"><?php echo lang('attachs');?>：</span><?php echo $stat['attachs']; ?></div>
-					<div class="col-md-4"><span class="text-muted"><?php echo lang('disk_free_space');?>：</span><?php echo $stat['disk_free_space']; ?></div>
-					<div class="col-md-4"><span class="text-muted"><?php echo lang('onlines');?>：</span><?php echo $runtime['onlines']; ?></div>
-					
+<!--{hook admin_index_site_stat_before.htm}-->
+
+<style>
+/* 统计卡片 */
+.dash-stat { position: relative; overflow: hidden; }
+.dash-stat .stat-icon {
+	width: 48px; height: 48px; border-radius: 12px;
+	display: flex; align-items: center; justify-content: center;
+	font-size: 1.4rem; flex-shrink: 0;
+}
+.dash-stat .stat-value { font-size: 1.75rem; font-weight: 700; line-height: 1.2; }
+.dash-stat .stat-label { font-size: 0.78rem; color: var(--bs-secondary-color); }
+.dash-stat .stat-desc { font-size: 0.72rem; color: var(--bs-secondary-color); margin-top: 2px; }
+/* 色彩主题 */
+.stat-icon-blue { background: rgba(var(--bs-primary-rgb), 0.1); color: var(--bs-primary); }
+.stat-icon-green { background: rgba(25,135,84,0.1); color: #198754; }
+.stat-icon-orange { background: rgba(255,153,0,0.1); color: #e68a00; }
+.stat-icon-cyan { background: rgba(13,202,240,0.1); color: #0dcaf0; }
+.stat-icon-amber { background: rgba(255,193,7,0.12); color: #cc9a00; }
+.stat-icon-teal { background: rgba(32,201,151,0.1); color: #20c997; }
+.stat-icon-red { background: rgba(220,53,69,0.1); color: #dc3545; }
+.stat-icon-gray { background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); }
+[data-bs-theme="dark"] .stat-icon-blue { background: rgba(37,99,235,0.18); }
+[data-bs-theme="dark"] .stat-icon-green { background: rgba(25,135,84,0.18); }
+[data-bs-theme="dark"] .stat-icon-orange { background: rgba(255,153,0,0.18); }
+[data-bs-theme="dark"] .stat-icon-cyan { background: rgba(13,202,240,0.18); }
+[data-bs-theme="dark"] .stat-icon-amber { background: rgba(255,193,7,0.18); }
+[data-bs-theme="dark"] .stat-icon-teal { background: rgba(32,201,151,0.18); }
+[data-bs-theme="dark"] .stat-icon-red { background: rgba(220,53,69,0.18); }
+/* 信息卡片 */
+.info-card-title {
+	font-size: 0.9rem; font-weight: 600; margin-bottom: 0.75rem;
+	display: flex; align-items: center; gap: 0.4rem;
+}
+.info-row {
+	display: flex; justify-content: space-between; align-items: center;
+	padding: 0.35rem 0; border-bottom: 1px solid var(--bs-border-color);
+	font-size: 0.85rem;
+}
+.info-row:last-child { border-bottom: none; }
+.info-row .info-label { color: var(--bs-secondary-color); }
+.info-row .info-value { font-weight: 500; text-align: right; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 快捷入口 */
+.quick-entry {
+	display: flex; align-items: center; gap: 0.5rem;
+	padding: 0.5rem 0.85rem; border-radius: 0.5rem;
+	color: var(--bs-body-color); text-decoration: none;
+	font-size: 0.85rem; transition: all 0.15s ease;
+	border: 1px solid var(--bs-border-color); background: transparent;
+}
+.quick-entry:hover { background: rgba(var(--bs-primary-rgb), 0.05); color: var(--bs-primary); border-color: rgba(var(--bs-primary-rgb), 0.2); }
+[data-bs-theme="dark"] .quick-entry:hover { background: rgba(37,99,235,0.12); border-color: rgba(37,99,235,0.3); }
+.quick-entry i { font-size: 1.1rem; color: var(--bs-secondary-color); }
+.quick-entry:hover i { color: var(--bs-primary); }
+</style>
+
+<!-- 数据统计 -->
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3">
+	<div class="col">
+		<div class="x-card card dash-stat hover-lift rounded-3 h-100">
+			<div class="card-body d-flex align-items-center gap-3 p-3">
+				<div class="stat-icon stat-icon-blue"><i class="ti ti-file-text"></i></div>
+				<div>
+					<div class="stat-label"><?php echo lang('admin_total_threads');?></div>
+					<div class="stat-value dash-count text-primary" data-count="<?php echo $stat['threads'];?>"><?php echo $stat['threads'];?></div>
+					<div class="stat-desc"><?php echo lang('admin_today');?> +<?php echo $today_stat['threads'];?></div>
 				</div>
 			</div>
 		</div>
-		
-		<!--{hook admin_index_server_info_before.htm}-->
-		
-		<div class="card">
-			<div class="card-body">
-				<h5><?php echo lang('server_info');?> <a href="<?php echo url('index-phpinfo');?>"><small>[PHPINFO]</small></a></h5>
-				<div class="row">
-					<div class="col-md-6"><span class="text-muted"><?php echo lang('os');?>：</span><?php echo PHP_OS; ?></div>
-					<div class="col-md-6"><span class="text-muted">Web Server：</span><?php echo $info['SERVER_SOFTWARE']; ?></div>
-					<div class="col-md-6"><span class="text-muted">PHP：</span><?php echo PHP_VERSION; ?></div>
-					
-					<div class="col-md-6"><span class="text-muted"><?php echo lang('database');?>：</span><?php echo $conf['db']['type']; ?><small> (<?php echo $info['dbversion']; ?>)</small></div>
-					<div class="col-md-6"><span class="text-muted"><?php echo lang('post_max_size');?>：</span><?php echo $info['post_max_size']; ?></div>
-					<div class="col-md-6"><span class="text-muted"><?php echo lang('upload_max_filesize');?>：</span><?php echo $info['upload_max_filesize']; ?></div>
-					
-					<div class="col-md-6"><span class="text-muted"><?php echo lang('allow_url_fopen');?>：</span><?php echo $info['allow_url_fopen']; ?></div>
-					<div class="col-md-6"><span class="text-muted"><?php echo lang('safe_mode');?>：</span><?php echo $info['safe_mode']; ?></div>
-					<div class="col-md-6"><span class="text-muted"><?php echo lang('max_execution_time');?>：</span><?php echo $info['max_execution_time']; ?></div>
-					
-					<div class="col-md-6"><span class="text-muted"><?php echo lang('memory_limit');?>：</span><?php echo $info['memory_limit']; ?></div>
-					<div class="col-md-6"><span class="text-muted"><?php echo lang('client_ip');?>：</span><?php echo $ip; ?></div>
-					<div class="col-md-6"><span class="text-muted"><?php echo lang('server_ip');?>：</span><?php echo _SERVER('SERVER_ADDR'); ?></div>
-					
+	</div>
+	<div class="col">
+		<div class="x-card card dash-stat hover-lift rounded-3 h-100">
+			<div class="card-body d-flex align-items-center gap-3 p-3">
+				<div class="stat-icon stat-icon-green"><i class="ti ti-reply"></i></div>
+				<div>
+					<div class="stat-label"><?php echo lang('admin_total_posts');?></div>
+					<div class="stat-value dash-count" style="color:#198754" data-count="<?php echo $stat['posts'];?>"><?php echo $stat['posts'];?></div>
+					<div class="stat-desc"><?php echo lang('admin_today');?> +<?php echo $today_stat['posts'];?></div>
 				</div>
 			</div>
 		</div>
-		
-		<!--{hook admin_index_team_before.htm}-->
-		
-		<div class="card">
-			<div class="card-body">
-				<h5><?php echo lang('dev_team_info');?></h5>
-				<div>Official Site: <a href="http://www.xiuno.com" target="_blank">http://www.xiuno.com/</a></div>
-				<div>Dev Team:  
-					<a href="http://bbs.xiuno.com/" target="_blank">axiuno</a>
-				</div>
-				<div>Thanks For: 
-					<a href="http://www.discuz.net/" target="_blank">cnteacher@discuz</a>
-					<a href="http://www.discuz.net/" target="_blank">Discuz! Team</a>
-					<a href="http://artery.cn/" target="_blank">Artery</a>
-					<a href="http://www.wooyun.org/" target="_blank">剑心@wooyun</a>
-					<a href="http://bbs.xiuno.com/" target="_blank">右键森林</a>
-					<a href="http://bbs.xiuno.com/" target="_blank">吴兆焕</a>
-					<a href="http://www.zd.hk/" target="_blank">杨永全</a>
-					<a href="http://www.huux.cc/" target="_blank">郑城</a>
-					<a href="http://www.baiup.com/" target="_blank">大象</a>
+	</div>
+	<div class="col">
+		<div class="x-card card dash-stat hover-lift rounded-3 h-100">
+			<div class="card-body d-flex align-items-center gap-3 p-3">
+				<div class="stat-icon stat-icon-orange"><i class="ti ti-users"></i></div>
+				<div>
+					<div class="stat-label"><?php echo lang('admin_total_users');?></div>
+					<div class="stat-value dash-count" style="color:#e68a00" data-count="<?php echo $stat['users'];?>"><?php echo $stat['users'];?></div>
+					<div class="stat-desc"><?php echo lang('admin_today');?> +<?php echo $today_stat['users'];?></div>
 				</div>
 			</div>
 		</div>
-		
-		<!--{hook admin_index_team_after.htm}-->
-		
+	</div>
+	<div class="col">
+		<div class="x-card card dash-stat hover-lift rounded-3 h-100">
+			<div class="card-body d-flex align-items-center gap-3 p-3">
+				<div class="stat-icon stat-icon-cyan"><i class="ti ti-paperclip"></i></div>
+				<div>
+					<div class="stat-label"><?php echo lang('admin_total_attachs');?></div>
+					<div class="stat-value dash-count" style="color:#0dcaf0" data-count="<?php echo $stat['attachs'];?>"><?php echo $stat['attachs'];?></div>
+					<div class="stat-desc"><?php echo lang('admin_today');?> +<?php echo $today_stat['attachs'];?></div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="col">
+		<a href="<?php echo url('security-audit');?>" class="text-decoration-none">
+		<div class="x-card card dash-stat hover-lift rounded-3 h-100<?php echo $security_stat['pending_total'] > 0 ? ' border-warning' : '';?>">
+			<div class="card-body d-flex align-items-center gap-3 p-3">
+				<div class="stat-icon stat-icon-amber"><i class="ti ti-clipboard-check"></i></div>
+				<div>
+					<div class="stat-label"><?php echo lang('admin_pending_audit');?></div>
+					<div class="stat-value dash-count <?php echo $security_stat['pending_total'] > 0 ? 'text-warning' : 'text-success';?>" data-count="<?php echo $security_stat['pending_total'];?>"><?php echo $security_stat['pending_total'];?></div>
+					<div class="stat-desc"><?php echo lang('admin_pending_threads');?> <?php echo $security_stat['pending_threads'];?> / <?php echo lang('admin_pending_posts');?> <?php echo $security_stat['pending_posts'];?> / <?php echo lang('admin_pending_profiles');?> <?php echo $security_stat['pending_profiles'];?></div>
+				</div>
+			</div>
+		</div>
+		</a>
+	</div>
+	<div class="col">
+		<a href="<?php echo url('security-words');?>" class="text-decoration-none">
+		<div class="x-card card dash-stat hover-lift rounded-3 h-100">
+			<div class="card-body d-flex align-items-center gap-3 p-3">
+				<div class="stat-icon stat-icon-teal"><i class="ti ti-filter"></i></div>
+				<div>
+					<div class="stat-label"><?php echo lang('admin_sensitive_words');?></div>
+					<div class="stat-value dash-count" style="color:#20c997" data-count="<?php echo $security_stat['sensitive_words'];?>"><?php echo $security_stat['sensitive_words'];?></div>
+					<div class="stat-desc"><?php echo lang('admin_sensitive_list');?></div>
+				</div>
+			</div>
+		</div>
+		</a>
+	</div>
+	<div class="col">
+		<a href="<?php echo url('security-protection');?>" class="text-decoration-none">
+		<div class="x-card card dash-stat hover-lift rounded-3 h-100">
+			<div class="card-body d-flex align-items-center gap-3 p-3">
+				<div class="stat-icon stat-icon-red"><i class="ti ti-ban"></i></div>
+				<div>
+					<div class="stat-label"><?php echo lang('admin_ip_blacklist');?></div>
+					<div class="stat-value dash-count text-danger" data-count="<?php echo $security_stat['ip_blacklist'];?>"><?php echo $security_stat['ip_blacklist'];?></div>
+					<div class="stat-desc"><?php echo lang('admin_email_blacklist');?> <?php echo $security_stat['email_blacklist'];?></div>
+				</div>
+			</div>
+		</div>
+		</a>
+	</div>
+	<div class="col">
+		<a href="<?php echo url('log-login');?>" class="text-decoration-none">
+		<div class="x-card card dash-stat hover-lift rounded-3 h-100<?php echo $security_stat['login_failures_today'] > 5 ? ' border-danger' : '';?>">
+			<div class="card-body d-flex align-items-center gap-3 p-3">
+				<div class="stat-icon stat-icon-gray"><i class="ti ti-alert-triangle"></i></div>
+				<div>
+					<div class="stat-label"><?php echo lang('admin_login_failures_today');?></div>
+					<div class="stat-value dash-count <?php echo $security_stat['login_failures_today'] > 5 ? 'text-danger' : 'text-body-secondary';?>" data-count="<?php echo $security_stat['login_failures_today'];?>"><?php echo $security_stat['login_failures_today'];?></div>
+					<div class="stat-desc"><?php echo lang('admin_login_log');?></div>
+				</div>
+			</div>
+		</div>
+		</a>
 	</div>
 </div>
+
+<!-- 数据趋势图表 -->
+<div class="x-card card rounded-3 mt-4">
+	<div class="card-body p-3">
+		<div class="d-flex align-items-center justify-content-between mb-2">
+			<div class="info-card-title mb-0"><i class="ti ti-chart-line text-primary"></i> <?php echo lang('admin_data_trend');?></div>
+			<div class="btn-group btn-group-sm" role="group">
+				<button type="button" class="btn btn-outline-secondary btn-chart-range active" data-days="7"><?php echo lang('chart_days_7');?></button>
+				<button type="button" class="btn btn-outline-secondary btn-chart-range" data-days="14"><?php echo lang('chart_days_14');?></button>
+				<button type="button" class="btn btn-outline-secondary btn-chart-range" data-days="30"><?php echo lang('chart_days_30');?></button>
+			</div>
+		</div>
+		<canvas id="statsChart" height="90"></canvas>
+	</div>
+</div>
+
+<!-- 快捷入口 -->
+<h6 class="fw-semibold text-body-secondary mt-4 mb-2" style="font-size:0.8rem;letter-spacing:0.03em;text-transform:uppercase">
+	<i class="ti ti-grid-dots me-1"></i>Quick Actions
+</h6>
+<div class="d-flex flex-wrap gap-2">
+	<a href="index.php?security-audit.htm" class="quick-entry">
+		<i class="ti ti-clipboard-check"></i> <?php echo lang('admin_content_audit');?>
+	</a>
+	<a href="index.php?security-protection.htm" class="quick-entry">
+		<i class="ti ti-shield-lock"></i> <?php echo lang('admin_security_setting_short');?>
+	</a>
+	<a href="index.php?other-cache.htm" class="quick-entry">
+		<i class="ti ti-trash"></i> <?php echo lang('admin_clear_cache');?>
+	</a>
+	<a href="../" target="_blank" class="quick-entry">
+		<i class="ti ti-external-link"></i> <?php echo lang('admin_view_site');?>
+	</a>
+	<a href="index.php?plugin-list-1.htm" class="quick-entry">
+		<i class="ti ti-puzzle"></i> <?php echo lang('admin_plugin_manage');?>
+	</a>
+	<a href="index.php?setting-base-1.htm" class="quick-entry">
+		<i class="ti ti-settings"></i> <?php echo lang('admin_system_setting');?>
+	</a>
+</div>
+
+<!--{hook admin_index_server_info_before.htm}-->
+
+<!-- 系统信息 -->
+<div class="row g-3 mt-4">
+	<div class="col-12 col-lg-6">
+		<div class="x-card  card rounded-3 h-100">
+			<div class="card-body p-3">
+				<div class="info-card-title">
+					<i class="ti ti-server text-primary"></i> <?php echo lang('admin_system_info');?>
+					<a href="<?php echo url('index-phpinfo');?>" class="ms-auto badge bg-primary bg-opacity-10 text-primary" style="font-size:0.72rem">PHPINFO</a>
+				</div>
+				<div class="row g-0">
+					<div class="col-12 col-md-6 pe-2">
+						<div class="info-row">
+							<span class="info-label"><?php echo lang('php_version');?></span>
+							<span class="info-value"><?php echo PHP_VERSION;?></span>
+						</div>
+					</div>
+					<div class="col-12 col-md-6 ps-2">
+						<div class="info-row">
+							<span class="info-label"><?php echo lang('mysql_version');?></span>
+							<span class="info-value"><?php echo $info['dbversion'];?></span>
+						</div>
+					</div>
+					<div class="col-12 col-md-6 pe-2">
+						<div class="info-row">
+							<span class="info-label"><?php echo lang('xiuno_version');?></span>
+							<span class="info-value"><?php echo $conf['version'];?></span>
+						</div>
+					</div>
+					<div class="col-12 col-md-6 ps-2">
+						<div class="info-row">
+							<span class="info-label"><?php echo lang('server_software');?></span>
+							<span class="info-value"><?php echo $info['SERVER_SOFTWARE'];?></span>
+						</div>
+					</div>
+					<div class="col-12 col-md-6 pe-2">
+						<div class="info-row">
+							<span class="info-label"><?php echo lang('upload_size_limit');?></span>
+							<span class="info-value"><?php echo $info['upload_max_filesize'];?></span>
+						</div>
+					</div>
+					<div class="col-12 col-md-6 ps-2">
+						<div class="info-row">
+							<span class="info-label"><?php echo lang('post_size_limit');?></span>
+							<span class="info-value"><?php echo $info['post_max_size'];?></span>
+						</div>
+					</div>
+					<div class="col-12 col-md-6 pe-2">
+						<div class="info-row">
+							<span class="info-label"><?php echo lang('memory_limit');?></span>
+							<span class="info-value"><?php echo $info['memory_limit'];?></span>
+						</div>
+					</div>
+					<div class="col-12 col-md-6 ps-2">
+						<div class="info-row">
+							<span class="info-label"><?php echo lang('max_execution_time');?></span>
+							<span class="info-value"><?php echo $info['max_execution_time'];?>s</span>
+						</div>
+					</div>
+					<div class="col-12 col-md-6 pe-2">
+						<div class="info-row">
+							<span class="info-label"><?php echo lang('cache_type');?></span>
+							<span class="info-value"><?php echo $conf['cache']['type'];?></span>
+						</div>
+					</div>
+					<div class="col-12 col-md-6 ps-2">
+						<div class="info-row">
+							<span class="info-label"><?php echo lang('db_type');?></span>
+							<span class="info-value"><?php echo $conf['db']['type'];?></span>
+						</div>
+					</div>
+					<div class="col-12 col-md-6 pe-2">
+						<div class="info-row">
+							<span class="info-label"><?php echo lang('disk_free_space');?></span>
+							<span class="info-value"><?php echo $stat['disk_free_space'];?></span>
+						</div>
+					</div>
+					<div class="col-12 col-md-6 ps-2">
+						<div class="info-row">
+							<span class="info-label"><?php echo lang('os');?></span>
+							<span class="info-value"><?php echo PHP_OS;?></span>
+						</div>
+					</div>
+					<div class="col-12 col-md-6 pe-2">
+						<div class="info-row">
+							<span class="info-label"><?php echo lang('allow_url_open');?></span>
+							<span class="info-value"><?php echo $info['allow_url_fopen'];?></span>
+						</div>
+					</div>
+					<div class="col-12 col-md-6 ps-2">
+						<div class="info-row">
+							<span class="info-label"><?php echo lang('safe_mode');?></span>
+							<span class="info-value"><?php echo $info['safe_mode'];?></span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="col-12 col-lg-6">
+		<div class="x-card  card rounded-3 h-100  ">
+			<div class="card-body p-3">
+				<div class="info-card-title"><i class="ti ti-world text-primary"></i> <?php echo lang('online_and_network');?></div>
+				<div class="info-row">
+					<span class="info-label"><?php echo lang('current_online');?></span>
+					<span class="info-value"><span class="badge bg-primary"><?php echo $runtime['onlines'];?></span></span>
+				</div>
+				<div class="info-row">
+					<span class="info-label"><?php echo lang('client_ip');?></span>
+					<span class="info-value"><?php echo $ip;?></span>
+				</div>
+				<div class="info-row">
+					<span class="info-label"><?php echo lang('server_ip');?></span>
+					<span class="info-value"><?php echo _SERVER('SERVER_ADDR');?></span>
+				</div>
+				<?php if(!empty($info['HTTP_X_FORWARDED_FOR'])) { ?>
+				<div class="info-row">
+					<span class="info-label"><?php echo lang('proxy_ip');?></span>
+					<span class="info-value"><?php echo $info['HTTP_X_FORWARDED_FOR'];?></span>
+				</div>
+				<?php } ?>
+				<div class="info-row">
+					<span class="info-label"><?php echo lang('site_url');?></span>
+					<span class="info-value" style="font-size:0.78rem"><?php echo isset($conf['url']) ? $conf['url'] : http_url_path();?></span>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!--{hook admin_index_team_before.htm}-->
+<!--{hook admin_index_team_after.htm}-->
 
 <!--{hook admin_index_end.htm}-->
 
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
-<script>
-
-$('#nav li.home').addClass('active');
-
-</script>
 <?php echo $lastversion; ?>
 
-
 <!--{hook admin_index_js.htm}-->
+
+<script>
+if(typeof Chart !== 'undefined') {
+	var ctx = document.getElementById('statsChart');
+	if(ctx) {
+		var isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+		var gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+		var textColor = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)';
+
+		// 服务端提供的30天完整数据
+		var allLabels = <?php echo json_encode($chart_labels);?>;
+		var allThreads = <?php echo json_encode($chart_threads);?>;
+		var allPosts = <?php echo json_encode($chart_posts);?>;
+		var allUsers = <?php echo json_encode($chart_users);?>;
+		var allAttachs = <?php echo json_encode($chart_attachs);?>;
+
+		var chartInstance = null;
+
+		function renderChart(days) {
+			var offset = allLabels.length - days;
+			var labels = allLabels.slice(offset);
+			var threads = allThreads.slice(offset);
+			var posts = allPosts.slice(offset);
+			var users = allUsers.slice(offset);
+			var attachs = allAttachs.slice(offset);
+
+			if(chartInstance) chartInstance.destroy();
+
+			chartInstance = new Chart(ctx, {
+				type: 'line',
+				data: {
+					labels: labels,
+					datasets: [{
+						label: '<?php echo lang('chart_threads');?>',
+						data: threads,
+						borderColor: 'rgba(37, 99, 235, 1)',
+						backgroundColor: 'rgba(37, 99, 235, 0.08)',
+						fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2
+					}, {
+						label: '<?php echo lang('chart_posts');?>',
+						data: posts,
+						borderColor: 'rgba(25, 135, 84, 1)',
+						backgroundColor: 'rgba(25, 135, 84, 0.08)',
+						fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2
+					}, {
+						label: '<?php echo lang('chart_new_users');?>',
+						data: users,
+						borderColor: 'rgba(255, 153, 0, 1)',
+						backgroundColor: 'rgba(255, 153, 0, 0.08)',
+						fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2
+					}, {
+						label: '<?php echo lang('chart_attachs');?>',
+						data: attachs,
+						borderColor: 'rgba(13, 202, 240, 1)',
+						backgroundColor: 'rgba(13, 202, 240, 0.08)',
+						fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2
+					}]
+				},
+				options: {
+					responsive: true,
+					maintainAspectRatio: true,
+					interaction: { intersect: false, mode: 'index' },
+					plugins: {
+						legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 20, font: { size: 12 }, color: textColor } },
+						tooltip: { backgroundColor: isDark ? '#1e293b' : '#fff', titleColor: isDark ? '#fff' : '#333', bodyColor: isDark ? '#ccc' : '#666', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', borderWidth: 1, cornerRadius: 8, padding: 12 }
+					},
+					scales: {
+						y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, font: { size: 11 }, precision: 0 } },
+						x: { grid: { display: false }, ticks: { color: textColor, font: { size: 11 }, maxRotation: 45, minRotation: 0 } }
+					}
+				}
+			});
+		}
+
+		// 默认显示7天
+		renderChart(7);
+
+		// 时间范围切换
+		document.querySelectorAll('.btn-chart-range').forEach(function(btn) {
+			btn.addEventListener('click', function() {
+				document.querySelectorAll('.btn-chart-range').forEach(function(b) { b.classList.remove('active'); });
+				this.classList.add('active');
+				renderChart(parseInt(this.getAttribute('data-days')));
+			});
+		});
+	}
+}
+</script>
+
+<!-- 数字计数动画 -->
+<script src="../view/vendor/animejs/anime.umd.min.js"></script>
+<script>
+(function() {
+    // anime.js v4 数字从 0 计数到目标值
+    var animate = anime.animate;
+    document.querySelectorAll('.dash-count').forEach(function(el) {
+        var target = parseInt(el.getAttribute('data-count')) || 0;
+        var obj = { val: 0 };
+        animate(obj, {
+            val: target,
+            duration: 1500,
+            ease: 'outExpo',
+            onUpdate: function() {
+                el.textContent = Math.round(obj.val);
+            }
+        });
+    });
+})();
+</script>

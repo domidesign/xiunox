@@ -1,0 +1,172 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_log_credits_start.htm}-->
+
+<div class=" ">
+	<?php echo admin_tab_active($menu['log']['tab'], 'credits');?>
+</div>
+
+<!-- 统计概览 -->
+<div class="row g-3 mb-3">
+	<div class="col-6 col-md-3">
+		<div class="x-card  cardrounded-3">
+			<div class="card-body text-center">
+				<div class="fs-4 fw-semibold"><?php echo intval($today_count);?></div>
+				<div class="text-body-secondary small"><?php echo lang('admin_credits_today_count');?></div>
+			</div>
+		</div>
+	</div>
+	<div class="col-6 col-md-3">
+		<div class="x-card  cardrounded-3">
+			<div class="card-body text-center">
+				<div class="fs-4 fw-semibold text-success">+<?php echo intval($today_income);?></div>
+				<div class="text-body-secondary small"><?php echo lang('admin_credits_today_income');?></div>
+			</div>
+		</div>
+	</div>
+	<div class="col-6 col-md-3">
+		<div class="x-card  cardrounded-3">
+			<div class="card-body text-center">
+				<div class="fs-4 fw-semibold text-danger">-<?php echo intval($today_expense);?></div>
+				<div class="text-body-secondary small"><?php echo lang('admin_credits_today_expense');?></div>
+			</div>
+		</div>
+	</div>
+	<div class="col-6 col-md-3">
+		<div class="x-card  cardrounded-3">
+			<div class="card-body text-center">
+				<div class="fs-4 fw-semibold <?php echo $big_change_count > 0 ? 'text-warning' : '';?>"><?php echo intval($big_change_count);?></div>
+				<div class="text-body-secondary small"><?php echo lang('admin_credits_big_change');?></div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="x-card  cardrounded-3">
+	<div class="card-body">
+		<!-- 筛选表单 -->
+		<form onsubmit="return doSearch();" class="mb-4">
+			<div class="row g-3 align-items-end">
+				<div class="col-auto">
+					<label class="form-label fw-medium"><?php echo lang('admin_log_filter_uid');?></label>
+					<div class="d-flex gap-2">
+						<input type="number" name="uid" class="form-control rounded-pill" value="<?php echo $filter_uid;?>" placeholder="UID" style="width:100px;">
+						<input type="text" name="username" class="form-control rounded-pill" value="<?php echo $filter_username;?>" placeholder="<?php echo lang('username');?>" style="width:120px;">
+					</div>
+				</div>
+				<div class="col-auto">
+					<label class="form-label fw-medium"><?php echo lang('admin_log_filter_type');?></label>
+					<select name="type" class="form-select rounded-pill" style="width:120px;">
+						<option value=""><?php echo lang('admin_log_success_all');?></option>
+						<?php foreach($credits_types as $ct) { ?>
+						<option value="<?php echo $ct;?>" <?php echo $filter_type == $ct ? 'selected' : '';?>><?php echo lang('admin_credits_type_'.$ct);?></option>
+						<?php } ?>
+					</select>
+				</div>
+				<div class="col-auto">
+					<label class="form-label fw-medium"><?php echo lang('admin_credits_direction');?></label>
+					<select name="direction" class="form-select rounded-pill" style="width:100px;">
+						<option value=""><?php echo lang('admin_log_success_all');?></option>
+						<option value="income" <?php echo $filter_direction == 'income' ? 'selected' : '';?>><?php echo lang('admin_credits_income');?></option>
+						<option value="expense" <?php echo $filter_direction == 'expense' ? 'selected' : '';?>><?php echo lang('admin_credits_expense');?></option>
+					</select>
+				</div>
+				<div class="col-auto">
+					<label class="form-label fw-medium"><?php echo lang('admin_log_col_ip');?></label>
+					<input type="text" name="ip" class="form-control rounded-pill" value="<?php echo $filter_ip;?>" placeholder="IP" style="width:130px;">
+				</div>
+				<div class="col-auto">
+					<label class="form-label fw-medium"><?php echo lang('admin_log_filter_date_start');?></label>
+					<input type="date" name="date_start" class="form-control rounded-pill" value="<?php echo $filter_date_start;?>" style="width:160px;">
+				</div>
+				<div class="col-auto">
+					<label class="form-label fw-medium"><?php echo lang('admin_log_filter_date_end');?></label>
+					<input type="date" name="date_end" class="form-control rounded-pill" value="<?php echo $filter_date_end;?>" style="width:160px;">
+				</div>
+				<div class="col-auto">
+					<button type="submit" class="btn btn-primary rounded-pill"><i class="ti ti-search me-1"></i><?php echo lang('search');?></button>
+				</div>
+			</div>
+		</form>
+
+		<!-- 数据表格 -->
+		<div class="table-responsive">
+			<table class="table table-hover align-middle">
+				<thead>
+					<tr>
+						<th><?php echo lang('admin_log_col_uid');?></th>
+						<th><?php echo lang('admin_log_col_username');?></th>
+						<th><?php echo lang('admin_log_col_type');?></th>
+						<th><?php echo lang('admin_log_col_change');?></th>
+						<th><?php echo lang('admin_log_col_balance');?></th>
+						<th><?php echo lang('admin_log_col_reason');?></th>
+						<th><?php echo lang('admin_log_col_ip');?></th>
+						<th><?php echo lang('admin_log_col_time');?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php if(empty($logs)) { ?>
+					<tr><td colspan="8" class="text-center text-body-secondary py-4"><?php echo lang('admin_no_data')?></td></tr>
+					<?php } else { foreach($logs as $log) { ?>
+					<tr>
+						<td><?php echo $log['uid'];?></td>
+						<td><?php echo isset($users[$log['uid']]) ? esc_html($users[$log['uid']]) : '-';?></td>
+						<td><span class="badge bg-info"><?php echo lang('admin_credits_type_'.$log['type']);?></span></td>
+						<td><span class="<?php echo $log['change'] > 0 ? 'text-success' : 'text-danger';?>"><?php echo $log['change'] > 0 ? '+' : '';echo $log['change'];?></span></td>
+						<td><?php echo $log['balance'];?></td>
+						<td><?php echo esc_html(credits_event_name($log['reason']));?></td>
+						<td><?php echo $log['ip_fmt'];?></td>
+						<td><?php echo $log['create_date_fmt'];?></td>
+					</tr>
+					<?php }} ?>
+				</tbody>
+			</table>
+		</div>
+
+		<!-- 分页 -->
+		<?php if($count > $pagesize) { ?>
+		<nav>
+			<ul class="pagination pagination-boxed justify-content-center">
+				<?php
+				$total_pages = ceil($count / $pagesize);
+				$query_params = http_build_query(array_filter(array('uid'=>$filter_uid, 'username'=>$filter_username, 'type'=>$filter_type, 'direction'=>$filter_direction, 'ip'=>$filter_ip, 'date_start'=>$filter_date_start, 'date_end'=>$filter_date_end)));
+				for($i = 1; $i <= min($total_pages, 20); $i++) {
+					$url = url('log-credits') . ($query_params ? '&'.$query_params : '') . '&page='.$i;
+				?>
+				<li class="page-item <?php echo $page == $i ? 'active' : '';?>"><a class="page-link" href="<?php echo $url;?>"><?php echo $i;?></a></li>
+				<?php } ?>
+			</ul>
+		</nav>
+		<?php } ?>
+
+		<div class="text-body-secondary fs-6"><?php echo lang('admin_total_records', array('n'=>$count))?></div>
+	</div>
+</div>
+
+<!--{hook admin_log_credits_end.htm}-->
+
+<!-- 搜索表单JS：修复GET表单导致URL双问号问题 -->
+<script>
+function doSearch() {
+    var base = '<?php echo url('log-credits');?>';
+    var params = [];
+    var uid = document.querySelector('[name="uid"]').value;
+    if(uid) params.push('uid=' + encodeURIComponent(uid));
+    var username = document.querySelector('[name="username"]').value;
+    if(username) params.push('username=' + encodeURIComponent(username));
+    var type = document.querySelector('[name="type"]').value;
+    if(type) params.push('type=' + encodeURIComponent(type));
+    var direction = document.querySelector('[name="direction"]').value;
+    if(direction) params.push('direction=' + encodeURIComponent(direction));
+    var ip = document.querySelector('[name="ip"]').value;
+    if(ip) params.push('ip=' + encodeURIComponent(ip));
+    var date_start = document.querySelector('[name="date_start"]').value;
+    if(date_start) params.push('date_start=' + encodeURIComponent(date_start));
+    var date_end = document.querySelector('[name="date_end"]').value;
+    if(date_end) params.push('date_end=' + encodeURIComponent(date_end));
+    window.location.href = base + (params.length ? '&' + params.join('&') : '');
+    return false;
+}
+</script>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>

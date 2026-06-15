@@ -2,95 +2,84 @@
 
 <!--{hook admin_group_update_start.htm}-->
 
-<div class="row">
-	<div class="col-12">
-		<div class="btn-group mb-3" role="group">
-			<?php echo admin_tab_active($menu['user']['tab'], 'group');?>
-		</div>
-		<div class="card">
-			<div class="card-body">
-				<form action="<?php echo url("group-update-$_gid");?>" method="post" id="form">
-					<h4 class="card-title"><?php echo lang('group_edit');?> - <?php echo $_group['name'];?></h4>
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label"><?php echo lang('group_name');?>：</label>
-						<div class="col-sm-10">
-							<?php echo $input['name'];?>
-						</div>
-					</div>
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label"><?php echo lang('group_credits_from');?>：</label>
-						<div class="col-sm-10">
-							<?php echo $input['creditsfrom'];?>
-						</div>
-					</div>
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label"><?php echo lang('group_credits_to');?>：</label>
-						<div class="col-sm-10">
-							<?php echo $input['creditsto'];?>
-						</div>
-					</div>
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label"><?php echo lang('user_privileges');?>：</label>
-						<div class="col-sm-10">
-							<div class="table-responsive">
-								<table class="table"  style="min-width: 400px">
-									<tr class="text-center">
-										<td><?php echo lang('allow_view');?></td>
-										<td><?php echo lang('allow_thread');?></td>
-										<td><?php echo lang('allow_post');?></td>
-										<td><?php echo lang('allow_upload');?></td>
-										<td><?php echo lang('allow_download');?></td>
-									</tr>
-									<tr align="center">
-										<td><?php echo $input['allowread'];?></td>
-										<td><?php echo $input['allowthread'];?></td>
-										<td><?php echo $input['allowpost'];?></td>
-										<td><?php echo $input['allowattach'];?></td>
-										<td><?php echo $input['allowdown'];?></td>
-									</tr>
-								</table>
-							</div>
-						</div>
-					</div>
-					<?php if($_group['gid'] >= 1 AND $_group['gid'] <= 5) { ?>
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label"><?php echo lang('admin_privilege');?>：</label>
-						<div class="col-sm-10">
-							<div class="table-responsive">
-								<table class="table" style="min-width: 600px">
-									<tr class="text-center">
-										<td><?php echo lang('top');?></td>
-										<td><?php echo lang('edit');?></td>
-										<td><?php echo lang('delete');?></td>
-										<td><?php echo lang('move');?></td>
-										<td><?php echo lang('ban_user');?></td>
-										<td><?php echo lang('delete_user');?></td>
-										<td><?php echo lang('view_user_info');?></td>
-									</tr>
-									<tr align="center">
-										<td><?php echo $input['allowtop'];?></td>
-										<td><?php echo $input['allowupdate'];?></td>
-										<td><?php echo $input['allowdelete'];?></td>
-										<td><?php echo $input['allowmove'];?></td>
-										<td><?php echo $input['allowbanuser'];?></td>
-										<td><?php echo $input['allowdeleteuser'];?></td>
-										<td><?php echo $input['allowviewip'];?></td>
-									</tr>
-								</table>
-							</div>
-						</div>
-					</div>
-					<?php } ?>
-					<div class="form-group row">
-						<label class="col-sm-2 form-control-label"></label>
-						<div class="col-sm-10">
-							<button type="submit" class="btn btn-primary btn-block" id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('confirm');?></button>
-							<a role="button" class="btn btn-secondary btn-block mt-3" href="javascript:history.back();"><?php echo lang('back');?></a>
-						</div>
-					</div>
-				</form>
+<div class="mb-3">
+	<?php echo admin_tab_active($menu['user']['tab'], 'group');?>
+</div>
+
+<div class="x-card  cardrounded-3 border">
+	<div class="card-body">
+		<form action="<?php echo url("group-update-$_gid");?>" method="post" id="form">
+			<?php echo CsrfService::input(); ?>
+			<h4 class="card-title mb-4"><?php echo lang('group_edit');?> - <?php echo $_group['name'];?></h4>
+			<div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-3">
+				<label class="col-sm-2 fw-medium fs-6"><?php echo lang('group_icon');?>：</label>
+				<div class="col-sm-10 d-flex align-items-center gap-3">
+					<span class="icon-preview p-2 border rounded-3" id="group_icon_preview" style="min-width:48px;min-height:48px;display:flex;align-items:center;justify-content:center;cursor:pointer">
+						<?php echo !empty($_group['icon']) ? '<i class="'.$_group['icon'].'" style="font-size:1.5rem"></i>' : '<i class="ti ti-circle-dot text-body-secondary" style="font-size:1.5rem"></i>'; ?>
+					</span>
+					<input type="text" class="form-control rounded-pill" name="icon" id="group_icon_input" value="<?php echo isset($_group['icon']) ? $_group['icon'] : '';?>" placeholder="<?php echo lang('admin_click_select_icon')?>" readonly style="cursor:pointer;max-width:200px" />
+					<span class="text-body-secondary fs-6"><?php echo lang('admin_click_select_tabler_icon')?></span>
+				</div>
 			</div>
-		</div>
+			<div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-3">
+				<label class="col-sm-2 fw-medium fs-6"><?php echo lang('group_color');?>：</label>
+				<div class="col-sm-10 d-flex align-items-center gap-3">
+					<input type="color" class="form-control form-control-color" name="color" id="group_color_input" value="<?php echo isset($_group['color']) && $_group['color'] ? $_group['color'] : '#6c757d';?>" style="width:48px;height:38px;padding:2px" />
+					<input type="text" class="form-control rounded-pill" id="group_color_text" value="<?php echo isset($_group['color']) ? $_group['color'] : '';?>" placeholder="#dc3545" style="max-width:120px" />
+					<span class="text-body-secondary fs-6"><?php echo lang('admin_group_color_tip')?></span>
+				</div>
+			</div>
+			<div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-2">
+				<label class="col-sm-2 fw-medium fs-6"><?php echo lang('group_name');?>：</label>
+				<div class="col-sm-10">
+					<?php echo $input['name'];?>
+				</div>
+			</div>
+			<div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-2">
+				<label class="col-sm-2 fw-medium fs-6"><?php echo lang('group_credits_from');?>：</label>
+				<div class="col-sm-10">
+					<?php echo $input['creditsfrom'];?>
+				</div>
+			</div>
+			<div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-2">
+				<label class="col-sm-2 fw-medium fs-6"><?php echo lang('group_credits_to');?>：</label>
+				<div class="col-sm-10">
+					<?php echo $input['creditsto'];?>
+				</div>
+			</div>
+			<?php
+			// 按分组渲染权限项
+			foreach($perm_groups as $group_key => $group_label):
+				$group_perms = array();
+				foreach($all_perm_keys as $pkey => $pdef):
+					if($pdef[1] === $group_key) $group_perms[$pkey] = $pdef;
+				endforeach;
+				if(empty($group_perms)) continue;
+				// 管理权限仅对 gid 1-5 显示
+				if($group_key === 'mod' && ($_group['gid'] < 1 || $_group['gid'] > 5)) continue;
+			?>
+			<div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-start gap-2">
+				<label class="col-sm-2 fw-medium fs-6 pt-1"><?php echo $group_label;?>：</label>
+				<div class="col-sm-10 d-flex flex-wrap gap-3">
+					<?php foreach($group_perms as $pkey => $pdef):
+						$checked = isset($saved_perms[$pkey]) ? $saved_perms[$pkey] : 0;
+					?>
+					<div class="form-check">
+						<input type="checkbox" class="form-check-input" name="<?php echo $pkey;?>" id="perm_<?php echo $pkey;?>" value="1" <?php echo $checked ? 'checked' : '';?> />
+						<label class="form-check-label" for="perm_<?php echo $pkey;?>"><?php echo $pdef[0];?></label>
+					</div>
+					<?php endforeach; ?>
+				</div>
+			</div>
+			<?php endforeach; ?>
+			<div class="mb-3 d-flex flex-column flex-sm-row gap-2">
+				<label class="col-sm-2"></label>
+				<div class="col-sm-10">
+					<button type="submit" class="btn btn-primary w-100" id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('confirm');?></button>
+					<a class="admin-back-link d-block mt-3" href="javascript:history.back();"><i class="ti ti-arrow-left"></i> <?php echo lang('admin_back');?></a>
+				</div>
+			</div>
+		</form>
 	</div>
 </div>
 
@@ -98,28 +87,46 @@
 
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
+<script src="../view/js/tabler-icon-picker.js"></script>
 <script>
 
 var jform = $("#form");
 var jsubmit = $("#submit");
+
 jform.on('submit', function(){
 	jform.reset();
 	jsubmit.button('loading');
 	var postdata = jform.serialize();
 	$.xpost(jform.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
-			$.alert(message);
+			showToast(message, 'success');
 			jsubmit.text(message).delay(3000).button('reset');
 			return;
 		} else {
-			$.alert(message);
+			showToast(message, 'error');
 			jsubmit.button('reset');
 		}
 	});
 	return false;
 });
 
-$('#nav li.nav-item-user').addClass('active');
+// 图标选择器
+new TablerIconPicker({
+	input: '#group_icon_input',
+	preview: '#group_icon_preview'
+});
+
+// 颜色选择器联动
+var colorInput = document.getElementById('group_color_input');
+var colorText = document.getElementById('group_color_text');
+colorInput.addEventListener('input', function() {
+	colorText.value = colorInput.value;
+});
+colorText.addEventListener('input', function() {
+	if(/^#[0-9a-fA-F]{6}$/.test(colorText.value)) {
+		colorInput.value = colorText.value;
+	}
+});
 
 </script>
 

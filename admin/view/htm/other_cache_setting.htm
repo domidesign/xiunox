@@ -1,0 +1,278 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_other_cache_setting_start.htm}-->
+
+<div class="  ">
+    <?php echo admin_tab_active($menu['other']['tab'], 'cache_setting');?>
+</div>
+
+<!-- 缓存状态 -->
+<div class="x-card  card mb-3">
+    <div class="card-header">
+        <i class="ti ti-dashboard me-1"></i> <?php echo lang('admin_cache_status');?>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-sm-6 col-md-3">
+                <div class="text-secondary small"><?php echo lang('admin_cache_enabled_status');?></div>
+                <div class="fs-5">
+                    <?php if($status['enabled']): ?>
+                    <span class="badge bg-success"><?php echo lang('admin_cache_enabled');?></span>
+                    <?php else: ?>
+                    <span class="badge bg-danger"><?php echo lang('admin_cache_disabled');?></span>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <div class="text-secondary small"><?php echo lang('admin_cache_driver');?></div>
+                <div class="fs-5"><span class="badge bg-info"><?php echo $status['type_label'];?></span></div>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <div class="text-secondary small"><?php echo lang('admin_cache_connection');?></div>
+                <div class="fs-5">
+                    <?php if($status['connection_ok']): ?>
+                    <span class="badge bg-success"><i class="ti ti-circle-check me-1"></i><?php echo lang('admin_cache_conn_ok');?></span>
+                    <?php else: ?>
+                    <span class="badge bg-danger"><i class="ti ti-circle-x me-1"></i><?php echo $status['connection_message'];?></span>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <div class="text-secondary small"><?php echo lang('admin_cache_default_ttl');?></div>
+                <div class="fs-5"><?php echo $status['default_ttl'];?>s</div>
+            </div>
+        </div>
+
+        <?php if(!empty($status['stats'])): ?>
+        <hr>
+        <div class="row g-3">
+            <?php foreach($status['stats'] as $label => $value): ?>
+            <div class="col-sm-6 col-md-3">
+                <div class="text-secondary small"><?php echo $label;?></div>
+                <div><?php echo $value;?></div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+
+<!-- 缓存设置 -->
+<div class="x-card card">
+    <div class="card-header">
+        <i class="ti ti-settings me-1"></i> <?php echo lang('admin_cache_setting');?>
+    </div>
+    <div class="card-body">
+        <div id="cache-msg"></div>
+        <form id="cache-setting-form" action="<?php echo url('other-cache_setting');?>" method="post">
+            <?php echo CsrfService::input();?>
+
+            <!-- 启用缓存 -->
+            <div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-2">
+                <label class="col-sm-6 fw-medium"><?php echo lang('admin_cache_enable');?>：</label>
+                <div class="col-sm-6">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="enable" id="cache-enable" value="1" <?php echo $config['enable'] ? 'checked' : '';?>>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 驱动选择 -->
+            <div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-start gap-2">
+                <label class="col-sm-6 fw-medium pt-sm-1"><?php echo lang('admin_cache_driver_select');?>：</label>
+                <div class="col-sm-6">
+                    <?php foreach($drivers as $type => $driver): ?>
+                    <div class="form-check mb-1">
+                        <input class="form-check-input cache-driver-radio" type="radio" name="type" id="driver-<?php echo $type;?>" value="<?php echo $type;?>" <?php echo $config['type'] == $type ? 'checked' : '';?> <?php echo !$driver['available'] ? 'disabled' : '';?>>
+                        <label class="form-check-label" for="driver-<?php echo $type;?>">
+                            <?php echo $driver['name'];?>
+                            <?php if(!$driver['available']): ?>
+                            <span class="text-secondary small">(<?php echo $driver['message'];?>)</span>
+                            <?php endif; ?>
+                        </label>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <!-- Redis 配置 -->
+            <div id="redis-config" class="driver-config" style="display:<?php echo $config['type'] == 'redis' ? 'block' : 'none';?>;">
+                <div class="x-card  cardbg-body-secondary mb-3">
+                    <div class="card-body">
+                        <h6 class="mb-3"><i class="ti ti-database me-1"></i> Redis <?php echo lang('admin_cache_config');?></h6>
+                        <div class="mb-3 row">
+                            <label class="col-sm-3 col-form-label">Host</label>
+                            <div class="col-sm-9">
+                                <input type="text" class="form-control" name="redis_host" value="<?php echo isset($config['redis']['host']) ? $config['redis']['host'] : '127.0.0.1';?>">
+                            </div>
+                        </div>
+                        <div class="mb-3 row">
+                            <label class="col-sm-3 col-form-label">Port</label>
+                            <div class="col-sm-9">
+                                <input type="number" class="form-control" name="redis_port" value="<?php echo isset($config['redis']['port']) ? $config['redis']['port'] : 6379;?>">
+                            </div>
+                        </div>
+                        <div class="mb-3 row">
+                            <label class="col-sm-3 col-form-label"><?php echo lang('admin_cache_password');?></label>
+                            <div class="col-sm-9">
+                                <input type="password" class="form-control" name="redis_password" value="<?php echo isset($config['redis']['password']) ? $config['redis']['password'] : '';?>">
+                            </div>
+                        </div>
+                        <div class="mb-3 row">
+                            <label class="col-sm-3 col-form-label">Database</label>
+                            <div class="col-sm-9">
+                                <input type="number" class="form-control" name="redis_database" value="<?php echo isset($config['redis']['database']) ? $config['redis']['database'] : 0;?>" min="0" max="15">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Memcached 配置 -->
+            <div id="memcached-config" class="driver-config" style="display:<?php echo $config['type'] == 'memcached' ? 'block' : 'none';?>;">
+                <div class="x-card  cardbg-body-secondary mb-3">
+                    <div class="card-body">
+                        <h6 class="mb-3"><i class="ti ti-database me-1"></i> Memcached <?php echo lang('admin_cache_config');?></h6>
+                        <div class="mb-3 row">
+                            <label class="col-sm-3 col-form-label">Host</label>
+                            <div class="col-sm-9">
+                                <input type="text" class="form-control" name="memcached_host" value="<?php echo isset($config['memcached']['host']) ? $config['memcached']['host'] : '127.0.0.1';?>">
+                            </div>
+                        </div>
+                        <div class="mb-3 row">
+                            <label class="col-sm-3 col-form-label">Port</label>
+                            <div class="col-sm-9">
+                                <input type="number" class="form-control" name="memcached_port" value="<?php echo isset($config['memcached']['port']) ? $config['memcached']['port'] : 11211;?>">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 默认 TTL -->
+            <div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-2">
+                <label class="col-sm-6 fw-medium"><?php echo lang('admin_cache_default_ttl');?>：</label>
+                <div class="col-sm-6">
+                    <div class="input-group">
+                        <input type="number" class="form-control" name="default_ttl" value="<?php echo $config['default_ttl'];?>" min="60">
+                        <span class="input-group-text"><?php echo lang('admin_cache_seconds');?></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 自动预热 -->
+            <div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-2">
+                <label class="col-sm-6 fw-medium"><?php echo lang('admin_cache_auto_warmup');?>：</label>
+                <div class="col-sm-6">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="auto_warmup" id="cache-warmup" value="1" <?php echo !empty($config['auto_warmup']) ? 'checked' : '';?>>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 测试连接 + 保存 -->
+            <div class="mb-3 d-flex flex-column flex-sm-row gap-2">
+                <label class="col-sm-6"></label>
+                <div class="col-sm-6 d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" id="btn-test-conn">
+                        <i class="ti ti-plug me-1"></i><?php echo lang('admin_cache_test_conn');?>
+                    </button>
+                    <button type="submit" class="btn btn-primary flex-grow-1" id="btn-save">
+                        <i class="ti ti-device-floppy me-1"></i><?php echo lang('confirm');?>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!--{hook admin_other_cache_setting_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+// 驱动选择联动
+document.querySelectorAll('.cache-driver-radio').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        document.querySelectorAll('.driver-config').forEach(function(el) {
+            el.style.display = 'none';
+        });
+        var type = this.value;
+        var configEl = document.getElementById(type + '-config');
+        if(configEl) configEl.style.display = 'block';
+    });
+});
+
+// 测试连接
+document.getElementById('btn-test-conn').addEventListener('click', function() {
+    var form = document.getElementById('cache-setting-form');
+    var formData = new FormData(form);
+    formData.append('act', 'test_connection');
+
+    var selectedType = document.querySelector('.cache-driver-radio:checked');
+    if(!selectedType) return;
+    formData.set('type', selectedType.value);
+
+    var btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ti ti-loader me-1"></i><?php echo lang('submiting');?>...';
+
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        var type = parseInt(data.code) === 0 ? 'success' : 'error';
+        if(typeof showToast === 'function') {
+            showToast(data.message, type);
+        } else {
+            var msgEl = document.getElementById('cache-msg');
+            var alertType = parseInt(data.code) === 0 ? 'success' : 'danger';
+            msgEl.innerHTML = '<div class="alert alert-' + alertType + ' alert-dismissible fade show" role="alert">' + data.message + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+        }
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-plug me-1"></i><?php echo lang('admin_cache_test_conn');?>';
+    })
+    .catch(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-plug me-1"></i><?php echo lang('admin_cache_test_conn');?>';
+    });
+});
+
+// 表单提交
+document.getElementById('cache-setting-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = this;
+    var formData = new FormData(form);
+    var btn = document.getElementById('btn-save');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ti ti-loader me-1"></i><?php echo lang('submiting');?>...';
+
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        var type = parseInt(data.code) === 0 ? 'success' : 'error';
+        if(typeof showToast === 'function') {
+            showToast(data.message, type);
+        } else {
+            var msgEl = document.getElementById('cache-msg');
+            var alertType = parseInt(data.code) === 0 ? 'success' : 'danger';
+            msgEl.innerHTML = '<div class="alert alert-' + alertType + ' alert-dismissible fade show" role="alert">' + data.message + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+        }
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-device-floppy me-1"></i><?php echo lang('confirm');?>';
+    })
+    .catch(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-device-floppy me-1"></i><?php echo lang('confirm');?>';
+    });
+});
+</script>
+
+<!--{hook admin_other_cache_setting_js.htm}-->
