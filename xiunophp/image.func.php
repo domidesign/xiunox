@@ -133,6 +133,12 @@ function image_thumb($sourcefile, $destfile, $forcedwidth = 80, $forcedheight = 
 		case 'image/png':
 			$img_src = imagecreatefrompng($sourcefile);
 			break;
+		case 'image/webp':
+			if(function_exists('imagecreatefromwebp')) $img_src = imagecreatefromwebp($sourcefile);
+			break;
+		case 'image/bmp':
+			if(function_exists('imagecreatefrombmp')) $img_src = imagecreatefrombmp($sourcefile);
+			break;
 		case 'image/wbmp':
 			$img_src = imagecreatefromwbmp($sourcefile);
 			break;
@@ -191,6 +197,7 @@ function image_clip($sourcefile, $destfile, $clipx, $clipy, $clipwidth, $cliphei
 		copy($sourcefile, $destfile);
 		return filesize($destfile);
 	}
+	$imgcolor = null;
 	switch($getimgsize[2]) {
 		case 1 :
 			$imgcolor = imagecreatefromgif($sourcefile);
@@ -200,6 +207,12 @@ function image_clip($sourcefile, $destfile, $clipx, $clipy, $clipwidth, $cliphei
 			break;
 		case 3 :
 			$imgcolor = imagecreatefrompng($sourcefile);
+			break;
+		case 6 :
+			if(function_exists('imagecreatefrombmp')) $imgcolor = imagecreatefrombmp($sourcefile);
+			break;
+		case 18 :
+			if(function_exists('imagecreatefromwebp')) $imgcolor = imagecreatefromwebp($sourcefile);
 			break;
 	}
 

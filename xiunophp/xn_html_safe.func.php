@@ -123,6 +123,7 @@ class XML_HTMLSax3_ClosingTagState {
 * @access protected
 */
 class XML_HTMLSax3_OpeningTagState {
+    public array $attrs = [];
     /**
     * Handles attributes
     * @param string attribute name
@@ -782,7 +783,7 @@ class XML_HTMLSax3_StateParser {
     */
     function scanCharacter() {
         if ($this->position < $this->length) {
-            return $this->rawtext{$this->position++};
+            return $this->rawtext[$this->position++];
         }
     }
 
@@ -935,7 +936,7 @@ class XML_HTMLSax3_StateParser_Lt430 extends XML_HTMLSax3_StateParser {
     */
     function scanUntilCharacters($string) {
         $startpos = $this->position;
-        while ($this->position < $this->length && strpos($string, $this->rawtext{$this->position}) === FALSE) {
+        while ($this->position < $this->length && strpos($string, $this->rawtext[$this->position]) === FALSE) {
             $this->position++;
         }
         return substr($this->rawtext, $startpos, $this->position - $startpos);
@@ -948,7 +949,7 @@ class XML_HTMLSax3_StateParser_Lt430 extends XML_HTMLSax3_StateParser {
     */
     function ignoreWhitespace() {
         while ($this->position < $this->length &&
-            strpos(" \n\r\t", $this->rawtext{$this->position}) !== FALSE) {
+            strpos(" \n\r\t", $this->rawtext[$this->position]) !== FALSE) {
             $this->position++;
         }
     }
@@ -1380,13 +1381,14 @@ class HTML_White {
 							$cssvalue = intval($cssvalue);
 							$px = 1;
 						}
-						if($cssvalue < $v[2][0] || $cssvalue > $v[2][1]) {
-							$cssvalue = $v[1];
+						if($cssvalue < $v[2][0]) {
+                            $cssvalue = $v[2][0];
+                        } else if($cssvalue > $v[2][1]) {
+							$cssvalue = $v[2][1];
 						}
 						// 如果为 table，转换为百分比，参考值可以通过参数控制。
 						if($cssname == 'width' || $cssname == 'min-width') {
-							$px AND $cssvalue > $this->args['table_max_width'] AND $cssvalue = '100%';
-							$px = 0;
+							$px AND $cssvalue > $this->args['table_max_width'] AND $cssvalue = '100%' AND $px = 0;
 						}
 						$px AND $cssvalue .= 'px';
 						
@@ -1755,5 +1757,69 @@ echo xn_html_safe($s);
 </table>
 
 */
+
+function xn_html_purify($html, $config = array()) {
+    $html = preg_replace_callback('/\s*style\s*=\s*["\']([^"\']*)["\']/i', function($matches) {
+        $style = $matches[1];
+        $props = array_map('trim', explode(';', $style));
+        $clean = array();
+        foreach ($props as $prop) {
+            if ($prop === '') continue;
+            $colon = strpos($prop, ':');
+            if ($colon === false) { $clean[] = $prop; continue; }
+            $val = trim(substr($prop, $colon + 1));
+            if (strtolower($val) === 'inherit') continue;
+            $clean[] = $prop;
+        }
+        if (empty($clean)) return '';
+        return ' style="' . implode('; ', $clean) . '"';
+    }, $html);
+    if (!class_exists('HTMLPurifier', false)) {
+        $purifierFile = APP_PATH . 'lib/HTMLPurifier/HTMLPurifier.auto.php';
+        if (is_file($purifierFile)) {
+            include_once $purifierFile;
+        }
+    }
+    if (class_exists('HTMLPurifier', false)) {
+        $purifierConfig = HTMLPurifier_Config::createDefault();
+        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title],img[src|alt|width|height],ul,ol,li,blockquote,pre,code,span[class|style|data-type|data-id|data-label],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,ins,mark,dl,dt,dd');
+        $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,height,border');
+        $purifierConfig->set('URI.AllowedSchemes', array('http' => true, 'https' => true, 'mailto' => true));
+        $purifierConfig->set('AutoFormat.RemoveEmpty', false);
+        $purifierConfig->set('HTML.SafeIframe', false);
+        $purifierConfig->set('URI.SafeIframeRegexp', '');
+        $purifierConfig->set('Cache.SerializerPath', $GLOBALS['conf']['tmp_path'] ?? sys_get_temp_dir());
+        // 允许 span 的 data-* 属性（@提及功能）
+        $purifierConfig->set('HTML.DefinitionID', 'xiuno-html-safe');
+        $purifierConfig->set('HTML.DefinitionRev', 1);
+        $purifierConfig->set('Attr.EnableID', false);
+        if ($def = $purifierConfig->maybeGetRawHTMLDefinition()) {
+            $def->addAttribute('span', 'data-type', 'Text');
+            $def->addAttribute('span', 'data-id', 'Text');
+            $def->addAttribute('span', 'data-label', 'Text');
+        }
+        if (!empty($config)) {
+            foreach ($config as $key => $value) {
+                $purifierConfig->set($key, $value);
+            }
+        }
+        $purifier = new HTMLPurifier($purifierConfig);
+        $result = $purifier->purify($html);
+        // 清理 HTML 中残留的字面量换行符（非 <pre>/<code> 内的 \n）
+        // 富文本编辑器生成的 HTML 应由 <p>/<br> 分隔段落，\n 不应出现在渲染结果中
+        $preBlocks = array();
+        $result = preg_replace_callback('#<(pre|code)\b[^>]*>.*?</\1>#si', function($m) use (&$preBlocks) {
+            $key = md5($m[0]);
+            $preBlocks[$key] = $m[0];
+            return "\x00PRE\x00" . $key . "\x00/PRE\x00";
+        }, $result);
+        $result = str_replace("\n", ' ', $result);
+        $result = preg_replace_callback('#\x00PRE\x00([a-f0-9]+)\x00/PRE\x00#', function($m) use (&$preBlocks) {
+            return isset($preBlocks[$m[1]]) ? $preBlocks[$m[1]] : '';
+        }, $result);
+        return $result;
+    }
+    return xn_html_safe($html);
+}
 
 ?>

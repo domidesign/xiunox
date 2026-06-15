@@ -17,14 +17,34 @@ class cache_redis {
         }
         public function connect() {
                 if($this->link) return $this->link;
-                $redis = new Redis;
-                $r = $redis->connect($this->conf['host'], $this->conf['port']);
-                if(!$r) {
-                        return $this->error(-1, '连接 Redis 服务器失败。');
+                try {
+                        $redis = new Redis;
+                        // 设置 2 秒连接超时，避免 Redis 无响应时阻塞整个请求
+                        $r = @$redis->connect($this->conf['host'], $this->conf['port'], 2);
+                        if(!$r) {
+                                $this->link = FALSE;
+                                return $this->error(-1, '连接 Redis 服务器失败。');
+                        }
+                        if(!empty($this->conf['password'])) {
+                                $auth = $redis->auth($this->conf['password']);
+                                if(!$auth) {
+                                        $this->link = FALSE;
+                                        return $this->error(-1, 'Redis 认证失败。');
+                                }
+                        }
+                        if(isset($this->conf['database']) && intval($this->conf['database']) > 0) {
+                                $redis->select(intval($this->conf['database']));
+                        }
+                        $this->link = $redis;
+                        return $this->link;
+                } catch(\Throwable $e) {
+                        $this->link = FALSE;
+                        return $this->error(-1, '连接 Redis 服务器异常：' . $e->getMessage());
                 }
-                //$redis->select('xn');
-                $this->link = $redis;
-                return $this->link;
+        }
+        // 检查缓存连接是否可用
+        public function isConnected() {
+                return $this->link !== FALSE && $this->link !== NULL;
         }
         public function set($k, $v, $life = 0) {
                 if(!$this->link && !$this->connect()) return FALSE;

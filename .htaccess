@@ -1,0 +1,19 @@
+# Xiuno BBS 伪静态规则
+# 开启伪静态后，此文件将非静态文件的请求转发到 index.php
+
+RewriteEngine On
+
+# 确保请求的文件或目录存在时直接访问
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# 将所有请求转发到 index.php，保留原始 REQUEST_URI
+RewriteRule ^(.*)$ index.php [L,QSA]
+
+# 禁止访问隐藏文件
+<FilesMatch "^\.">
+    Deny from all
+</FilesMatch>
+
+# 禁止目录浏览
+Options -Indexes

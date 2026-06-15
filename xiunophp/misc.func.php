@@ -68,8 +68,6 @@ function xn_error($no, $str, $return = FALSE) {
 	param(1, array(''));
 	param(1, array(0));
 */
-//define('base64', '__base64__');
-//define('json', '__base64__');
 function param($key, $defval = '', $htmlspecialchars = TRUE, $addslashes = FALSE) {
 	if(!isset($_REQUEST[$key]) || ($key === 0 && empty($_REQUEST[$key]))) {
 		if(is_array($defval)) {
@@ -139,7 +137,7 @@ function param_force($val, $defval, $htmlspecialchars = TRUE, $addslashes = FALS
 				} else {
 					if(is_string($defval)) {
 						//$v = trim($v);
-						$addslashes AND !$get_magic_quotes_gpc && $v = addslashes($v);
+						$addslashes AND !$get_magic_quotes_gpc && $v = addslashes((string)$v);
 						!$addslashes AND $get_magic_quotes_gpc && $v = stripslashes($v);
 						$htmlspecialchars AND $v = htmlspecialchars($v);
 					} else {
@@ -156,7 +154,7 @@ function param_force($val, $defval, $htmlspecialchars = TRUE, $addslashes = FALS
 		} else {
 			if(is_string($defval)) {
 				//$val = trim($val);
-				$addslashes AND !$get_magic_quotes_gpc && $val = addslashes($val);
+				$addslashes AND !$get_magic_quotes_gpc && $val = addslashes((string)$val);
 				!$addslashes AND $get_magic_quotes_gpc && $val = stripslashes($val);
 				$htmlspecialchars AND $val = htmlspecialchars($val);
 			} else {
@@ -203,7 +201,7 @@ function xn_substr($s, $start, $len) {
 // txt 转换到 html
 function xn_txt_to_html($s) {
 	$s = htmlspecialchars($s);
-	$s = str_replace(" ", '&nbsp; ', $s);
+	$s = str_replace(" ", '&nbsp;', $s);
 	$s = str_replace("\t", ' &nbsp; &nbsp; &nbsp; &nbsp;', $s);
 	$s = str_replace("\r\n", "\n", $s);
 	$s = str_replace("\n", '<br>', $s);
@@ -366,7 +364,7 @@ function ucs2_to_utf8($s) {
 
 function pagination_tpl($url, $text, $active = '') {
 	global $g_pagination_tpl;
-	empty($g_pagination_tpl) AND $g_pagination_tpl = '<li class="page-item{active}"><a href="{url}" class="page-link">{text}</a></li>';
+	empty($g_pagination_tpl) AND $g_pagination_tpl = '<li class="page-item{active}"><a class="page-link" href="{url}">{text}</a></li>';
 	return str_replace(array('{url}', '{text}', '{active}'), array($url, $text, $active), $g_pagination_tpl);
 }
 
@@ -387,13 +385,15 @@ function pagination($url, $totalnum, $page, $pagesize = 20) {
 	$left < 0 && $end = min($totalpage, $end -= $left);
 
 	$s = '';
-	$page != 1 && $s .= pagination_tpl(str_replace('{page}', $page-1, $url), '◀', '');
-	if($start > 1) $s .= pagination_tpl(str_replace('{page}', 1, $url),'1 '.($start > 2 ? '...' : ''));
+	$prev_icon = '<i class="ti ti-chevron-left align-middle fs-lg"></i>';
+	$next_icon = '<i class="ti ti-chevron-right align-middle fs-lg"></i>';
+	$page != 1 && $s .= pagination_tpl(str_replace('{page}', $page-1, $url), $prev_icon, '');
+	if($start > 1) $s .= pagination_tpl(str_replace('{page}', 1, $url),'1'.($start > 2 ? ' <span class="px-1">&hellip;</span>' : ''));
 	for($i=$start; $i<=$end; $i++) {
 		$s .= pagination_tpl(str_replace('{page}', $i, $url), $i, $i == $page ? ' active' : '');
 	}
-	if($end != $totalpage) $s .= pagination_tpl(str_replace('{page}', $totalpage, $url), ($totalpage - $end > 1 ? '...' : '').$totalpage);
-	$page != $totalpage && $s .= pagination_tpl(str_replace('{page}', $page+1, $url), '▶');
+	if($end != $totalpage) $s .= pagination_tpl(str_replace('{page}', $totalpage, $url), ($totalpage - $end > 1 ? '<span class="px-1">&hellip;</span> ' : '').$totalpage);
+	$page != $totalpage && $s .= pagination_tpl(str_replace('{page}', $page+1, $url), $next_icon);
 	return $s;
 }
 
@@ -770,7 +770,7 @@ function http_get($url, $cookie = '', $timeout = 30, $times = 3) {
 	);
 	$stream = stream_context_create($arr);
 	while($times-- > 0) {
-		$s = file_get_contents($url, NULL, $stream, 0, 4096000);
+		$s = @file_get_contents($url, false, $stream, 0, 4096000);
 		if($s !== FALSE) return $s;
 	}
 	return FALSE;
@@ -784,7 +784,7 @@ function http_post($url, $post = '', $cookie='', $timeout = 30, $times = 3) {
 	is_array($cookie) AND $cookie = http_build_query($cookie);
 	$stream = stream_context_create(array('http' => array('header' => "Content-type: application/x-www-form-urlencoded\r\nx-requested-with: XMLHttpRequest\r\nCookie: $cookie\r\n", 'method' => 'POST', 'content' => $post, 'timeout' => $timeout)));
 	while($times-- > 0) {
-		$s = file_get_contents($url, NULL, $stream, 0, 4096000);
+		$s = @file_get_contents($url, false, $stream, 0, 4096000);
 		if($s !== FALSE) return $s;
 	}
 	return FALSE;
@@ -792,14 +792,14 @@ function http_post($url, $post = '', $cookie='', $timeout = 30, $times = 3) {
 
 function https_get($url, $cookie = '', $timeout = 30, $times = 1) {
 	if(substr($url, 0, 7) == 'http://') {
-		return http_get($url, $cookie, $timeout, $times);
+		return xn_error(-1, 'https_get() only accepts https:// URLs');
 	}
 	return https_post($url, '', $cookie, $timeout, $times, 'GET');
 }
 
 function https_post($url, $post = '', $cookie = '', $timeout = 30, $times = 1, $method = 'POST') {
 	if(substr($url, 0, 7) == 'http://') {
-		return http_post($url, $post, $cookie, $timeout, $times);
+		return xn_error(-1, 'https_post() only accepts https:// URLs');
 	}
 	is_array($post) AND $post = http_build_query($post);
 	is_array($cookie) AND $cookie = http_build_query($cookie);
@@ -807,8 +807,11 @@ function https_post($url, $post = '', $cookie = '', $timeout = 30, $times = 1, $
 	$allow_url_fopen = strtolower(ini_get('allow_url_fopen'));
 	$allow_url_fopen = (empty($allow_url_fopen) || $allow_url_fopen == 'off') ? 0 : 1;
 	if(extension_loaded('openssl') && in_array('https', $w) && $allow_url_fopen) {
-		$stream = stream_context_create(array('http' => array('header' => "Content-type: application/x-www-form-urlencoded\r\nx-requested-with: XMLHttpRequest\r\nCookie: $cookie\r\n", 'method' => $method, 'content' => $post, 'timeout' => $timeout)));
-		$s = file_get_contents($url, NULL, $stream, 0, 4096000);
+		$stream = stream_context_create(array(
+			'http' => array('header' => "Content-type: application/x-www-form-urlencoded\r\nx-requested-with: XMLHttpRequest\r\nCookie: $cookie\r\n", 'method' => $method, 'content' => $post, 'timeout' => $timeout),
+			'ssl' => array('verify_peer' => true, 'verify_peer_name' => true)
+		));
+		$s = @file_get_contents($url, false, $stream, 0, 4096000);
 		return $s;
 	} elseif (!function_exists('curl_init')) {
 		return xn_error(-1, 'server not installed curl.');
@@ -819,8 +822,13 @@ function https_post($url, $post = '', $cookie = '', $timeout = 30, $times = 1, $
 	curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-type: application/x-www-form-urlencoded', 'x-requested-with: XMLHttpRequest'));
 	curl_setopt($ch, CURLOPT_URL, $url);
 	curl_setopt($ch, CURLOPT_USERAGENT, _SERVER('HTTP_USER_AGENT'));
-	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0); // 对认证证书来源的检查
-	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2); // 从证书中检查SSL加密算法是否存在，默认可以省略
+	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 1); // 开启证书校验，防止中间人攻击
+	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2); // 从证书中检查SSL加密算法是否存在
+	// 限制 curl 请求和重定向仅走 HTTPS 协议，防止降级到明文 HTTP
+	if(defined('CURLPROTO_HTTPS')) {
+		curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+		curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTPS);
+	}
 	if($method == 'POST') {
 		curl_setopt($ch, CURLOPT_POST, 1);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, $post);
@@ -874,6 +882,15 @@ function http_multi_get($urls) {
 		$timeout = 3;
 		curl_setopt($conn[$i], CURLOPT_CONNECTTIMEOUT, $timeout); // 超时 seconds
 		curl_setopt($conn[$i], CURLOPT_FOLLOWLOCATION, 1);
+		// HTTPS URL 补齐 TLS 证书校验和协议限制
+		if(substr($url, 0, 8) == 'https://') {
+			curl_setopt($conn[$i], CURLOPT_SSL_VERIFYPEER, 1);
+			curl_setopt($conn[$i], CURLOPT_SSL_VERIFYHOST, 2);
+			if(defined('CURLPROTO_HTTPS')) {
+				curl_setopt($conn[$i], CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+				curl_setopt($conn[$i], CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTPS);
+			}
+		}
 		//curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1);
 		curl_multi_add_handle($multi_handle, $conn[$i]);
 	}
@@ -907,7 +924,15 @@ function file_replace_var($filepath, $replace = array(), $pretty = FALSE) {
 		// 备份文件
 		file_backup($filepath);
 		$r = file_put_contents_try($filepath, $s);
-		$r != strlen($s) ? file_backup_restore($filepath) : file_backup_unlink($filepath);
+		if($r != strlen($s)) {
+			file_backup_restore($filepath);
+		} else {
+			file_backup_unlink($filepath);
+			// 清除 OPcache 缓存，确保下次 include 能读到新值
+			if(function_exists('opcache_invalidate')) {
+				opcache_invalidate($filepath, true);
+			}
+		}
 		return $r;
 	} elseif($ext == 'js' || $ext == 'json') {
 		$s = file_get_contents_try($filepath);
@@ -978,6 +1003,10 @@ function file_get_contents_try($file, $times = 3) {
 }
 
 function file_put_contents_try($file, $s, $times = 3) {
+	$dir = dirname($file);
+	if(!is_dir($dir)) {
+		mkdir($dir, 0777, TRUE);
+	}
 	while($times-- > 0) {
 		$fp = fopen($file, 'wb');
 		if($fp AND flock($fp, LOCK_EX)){
@@ -1037,8 +1066,8 @@ function http_url_path() {
 	$port = _SERVER('SERVER_PORT');
 	//$portadd = ($port == 80 ? '' : ':'.$port);
 	$host = _SERVER('HTTP_HOST');  // host 里包含 port
-	$https = strtolower(_SERVER('HTTPS', 'off'));
-	$proto = strtolower(_SERVER('HTTP_X_FORWARDED_PROTO'));
+	$https = strtolower(_SERVER('HTTPS', 'off') ?: 'off');
+	$proto = strtolower(_SERVER('HTTP_X_FORWARDED_PROTO', '') ?: '');
 	$path = substr($_SERVER['PHP_SELF'], 0, strrpos($_SERVER['PHP_SELF'], '/'));
 	$http = (($port == 443) || $proto == 'https' || ($https && $https != 'off')) ? 'https' : 'http';
 	return  "$http://$host$path/";
@@ -1078,6 +1107,8 @@ function xn_url_parse($request_url) {
 	}
 	
 	if(substr($front, -4) == '.htm') $front = substr($front, 0, -4);
+	// 兼容微信等应用复制 URL 自动追加等号：index.htm= → index
+	$front = rtrim($front, '=');
 	$r = $front ? (array)explode('-', $front) : array();
 	
 	// 将后半部分合并
@@ -1346,18 +1377,26 @@ function base64_decode_file_data($data) {
 
 // 输出
 function http_404() {
-	header('HTTP/1.1 404 Not Found'); 
-	header('Status: 404 Not Found'); 
-	echo '<h1>404 Not Found</h1>';
-	exit;
+	if(function_exists('error_page')) {
+		error_page(404);
+	} else {
+		header('HTTP/1.1 404 Not Found');
+		header('Status: 404 Not Found');
+		echo '<h1>404 Not Found</h1>';
+		exit;
+	}
 }
 
 // 无权限访问
 function http_403() {
-	header('HTTP/1.1 403 Forbidden'); 
-	header('Status: 403 Forbidden'); 
-	echo '<h1>403 Forbidden</h1>';
-	exit;
+	if(function_exists('error_page')) {
+		error_page(403);
+	} else {
+		header('HTTP/1.1 403 Forbidden');
+		header('Status: 403 Forbidden');
+		echo '<h1>403 Forbidden</h1>';
+		exit;
+	}
 }
 
 function http_location($url) {
@@ -1370,6 +1409,7 @@ function http_referer() {
 	$len = strlen(http_url_path());
 	$referer = param('referer');
 	empty($referer) AND $referer = _SERVER('HTTP_REFERER');
+	if(empty($referer)) $referer = '';
 	$referer2 = substr($referer, $len);
 	if(strpos($referer, url('user-login')) !== FALSE || strpos($referer, url('user-logout')) !== FALSE || strpos($referer, url('user-create')) !== FALSE) {
 		$referer = './';

@@ -1,4 +1,9 @@
 <?php
+/**
+ * @deprecated This class uses mysql_* functions removed in PHP 7.0.
+ * Use db_pdo_mysql instead. This file is kept for reference only.
+ * @see db_pdo_mysql
+ */
 
 class db_mysql {
 	
@@ -41,8 +46,9 @@ class db_mysql {
 			$this->rlink = $this->wlink;
 			$this->rconf = $this->conf['master'];
 		} else {
-			$n = array_rand($this->conf['slaves']);
-			$conf = $this->conf['slaves'][$n];
+			//$n = array_rand($this->conf['slaves']);
+			$arr = array_rand($this->conf['slaves'], 1);
+			$conf = $this->conf['slaves'][$arr[0]];
 			$this->rconf = $conf;
 			$this->rlink = $this->real_connect($conf['host'], $conf['user'], $conf['password'], $conf['name'], $conf['charset'], $conf['engine']);
 		}
@@ -107,7 +113,9 @@ class db_mysql {
 		$t2 = microtime(1);
 		if($query === FALSE) $this->error();
 		
-		if(count($this->sqls) < 1000) $this->sqls[] = substr($t2-$t1, 0, 6).' '.$sql;
+		$t3 = substr($t2 - $t1, 0, 6);
+		DEBUG AND xn_log("[$t3]".$sql, 'db_sql');
+		if(count($this->sqls) < 1000) $this->sqls[] = "[$t3]".$sql;
 		
 		return $query;
 	}
@@ -130,7 +138,10 @@ class db_mysql {
 		$t1 = microtime(1);
 		$query = mysql_query($sql, $this->wlink);
 		$t2 = microtime(1);
-		if(count($this->sqls) < 1000) $this->sqls[] = substr($t2-$t1, 0, 6).' '.$sql;
+		$t3 = substr($t2 - $t1, 0, 6);
+		
+		DEBUG AND xn_log("[$t3]".$sql, 'db_sql');
+		if(count($this->sqls) < 1000) $this->sqls[] = "[$t3]".$sql;
 		
 		if($query !== FALSE) {
 			$pre = strtoupper(substr(trim($sql), 0, 7));

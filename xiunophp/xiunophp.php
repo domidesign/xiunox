@@ -17,7 +17,7 @@
 function_exists('ini_set') AND ini_set('display_errors', DEBUG ? '1' : '0');
 error_reporting(DEBUG ? E_ALL : 0);
 version_compare(PHP_VERSION, '5.3.0', '<') AND set_magic_quotes_runtime(0);
-$get_magic_quotes_gpc = get_magic_quotes_gpc();
+$get_magic_quotes_gpc = (version_compare(PHP_VERSION, '5.4.0', '<') || function_exists('get_magic_quotes_gpc')) ? get_magic_quotes_gpc() : false;
 $starttime = microtime(1);
 $time = time();
 
@@ -41,12 +41,10 @@ if(IN_CMD) {
 include XIUNOPHP_PATH.'db_mysql.class.php';
 include XIUNOPHP_PATH.'db_pdo_mysql.class.php';
 include XIUNOPHP_PATH.'db_pdo_sqlite.class.php';
-include XIUNOPHP_PATH.'cache_apc.class.php';
+include XIUNOPHP_PATH.'cache_file.class.php';
 include XIUNOPHP_PATH.'cache_memcached.class.php';
 include XIUNOPHP_PATH.'cache_mysql.class.php';
 include XIUNOPHP_PATH.'cache_redis.class.php';
-include XIUNOPHP_PATH.'cache_xcache.class.php';
-include XIUNOPHP_PATH.'cache_yac.class.php';
 
 // ----------------------------------------------------------> 全局函数
 
@@ -118,10 +116,9 @@ $_SERVER['get_magic_quotes_gpc'] = $get_magic_quotes_gpc;
 $db = !empty($conf['db']) ? db_new($conf['db']) : NULL;
 //$db AND $db->errno AND xn_message(-1, $db->errstr); // 安装的时候检测过了，不必每次都检测。但是要考虑环境移植。
 
-$conf['cache']['mysql']['db'] = $db; // 这里直接传 $db，复用 $db；如果传配置文件，会产生新链接。
-$cache = !empty($conf['cache']) ? cache_new($conf['cache']) : NULL;
-unset($conf['cache']['mysql']['db']); // 用完清除，防止保存到配置文件
-//$cache AND $cache->errno AND xn_message(-1, $cache->errstr);
+// 缓存初始化通过 CacheService 管理（早期初始化，仅使用 conf 配置）
+include APP_PATH.'lib/CacheService.php';
+$cache = CacheService::earlyInit();
 
 // 对 key 进行安全保护，Xiuno 专用扩展
 !empty($conf) AND (function_exists('xiuno_key') ? ($conf['auth_key'] = xiuno_key()) : NULL);

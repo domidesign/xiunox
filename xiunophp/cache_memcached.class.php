@@ -19,24 +19,42 @@ class cache_memcached {
         public function connect() {
                 $conf = $this->conf;
                 if($this->link) return $this->link;
-                if(extension_loaded('Memcache')) {
-                	$this->ismemcache = TRUE;
-                        $memcache = new Memcache;
-                        $r = $memcache->connect($conf['host'], $conf['port']);
-                        
-                } elseif(extension_loaded('Memcached')) {
-                	$this->ismemcache = FALSE;
-                        $memcache = new Memcached;
-                        $r = $memcache->addserver($conf['host'], $conf['port']);
-                } else {
-			return $this->error(-1, 'Memcache 扩展不存在。');
+                try {
+                        if(extension_loaded('Memcache')) {
+                                $this->ismemcache = TRUE;
+                                $memcache = new Memcache;
+                                // PHP 8.2+ Memcache::connect 内部创建动态属性触发 E_DEPRECATED，临时抑制
+                                // 设置 2 秒连接超时，避免 Memcache 无响应时阻塞整个请求
+                                set_error_handler(function($errno) { return $errno == E_DEPRECATED; });
+                                try {
+                                        $r = @$memcache->connect($conf['host'], $conf['port'], 2);
+                                } finally {
+                                        restore_error_handler();
+                                }
+                        } elseif(extension_loaded('Memcached')) {
+                                $this->ismemcache = FALSE;
+                                $memcache = new Memcached;
+                                $memcache->setOption(Memcached::OPT_CONNECT_TIMEOUT, 2000);
+                                $r = $memcache->addserver($conf['host'], $conf['port']);
+                        } else {
+                                $this->link = FALSE;
+                                return $this->error(-1, 'Memcache 扩展不存在。');
+                        }
+
+                        if(!$r) {
+                                $this->link = FALSE;
+                                return $this->error(-1, '连接 Memcached 服务器失败。');
+                        }
+                        $this->link = $memcache;
+                        return $this->link;
+                } catch(\Throwable $e) {
+                        $this->link = FALSE;
+                        return $this->error(-1, '连接 Memcached 服务器异常：' . $e->getMessage());
                 }
-                
-                if(!$r) {
-			return $this->error(-1, '连接 Memcached 服务器失败。');
-                }
-                $this->link = $memcache;
-                return $this->link;
+        }
+        // 检查缓存连接是否可用
+        public function isConnected() {
+                return $this->link !== FALSE && $this->link !== NULL;
         }
         public function set($k, $v, $life = 0) {
                 if(!$this->link && !$this->connect()) return FALSE;

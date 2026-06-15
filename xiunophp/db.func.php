@@ -8,7 +8,10 @@ function db_new($dbconf) {
 		//print_r($dbconf);
 		// 代码不仅仅是给人看的，更重要的是给编译器分析的，不要玩 $db = new $dbclass()，那样不利于优化和 opcache 。
 		switch ($dbconf['type']) {
-			case 'mysql':      $db = new db_mysql($dbconf['mysql']); 		break;
+			case 'mysql':
+			xn_log('db.type=mysql is deprecated, auto-switching to pdo_mysql', 'deprecated');
+			$db = new db_pdo_mysql($dbconf['pdo_mysql']);
+			break;
 			case 'pdo_mysql':  $db = new db_pdo_mysql($dbconf['pdo_mysql']);	break;
 			case 'pdo_sqlite': $db = new db_pdo_sqlite($dbconf['pdo_sqlite']);	break;
 			case 'pdo_mongodb': $db = new db_pdo_mongodb($dbconf['pdo_mongodb']);	break;
@@ -90,6 +93,7 @@ function db_count($table, $cond = array(), $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
+	if(!is_array($cond)) $cond = array();
 	
 	$r = $d->count($d->tablepre.$table, $cond);
 	
@@ -102,6 +106,7 @@ function db_maxid($table, $field, $cond = array(), $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
+	if(!is_array($cond)) $cond = array();
 	
 	$r = $d->maxid($d->tablepre.$table, $field, $cond);
 	
@@ -200,7 +205,7 @@ function db_find_one($table, $cond = array(), $orderby = array(), $col = array()
 // 保存 $db 错误到全局
 function db_errno_errstr($r, $d = NULL, $sql = '') {
 	global $errno, $errstr;
-	if($r === FALSE) { //  && $d->errno != 0
+	if($r === FALSE || ($d && $d->errno)) {
 		$errno = $d->errno;
 		$errstr = db_errstr_safe($errno, $d->errstr);
 		$s = 'SQL:'.$sql."\r\nerrno: ".$errno.", errstr: ".$errstr;
@@ -245,14 +250,13 @@ function db_cond_to_sqladd($cond) {
 		$s = ' WHERE ';
 		foreach($cond as $k=>$v) {
 			if(!is_array($v)) {
-				$v = (is_int($v) || is_float($v)) ? $v : "'".addslashes($v)."'";
+				$v = (is_int($v) || is_float($v)) ? $v : "'".addslashes((string)$v)."'";
 				$s .= "`$k`=$v AND ";
 			} elseif(isset($v[0])) {
-				// OR 效率比 IN 高
 				$s .= '(';
 				//$v = array_reverse($v);
 				foreach ($v as $v1) {
-					$v1 = (is_int($v1) || is_float($v1)) ? $v1 : "'".addslashes($v1)."'";
+					$v1 = (is_int($v1) || is_float($v1)) ? $v1 : "'".addslashes((string)$v1)."'";
 					$s .= "`$k`=$v1 OR ";
 				}
 				$s = substr($s, 0, -4);
@@ -268,7 +272,7 @@ function db_cond_to_sqladd($cond) {
 						$k1 = ' LIKE ';
 						$v1="%$v1%";
 					}
-					$v1 = (is_int($v1) || is_float($v1)) ? $v1 : "'".addslashes($v1)."'";
+					$v1 = (is_int($v1) || is_float($v1)) ? $v1 : "'".addslashes((string)$v1)."'";
 					$s .= "`$k`$k1$v1 AND ";
 				}
 			}
@@ -303,7 +307,7 @@ function db_orderby_to_sqladd($orderby) {
 function db_array_to_update_sqladd($arr) {
 	$s = '';
 	foreach($arr as $k=>$v) {
-		$v = addslashes($v);
+		$v = addslashes((string)$v);
 		$op = substr($k, -1);
 		if($op == '+' || $op == '-') {
 			$k = substr($k, 0, -1);
@@ -329,8 +333,8 @@ function db_array_to_insert_sqladd($arr) {
 	$keys = array();
 	$values = array();
 	foreach($arr as $k=>$v) {
-		$k = addslashes($k);
-		$v = addslashes($v);
+		$k = addslashes((string)$k);
+		$v = addslashes((string)$v);
 		$keys[] = '`'.$k.'`';
 		$v = (is_int($v) || is_float($v)) ? $v : "'$v'";
 		$values[] = $v;
@@ -339,6 +343,22 @@ function db_array_to_insert_sqladd($arr) {
 	$valstr = implode(',', $values);
 	$sqladd = "($keystr) VALUES ($valstr)";
 	return $sqladd;
+}
+
+function db_check_column_exists($table, $column) {
+	$db = $_SERVER['db'];
+	if(!$db) return FALSE;
+	$sql = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$db->tablepre}{$table}' AND COLUMN_NAME = '{$column}'";
+	$r = db_sql_find_one($sql);
+	return !empty($r);
+}
+
+function db_check_table_exists($table) {
+	$db = $_SERVER['db'];
+	if(!$db) return FALSE;
+	$sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$db->tablepre}{$table}'";
+	$r = db_sql_find_one($sql);
+	return !empty($r);
 }
 
 ?>
