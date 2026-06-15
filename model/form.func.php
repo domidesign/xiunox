@@ -15,14 +15,14 @@ function form_radio($name, $arr, $checked = 0) {
 
 	foreach((array)$arr as $k=>$v) {
 		$add = $k == $checked ? ' checked="checked"' : '';
-		$s .= "<label class=\"custom-input custom-radio\"><input type=\"radio\" name=\"$name\" value=\"$k\"$add /> $v</label> &nbsp; \r\n";
+		$s .= "<div class=\"form-check form-check-inline\"><input class=\"form-check-input\" type=\"radio\" name=\"$name\" id=\"{$name}_$k\" value=\"$k\"$add /><label class=\"form-check-label\" for=\"{$name}_$k\">$v</label></div>\r\n";
 	}
 	return $s;
 }
 
-function form_checkbox($name, $checked = 0, $txt = '') {
+function form_checkbox($name, $checked = 0, $txt = '', $val = 1) {
 	$add = $checked ? ' checked="checked"' : '';
-	$s = "<label class=\"custom-input custom-checkbox mr-4\"><input type=\"checkbox\" name=\"$name\" value=\"1\" $add /> $txt</label>";
+	$s = "<div class=\"form-check form-check-inline\"><input class=\"form-check-input\" type=\"checkbox\" name=\"$name\" id=\"{$name}_$val\" value=\"$val\" $add /><label class=\"form-check-label\" for=\"{$name}_$val\">$txt</label></div>";
 	return $s;
 }
 
@@ -33,7 +33,7 @@ function form_multi_checkbox($name, $arr, $checked = array()) {
 	$s = '';
 	foreach($arr as $value=>$text) {
 		$ischecked = in_array($value, $checked);
-		$s .= form_checkbox($name, $ischecked, $text);
+		$s .= form_checkbox($name, $ischecked, $text, $value);
 	}
 	return $s;
 }
@@ -41,7 +41,7 @@ function form_multi_checkbox($name, $arr, $checked = array()) {
 function form_select($name, $arr, $checked = 0, $id = TRUE) {
 	if(empty($arr)) return '';
 	$idadd = $id === TRUE ? "id=\"$name\"" : ($id ? "id=\"$id\"" : '');
-	$s = "<select name=\"$name\" class=\"custom-select\" $idadd> \r\n";
+	$s = "<select name=\"$name\" class=\"form-select \" $idadd> \r\n";
 	$s .= form_options($arr, $checked);
 	$s .= "</select> \r\n";
 	return $s;
@@ -62,7 +62,7 @@ function form_text($name, $value, $width = FALSE, $holdplacer = '') {
 		is_numeric($width) AND $width .= 'px';
 		$style = " style=\"width: $width\"";
 	}
-	$s = "<input type=\"text\" name=\"$name\" id=\"$name\" placeholder=\"$holdplacer\" value=\"$value\" class=\"form-control\"$style />";
+	$s = "<input type=\"text\" name=\"$name\" id=\"$name\" placeholder=\"$holdplacer\" value=\"$value\" class=\"form-control \"$style />";
 	return $s;
 }
 
@@ -78,7 +78,7 @@ function form_textarea($name, $value, $width = FALSE,  $height = FALSE) {
 		is_numeric($height) AND $height .= 'px';
 		$style = " style=\"width: $width; height: $height; \"";
 	}
-	$s = "<textarea name=\"$name\" id=\"$name\" class=\"form-control\" $style>$value</textarea>";
+	$s = "<textarea name=\"$name\" id=\"$name\" class=\"form-control rounded-3\" $style>$value</textarea>";
 	return $s;
 }
 
@@ -88,7 +88,7 @@ function form_password($name, $value, $width = FALSE) {
 		is_numeric($width) AND $width .= 'px';
 		$style = " style=\"width: $width\"";
 	}
-	$s = "<input type=\"password\" name=\"$name\" id=\"$name\" class=\"form-control\" value=\"$value\" $style />";
+	$s = "<input type=\"password\" name=\"$name\" id=\"$name\" class=\"form-control \" value=\"$value\" $style />";
 	return $s;
 }
 
@@ -98,7 +98,7 @@ function form_time($name, $value, $width = FALSE) {
 		is_numeric($width) AND $width .= 'px';
 		$style = " style=\"width: $width\"";
 	}
-	$s = "<input type=\"text\" name=\"$name\" id=\"$name\" class=\"form-control\" value=\"$value\" $style />";
+	$s = "<input type=\"text\" name=\"$name\" id=\"$name\" class=\"form-control \" value=\"$value\" $style />";
 	return $s;
 }
 

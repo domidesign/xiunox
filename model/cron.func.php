@@ -42,10 +42,14 @@ function cron_run($force = 0) {
 			runtime_set('todaythreads', 0);
 			runtime_set('todayusers', 0);
 			
-			foreach($forumlist as $fid=>$forum) {
-				forum__update($fid, array('todayposts'=>0, 'todaythreads'=>0));
+			if(!empty($forumlist) && is_array($forumlist)) {
+				foreach($forumlist as $fid=>$forum) {
+					forum__update($fid, array('todayposts'=>0, 'todaythreads'=>0));
+				}
 			}
-			forum_list_cache_delete();
+			if(function_exists('forum_list_cache_delete')) {
+				forum_list_cache_delete();
+			}
 			
 			// 清理临时附件
 			attach_gc();

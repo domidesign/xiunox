@@ -56,6 +56,7 @@ function smtp_init($confile) {
 		'port'=>'',
 		'user'=>'',
 		'pass'=>'',
+		'ssl'=>0,  // 0=无加密, 1=SSL, 2=TLS
 	));
 	if(!is_file($confile)) {
 		touch($confile);

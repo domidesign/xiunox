@@ -283,31 +283,96 @@ function post_highlight_keyword($str, $k) {
 }
 
 // 公用的附件模板，采用函数，效率比 include 高。
-function post_file_list_html($filelist, $include_delete = FALSE) {
-	if(empty($filelist)) return '';
-	
-	// hook model_post_file_list_html_start.php
-	
-	$s = '<fieldset class="fieldset">'."\r\n";
-	$s .= '<legend>上传的附件：</legend>'."\r\n";
-	$s .= '<ul class="attachlist">'."\r\n";
-	foreach ($filelist as &$attach) {
-		$s .= '<li aid="'.$attach['aid'].'">'."\r\n";
-		$s .= '		<a href="'.url("attach-download-$attach[aid]").'" target="_blank">'."\r\n";
-		$s .= '			<i class="icon filetype '.$attach['filetype'].'"></i>'."\r\n";
-		$s .= '			'.$attach['orgfilename']."\r\n";
-		$s .= '		</a>'."\r\n";
-		// hook model_post_file_list_html_delete_before.php
-		$include_delete AND $s .= '		<a href="javascript:void(0)" class="delete ml-3"><i class="icon-remove"></i> '.lang('delete').'</a>'."\r\n";
-		// hook model_post_file_list_html_delete_after.php
-		$s .= '</li>'."\r\n";
-	};
-	$s .= '</ul>'."\r\n";
-	$s .= '</fieldset>'."\r\n";
-	
-	// hook model_post_file_list_html_end.php
-	
-	return $s;
+function post_file_list_html($filelist, $include_delete = FALSE, $imagelist = array(), $videolist = array()) {
+    if(empty($filelist) && empty($imagelist) && empty($videolist)) return '';
+
+    // hook model_post_file_list_html_start.php
+
+    $s = '';
+
+    // 图片附件：响应式缩略图网格
+    if(!empty($imagelist)) {
+        $s .= '<div class="attach-imagelist mb-3">'."\r\n";
+        $s .= '    <div class="row g-2">'."\r\n";
+        foreach($imagelist as $attach) {
+            $s .= '        <div class="col-4 col-sm-3 col-md-2">'."\r\n";
+            $s .= '            <div class="position-relative rounded-3 overflow-hidden" style="aspect-ratio:1; background:var(--bs-tertiary-bg);">'."\r\n";
+            $s .= '                <a href="'.$attach['url'].'" data-lightbox="attach-image" title="'.esc_html($attach['orgfilename']).'">'."\r\n";
+            $s .= '                    <img src="'.$attach['url'].'" class="w-100 h-100 object-fit-cover" alt="'.esc_html($attach['orgfilename']).'" loading="lazy">'."\r\n";
+            $s .= '                </a>'."\r\n";
+            if($include_delete) {
+                $s .= '                <a href="javascript:void(0)" class="attach-delete attach-delete-btn position-absolute top-0 end-0 m-1 btn btn-sm btn-danger px-1 py-0" aid="'.$attach['aid'].'" onclick="deleteAttach(this, '.$attach['aid'].')"><i class="ti ti-x" style="font-size:0.7rem;"></i></a>'."\r\n";
+            }
+            $s .= '            </div>'."\r\n";
+            $s .= '        </div>'."\r\n";
+        }
+        $s .= '    </div>'."\r\n";
+        $s .= '</div>'."\r\n";
+    }
+
+    // 视频附件：HTML5 视频播放器
+    if(!empty($videolist)) {
+        $s .= '<div class="attach-videolist mb-3">'."\r\n";
+        foreach($videolist as $attach) {
+            $s .= '    <div class="mb-2" aid="'.$attach['aid'].'">'."\r\n";
+            $s .= '        <video controls preload="metadata" class="w-100 rounded-3" style="max-height:400px;">'."\r\n";
+            $s .= '            <source src="'.$attach['url'].'" type="video/'.pathinfo($attach['orgfilename'], PATHINFO_EXTENSION).'">'."\r\n";
+            $s .= '        </video>'."\r\n";
+            if($include_delete) {
+            $s .= '        <div class="d-flex align-items-center justify-content-between mt-1 small">'."\r\n";
+            $s .= '            <a href="javascript:void(0)" class="attach-delete attach-delete-btn text-danger text-decoration-none" aid="'.$attach['aid'].'" onclick="deleteAttach(this, '.$attach['aid'].')"><i class="ti ti-trash"></i> '.lang('delete').'</a>'."\r\n";
+            $s .= '        </div>'."\r\n";
+            }
+            $s .= '    </div>'."\r\n";
+        }
+        $s .= '</div>'."\r\n";
+    }
+
+    // 文件附件：卡片列表
+    if(!empty($filelist)) {
+        global $conf;
+        $types = include APP_PATH.'conf/attach.conf.php';
+        $s .= '<div class="attach-filelist mb-3">'."\r\n";
+        foreach($filelist as $attach) {
+            $filetype = attach_type($attach['orgfilename'], $types);
+            $icon = 'ti-file';
+            if(in_array($filetype, array('text', 'pdf'))) {
+                $icon = 'ti-file-text';
+            } elseif($filetype == 'zip') {
+                $icon = 'ti-file-zip';
+            } elseif(in_array($filetype, array('office'))) {
+                $icon = 'ti-file-text';
+            } elseif(in_array($filetype, array('c', 'cpp', 'cc'))) {
+                $icon = 'ti-file-code';
+            } elseif($filetype == 'code') {
+                $icon = 'ti-file-code';
+            }
+            // 格式化文件大小
+            $filesize = $attach['filesize'];
+            if($filesize >= 1048576) {
+                $size_fmt = sprintf('%.1fMB', $filesize / 1048576);
+            } elseif($filesize >= 1024) {
+                $size_fmt = sprintf('%.1fKB', $filesize / 1024);
+            } else {
+                $size_fmt = $filesize.'B';
+            }
+            $s .= '    <div class="border rounded-3 p-2 mb-1 d-flex align-items-center" aid="'.$attach['aid'].'">'."\r\n";
+            $s .= '        <i class="ti '.$icon.' text-body-secondary me-2" style="font-size:1.25rem;"></i>'."\r\n";
+            $s .= '        <div class="flex-fill" style="min-width:0">'."\r\n";
+            $s .= '            <a href="'.url("attach-download-$attach[aid]").'" class="text-body text-decoration-none text-truncate d-block small" title="'.esc_html($attach['orgfilename']).'">'.esc_html($attach['orgfilename']).'</a>'."\r\n";
+            $s .= '            <span class="text-body-secondary" style="font-size:0.75rem;">'.$size_fmt.'</span>'."\r\n";
+            $s .= '        </div>'."\r\n";
+            if($include_delete) {
+                $s .= '        <a href="javascript:void(0)" class="attach-delete attach-delete-btn text-danger text-decoration-none ms-2" aid="'.$attach['aid'].'" onclick="deleteAttach(this, '.$attach['aid'].')"><i class="ti ti-trash"></i></a>'."\r\n";
+            }
+            $s .= '    </div>'."\r\n";
+        }
+        $s .= '</div>'."\r\n";
+    }
+
+    // hook model_post_file_list_html_end.php
+
+    return $s;
 }
 
 function post_format(&$post) {
@@ -321,6 +386,9 @@ function post_format(&$post) {
 	
 	$post['username'] = array_value($user, 'username');
 	$post['user_avatar_url'] = array_value($user, 'avatar_url');
+	$post['group_icon_class'] = array_value($user, 'group_icon_class', '');
+	$post['group_color'] = array_value($user, 'group_color', '');
+	$post['gid'] = array_value($user, 'gid', 0);
 	$post['user'] = $user ? $user : user_guest();
 	!isset($post['floor']) AND  $post['floor'] = '';
 	
@@ -334,31 +402,65 @@ function post_format(&$post) {
 	
 	if($post['files'] > 0) {
 		list($attachlist, $imagelist, $filelist) = attach_find_by_pid($post['pid']);
-		$post['filelist'] = $filelist;
+		// 分离视频附件：视频不作为附件显示，单独在播放器中展示
+		$post['videolist'] = array();
+		$post['filelist'] = array();
+		foreach($attachlist as $attach) {
+			if($attach['filetype'] == 'video') {
+				$post['videolist'][] = $attach;
+			} elseif(!$attach['isimage']) {
+				$post['filelist'][] = $attach;
+			}
+		}
+		$post['imagelist'] = $imagelist;
 	} else {
 		$post['filelist'] = array();
+		$post['imagelist'] = array();
+		$post['videolist'] = array();
 	}
 
 	$post['classname'] = 'post';
-	
+
+	$post['is_liked'] = 0;
+	if(!empty($uid)) {
+		$is_liked = post_like_read($uid, $post['pid']);
+		$post['is_liked'] = !empty($is_liked) ? 1 : 0;
+	}
+
 	// hook model_post_format_end.php
 
 }
 
 // 写入时格式化
 function post_message_fmt(&$arr, $gid) {
-	
+
 	// hook post_message_fmt_start.php
 
 	// 超长内容截取
 	$arr['message'] = xn_substr($arr['message'], 0, 2028000);
-	
+
 	// 格式转换: 类型，0: html, 1: txt; 2: markdown; 3: ubb
 	$arr['message_fmt'] = htmlspecialchars($arr['message']);
-	
+
 	// 入库的时候进行转换，编辑的时候，自行调取 message, 或者 message_fmt
-	$arr['doctype'] == 0 && $arr['message_fmt'] = ($gid == 1 ? $arr['message'] : xn_html_safe($arr['message']));
+	$arr['doctype'] == 0 && $arr['message_fmt'] = xn_html_purify($arr['message']);
 	$arr['doctype'] == 1 && $arr['message_fmt'] = xn_txt_to_html($arr['message']);
+
+	// 将 @提及 span 转换为可点击链接（在 message_fmt 上操作，不影响原始 message）
+	// AIEditor 生成格式：<span class="mention" data-type="mention" data-id="UID" data-label="USERNAME">@USERNAME</span>
+	// 注意：HTMLPurifier 会移除 data-* 属性，所以这里用 class="mention" 匹配
+	if(strpos($arr['message_fmt'], 'class="mention"') !== false) {
+		$arr['message_fmt'] = preg_replace_callback(
+			'/<span\s+class="mention"(?:\s+data-type="mention")?(?:\s+data-id="(\d+)")?(?:\s+data-label="([^"]*)")?>([^<]*)<\/span>/',
+			function($m) {
+				$uid = intval($m[1]);
+				$username = !empty($m[2]) ? $m[2] : ltrim($m[3], '@');
+				$userUrl = url('user-' . $uid);
+				return '<a href="' . $userUrl . '" class="mention">' . $m[3] . '</a>';
+			},
+			$arr['message_fmt']
+		);
+	}
 	
 	// hook post_message_fmt_end.php
 	
@@ -390,8 +492,8 @@ function post_quote($quotepid) {
 	$userhref = url("user-$uid");
 	$user = user_read_cache($uid);
 	$r = '<blockquote class="blockquote">
-		<a href="'.$userhref.'" class="text-small text-muted user">
-			<img class="avatar-1" src="'.$user['avatar_url'].'">
+		<a href="'.$userhref.'" class="d-inline-flex align-items-center gap-1 text-body-secondary small user">
+			<img class="avatar-sm rounded-circle" src="'.$user['avatar_url'].'" onerror="this.onerror=null;this.src=\'/view/img/avatar.png\'">
 			'.$user['username'].'
 		</a>
 		'.$s.'
@@ -403,7 +505,7 @@ function post_quote($quotepid) {
 
 // 对 $threadlist 权限过滤
 function post_list_access_filter(&$postlist, $gid) {
-	global $conf, $forumlist;
+	global $conf, $forumlist, $uid;
 	if(empty($postlist)) return;
 	
 	// hook model_post_list_access_filter_start.php
@@ -417,6 +519,16 @@ function post_list_access_filter(&$postlist, $gid) {
 			unset($postlist[$pid]);
 		}
 	}
+
+	// 待审内容过滤：非管理员(gid!=1,2)不可见 audit_status=0 的回帖，但作者自己可见
+	if($gid == 0 || $gid > 2) {
+		foreach($postlist as $pid=>$post) {
+			if(isset($post['audit_status']) && $post['audit_status'] == 0 && $post['uid'] != $uid) {
+				unset($postlist[$pid]);
+			}
+		}
+	}
+
 	// hook model_post_list_access_filter_end.php
 }
 

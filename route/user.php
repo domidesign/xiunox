@@ -3,6 +3,7 @@
 !defined('DEBUG') AND exit('Access Denied.');
 
 include _include(XIUNOPHP_PATH.'xn_send_mail.func.php');
+include _include(APP_PATH.'lib/LoginSecurityService.php');
 
 $action = param(1);
 
@@ -18,14 +19,239 @@ if(empty($action)) {
         empty($_uid) AND $_uid = $uid;
         $_user = user_read($_uid);
 
-       // empty($_user) AND message(-1, lang('user_not_exists'));
+	empty($_user) AND error_page(404, lang('user_not_exists'));
+
+	// 设置当前查看用户的关注状态
+	$_user['is_followed'] = !empty($uid) && $uid != $_uid ? user_follow_read($uid, $_uid) : false;
+
         $header['title'] = $_user['username'];
         $header['mobile_title'] = $_user['username'];
 
+	$page = param(2, 1);
+	$pagesize = 20;
+
+	// 只加载帖子 tab，其他 tab 由 htmx 按需请求
+	$threadlist = mythread_find_by_uid($_uid, $page, $pagesize);
+	thread_list_access_filter($threadlist, $gid);
+	$totalnum = $_user['threads'];
+	$pagination = pagination(url("user-$_uid-{page}"), $totalnum, $page, $pagesize);
+
+	// 其他 tab 数据不加载
+	$postlist = array();
+	$following_userlist = array();
+	$followers_userlist = array();
+	$fav_threadlist = array();
+	$like_threadlist = array();
+
         // hook user_index_end.php
-        
+
+	// 登录安全提示：在用户个人页显示上次登录信息
+	if (!empty($uid) && !empty($_uid) && $uid == $_uid) {
+	    include_once APP_PATH . 'lib/security/SecurityService.php';
+	    $security_notice = SecurityService::get_login_security_notice($uid);
+	}
+
 	include _include(APP_PATH.'view/htm/user.htm');
-	
+
+// === Tab 按需加载 API ===
+
+// 回帖 tab
+} elseif($action == 'tab_posts') {
+
+	$_uid = param(2, $uid);
+	$page = param(3, 1);
+	$pagesize = 20;
+
+	$postlist = array();
+	if(function_exists('post_find_by_uid')) {
+		$postlist = post_find_by_uid($_uid, $page, $pagesize);
+	} else {
+		$postlist = post_find(array('uid'=>$_uid, 'isfirst'=>0), array('pid'=>-1), $page, $pagesize);
+	}
+	post_list_access_filter($postlist, $gid);
+
+	header('Content-Type: text/html; charset=utf-8');
+	if(!empty($postlist)) {
+		include _include(APP_PATH.'view/htm/post_list.inc.htm');
+	} else {
+		echo '<div class="text-center text-body-secondary py-5">' . lang('no_reply') . '</div>';
+	}
+	exit;
+
+// 关注 tab
+} elseif($action == 'tab_following') {
+
+	$_uid = param(2, $uid);
+	$page = 1;
+	$pagesize = 20;
+
+	$followlist = user_follow_find_following($_uid, $page, $pagesize);
+	$following_userlist = array();
+	if($followlist) {
+		$follow_uids = array();
+		foreach($followlist as $f) { $follow_uids[] = $f['follow_uid']; }
+		// 批量查询关注状态，消除 N+1
+		$follow_status = !empty($uid) ? user_follow_read_batch($uid, $follow_uids) : array();
+		foreach($followlist as $f) {
+			$u = user_read_cache($f['follow_uid']);
+			if(!empty($u)) {
+				$u['is_followed'] = !empty($follow_status[$u['uid']]);
+				$following_userlist[$u['uid']] = $u;
+			}
+		}
+	}
+
+	header('Content-Type: text/html; charset=utf-8');
+	if(!empty($following_userlist)) { foreach($following_userlist as $u) { ?>
+	<div class="d-flex align-items-center gap-3 p-2 rounded">
+		<?php echo avatar_component_from_data($u['avatar_url'], 'md', isset($u['group_icon_class']) ? $u['group_icon_class'] : '', isset($u['group_color']) ? $u['group_color'] : '', isset($u['gid']) ? $u['gid'] : 0);?>
+		<div class="flex-fill">
+			<a href="<?php echo url("user-$u[uid]");?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['username']);?></a>
+		</div>
+		<?php if(!empty($uid) && $uid != $u['uid']) {
+			$_u_is_followed = !empty($u['is_followed']);
+		?>
+		<?php if($_u_is_followed) { ?>
+		<button class="btn btn-sm btn-outline-secondary user-follow-btn"
+			hx-post="<?php echo url('user-follow-'.$u['uid']);?>"
+			hx-target="this"
+			hx-swap="outerHTML"
+			hx-optimistic>
+			<i class="ti ti-user-minus"></i>
+			<span><?php echo lang('unfollow');?></span>
+		</button>
+		<?php } else { ?>
+		<button class="btn btn-sm btn-primary user-follow-btn"
+			hx-post="<?php echo url('user-follow-'.$u['uid']);?>"
+			hx-target="this"
+			hx-swap="outerHTML"
+			hx-optimistic>
+			<i class="ti ti-user-plus"></i>
+			<span><?php echo lang('follow');?></span>
+		</button>
+		<?php } ?>
+		<?php } ?>
+	</div>
+	<?php }} else { ?>
+	<div class="text-center text-body-secondary py-5"><?php echo lang('no_following');?></div>
+	<?php }
+	exit;
+
+// 粉丝 tab
+} elseif($action == 'tab_followers') {
+
+	$_uid = param(2, $uid);
+	$page = 1;
+	$pagesize = 20;
+
+	$followerlist = user_follow_find_followers($_uid, $page, $pagesize);
+	$followers_userlist = array();
+	if($followerlist) {
+		$follower_uids = array();
+		foreach($followerlist as $f) { $follower_uids[] = $f['uid']; }
+		// 批量查询关注状态，消除 N+1
+		$follow_status = !empty($uid) ? user_follow_read_batch($uid, $follower_uids) : array();
+		foreach($followerlist as $f) {
+			$u = user_read_cache($f['uid']);
+			if(!empty($u)) {
+				$u['is_followed'] = !empty($follow_status[$u['uid']]);
+				$followers_userlist[$u['uid']] = $u;
+			}
+		}
+	}
+
+	header('Content-Type: text/html; charset=utf-8');
+	if(!empty($followers_userlist)) { foreach($followers_userlist as $u) { ?>
+	<div class="d-flex align-items-center gap-3 p-2 rounded">
+		<?php echo avatar_component_from_data($u['avatar_url'], 'md', isset($u['group_icon_class']) ? $u['group_icon_class'] : '', isset($u['group_color']) ? $u['group_color'] : '', isset($u['gid']) ? $u['gid'] : 0);?>
+		<div class="flex-fill">
+			<a href="<?php echo url("user-$u[uid]");?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['username']);?></a>
+		</div>
+		<?php if(!empty($uid) && $uid != $u['uid']) {
+			$_u_is_followed = !empty($u['is_followed']);
+		?>
+		<?php if($_u_is_followed) { ?>
+		<button class="btn btn-sm btn-outline-secondary user-follow-btn"
+			hx-post="<?php echo url('user-follow-'.$u['uid']);?>"
+			hx-target="this"
+			hx-swap="outerHTML"
+			hx-optimistic>
+			<i class="ti ti-user-minus"></i>
+			<span><?php echo lang('unfollow');?></span>
+		</button>
+		<?php } else { ?>
+		<button class="btn btn-sm btn-primary user-follow-btn"
+			hx-post="<?php echo url('user-follow-'.$u['uid']);?>"
+			hx-target="this"
+			hx-swap="outerHTML"
+			hx-optimistic>
+			<i class="ti ti-user-plus"></i>
+			<span><?php echo lang('follow');?></span>
+		</button>
+		<?php } ?>
+		<?php } ?>
+	</div>
+	<?php }} else { ?>
+	<div class="text-center text-body-secondary py-5"><?php echo lang('no_followers');?></div>
+	<?php }
+	exit;
+
+// 收藏 tab
+} elseif($action == 'tab_favorites') {
+
+	$_uid = param(2, $uid);
+	$pagesize = 20;
+
+	$fav_threadlist = array();
+	if(!empty($uid) && $uid == $_uid) {
+		$favlist = thread_favorite_find_by_uid($_uid, 1, $pagesize);
+		if($favlist) {
+			foreach($favlist as $fav) {
+				$t = thread_read($fav['tid']);
+				if(!empty($t)) $fav_threadlist[$fav['tid']] = $t;
+			}
+		}
+		thread_list_access_filter($fav_threadlist, $gid);
+	}
+
+	header('Content-Type: text/html; charset=utf-8');
+	if(!empty($fav_threadlist)) {
+		$threadlist = $fav_threadlist;
+		include _include(APP_PATH.'view/htm/thread_list.inc.htm');
+	} else {
+		echo '<div class="text-center text-body-secondary py-5">' . lang('no_favorite') . '</div>';
+	}
+	exit;
+
+// 点赞 tab
+} elseif($action == 'tab_likes') {
+
+	$_uid = param(2, $uid);
+	$pagesize = 20;
+
+	$like_threadlist = array();
+	if(!empty($uid) && $uid == $_uid) {
+		$likelist = post_like_find_by_uid($_uid, 1, $pagesize);
+		if($likelist) {
+			foreach($likelist as $like) {
+				$t = thread_read($like['tid']);
+				if(!empty($t) && !isset($like_threadlist[$like['tid']])) {
+					$like_threadlist[$like['tid']] = $t;
+				}
+			}
+		}
+		thread_list_access_filter($like_threadlist, $gid);
+	}
+
+	header('Content-Type: text/html; charset=utf-8');
+	if(!empty($like_threadlist)) {
+		$threadlist = $like_threadlist;
+		include _include(APP_PATH.'view/htm/thread_list.inc.htm');
+	} else {
+		echo '<div class="text-center text-body-secondary py-5">' . lang('no_like') . '</div>';
+	}
+	exit;
+
 } elseif($action == 'thread') {
 
         // hook user_thread_start.php
@@ -33,8 +259,8 @@ if(empty($action)) {
         $_uid = param(2, 0);
         empty($_uid) AND $_uid = $uid;
         $_user = user_read($_uid);
-        
-        empty($_user) AND message(-1, lang('user_not_exists'));
+
+        empty($_user) AND error_page(404, lang('user_not_exists'));
         $header['title'] = $_user['username'];
         $header['mobile_title'] = $_user['username'];
 
@@ -46,29 +272,53 @@ if(empty($action)) {
         thread_list_access_filter($threadlist, $gid);
 
         // hook user_thread_end.php
-       
+
+	if(!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
+		include _include(APP_PATH.'view/htm/thread_list.inc.htm');
+		return;
+	}
+
 	include _include(APP_PATH.'view/htm/user_thread.htm');
-	
+
 } elseif($action == 'login') {
 
 	// hook user_login_get_post.php
-	
+
+	// 已登录用户不允许访问登录页
+	if(!empty($uid)) {
+		message(0, lang('user_login_successfully'), array('redirect_url' => url("user-$uid")));
+	}
+
 	if($method == 'GET') {
 
 		// hook user_login_get_start.php
-		
+
 		$referer = user_http_referer();
-			
+
 		$header['title'] = lang('user_login');
-		
+
 		// hook user_login_get_end.php
-		
+
 		include _include(APP_PATH.'view/htm/user_login.htm');
 
 	} else if($method == 'POST') {
 
+		CsrfService::check();
+
 		// hook user_login_post_start.php
-		
+
+		// 登录验证码检查
+		include_once APP_PATH . 'lib/security/CaptchaService.php';
+		if (CaptchaService::is_enabled('login')) {
+		    $captcha_input = param('captcha');
+		    if (empty($captcha_input)) {
+		        message(-1001, lang('please_input_captcha'));
+		    }
+		    if (!CaptchaService::verify('login', $captcha_input)) {
+		        message(-1001, lang('captcha_error'));
+		    }
+		}
+
 		$email = param('email');			// 邮箱或者手机号 / email or mobile
 		$password = param('password');
 		empty($email) AND message('email', lang('email_is_empty'));
@@ -80,8 +330,14 @@ if(empty($action)) {
 			empty($_user) AND message('email', lang('username_not_exists'));
 		}
 
-		!is_password($password, $err) AND message('password', $err);
-		md5($password.$_user['salt']) != $_user['password'] AND message('password', lang('password_incorrect'));
+		password_md5($password);
+
+		LoginSecurityService::checkBan($_user['uid']);
+
+		$check = user_login_verify($password, $_user);
+		// hook user_login_post_password_check_after.php
+		!$check AND LoginSecurityService::recordAttempt($_user['uid'], FALSE, $longip, $_SERVER['HTTP_USER_AGENT']);
+		!$check AND message('password', lang('password_incorrect'));
 
 		// 更新登录时间和次数
 		// update login times
@@ -90,40 +346,92 @@ if(empty($action)) {
 		// 全局变量 $uid 会在结束后，在函数 register_shutdown_function() 中存入 session (文件: model/session.func.php)
 		// global variable $uid will save to session in register_shutdown_function() (file: model/session.func.php)
 		$uid = $_user['uid'];
-		
+
 		$_SESSION['uid'] = $uid;
-		
+
+		LoginSecurityService::recordAttempt($_user['uid'], TRUE, $longip, $_SERVER['HTTP_USER_AGENT']);
+
 		user_token_set($_user['uid']);
-		
+
 		// hook user_login_post_end.php
-		
+
+		// 积分规则：每日首次登录获得积分
+		if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
+		CreditsRuleService::applyRule('daily_login', $uid);
+
 		// 设置 token，下次自动登陆。
-		
-		message(0, lang('user_login_successfully'));
+
+		$referer = user_http_referer();
+		message(0, lang('user_login_successfully'), array('redirect_url' => $referer ?: url("user-$uid")));
 
 	}
 
 } elseif($action == 'create') {
 
 	// hook user_create_get_post.php
-	
+
 	empty($conf['user_create_on']) AND message(-1, lang('user_create_not_on'));
-	
+
+	// 已登录用户不允许访问注册页
+	if(!empty($uid)) {
+		message(0, lang('user_login_successfully'), array('redirect_url' => url("user-$uid")));
+	}
+
 	if($method == 'GET') {
-		
+
 		// hook user_create_get_start.php
-		
+
 		$referer = user_http_referer();
 		$header['title'] = lang('create_user');
-		
+
 		// hook user_create_get_end.php
-		
+
 		include _include(APP_PATH.'view/htm/user_create.htm');
 
 	} else if($method == 'POST') {
-				
+
+		CsrfService::check();
+
 		// hook user_create_post_start.php
-		
+
+		// 注册验证码检查
+		include_once APP_PATH . 'lib/security/CaptchaService.php';
+		if (CaptchaService::is_enabled('register')) {
+		    $captcha_input = param('captcha');
+		    if (empty($captcha_input)) {
+		        message(-1001, lang('please_input_captcha'));
+		    }
+		    if (!CaptchaService::verify('register', $captcha_input)) {
+		        message(-1001, lang('captcha_error'));
+		    }
+		}
+
+		// 同一IP注册间隔检查
+		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+		$ip_register_interval = SecurityConfigService::get('security_ip_register_interval', 24);
+		if ($ip_register_interval > 0) {
+		    $ip_reg_key = 'security_ip_register_' . $longip;
+		    $last_reg = kv_get($ip_reg_key);
+		    if (!empty($last_reg) && ($time - intval($last_reg)) < $ip_register_interval * 3600) {
+		        $remaining = ceil(($ip_register_interval * 3600 - ($time - intval($last_reg))) / 3600);
+		        message(-1002, lang('register_interval_short', array('hours'=>$remaining)), array('wait'=>$remaining * 3600));
+		    }
+		}
+
+		// 邮箱域名白名单检查
+		$allowed_domains = SecurityConfigService::get('security_allowed_email_domains', '');
+		if (!empty($allowed_domains)) {
+		    $email = param('email', '', FALSE);
+		    if (!empty($email)) {
+		        $email_domain = strtolower(substr(strrchr($email, '@'), 1));
+		        $allowed_list = array_map('trim', explode(',', strtolower($allowed_domains)));
+		        $allowed_list = array_filter($allowed_list);
+		        if (!empty($allowed_list) && !in_array($email_domain, $allowed_list)) {
+		            message(-1, '该邮箱域名不允许注册，仅支持：' . implode('、', $allowed_list));
+		        }
+		    }
+		}
+
 		$email = param('email');
 		$username = param('username');
 		$password = param('password');
@@ -131,7 +439,7 @@ if(empty($action)) {
 		empty($email) AND message('email', lang('please_input_email'));
 		empty($username) AND message('username', lang('please_input_username'));
 		empty($password) AND message('password', lang('please_input_password'));
-		
+
 		if($conf['user_create_email_on']) {
 			$sess_email = _SESSION('user_create_email');
 			$sess_code = _SESSION('user_create_code');
@@ -140,17 +448,18 @@ if(empty($action)) {
 			$email != $sess_email AND message('code', lang('verify_code_incorrect'));
 			$code != $sess_code AND message('code', lang('verify_code_incorrect'));
 		}
-		
+
 		!is_email($email, $err) AND message('email', $err);
 		$_user = user_read_by_email($email);
 		$_user AND message('email', lang('email_is_in_use'));
-		
+
 		!is_username($username, $err) AND message('username', $err);
 		$_user = user_read_by_username($username);
 		$_user AND message('username', lang('username_is_in_use'));
-		
+
 		!is_password($password, $err) AND message('password', $err);
-		
+		password_md5($password);
+
 		$salt = xn_rand(16);
 		$pwd = md5($password.$salt);
 		$gid = 101;
@@ -166,166 +475,220 @@ if(empty($action)) {
 			'login_date' => $time,
 			'login_ip' => $longip,
 		);
+		if(db_check_column_exists('user', 'password_hash')) {
+			$_user['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+		}
 		$uid = user_create($_user);
 		$uid === FALSE AND message('email', lang('user_create_failed'));
 		$user = user_read($uid);
-	
+
 		// 更新 session
-		
+
 		unset($_SESSION['user_create_email']);
 		unset($_SESSION['user_create_code']);
 		$_SESSION['uid'] = $uid;
 		user_token_set($uid);
-		
+
 		$extra = array('token'=>user_token_gen($uid));
-		
+
 		// hook user_create_post_end.php
-		
+
+		$extra['redirect_url'] = url("my");
 		message(0, lang('user_create_sucessfully'), $extra);
 	}
-	
+
 } elseif($action == 'logout') {
-	
+
 	// hook user_logout_start.php
-	
+
 	$uid = 0;
 	$_SESSION['uid'] = $uid;
 	user_token_clear();
-	
+
 	// hook user_logout_end.php
-	
-	message(0, jump(lang('logout_successfully'), http_referer(), 1));
+
+	message(0, lang('logout_successfully'), array('redirect_url' => http_referer() ?: './'));
 	//message(0, jump('退出成功', './', 1));
-	
+
 // 重设密码第 1 步 | reset password first step
 } elseif($action == 'resetpw') {
-	
+
 	// hook user_resetpw_get_post.php
-	
+
 	!$conf['user_resetpw_on'] AND message(-1, '未开启密码找回功能！');
-		
+
 	if($method == 'GET') {
 
 		// hook user_resetpw_get_start.php
-		
+
 		$header['title'] = lang('resetpw');
-		
+
 		// hook user_resetpw_get_end.php
-		
+
 		include _include(APP_PATH.'view/htm/user_resetpw.htm');
 
 	} else if($method == 'POST') {
-		
+
+		CsrfService::check();
+
 		// hook user_resetpw_post_start.php
-		
+
+		// 找回密码验证码检查
+		include_once APP_PATH . 'lib/security/CaptchaService.php';
+		if (CaptchaService::is_enabled('resetpw')) {
+		    $captcha_input = param('captcha');
+		    if (empty($captcha_input)) {
+		        message(-1001, lang('please_input_captcha'));
+		    }
+		    if (!CaptchaService::verify('resetpw', $captcha_input)) {
+		        message(-1001, lang('captcha_error'));
+		    }
+		}
+
+		// 密码策略检查
+		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+		$password = param('password', '', FALSE);
+		$password_new = param('password_new', '', FALSE);
+		$check_password = !empty($password_new) ? $password_new : $password;
+
+		if (!empty($check_password)) {
+		    $min_length = SecurityConfigService::get('security_password_min_length', 6);
+		    if (mb_strlen($check_password, 'UTF-8') < $min_length) {
+		        message(-1, '密码长度不能少于' . $min_length . '个字符');
+		    }
+
+		    $complexity = SecurityConfigService::get('security_password_complexity', 'none');
+		    if ($complexity === 'number' && !preg_match('/[0-9]/', $check_password)) {
+		        message(-1, '密码必须包含数字');
+		    } elseif ($complexity === 'mixed') {
+		        if (!preg_match('/[a-z]/', $check_password) || !preg_match('/[A-Z]/', $check_password)) {
+		            message(-1, '密码必须包含大小写字母');
+		        }
+		    } elseif ($complexity === 'special') {
+		        if (!preg_match('/[a-z]/', $check_password) || !preg_match('/[A-Z]/', $check_password) || !preg_match('/[0-9]/', $check_password) || !preg_match('/[^a-zA-Z0-9]/', $check_password)) {
+		            message(-1, '密码必须包含大小写字母、数字和特殊字符');
+		        }
+		    }
+		}
+
 		$email = param('email');
 		empty($email) AND message('email', lang('please_input_email'));
 		!is_email($email, $err) AND message('email', $err);
-		
+
 		$_user = user_read_by_email($email);
 		!$_user AND message('email', lang('email_is_not_in_use'));
 
 		$code = param('code');
 		empty($code) AND message('code', lang('please_input_verify_code'));
-		
+
 		$sess_email = _SESSION('user_resetpw_email');
 		$sess_code = _SESSION('user_resetpw_code');
 		empty($sess_code) AND message('code', lang('click_to_get_verify_code'));
 		empty($sess_email) AND message('code', lang('click_to_get_verify_code'));
 		$email != $sess_email AND message('code', lang('verify_code_incorrect'));
 		$code != $sess_code AND message('code', lang('verify_code_incorrect'));
-	
-		$_SESSION['resetpw_verify_ok'] = 1;
-		
+
+		$_SESSION['resetpw_verify_email'] = $sess_email;
+
 		// hook user_resetpw_post_end.php
-		
-		message(0, lang('check_ok_to_next_step'));
+
+		message(0, lang('check_ok_to_next_step'), array('redirect_url' => url('user-resetpw_complete')));
 	}
 
 // 重设密码第 3 步 | reset password step 3
 } elseif($action == 'resetpw_complete') {
-	
+
 	// hook user_resetpw_get_post.php
-	
+
 	// 校验数据
 	$email = _SESSION('user_resetpw_email');
-	$resetpw_verify_ok = _SESSION('resetpw_verify_ok');
-	(empty($email) || empty($resetpw_verify_ok)) AND message(-1, lang('data_empty_to_last_step'));
-	
+	$resetpw_verify_email = _SESSION('resetpw_verify_email');
+	(empty($email) || empty($resetpw_verify_email)) AND message(-1, lang('data_empty_to_last_step'));
+
+	($resetpw_verify_email != $email) AND message(-1, lang('data_empty_to_last_step'));
+
 	$_user = user_read_by_email($email);
 	empty($_user) AND message(-1, lang('email_not_exists'));
 	$_uid = $_user['uid'];
-	
+
 	if($method == 'GET') {
 
 		// hook user_resetpw_get_start.php
-		
+
 		$header['title'] = lang('resetpw');
-		
+
 		// hook user_resetpw_get_end.php
-		
+
 		include _include(APP_PATH.'view/htm/user_resetpw_complete.htm');
 
 	} else if($method == 'POST') {
-		
+
+		CsrfService::check();
+
 		// hook user_resetpw_post_start.php
-		
+
 		$password = param('password');
 		empty($password) AND message('password', lang('please_input_password'));
-		
+
+		password_md5($password);
 		$salt = $_user['salt'];
-		$password = md5($password.$salt);
-		user_update($_uid, array('password'=>$password));
-		
-		!is_password($password, $err) AND message('password', $err);
-		
+		$update = array('password' => md5($password.$salt));
+		if(db_check_column_exists('user', 'password_hash')) {
+			$update['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+		}
+
+		!is_password($update['password'], $err) AND message('password', $err);
+		user_update($_uid, $update);
+
 		unset($_SESSION['user_resetpw_email']);
 		unset($_SESSION['user_resetpw_code']);
 		unset($_SESSION['resetpw_verify_ok']);
-		
+
 		// hook user_resetpw_post_end.php
-		
-		message(0, lang('modify_successfully'));
-		
+
+		message(0, lang('modify_successfully'), array('redirect_url' => url('user-login')));
+
 	}
 
 // 发送验证码
 } elseif($action == 'send_code') {
-	
+
 	$method != 'POST' AND message(-1, lang('method_error'));
-	
+
+	CsrfService::check();
+
 	// hook user_sendcode_start.php
-	
+
 	$action2 = param(2);
-	
+
 	// 创建用户
 	if($action2 == 'user_create') {
-		
+
 		$email = param('email');
-		
+
 		empty($email) AND message('email', lang('please_input_email'));
 		!is_email($email, $err) AND message('email', $err);
 		empty($conf['user_create_email_on']) AND message(-1, lang('email_verify_not_on'));
 		$_user = user_read_by_email($email);
 		!empty($_user) AND message('email', lang('email_is_in_use'));
-		
+
 		$code = rand(100000, 999999);
 		$_SESSION['user_create_email'] = $email;
 		$_SESSION['user_create_code'] = $code;
-		
-	
+
+
 	// 重置密码，往老地址发送
 	} elseif($action2 == 'user_resetpw') {
-		
+
 		$email = param('email');
-		
+
 		empty($email) AND message('email', lang('please_input_email'));
 		!is_email($email, $err) AND message('email', $err);
 		$_user = user_read_by_email($email);
 		empty($_user) AND message('email', lang('email_is_not_in_use'));
-		
+
 		empty($conf['user_resetpw_on']) AND message(-1, lang('resetpw_not_on'));
-		
+
 		$code = rand(100000, 999999);
 		$_SESSION['user_resetpw_email'] = $email;
 		$_SESSION['user_resetpw_code'] = $code;
@@ -333,20 +696,32 @@ if(empty($action)) {
 	} else {
 		message(-1, 'action2 error');
 	}
-	
-	
-	$subject = lang('send_code_template', array('rand'=>$code, 'sitename'=>$conf['sitename']));
-	$message = $subject;
-	
-	$smtplist = include _include(APP_PATH.'conf/smtp.conf.php');
-	$n = array_rand($smtplist);
-	$smtp = $smtplist[$n];
-	
+
+
+	// 使用邮件模板
+	$template_key = ($action2 == 'user_create') ? 'user_create_code' : 'user_resetpw_code';
+	$template = xn_email_template($template_key, array('code'=>$code, 'sitename'=>$conf['sitename']));
+	$subject = $template['subject'];
+	$message = $template['body'];
+
+	$smtp = xn_smtp_get();
+	if(empty($smtp)) {
+		message(-1, '邮件发送未配置，请联系管理员');
+	}
+
 	// hook user_send_code_before.php
-	$r = xn_send_mail($smtp, $conf['sitename'], $email, $subject, $message);
+
+	// 频率限制检查
+	$rate_check = xn_email_rate_check($email, $longip);
+	if($rate_check !== TRUE) {
+		message(-1, $rate_check);
+	}
+
+	$r = xn_send_mail($smtp, $conf['sitename'], $email, $subject, $message, array('is_html'=>TRUE));
 	// hook user_send_code_after.php
-	
+
 	if($r === TRUE) {
+		xn_email_rate_record($email, $longip);
 		message(0, lang('send_successfully'));
 	} else {
 		xn_log($errstr, 'send_mail_error');
@@ -354,7 +729,7 @@ if(empty($action)) {
 	}
 
 // 简单的同步登陆实现：| sync login implement simply
-/* 
+/*
 	将用户信息通过 token 传递给其他系统 | send user information to other system by token
 	两边系统将 auth_key 设置为一致，用 xn_encrypt() xn_decrypt() 加密解密。all subsystem set auth_key to correct by xn_encrypt() xn_decrypt()
 */
@@ -363,21 +738,21 @@ if(empty($action)) {
 	// 检查过来的 token | check token
 	$token = param('token');
 	$return_url = param('return_url');
-	
+
 	$s = xn_decrypt($token);
 	!$s AND message(-1, lang('unauthorized_access'));
 	list($_time, $_useragent) = explode("\t", $s);
 	$useragent != $_useragent AND message(-1, lang('authorized_get_failed'));
-	
+
 	empty($_SESSION['return_url']) AND $_SESSION['return_url'] = $return_url;
 	if(!$uid) {
 		http_location(url('user-login'));
 	} else {
 		$return_url = _SESSION('return_url');
-		
+
 		empty($return_url) AND message(-1, lang('request_synlogin_again'));
 		unset($_SESSION['return_url']);
-		
+
 		$arr = array(
 			'uid'=>$user['uid'],
 			'gid'=>$user['gid'],
@@ -388,55 +763,363 @@ if(empty($action)) {
 		);
 		$s = xn_json_encode($arr);
 		$s = xn_encrypt($s);
-		
+
 		// 将 token 附加到 URL，跳转回去 | add token into URL, jump back
 		$url = xn_urldecode($return_url).'?token='.$s;
 		//$url = xn_url_add_arg($return_url, 'token', $s);
 		http_location($url);
 	}
 
+} elseif($action == 'follow') {
+	$follow_uid = param(2, 0);
+	if(!$uid) {
+		message(-1, lang('please_login'));
+	}
+	$follow_user = user_read($follow_uid);
+	if(empty($follow_user)) {
+		message(-1, lang('user_not_exists'));
+	}
+	if($uid == $follow_uid) {
+		message(-1, lang('cannot_follow_self'));
+	}
+
+	$exists = user_follow_read($uid, $follow_uid);
+	if(!empty($exists)) {
+		user_follow_delete($uid, $follow_uid);
+	} else {
+		user_follow_create($uid, $follow_uid);
+	}
+
+	$follow_action = empty($exists) ? 'follow' : 'unfollow';
+	$data = array('action' => $follow_action, 'uid' => $follow_uid);
+	if(is_htmx_request()) {
+		// htmx 请求：返回更新后的按钮 HTML
+		$is_followed = empty($exists) ? true : false;
+		header('Content-Type: text/html; charset=utf-8');
+		echo '<button class="btn btn-sm user-follow-btn ' . ($is_followed ? 'btn-outline-secondary' : 'btn-primary') . '"
+			hx-post="' . url('user-follow-'.$follow_uid) . '"
+			hx-target="this"
+			hx-swap="outerHTML"
+			hx-optimistic>
+			<i class="ti ' . ($is_followed ? 'ti-user-minus' : 'ti-user-plus') . '"></i>
+			<span>' . ($is_followed ? lang('unfollow') : lang('follow')) . '</span>
+		</button>';
+		exit;
+	}
+	header('Content-Type: application/json; charset=utf-8');
+	echo json_encode(array('code' => 0, 'message' => '操作成功', 'data' => $data), JSON_UNESCAPED_UNICODE);
+	exit;
+
+} elseif($action == 'following') {
+	$_uid = param(2, $uid);
+	$_user = user_read($_uid);
+	empty($_user) AND error_page(404, lang('user_not_exists'));
+	$_user['is_followed'] = !empty($uid) && $uid != $_uid ? user_follow_read($uid, $_uid) : false;
+	$page = param(3, 1);
+	$pagesize = 20;
+	$followlist = user_follow_find_following($_uid, $page, $pagesize);
+	$userlist = array();
+	if($followlist) {
+		$_follow_uids = array();
+		foreach($followlist as $f) { $_follow_uids[] = $f['follow_uid']; }
+		// 批量查询关注状态，消除 N+1
+		$_follow_status = !empty($uid) ? user_follow_read_batch($uid, $_follow_uids) : array();
+		foreach($followlist as $f) {
+			$u = user_read_cache($f['follow_uid']);
+			if(!empty($u)) {
+				$u['is_followed'] = !empty($_follow_status[$u['uid']]);
+				$userlist[$u['uid']] = $u;
+			}
+		}
+	}
+	$totalnum = $_user['follows'];
+	$pagination = pagination(url("user-following-$_uid-{page}"), $totalnum, $page, $pagesize);
+	$header['title'] = lang('following');
+
+	if(!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
+		if(!empty($userlist)) { foreach($userlist as $u) {
+			$u_is_followed = !empty($u['is_followed']);
+		?>
+		<div class="d-flex align-items-center gap-3 p-2 hover-bg-body-secondary rounded">
+			<img class="avatar-md" src="<?php echo $u['avatar_url'];?>" alt="" onerror="this.src='/view/img/avatar.png'">
+			<div class="flex-fill">
+				<a href="<?php echo url("user-$u[uid]");?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['username']);?></a>
+				<div class="small text-body-secondary"><?php echo $u['groupname'];?></div>
+			</div>
+			<?php if(!empty($uid) && $uid != $u['uid']) { ?>
+			<button class="btn btn-sm user-follow-btn <?php echo $u_is_followed ? 'btn-outline-secondary' : 'btn-primary';?>"
+				hx-post="<?php echo url('user-follow-'.$u['uid']);?>"
+				hx-target="this"
+				hx-swap="outerHTML"
+				hx-optimistic>
+				<i class="ti <?php echo $u_is_followed ? 'ti-user-minus' : 'ti-user-plus';?>"></i>
+				<span><?php echo $u_is_followed ? lang('unfollow') : lang('follow');?></span>
+			</button>
+			<?php } ?>
+		</div>
+		<?php }} else { ?>
+		<div class="text-center text-body-secondary py-5"><?php echo lang('no_following');?></div>
+		<?php }
+		if($pagination) { ?>
+		<nav><ul class="pagination my-4 justify-content-center flex-wrap"><?php echo $pagination; ?></ul></nav>
+		<?php }
+		return;
+	}
+
+	include _include(APP_PATH.'view/htm/user_following.htm');
+
+} elseif($action == 'followers') {
+	$_uid = param(2, $uid);
+	$_user = user_read($_uid);
+	empty($_user) AND error_page(404, lang('user_not_exists'));
+	$_user['is_followed'] = !empty($uid) && $uid != $_uid ? user_follow_read($uid, $_uid) : false;
+	$page = param(3, 1);
+	$pagesize = 20;
+	$followlist = user_follow_find_followers($_uid, $page, $pagesize);
+	$userlist = array();
+	if($followlist) {
+		$_follower_uids = array();
+		foreach($followlist as $f) { $_follower_uids[] = $f['uid']; }
+		// 批量查询关注状态，消除 N+1
+		$_follow_status = !empty($uid) ? user_follow_read_batch($uid, $_follower_uids) : array();
+		foreach($followlist as $f) {
+			$u = user_read_cache($f['uid']);
+			if(!empty($u)) {
+				$u['is_followed'] = !empty($_follow_status[$u['uid']]);
+				$userlist[$u['uid']] = $u;
+			}
+		}
+	}
+	$totalnum = $_user['followeds'];
+	$pagination = pagination(url("user-followers-$_uid-{page}"), $totalnum, $page, $pagesize);
+	$header['title'] = lang('followers');
+
+	if(!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
+		if(!empty($userlist)) { foreach($userlist as $u) {
+			$u_is_followed = !empty($u['is_followed']);
+		?>
+		<div class="d-flex align-items-center gap-3 p-2 hover-bg-body-secondary rounded">
+			<img class="avatar-md" src="<?php echo $u['avatar_url'];?>" alt="" onerror="this.src='/view/img/avatar.png'">
+			<div class="flex-fill">
+				<a href="<?php echo url("user-$u[uid]");?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['username']);?></a>
+				<div class="small text-body-secondary"><?php echo $u['groupname'];?></div>
+			</div>
+			<?php if(!empty($uid) && $uid != $u['uid']) { ?>
+			<button class="btn btn-sm user-follow-btn <?php echo $u_is_followed ? 'btn-outline-secondary' : 'btn-primary';?>"
+				hx-post="<?php echo url('user-follow-'.$u['uid']);?>"
+				hx-target="this"
+				hx-swap="outerHTML"
+				hx-optimistic>
+				<i class="ti <?php echo $u_is_followed ? 'ti-user-minus' : 'ti-user-plus';?>"></i>
+				<span><?php echo $u_is_followed ? lang('unfollow') : lang('follow');?></span>
+			</button>
+			<?php } ?>
+		</div>
+		<?php }} else { ?>
+		<div class="text-center text-body-secondary py-5"><?php echo lang('no_followers');?></div>
+		<?php }
+		if($pagination) { ?>
+		<nav><ul class="pagination my-4 justify-content-center flex-wrap"><?php echo $pagination; ?></ul></nav>
+		<?php }
+		return;
+	}
+
+	include _include(APP_PATH.'view/htm/user_followers.htm');
+
+} elseif($action == 'post') {
+
+	// hook user_post_start.php
+
+	$_uid = param(2, 0);
+	empty($_uid) AND $_uid = $uid;
+	$_user = user_read($_uid);
+
+	empty($_user) AND error_page(404, lang('user_not_exists'));
+
+	// 设置当前查看用户的关注状态
+	$_user['is_followed'] = !empty($uid) && $uid != $_uid ? user_follow_read($uid, $_uid) : false;
+	$header['title'] = $_user['username'];
+	$header['mobile_title'] = $_user['username'];
+
+	$page = param(3, 1);
+	$pagesize = 20;
+	$totalnum = $_user['posts'];
+	$pagination = pagination(url("user-post-$_uid-{page}"), $totalnum, $page, $pagesize);
+
+	$postlist = post_find_by_uid($_uid, $page, $pagesize);
+	post_list_access_filter($postlist, $gid);
+
+	// hook user_post_end.php
+
+	if(!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
+		include _include(APP_PATH.'view/htm/post_list.inc.htm');
+		return;
+	}
+
+	include _include(APP_PATH.'view/htm/user_post.htm');
+
+} elseif($action == 'favorite') {
+
+	// hook user_favorite_start.php
+
+	$_uid = param(2, 0);
+	empty($_uid) AND $_uid = $uid;
+	$_user = user_read($_uid);
+
+	empty($_user) AND error_page(404, lang('user_not_exists'));
+	$_user['is_followed'] = !empty($uid) && $uid != $_uid ? user_follow_read($uid, $_uid) : false;
+	$header['title'] = $_user['username'];
+	$header['mobile_title'] = $_user['username'];
+
+	$page = param(3, 1);
+	$pagesize = 20;
+
+	// hook user_favorite_start.php
+	$favlist = thread_favorite_find_by_uid($_uid, $page, $pagesize);
+	$totalnum = $_user['favorites'];
+	$pagination = pagination(url("user-favorite-$_uid-{page}"), $totalnum, $page, $pagesize);
+
+	$threadlist = array();
+	if($favlist) {
+		foreach($favlist as $fav) {
+			$t = thread_read($fav['tid']);
+			if(!empty($t)) $threadlist[$fav['tid']] = $t;
+		}
+	}
+
+	thread_list_access_filter($threadlist, $gid);
+
+	// hook user_favorite_end.php
+
+	if(!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
+		include _include(APP_PATH.'view/htm/thread_list.inc.htm');
+		return;
+	}
+
+	include _include(APP_PATH.'view/htm/user_favorite.htm');
+
+} elseif($action == 'like') {
+
+	// hook user_like_start.php
+
+	$_uid = param(2, 0);
+	empty($_uid) AND $_uid = $uid;
+	$_user = user_read($_uid);
+
+	empty($_user) AND error_page(404, lang('user_not_exists'));
+	$_user['is_followed'] = !empty($uid) && $uid != $_uid ? user_follow_read($uid, $_uid) : false;
+	$header['title'] = $_user['username'];
+	$header['mobile_title'] = $_user['username'];
+
+	$page = param(3, 1);
+	$pagesize = 20;
+	$likelist = post_like_find_by_uid($_uid, $page, $pagesize);
+	$totalnum = db_count('post_like', array('uid'=>$_uid));
+	$pagination = pagination(url("user-like-$_uid-{page}"), $totalnum, $page, $pagesize);
+
+	$threadlist = array();
+	if($likelist) {
+		foreach($likelist as $like) {
+			$t = thread_read($like['tid']);
+			if(!empty($t) && !isset($threadlist[$like['tid']])) {
+				$threadlist[$like['tid']] = $t;
+			}
+		}
+	}
+
+	thread_list_access_filter($threadlist, $gid);
+
+	// hook user_like_end.php
+
+	if(!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
+		include _include(APP_PATH.'view/htm/thread_list.inc.htm');
+		return;
+	}
+
+	include _include(APP_PATH.'view/htm/user_like.htm');
+
+} elseif($action == 'search') {
+
+    // 用户搜索（用于@提及）
+    $keyword = param('keyword');
+    empty($keyword) AND message(-1, lang('data_is_empty'));
+    mb_strlen($keyword) < 1 AND message(-1, '关键词太短');
+
+    $userlist = db_find('user', array('username'=>array('LIKE'=>$keyword.'%')), array('uid'=>-1), 1, 10, 'uid');
+    $users = array();
+    if($userlist) {
+        foreach($userlist as $u) {
+            $users[] = array(
+                'uid' => $u['uid'],
+                'username' => $u['username'],
+                'avatar_url' => !empty($u['avatar_url']) ? $u['avatar_url'] : '/view/img/avatar.png',
+            );
+        }
+    }
+    header('Content-Type: application/json; charset=utf-8');
+    echo xn_json_encode(array('code' => 0, 'data' => $users));
+    exit;
+
+} elseif($action == 'ai_setting') {
+
+	!$uid AND message(-1, lang('please_login'));
+
+	$_uid = $uid;
+
+	if($method == 'GET') {
+
+		$_user = user_read($uid);
+		$ai_config = [];
+		if(!empty($_user['ai_config'])) {
+			$ai_config = json_decode($_user['ai_config'], true);
+			if(!is_array($ai_config)) $ai_config = [];
+		}
+
+		$header['title'] = 'AI 设置';
+
+		include _include(APP_PATH.'view/htm/user_ai_setting.htm');
+
+	} else if($method == 'POST') {
+
+		CsrfService::check();
+
+		$ai_provider = param('ai_provider');
+		$ai_apikey = param('ai_apikey');
+		$ai_endpoint = param('ai_endpoint');
+		$ai_model = param('ai_model');
+
+		$ai_config = [];
+		if(!empty($ai_provider) && !empty($ai_apikey)) {
+			$model_config = [
+				'apiKey' => $ai_apikey,
+			];
+			if(!empty($ai_endpoint)) {
+				if ($ai_provider === 'custom') {
+					$model_config['url'] = $ai_endpoint;
+				} else {
+					$model_config['endpoint'] = $ai_endpoint;
+				}
+			}
+			if(!empty($ai_model)) {
+				$model_config['model'] = $ai_model;
+			}
+			$ai_config['models'] = [
+				$ai_provider => $model_config,
+			];
+			$ai_config['bubblePanelEnable'] = true;
+			$ai_config['bubblePanelModel'] = $ai_provider;
+		}
+
+		user_update($uid, ['ai_config' => json_encode($ai_config)]);
+
+		message(0, '保存成功', array('redirect_url' => url('my', array('tab' => 'ai'))));
+	}
+
 } else {
-	
+
 }
 
 // hook user_end.php
 
-// 获取用户来路
-function user_http_referer() {
-	// hook user_http_referer_start.php
-	$referer = param('referer'); // 优先从参数获取 | GET is priority
-	empty($referer) AND $referer = array_value($_SERVER, 'HTTP_REFERER', '');
-	
-	$referer = str_replace(array('\"', '"', '<', '>', ' ', '*', "\t", "\r", "\n"), '', $referer); // 干掉特殊字符 strip special chars
-	
-	if(
-		!preg_match('#^(http|https)://[\w\-=/\.]+/[\w\-=.%\#?]*$#is', $referer) 
-		|| strpos($referer, 'user-login.htm') !== FALSE 
-		|| strpos($referer, 'user-logout.htm') !== FALSE 
-		|| strpos($referer, 'user-create.htm') !== FALSE 
-		|| strpos($referer, 'user-setpw.htm') !== FALSE 
-		|| strpos($referer, 'user-resetpw_complete.htm') !== FALSE
-	) {
-		$referer = './';
-	}
-	// hook user_http_referer_end.php
-	return $referer;
-}
-
-function user_auth_check($token) {
-	// hook user_auth_check_start.php
-	global $time;
-	$auth = param(2);
-	$s = decrypt($auth);
-	empty($s) AND message(-1, lang('decrypt_failed'));
-	$arr = explode('-', $s);
-	count($arr) != 3 AND message(-1, lang('encrypt_failed'));
-	list($_ip, $_time, $_uid) = $arr;
-	$_user = user_read($_uid);
-	empty($_user) AND message(-1, lang('user_not_exists'));
-	$time - $_time > 3600 AND message(-1, lang('link_has_expired'));
-	// hook user_auth_check_end.php
-	return $_user;
-}
 
 ?>

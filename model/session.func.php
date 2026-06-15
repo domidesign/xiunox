@@ -8,14 +8,30 @@
 
 $sid = '';
 $g_session = array();	
-$g_session_invalid = FALSE; // 0: 有效， 1：无效
+$g_session_invalid = FALSE;
 
-// 可以指定独立的 session 服务器，在系统压力巨大的时候可以考虑优化
-//$g_sess_db = $db;
+class XiunoSessionHandler implements SessionHandlerInterface {
+	public function open(string $save_path, string $session_name): bool {
+		return sess_open($save_path, $session_name);
+	}
+	public function close(): bool {
+		return sess_close();
+	}
+	public function read(string $sid): string|false {
+		return sess_read($sid);
+	}
+	public function write(string $sid, string $data): bool {
+		return sess_write($sid, $data);
+	}
+	public function destroy(string $sid): bool {
+		return sess_destroy($sid);
+	}
+	public function gc(int $maxlifetime): int|false {
+		return sess_gc($maxlifetime) ? 1 : false;
+	}
+}
 
-// 如果是管理员, sid, 与 ip 绑定，一旦 IP 发生变化，则需要重新登录。管理员采用 token (绑定IP) 双重验证，避免 sid 被中间窃取。
-
-function sess_open($save_path, $session_name) { 
+function sess_open($save_path, $session_name) {
 	//echo "sess_open($save_path,$session_name) \r\n";
 	return true;
 }
@@ -190,17 +206,28 @@ function sess_start() {
 	
 	ini_set('session.use_cookies', 'On');
 	ini_set('session.use_only_cookies', 'On');
-	ini_set('session.cookie_domain', '');
-	ini_set('session.cookie_path', '');	// 为空则表示当前目录和子目录
-	ini_set('session.cookie_secure', 'Off'); // 打开后，只有通过 https 才有效。
-	ini_set('session.cookie_lifetime', 86400);
-	ini_set('session.cookie_httponly', 'On'); // 打开后 js 获取不到 HTTP 设置的 cookie, 有效防止 XSS，这个对于安全很重要，除非有 BUG，否则不要关闭。
+
+	// 设置 session cookie 安全属性
+	$cookie_secure = isset($conf['cookie_secure']) ? $conf['cookie_secure'] : false;
+	// SameSite=Lax 会阻止跨站 POST 的 cookie 携带，但对同源 fetch POST 应该允许
+	// 如果站点通过 HTTPS 访问，使用 SameSite=None; Secure
+	// 如果站点通过 HTTP 访问，使用 SameSite=Lax（None 需要 Secure）
+	$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $_SERVER['SERVER_PORT'] == 443;
+	$samesite = $is_https ? 'None' : 'Lax';
+	session_set_cookie_params(array(
+		'lifetime' => 8640000,
+		'path' => '/',
+		'domain' => '',
+		'secure' => $is_https,
+		'httponly' => true,
+		'samesite' => $samesite,
+	));
 	
 	ini_set('session.gc_maxlifetime', $conf['online_hold_time']);	// 活动时间 $conf['online_hold_time']
 	ini_set('session.gc_probability', 1); 	// 垃圾回收概率 = gc_probability/gc_divisor
 	ini_set('session.gc_divisor', 500); 	// 垃圾回收时间 5 秒，在线人数 * 10 
 	
-	session_set_save_handler('sess_open', 'sess_close', 'sess_read', 'sess_write', 'sess_destroy', 'sess_gc'); 
+	session_set_save_handler(new XiunoSessionHandler());
 	
 	// register_shutdown_function 会丢失当前目录，需要 chdir(APP_PATH)
 	

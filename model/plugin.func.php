@@ -3,35 +3,48 @@
  // 本地插件
 //$plugin_srcfiles = array();
 $plugin_paths = array();
-$plugins = array(); // 跟官方插件合并
-
-// 官方插件列表
-$official_plugins = array();
-
-define('PLUGIN_OFFICIAL_URL', DEBUG == 4 ? 'http://plugin.x.com/' : 'http://plugin.xiuno.com/');
+$plugins = array();
 
 // todo: 对路径进行处理 include _include(APP_PATH.'view/htm/header.inc.htm');
 $g_include_slot_kv = array();
+
+// 原子写入：先写临时文件再 rename，避免并发时其他进程读到截断后的空文件
+function _atomic_write($file, $s) {
+	$dir = dirname($file);
+	if(!is_dir($dir)) {
+		mkdir($dir, 0777, TRUE);
+	}
+	$tmp = $file . '.' . substr(md5($s . mt_rand()), 0, 8) . '.tmp';
+	$r = file_put_contents($tmp, $s, LOCK_EX);
+	if($r !== FALSE) {
+		rename($tmp, $file);
+		clearstatcache();
+		return $r;
+	}
+	// 回退：直接写入
+	@unlink($tmp);
+	return file_put_contents($file, $s, LOCK_EX);
+}
+
 function _include($srcfile) {
 	global $conf;
-	// 合并插件，存入 tmp_path
 	$len = strlen(APP_PATH);
 	$tmpfile = $conf['tmp_path'].substr(str_replace('/', '_', $srcfile), $len);
-	if(!is_file($tmpfile) || DEBUG > 1) {
+	if(!is_file($tmpfile) || DEBUG > 1 || !empty($conf['cache_disable'])) {
 		// 开始编译
 		$s = plugin_compile_srcfile($srcfile);
-		
+
 		// 支持 <template> <slot>
 		$g_include_slot_kv = array();
 		for($i = 0; $i < 10; $i++) {
 			$s = preg_replace_callback('#<template\sinclude="(.*?)">(.*?)</template>#is', '_include_callback_1', $s);
 			if(strpos($s, '<template') === FALSE) break;
 		}
-		file_put_contents_try($tmpfile, $s);
-		
+		_atomic_write($tmpfile, $s);
+
 		$s = plugin_compile_srcfile($tmpfile);
-		file_put_contents_try($tmpfile, $s);
-		
+		_atomic_write($tmpfile, $s);
+
 	}
 	return $tmpfile;
 }
@@ -52,28 +65,8 @@ function _include_callback_1($m) {
 
 // 在安装、卸载插件的时候，需要先初始化
 function plugin_init() {
-	global $plugin_srcfiles, $plugin_paths, $plugins, $official_plugins;
-	/*$plugin_srcfiles = array_merge(
-		glob(APP_PATH.'model/*.php'), 
-		glob(APP_PATH.'route/*.php'), 
-		glob(APP_PATH.'view/htm/*.*'), 
-		glob(ADMIN_PATH.'route/*.php'), 
-		glob(ADMIN_PATH.'view/htm/*.*'),
-		glob(APP_PATH.'lang/en-us/*.*'),
-		glob(APP_PATH.'lang/zh-cn/*.*'),
-		glob(APP_PATH.'lang/zh-tw/*.*'),
-		array(APP_PATH.'model.inc.php')
-	);
-	foreach($plugin_srcfiles as $k=>$file) {
-		$filename = file_name($file);
-		if(is_backfile($filename)) {
-			unset($plugin_srcfiles[$k]);
-		}
-	}*/
-	
-	$official_plugins = plugin_official_list_cache();
-	empty($official_plugins) AND $official_plugins = array();
-	
+	global $plugin_srcfiles, $plugin_paths, $plugins;
+
 	$plugin_paths = glob(APP_PATH.'plugin/*', GLOB_ONLYDIR);
 	if(is_array($plugin_paths)) {
 		foreach($plugin_paths as $path) {
@@ -144,20 +137,24 @@ function plugin_by_dependencies($dir) {
 
 function plugin_enable($dir) {
 	global $plugins;
-	
+
 	if(!isset($plugins[$dir])) {
 		return FALSE;
 	}
-	
+
 	$plugins[$dir]['enable'] = 1;
-	
+
 	//plugin_overwrite($dir, 'install');
 	//plugin_hook($dir, 'install');
-	
+
 	file_replace_var(APP_PATH."plugin/$dir/conf.json", array('enable'=>1), TRUE);
 	
+	// 写入数据库
+	plugin_db_init($dir, $plugins[$dir]);
+	plugin_db_set_enable($dir, 1);
+
 	plugin_clear_tmp_dir();
-	
+
 	return TRUE;
 }
 
@@ -170,20 +167,24 @@ function plugin_clear_tmp_dir() {
 
 function plugin_disable($dir) {
 	global $plugins;
-	
+
 	if(!isset($plugins[$dir])) {
 		return FALSE;
 	}
-	
+
 	$plugins[$dir]['enable'] = 0;
-	
+
 	//plugin_overwrite($dir, 'unstall');
 	//plugin_hook($dir, 'unstall');
-	
+
 	file_replace_var(APP_PATH."plugin/$dir/conf.json", array('enable'=>0), TRUE);
 	
+	// 写入数据库
+	plugin_db_init($dir, $plugins[$dir]);
+	plugin_db_set_enable($dir, 0);
+
 	plugin_clear_tmp_dir();
-	
+
 	return TRUE;
 }
 
@@ -213,50 +214,60 @@ function plugin_unstall_all() {
 */
 function plugin_install($dir) {
 	global $plugins, $conf;
-	
+
 	if(!isset($plugins[$dir])) {
 		return FALSE;
 	}
-	
+
 	$plugins[$dir]['installed'] = 1;
 	$plugins[$dir]['enable'] = 1;
-	
+
 	// 1. 直接覆盖的方式
 	//plugin_overwrite($dir, 'install');
-	
+
 	// 2. 钩子的方式
 	//plugin_hook($dir, 'install');
-	
+
 	// 写入配置文件
 	file_replace_var(APP_PATH."plugin/$dir/conf.json", array('installed'=>1, 'enable'=>1), TRUE);
 	
+	// 写入数据库
+	plugin_db_init($dir, $plugins[$dir]);
+	plugin_db_set_installed($dir, 1);
+	plugin_db_set_enable($dir, 1);
+
 	plugin_clear_tmp_dir();
-	
+
 	return TRUE;
 }
 
 // copy from plugin_install 修改
 function plugin_unstall($dir) {
 	global $plugins;
-	
+
 	if(!isset($plugins[$dir])) {
 		return TRUE;
 	}
-	
+
 	$plugins[$dir]['installed'] = 0;
 	$plugins[$dir]['enable'] = 0;
-	
+
 	// 1. 直接覆盖的方式
 	//plugin_overwrite($dir, 'unstall');
-	
+
 	// 2. 钩子的方式
 	//plugin_hook($dir, 'unstall');
-	
+
 	// 写入配置文件
 	file_replace_var(APP_PATH."plugin/$dir/conf.json", array('installed'=>0, 'enable'=>0), TRUE);
 	
+	// 写入数据库
+	plugin_db_init($dir, $plugins[$dir]);
+	plugin_db_set_installed($dir, 0);
+	plugin_db_set_enable($dir, 0);
+
 	plugin_clear_tmp_dir();
-	
+
 	return TRUE;
 }
 
@@ -366,6 +377,7 @@ function plugin_compile_srcfile_callback($m) {
 	
 	$s = '';
 	$hookname = $m[1];
+	$is_lang_hook = (strpos($hookname, 'lang_') === 0);
 	if(!empty($hooks[$hookname])) {
 		$fileext = file_ext($hookname);
 		foreach($hooks[$hookname] as $path) {
@@ -381,6 +393,30 @@ function plugin_compile_srcfile_callback($m) {
 				// 去掉 exit;
 				$t = preg_replace('#\s*exit;\s*#', "\r\n", $t);
 				*/
+			} elseif($fileext == 'php') {
+				// 兼容裸 <?php 开头（不带 exit;）的 hook 文件
+				$t = preg_replace('#^\s*<\?php\s*#', '', $t);
+				$t = preg_replace('#\?>\s*$#', '', $t);
+			}
+			// 语言 hook 安全检查：验证语法有效性，防止错误代码导致整个语言系统崩溃
+			if($is_lang_hook && $fileext == 'php') {
+				// 检查是否只包含 $lang['key']='value' 赋值语句
+				// 允许的格式：$lang['xxx'] = 'yyy'; 或 $lang["xxx"] = 'yyy';
+				$lines = array_filter(array_map('trim', explode("\n", $t)));
+				$all_valid = TRUE;
+				foreach($lines as $line) {
+					if($line === '' || $line === '<?php' || preg_match('#^//.*$#', $line)) continue;
+					if(!preg_match('#^\$lang\[\'[^\']+\'\]\s*=\s*.*;$#', $line) &&
+					   !preg_match('#^\$lang\["[^"]+"\]\s*=\s*.*;$#', $line)) {
+						$all_valid = FALSE;
+						break;
+					}
+				}
+				if(!$all_valid) {
+					// 记录日志，跳过有问题的语言 hook
+					xn_log("Plugin lang hook syntax error, skipped: $path", 'lang_error');
+					continue;
+				}
 			}
 			$s .= $t;
 		}
@@ -388,69 +424,14 @@ function plugin_compile_srcfile_callback($m) {
 	return $s;
 }
 
-// 先下载，购买，付费，再安装
-function plugin_online_install($dir) {
-
-}
-
-
-
-// -------------------> 官方插件列表缓存到本地。
-
-// 条件满足的总数
-function plugin_official_total($cond = array()) {
-	global $official_plugins;
-	$offlist = $official_plugins;
-	$offlist = arrlist_cond_orderby($offlist, $cond, array(), 1, 1000);
-	return count($offlist);
-}
-
-// 远程插件列表，从官方服务器获取插件列表，全部缓存到本地，定期更新
-function plugin_official_list($cond = array(), $orderby = array('pluginid'=>-1), $page = 1, $pagesize = 20) {
-	global $official_plugins;
-	// 服务端插件信息，缓存起来
-	$offlist = $official_plugins;
-	$offlist = arrlist_cond_orderby($offlist, $cond, $orderby, $page, $pagesize);
-	foreach($offlist as &$plugin) $plugin = plugin_read_by_dir($plugin['dir'], FALSE);
-	return $offlist;
-}
-
-function plugin_official_list_cache() {
-	$s = DEBUG == 3 ? NULL : cache_get('plugin_official_list');
-	if($s === NULL) {
-		$url = PLUGIN_OFFICIAL_URL."plugin-all-4.htm"; // 获取所有的插件，匹配到3.0以上的。
-		$s = http_get($url);
-		
-		// 检查返回值是否正确
-		if(empty($s)) return xn_error(-1, '从官方获取插件数据失败。');
-		$r = xn_json_decode($s);
-		if(empty($r)) return xn_error(-1, '从官方获取插件数据格式不对。');
-		
-		$s = $r;
-		cache_set('plugin_official_list', $s, 3600); // 缓存时间 1 小时。
-	}
-	return $s;
-}
-
-function plugin_official_read($dir) {
-	global $official_plugins;
-	$offlist = $official_plugins;
-	$plugin = isset($offlist[$dir]) ? $offlist[$dir] : array();
-	return $plugin;
-}
-
 // -------------------> 本地插件列表缓存到本地。
 // 安装，卸载，禁用，更新
-function plugin_read_by_dir($dir, $local_first = TRUE) {
+function plugin_read_by_dir($dir) {
 	global $plugins;
 
 	$local = array_value($plugins, $dir, array());
-	$official = plugin_official_read($dir);
-	if(empty($local) && empty($official)) return array();
-	if(empty($local)) $local_first = FALSE;
-	
-	// 本地插件信息
-	//!isset($plugin['dir']) && $plugin['dir'] = '';
+	if(empty($local)) return array();
+
 	!isset($local['name']) && $local['name'] = '';
 	!isset($local['price']) && $local['price'] = 0;
 	!isset($local['brief']) && $local['brief'] = '';
@@ -464,67 +445,141 @@ function plugin_read_by_dir($dir, $local_first = TRUE) {
 	!isset($local['icon_url']) && $local['icon_url'] = '';
 	!isset($local['have_setting']) && $local['have_setting'] = 0;
 	!isset($local['setting_url']) && $local['setting_url'] = 0;
-	
-	// 加上官方插件的信息
-	!isset($official['pluginid']) && $official['pluginid'] = 0;
-	!isset($official['name']) && $official['name'] = '';
-	!isset($official['price']) && $official['price'] = 0;
-	!isset($official['brief']) && $official['brief'] = '';
-	!isset($official['bbs_version']) && $official['bbs_version'] = '4.0';
-	!isset($official['version']) && $official['version'] = '1.0';
-	!isset($official['cateid']) && $official['cateid'] = 0;
-	!isset($official['lastupdate']) && $official['lastupdate'] = 0;
-	!isset($official['stars']) && $official['stars'] = 0;
-	!isset($official['user_stars']) && $official['user_stars'] = 0;
-	!isset($official['installs']) && $official['installs'] = 0;
-	!isset($official['sells']) && $official['sells'] = 0;
-	!isset($official['file_md5']) && $official['file_md5'] = '';
-	!isset($official['filename']) && $official['filename'] = '';
-	!isset($official['is_cert']) && $official['is_cert'] = 0;
-	!isset($official['is_show']) && $official['is_show'] = 0;
-	!isset($official['img1']) && $official['img1'] = 0;
-	!isset($official['img2']) && $official['img2'] = 0;
-	!isset($official['img3']) && $official['img3'] = 0;
-	!isset($official['img4']) && $official['img4'] = 0;
-	!isset($official['brief_url']) && $official['brief_url'] = '';
-	!isset($official['qq']) && $official['qq'] = '';
-	
-	$local['official'] = $official;
-	
-	if($local_first) {
-		$plugin = $local + $official;
-	} else {
-		$plugin = $official + $local;
-	}
-	// 额外的判断
-	$plugin['icon_url'] = $plugin['pluginid'] ? PLUGIN_OFFICIAL_URL."upload/plugin/$plugin[pluginid]/icon.png" : "../plugin/$dir/icon.png";
+
+	$plugin = $local;
+	$plugin['icon_url'] = "../plugin/$dir/icon.png";
 	$plugin['setting_url'] = $plugin['installed'] && is_file("../plugin/$dir/setting.php") ? "plugin-setting-$dir.htm" : "";
 	$plugin['downloaded'] = isset($plugins[$dir]);
-	$plugin['stars_fmt'] = $plugin['pluginid'] ? str_repeat('<span class="icon star"></span>', $plugin['stars']) : '';
-	$plugin['user_stars_fmt'] = $plugin['pluginid'] ? str_repeat('<span class="icon star"></span>', $plugin['user_stars']) : '';
-	$plugin['is_cert_fmt'] = empty($plugin['is_cert']) ? '<span class="text-danger">'.lang('no').'</span>' : '<span class="text-success">'.lang('yes').'</span>';
-	$plugin['have_upgrade'] = $plugin['installed'] && version_compare($official['version'], $local['version']) > 0 ? TRUE : FALSE;
-	$plugin['official_version'] = $official['version']; // 官方版本
-	$plugin['img1_url'] = $official['img1'] ? PLUGIN_OFFICIAL_URL.'upload/plugin/'.$plugin['pluginid'].'/img1.jpg' : ''; // 官方版本
-	$plugin['img2_url'] = $official['img2'] ? PLUGIN_OFFICIAL_URL.'upload/plugin/'.$plugin['pluginid'].'/img2.jpg' : ''; // 官方版本
-	$plugin['img3_url'] = $official['img3'] ? PLUGIN_OFFICIAL_URL.'upload/plugin/'.$plugin['pluginid'].'/img3.jpg' : ''; // 官方版本
-	$plugin['img4_url'] = $official['img4'] ? PLUGIN_OFFICIAL_URL.'upload/plugin/'.$plugin['pluginid'].'/img4.jpg' : ''; // 官方版本
 	return $plugin;
 }
 
-function plugin_siteid() {
-	global $conf;
-	$auth_key = $conf['auth_key'];
-	$siteip = _SERVER('SERVER_ADDR');
-	$siteid = md5($auth_key.$siteip);
-	return $siteid;
+// 判断是否为主题/模板插件
+function plugin_is_theme($dir, $conf = []) {
+    // 1. 优先检查 conf.json 中的 type 字段
+    if (isset($conf['type']) && in_array(strtolower($conf['type']), ['theme', 'template', 'skin'])) {
+        return true;
+    }
+    
+    // 2. 检查目录名关键词
+    $theme_keywords = ['theme', 'template', 'skin', '风格', '模板'];
+    foreach ($theme_keywords as $keyword) {
+        if (stripos($dir, $keyword) !== false) {
+            return true;
+        }
+    }
+    
+    // 3. 检查插件名称关键词
+    if (isset($conf['name'])) {
+        foreach ($theme_keywords as $keyword) {
+            if (stripos($conf['name'], $keyword) !== false) {
+                return true;
+            }
+        }
+    }
+    
+    return false;
 }
 
-/*function plugin_outid($dir) {
-	global $conf;
-	$auth_key = $conf['auth_key'];
-	$siteip = _SERVER('SERVER_ADDR')
-	$outid = md5($auth_key.$siteip.$dir);
-	return $outid;
-}*/
+// 获取插件数据库记录
+function plugin_db_get($dir) {
+    global $db, $tablepre;
+    $arr = $db->find_one($tablepre.'plugin', array('dir'=>$dir));
+    return $arr ? $arr : array();
+}
+
+// 获取所有插件数据库记录
+function plugin_db_get_all() {
+    global $db, $tablepre;
+    $arr = $db->find_all($tablepre.'plugin');
+    $list = array();
+    foreach ((array)$arr as $v) {
+        $list[$v['dir']] = $v;
+    }
+    return $list;
+}
+
+// 初始化插件数据库记录（如果不存在则创建）
+function plugin_db_init($dir, $conf = array()) {
+    global $db, $tablepre, $time;
+    
+    $arr = plugin_db_get($dir);
+    if (empty($arr)) {
+        $arr = array(
+            'dir' => $dir,
+            'name' => isset($conf['name']) ? $conf['name'] : '',
+            'type' => plugin_is_theme($dir, $conf) ? 1 : 0,
+            'installed' => isset($conf['installed']) ? $conf['installed'] : 0,
+            'enable' => isset($conf['enable']) ? $conf['enable'] : 0,
+            'install_time' => 0,
+            'enable_time' => 0,
+            'disable_time' => 0,
+            'create_time' => $time,
+            'update_time' => $time,
+        );
+        $db->insert($tablepre.'plugin', $arr);
+    }
+    return $arr;
+}
+
+// 更新插件安装状态
+function plugin_db_set_installed($dir, $installed) {
+    global $db, $tablepre, $time;
+    $update = array(
+        'installed' => $installed,
+        'update_time' => $time,
+    );
+    if ($installed) {
+        $update['install_time'] = $time;
+    }
+    $db->update($tablepre.'plugin', array('dir'=>$dir), $update);
+}
+
+// 更新插件启用状态
+function plugin_db_set_enable($dir, $enable) {
+    global $db, $tablepre, $time;
+    $update = array(
+        'enable' => $enable,
+        'update_time' => $time,
+    );
+    if ($enable) {
+        $update['enable_time'] = $time;
+    } else {
+        $update['disable_time'] = $time;
+    }
+    $db->update($tablepre.'plugin', array('dir'=>$dir), $update);
+}
+
+// 初始化所有插件数据（升级用）
+function plugin_db_init_all() {
+    global $plugins;
+    
+    if (empty($plugins)) {
+        plugin_init();
+    }
+    
+    foreach ((array)$plugins as $dir => $conf) {
+        plugin_db_init($dir, $conf);
+    }
+}
+
+// 获取插件信息（合并数据库和conf.json）
+function plugin_read_by_dir_with_db($dir) {
+    $plugin = plugin_read_by_dir($dir);
+    $db_data = plugin_db_get($dir);
+    
+    if (!empty($db_data)) {
+        $plugin['install_time'] = isset($db_data['install_time']) ? $db_data['install_time'] : 0;
+        $plugin['enable_time'] = isset($db_data['enable_time']) ? $db_data['enable_time'] : 0;
+        $plugin['disable_time'] = isset($db_data['disable_time']) ? $db_data['disable_time'] : 0;
+        $plugin['type'] = isset($db_data['type']) ? $db_data['type'] : 0;
+    } else {
+        $plugin['install_time'] = 0;
+        $plugin['enable_time'] = 0;
+        $plugin['disable_time'] = 0;
+        $plugin['type'] = plugin_is_theme($dir, $plugin) ? 1 : 0;
+    }
+    
+    return $plugin;
+}
+
 ?>

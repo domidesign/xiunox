@@ -53,19 +53,28 @@ function is_username($username, &$err = '') {
 
 function is_password($password, &$err = '') {
 	$len = strlen($password);
-	// hook model_is_password_start.php
 	if($len == 0) {
 		$err = lang('password_is_empty');
 		return FALSE;
-	} elseif($len != 32) {
-		$err = lang('password_length_incorrect');
+	} elseif($len == 32) {
+		if($password == 'd41d8cd98f00b204e9800998ecf8427e') {
+			$err = lang('password_is_empty');
+			return FALSE;
+		}
+	} elseif($len < 6) {
+		$err = lang('password_is_too_short');
 		return FALSE;
-	} elseif($password == 'd41d8cd98f00b204e9800998ecf8427e') {
-		$err = lang('password_is_empty');
+	} elseif($len > 32) {
+		$err = lang('password_is_too_long');
 		return FALSE;
 	}
-	// hook model_is_password_start.php
 	return TRUE;
+}
+
+function password_md5(&$password) {
+	if(strlen($password) != 32 || !preg_match('#^[0-9a-f]{32}$#', $password)) {
+		$password = md5($password);
+	}
 }
 
 // hook model_check_end.php

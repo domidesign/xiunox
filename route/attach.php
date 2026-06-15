@@ -2,181 +2,383 @@
 
 !defined('DEBUG') AND exit('Access Denied.');
 
+// 加载附件上传服务
+if(!class_exists('AttachmentService')) {
+    include APP_PATH.'service/AttachmentService.php';
+}
+
 $action = param(1);
 
 // hook attach_start.php
 
 if(empty($action) || $action == 'create') {
-	
-	$user = user_read($uid);
-	user_login_check();
-	
-	$width = param('width', 0);
-	$height = param('height', 0);
-	$is_image = param('is_image', 0);
-	$name = param('name');
-	$data = param('data', '', FALSE, FALSE);
-	$data = param_base64('data');
-	
-	// hook attach_create_start.php
-	
-	// 允许的文件后缀名
-	//$types = include _include(APP_PATH.'conf/attach.conf.php');
-	//$allowtypes = $types['all'];
-	
-	empty($group['allowattach']) AND $gid != 1 AND message(-1, '您无权上传');
-	
-	empty($data) AND message(-1, lang('data_is_empty'));
-	//$data = base64_decode_file_data($data);
-	$size = strlen($data);
-	$size > 20480000 AND message(-1, lang('filesize_too_large', array('maxsize'=>'20M', 'size'=>$size)));
-	
-	// 111.php.shtmll 
-	$ext = file_ext($name, 7);
-	$filetypes = include APP_PATH.'conf/attach.conf.php';
-	!in_array($ext, $filetypes['all']) AND $ext = '_'.$ext;
-	
-	$tmpanme = $uid.'_'.xn_rand(15).'.'.$ext;
-	$tmpfile = $conf['upload_path'].'tmp/'.$tmpanme;
-	$tmpurl = $conf['upload_url'].'tmp/'.$tmpanme;
-	
-	$filetype = attach_type($name, $filetypes);
-	
-	// hook attach_create_save_before.php
-	
-	file_put_contents($tmpfile, $data) OR message(-1, lang('write_to_file_failed'));
-	
-	// 保存到 session，发帖成功以后，关联到帖子。
-	// save attach information to session, associate to post after create thread.
 
-	// 抛弃之前的 $_SESSION 数据，重新启动 session，降低 session 并发写入的问题
-	// Discard the previous $_SESSION data, restart the session, reduce the problem of concurrent session write
-	sess_restart();
-	
-	empty($_SESSION['tmp_files']) AND $_SESSION['tmp_files'] = array();
-	$n = count($_SESSION['tmp_files']);
-	$filesize = filesize($tmpfile);
-	$attach = array(
-		'url'=>$tmpurl, 
-		'path'=>$tmpfile, 
-		'orgfilename'=>$name, 
-		'filetype'=>$filetype, 
-		'filesize'=>$filesize, 
-		'width'=>$width, 
-		'height'=>$height, 
-		'isimage'=>$is_image, 
-		'downloads'=>0, 
-		'aid'=>'_'.$n
-	);
-	$_SESSION['tmp_files'][$n] = $attach;
-	
-	unset($attach['path']);
-	
-	// hook attach_create_end.php
-	
-	message(0, $attach);
+    CsrfService::check();
+
+    $user = user_read($uid);
+    user_login_check();
+
+    // hook attach_create_start.php
+
+    !PermissionService::check('allowattach') AND message(-1, '您无权上传');
+
+    $filetypes = include APP_PATH.'conf/attach.conf.php';
+
+    // 判断是否为 FormData 文件上传
+    $is_formdata = !empty($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK;
+
+    if($is_formdata) {
+        // FormData 文件上传模式
+        $file = $_FILES['file'];
+        $name = $file['name'];
+        $size = $file['size'];
+        $tmp_name = $file['tmp_name'];
+        $ext = file_ext($name, 7);
+        $filetype = attach_type($name, $filetypes);
+
+        // 文件类型校验
+        if(!in_array($ext, $filetypes['all'])) {
+            $ext = '_'.$ext;
+            message(-1, lang('filetype_not_allowed'));
+        }
+
+        // 文件大小校验
+        $max_size = AttachmentService::getMaxSize($filetype);
+        if($size > $max_size) {
+            $max_fmt = AttachmentService::formatSize($max_size);
+            message(-1, lang('filesize_too_large', array('maxsize'=>$max_fmt, 'size'=>$size)));
+        }
+
+        // 生成临时文件名
+        $tmpname = bin2hex(random_bytes(16)).'.'.$ext;
+        $tmpfile = $conf['upload_path'].'tmp/'.$tmpname;
+        $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
+
+        // hook attach_create_save_before.php
+
+        // 移动上传文件到临时目录
+        if(!move_uploaded_file($tmp_name, $tmpfile)) {
+            message(-1, lang('write_to_file_failed'));
+        }
+
+        $width = 0;
+        $height = 0;
+        $isimage = 0;
+        $thumb_url = '';
+
+        // 图片处理：获取尺寸、生成缩略图
+        if($filetype == 'image') {
+            $isimage = 1;
+            $imginfo = getimagesize($tmpfile);
+            if($imginfo) {
+                $width = $imginfo[0];
+                $height = $imginfo[1];
+            }
+            // 生成缩略图
+            $thumb_result = AttachmentService::generateThumbnail($tmpfile, $filetypes);
+            if($thumb_result) {
+                $thumb_url = $conf['upload_url'].'tmp/'.$thumb_result;
+            }
+        }
+
+        // 视频处理：获取宽高和时长
+        if($filetype == 'video') {
+            $video_info = AttachmentService::getVideoInfo($tmpfile);
+            if($video_info) {
+                $width = $video_info['width'];
+                $height = $video_info['height'];
+            }
+        }
+
+        // 保存到 session
+        sess_restart();
+
+        empty($_SESSION['tmp_files']) AND $_SESSION['tmp_files'] = array();
+        $n = count($_SESSION['tmp_files']);
+        $filesize = filesize($tmpfile);
+        $attach = array(
+            'url'        => $tmpurl,
+            'thumb_url'  => $thumb_url,
+            'path'       => $tmpfile,
+            'orgfilename' => $name,
+            'filetype'   => $filetype,
+            'filesize'   => $filesize,
+            'width'      => $width,
+            'height'     => $height,
+            'isimage'    => $isimage,
+            'downloads'  => 0,
+            'aid'        => '_'.$n
+        );
+        $_SESSION['tmp_files'][$n] = $attach;
+
+        unset($attach['path']);
+
+        // hook attach_create_end.php
+
+        message(0, $attach);
+
+    } else {
+        // 兼容旧的 base64 上传模式
+        $width = param('width', 0);
+        $height = param('height', 0);
+        $is_image = param('is_image', 0);
+        $name = param('name');
+        $data = param_base64('data');
+
+        empty($data) AND message(-1, lang('data_is_empty'));
+        $size = strlen($data);
+
+        // 文件大小校验
+        $ext = file_ext($name, 7);
+        $filetype = attach_type($name, $filetypes);
+        $max_size = AttachmentService::getMaxSize($filetype);
+        if($size > $max_size) {
+            $max_fmt = AttachmentService::formatSize($max_size);
+            message(-1, lang('filesize_too_large', array('maxsize'=>$max_fmt, 'size'=>$size)));
+        }
+
+        // 文件类型校验
+        if(!in_array($ext, $filetypes['all'])) {
+            $ext = '_'.$ext;
+        }
+
+        $tmpname = bin2hex(random_bytes(16)).'.'.$ext;
+        $tmpfile = $conf['upload_path'].'tmp/'.$tmpname;
+        $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
+
+        // hook attach_create_save_before.php
+
+        file_put_contents($tmpfile, $data) OR message(-1, lang('write_to_file_failed'));
+
+        $thumb_url = '';
+
+        // 图片处理：获取尺寸、生成缩略图
+        if($filetype == 'image') {
+            $is_image = 1;
+            $imginfo = getimagesize($tmpfile);
+            if($imginfo) {
+                $width = $imginfo[0];
+                $height = $imginfo[1];
+            }
+            $thumb_result = AttachmentService::generateThumbnail($tmpfile, $filetypes);
+            if($thumb_result) {
+                $thumb_url = $conf['upload_url'].'tmp/'.$thumb_result;
+            }
+        }
+
+        // 视频处理
+        if($filetype == 'video') {
+            $video_info = AttachmentService::getVideoInfo($tmpfile);
+            if($video_info) {
+                $width = $video_info['width'];
+                $height = $video_info['height'];
+            }
+        }
+
+        sess_restart();
+
+        empty($_SESSION['tmp_files']) AND $_SESSION['tmp_files'] = array();
+        $n = count($_SESSION['tmp_files']);
+        $filesize = filesize($tmpfile);
+        $attach = array(
+            'url'        => $tmpurl,
+            'thumb_url'  => $thumb_url,
+            'path'       => $tmpfile,
+            'orgfilename' => $name,
+            'filetype'   => $filetype,
+            'filesize'   => $filesize,
+            'width'      => $width,
+            'height'     => $height,
+            'isimage'    => $is_image,
+            'downloads'  => 0,
+            'aid'        => '_'.$n
+        );
+        $_SESSION['tmp_files'][$n] = $attach;
+
+        unset($attach['path']);
+
+        // hook attach_create_end.php
+
+        message(0, $attach);
+    }
 
 } elseif($action == 'delete') {
-	
-	$user = user_read($uid);
-	user_login_check();
 
-	$aid = param(2);
-	
-	// hook attach_delete_start.php
-	
-	// 临时的文件 id / temp attach id : _0 _1 _2 _3 ...
-	if(substr($aid, 0, 1) == '_') {
-		$key = intval(substr($aid, 1));
-		$tmp_files = _SESSION('tmp_files');
-		!isset($tmp_files[$key]) AND message(-1, lang('item_not_exists', array('item'=>$key)));
-		$attach = $tmp_files[$key];
-		!is_file($attach['path']) AND message(-1, lang('file_not_exists'));
-		unlink($attach['path']);
-		unset($_SESSION['tmp_files'][$key]);
-	} else {
-		$aid = intval($aid);
-		$attach = attach_read($aid);
-		empty($attach) AND message(-1, lang('attach_not_exists'));
-		
-		$thread = thread_read($attach['tid']);
-		empty($thread) AND message(-1, lang('thread_not_exists'));
-		$fid = $thread['fid'];
-		
-		$allowdelete = forum_access_mod($fid, $gid, 'allowdelete');
-		$attach['uid'] != $uid AND !$allowdelete AND message(0, lang('insufficient_privilege'));
-		
-		$r = attach_delete($aid);
-		$r ===  FALSE AND message(-1, lang('delete_failed'));
-	}
-	
-	// hook attach_delete_end.php
-	
-	message(0, 'delete_successfully');
-	
+    CsrfService::check();
+
+    $user = user_read($uid);
+    user_login_check();
+
+    $aid = param(2);
+
+    // hook attach_delete_start.php
+
+    // 临时的文件 id / temp attach id : _0 _1 _2 _3 ...
+    if(substr($aid, 0, 1) == '_') {
+        $key = intval(substr($aid, 1));
+        $tmp_files = _SESSION('tmp_files');
+        !isset($tmp_files[$key]) AND message(-1, lang('item_not_exists', array('item'=>$key)));
+        $attach = $tmp_files[$key];
+        !is_file($attach['path']) AND message(-1, lang('file_not_exists'));
+        unlink($attach['path']);
+
+        // 删除缩略图
+        if(!empty($attach['thumb_url'])) {
+            $thumb_relative = str_replace($conf['upload_url'].'tmp/', '', $attach['thumb_url']);
+            $thumb_path = $conf['upload_path'].'tmp/'.$thumb_relative;
+            is_file($thumb_path) AND unlink($thumb_path);
+        }
+
+        unset($_SESSION['tmp_files'][$key]);
+    } else {
+        $aid = intval($aid);
+        $attach = attach_read($aid);
+        empty($attach) AND message(-1, lang('attach_not_exists'));
+
+        $thread = thread_read($attach['tid']);
+        empty($thread) AND message(-1, lang('thread_not_exists'));
+        $fid = $thread['fid'];
+
+        $allowdelete = forum_access_mod($fid, $gid, 'allowdelete');
+        $attach['uid'] != $uid AND !$allowdelete AND message(0, lang('insufficient_privilege'));
+
+        $r = attach_delete($aid);
+        $r ===  FALSE AND message(-1, lang('delete_failed'));
+    }
+
+    // hook attach_delete_end.php
+
+    if(is_htmx_request()) {
+        htmx_trigger('attachDeleted', array('aid' => $aid));
+    }
+    message(0, lang('delete_successfully'));
+
+} elseif($action == 'read') {
+
+    // hook attach_read_start.php
+
+    // 图片签名URL访问：/attach-read-{aid}-{token}
+    $aid = param(2, 0);
+    $token = param(3, '');
+
+    $attach = attach_read($aid);
+    empty($attach) AND http_status(404) AND exit('Attach not found');
+
+    // 签名校验
+    $sign_key = array_value($conf, 'attach_sign_key', '');
+    $expected_token = md5($aid . $attach['filename'] . $sign_key);
+    if($token !== $expected_token) {
+        http_status(403);
+        exit('Invalid token');
+    }
+
+    // 防盗链检查
+    if(!empty($conf['attach_referer_check'])) {
+        $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
+        if(!empty($referer)) {
+            $host = parse_url($referer, PHP_URL_HOST);
+            $site_host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
+            if($host !== $site_host) {
+                http_status(403);
+                exit('Hotlinking denied');
+            }
+        }
+    }
+
+    // 读取物理文件
+    $filepath = $conf['upload_path'].'attach/'.$attach['filename'];
+    if(!is_file($filepath)) {
+        http_status(404);
+        exit('File not found');
+    }
+
+    // 设置 MIME 类型
+    $ext = strtolower(pathinfo($attach['filename'], PATHINFO_EXTENSION));
+    $mime_types = array(
+        'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
+        'gif' => 'image/gif', 'webp' => 'image/webp', 'bmp' => 'image/bmp',
+        'mp4' => 'video/mp4', 'webm' => 'video/webm', 'ogg' => 'video/ogg',
+    );
+    $content_type = isset($mime_types[$ext]) ? $mime_types[$ext] : 'application/octet-stream';
+
+    // 缓存头
+    $timefmt = date('D, d M Y H:i:s', $attach['create_date']).' GMT';
+    header('Date: '.gmdate('D, d M Y H:i:s').' GMT');
+    header('Last-Modified: '.$timefmt);
+    header('Cache-Control: public, max-age=86400');
+    header('Content-Type: '.$content_type);
+    header('Content-Length: '.filesize($filepath));
+
+    // hook attach_read_output_before.php
+
+    // 支持 Nginx X-Accel-Redirect
+    if(!empty($conf['attach_x_accel_redirect'])) {
+        header('X-Accel-Redirect: '.$conf['upload_url'].'attach/'.$attach['filename']);
+    } else {
+        readfile($filepath);
+    }
+    exit;
+
 } elseif($action == 'download') {
-	
-	// hook attach_download_start.php
-	
-	// 判断权限
-	$aid = param(2, 0);
-	$attach = attach_read($aid);
-	empty($attach) AND message(-1, lang('attach_not_exists'));
-	$tid = $attach['tid'];
-	$thread = thread_read($tid);
-	$fid = $thread['fid'];
-	$allowdown = forum_access_user($fid, $gid, 'allowdown');
-	empty($allowdown) AND message(-1, lang('insufficient_privilege_to_download'));	
-	
-	$attachpath = $conf['upload_path'].'attach/'.$attach['filename'];
-	$attachurl = $conf['upload_url'].'attach/'.$attach['filename'];
-	!is_file($attachpath)AND message(-1, lang('attach_not_exists'));
-	
-	$type = 'php';
-	
-	// hook attach_output_before.php
-	
-	// php 输出
-	if($type == 'php') {
 
-		attach_update($aid, array('downloads+'=>1));
-		
-		$filesize = $attach['filesize'];
-		if(stripos($_SERVER["HTTP_USER_AGENT"], 'MSIE') !== FALSE || stripos($_SERVER["HTTP_USER_AGENT"], 'Edge') !== FALSE || stripos($_SERVER["HTTP_USER_AGENT"], 'Trident') !== FALSE) {
-			$attach['orgfilename'] = urlencode($attach['orgfilename']);
-			$attach['orgfilename'] = str_replace("+", "%20", $attach['orgfilename']);
-		}
-		$timefmt = date('D, d M Y H:i:s', $time).' GMT';
-		header('Date: '.$timefmt);
-		header('Last-Modified: '.$timefmt);
-		header('Expires: '.$timefmt);
-	       // header('Cache-control: max-age=0, must-revalidate, post-check=0, pre-check=0');
-		header('Cache-control: max-age=86400');
-		header('Content-Transfer-Encoding: binary');
-		header("Pragma: public");
-		header('Content-Disposition: attachment; filename="'.$attach['orgfilename'].'"');
-		header('Content-Type: application/octet-stream');
-		//header("Content-Type: application/force-download");	// 后面的会覆盖前面
-		
-		// hook attach_download_readfile_before.php
-		
-		readfile($attachpath);
-		
-		/*if($attach['filetype'] == 'image') {
-			// ie6 下会解析图片内容！
-			//header('Content-Disposition: inline; filename='.$attach['orgfilename']);
-			//header('Content-Type: image/pjpeg');
-		} else {
-			header('Content-Disposition: attachment; filename='.$attach['orgfilename']);
-			header('Content-Type: application/octet-stream');
-		}*/
-		exit;
-	} else {
-		
-		// hook attach_download_location_before.php
-		
-		http_location($attachurl);
-	}
+    // hook attach_download_start.php
+
+    // 判断权限
+    $aid = param(2, 0);
+    $attach = attach_read($aid);
+    empty($attach) AND message(-1, lang('attach_not_exists'));
+    $tid = $attach['tid'];
+    $thread = thread_read($tid);
+    $fid = $thread['fid'];
+    $allowdown = forum_access_user($fid, $gid, 'allowdown');
+    empty($allowdown) AND message(-1, lang('insufficient_privilege_to_download'));
+
+    $attachpath = $conf['upload_path'].'attach/'.$attach['filename'];
+    $attachurl = $conf['upload_url'].'attach/'.$attach['filename'];
+    !is_file($attachpath)AND message(-1, lang('attach_not_exists'));
+
+    $type = 'php';
+
+    // hook attach_output_before.php
+
+    // php 输出
+    if($type == 'php') {
+
+        attach_update($aid, array('downloads+'=>1));
+
+        // 下载日志记录
+        $log_dir = $conf['tmp_path'];
+        $log_file = $log_dir.'attach_download.log';
+        $log_uid = isset($uid) ? $uid : 0;
+        $log_ip = isset($longip) ? $longip : ip2long($_SERVER['REMOTE_ADDR']);
+        $log_line = date('Y-m-d H:i:s')."|aid={$aid}|uid={$log_uid}|ip={$log_ip}\n";
+        @file_put_contents($log_file, $log_line, FILE_APPEND);
+
+        $filesize = $attach['filesize'];
+        if(stripos($_SERVER["HTTP_USER_AGENT"], 'MSIE') !== FALSE || stripos($_SERVER["HTTP_USER_AGENT"], 'Edge') !== FALSE || stripos($_SERVER["HTTP_USER_AGENT"], 'Trident') !== FALSE) {
+            $attach['orgfilename'] = urlencode($attach['orgfilename']);
+            $attach['orgfilename'] = str_replace("+", "%20", $attach['orgfilename']);
+        }
+        $timefmt = date('D, d M Y H:i:s', $time).' GMT';
+        header('Date: '.$timefmt);
+        header('Last-Modified: '.$timefmt);
+        header('Expires: '.$timefmt);
+        header('Cache-control: max-age=86400');
+        header('Content-Transfer-Encoding: binary');
+        header("Pragma: public");
+        header('Content-Disposition: attachment; filename="'.$attach['orgfilename'].'"');
+        header('Content-Type: application/octet-stream');
+
+        // hook attach_download_readfile_before.php
+
+        readfile($attachpath);
+        exit;
+    } else {
+
+        // hook attach_download_location_before.php
+
+        http_location($attachurl);
+    }
 }
 
 // hook attach_end.php

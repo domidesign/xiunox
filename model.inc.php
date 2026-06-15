@@ -16,24 +16,32 @@ $include_model_files = array (
 	APP_PATH.'model/forum_access.func.php',
 	APP_PATH.'model/thread.func.php',
 	APP_PATH.'model/thread_top.func.php',
+	APP_PATH.'model/thread_digest.func.php',
 	APP_PATH.'model/post.func.php',
 	APP_PATH.'model/attach.func.php',
 	APP_PATH.'model/check.func.php',
 	APP_PATH.'model/mythread.func.php',
+	APP_PATH.'model/thread_favorite.func.php',
+	APP_PATH.'model/user_follow.func.php',
+	APP_PATH.'model/forum_follow.func.php',
+	APP_PATH.'model/post_like.func.php',
+	APP_PATH.'model/notify.func.php',
 	APP_PATH.'model/runtime.func.php',
 	APP_PATH.'model/table_day.func.php',
 	APP_PATH.'model/cron.func.php',
 	APP_PATH.'model/form.func.php',
 	APP_PATH.'model/misc.func.php',
 	APP_PATH.'model/session.func.php',
-	
+	APP_PATH.'model/user_profile_audit.func.php',
+	APP_PATH.'model/admin_log.func.php',
+
 	// hook model_inc_file.php
 	
 );
 
 // hook model_inc_include_before.php
 
-if(DEBUG) {
+if(DEBUG || !empty($conf['cache_disable'])) {
 	foreach ($include_model_files as $model_files) {
 		include _include($model_files);
 	}
@@ -61,7 +69,30 @@ if(DEBUG) {
 	include $model_min_file;
 }
 
+// 通知系统模型（核心功能）
+include _include(APP_PATH.'model/notice.func.php');
+
 // hook model_inc_end.php
+
+// 缓存完整初始化（setting_get 可用后，用后台配置重新初始化缓存驱动）
+if(class_exists('CacheService', false)) {
+    try {
+        CacheService::init();
+    } catch(\Throwable $e) {
+        // 缓存初始化失败时降级到 MySQL 缓存，确保系统可用
+        error_log('CacheService::init() 异常，降级到 MySQL 缓存：' . $e->getMessage());
+        try {
+            global $db;
+            if(is_object($db)) {
+                $_SERVER['cache'] = new cache_mysql(array('db' => $db, 'cachepre' => 'bbs_'));
+            } else {
+                $_SERVER['cache'] = NULL;
+            }
+        } catch(\Throwable $e2) {
+            $_SERVER['cache'] = NULL;
+        }
+    }
+}
 
 
 

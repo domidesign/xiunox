@@ -43,7 +43,18 @@ function url($url, $extra = array()) {
 	}
 	
 	// hook model_url_end.php
-	
+
+	// 对于没有路径组件的 URL（如 ?forum-5.htm），在前台添加 / 前缀使其成为绝对路径
+	// 避免在子页面（如 /forums）上相对路径解析错误
+	// admin 目录下保持相对路径，因为 admin 有自己的路由
+	if($path === '' && $r !== '' && $r[0] !== '/' && strpos($r, 'http') !== 0 && strpos($r, '//') !== 0) {
+		$request_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
+		$is_admin = (strpos($request_uri, '/admin/') === 0 || strpos($request_uri, '/admin?') === 0 || $request_uri === '/admin');
+		if(!$is_admin) {
+			$r = '/' . $r;
+		}
+	}
+
 	return $r;
 }
 
@@ -51,12 +62,22 @@ function url($url, $extra = array()) {
 // 检测站点的运行级别
 function check_runlevel() {
 	global $conf, $method, $gid;
+	
+	$rules = array(
+		'user'=>array('login', 'create', 'logout', 'sendinitpw', 'resetpw', 'resetpw_sendcode', 'resetpw_complete', 'synlogin')
+	);
+	
 	// hook model_check_runlevel_start.php
 	
 	if($gid == 1) return;
 	$param0 = param(0);
 	$param1 = param(1);
-	if($param0 == 'user' && in_array($param1, array('login', 'create', 'logout', 'sendinitpw', 'resetpw', 'resetpw_sendcode', 'resetpw_complete', 'synlogin'))) return;
+	foreach ($rules as $route=>$actions) {
+		if($param0 == $route && (empty($actions) || in_array($param1, $actions))) {
+			return;
+		}
+	}
+	
 	switch ($conf['runlevel']) {
 		case 0: message(-1, $conf['runlevel_reason']); break;
 		case 1: message(-1, lang('runlevel_reson_1')); break;
@@ -66,6 +87,55 @@ function check_runlevel() {
 		//case 5: break;
 	}
 	// hook model_check_runlevel_end.php
+}
+
+function htmx_trigger($event_name, $data = array()) {
+	$json = json_encode(array($event_name => $data));
+	header("HX-Trigger: " . $json);
+}
+
+// htmx 请求检测：仅检查 HX-Request 头（htmx 库专用标识）
+function is_htmx_request() {
+	return !empty($_SERVER['HTTP_HX_REQUEST']);
+}
+
+// 渲染点赞按钮 HTML 片段（htmx 4 模式，供 route/thread.php 使用）
+function _render_like_btn($tid, $pid, $is_liked, $likes_count, $ctx = 'post') {
+	switch($ctx) {
+		case 'thread':
+			$btn_class = 'thread-like-btn cursor-pointer transition-colors';
+			$btn_style = '';
+			break;
+		case 'reply':
+			$btn_class = 'post-like-btn cursor-pointer text-body-secondary';
+			$btn_style = 'font-size:0.8em';
+			break;
+		case 'post':
+		default:
+			$btn_class = 'post-like-btn cursor-pointer text-body-secondary ms-3';
+			$btn_style = '';
+			break;
+	}
+	$like_url = url('thread-like-'.$tid.'-'.$pid);
+	$icon_class = $is_liked ? 'ti-heart-filled text-danger' : 'ti-heart';
+	$title = lang('like');
+	$style_attr = $btn_style ? ' style="'.esc_html($btn_style).'"' : '';
+	return '<span class="'.esc_html($btn_class).'" hx-post="'.esc_html($like_url).'" hx-vals=\'{"_ctx":"'.esc_html($ctx).'"}\' hx-target="this" hx-swap="outerHTML" hx-ext="hx-optimistic" hx-optimistic role="button" title="'.esc_html($title).'"'.$style_attr.'>'
+		. '<i class="ti '.esc_html($icon_class).'"></i> '
+	. '<span class="like-count">'.intval($likes_count).'</span>'
+		. '</span>';
+}
+
+// 渲染收藏按钮 HTML 片段（htmx 4 模式，供 route/thread.php 使用）
+function _render_favorite_btn($tid, $is_favorited, $favorites_count) {
+	$fav_url = url('thread-favorite-'.$tid);
+	$btn_class = 'thread-favorite-btn cursor-pointer transition-colors';
+	$icon_class = $is_favorited ? 'ti-star-filled text-warning' : 'ti-star';
+	$title = lang('favorite');
+	return '<span class="'.esc_html($btn_class).'" hx-post="'.esc_html($fav_url).'" hx-target="this" hx-swap="outerHTML" hx-ext="hx-optimistic" hx-optimistic role="button" title="'.esc_html($title).'">'
+		. '<i class="ti '.esc_html($icon_class).'"></i> '
+	. '<span class="favorite-count">'.intval($favorites_count).'</span>'
+		. '</span>';
 }
 
 /*
@@ -84,13 +154,82 @@ function message($code, $message, $extra = array()) {
 	$arr = $extra;
 	$arr['code'] = $code.'';
 	$arr['message'] = $message;
-	$header['title'] = $conf['sitename'];
+	if(empty($header['title'])) $header['title'] = $conf['sitename'];
+	if(!isset($header['description'])) $header['description'] = '';
+	if(!isset($header['keywords'])) $header['keywords'] = '';
 	
 	// hook model_message_start.php
 	
 	// 防止 message 本身出现错误死循环
 	static $called = FALSE;
 	$called ? exit(xn_json_encode($arr)) : $called = TRUE;
+
+	// HTMX 请求处理（优先于 API 检测）
+	$is_htmx = is_htmx_request();
+	$is_htmx_boost = $is_htmx && !empty($_SERVER['HTTP_HX_BOOSTED']);
+	// 调试日志：记录请求头信息
+	if(DEBUG) {
+		$debug_hx = !empty($_SERVER['HTTP_HX_REQUEST']) ? $_SERVER['HTTP_HX_REQUEST'] : '(none)';
+		$debug_xrw = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) ? $_SERVER['HTTP_X_REQUESTED_WITH'] : '(none)';
+		$debug_boost = !empty($_SERVER['HTTP_HX_BOOSTED']) ? $_SERVER['HTTP_HX_BOOSTED'] : '(none)';
+		error_log("[message()] is_htmx=$is_htmx HX-Request=$debug_hx X-Requested-With=$debug_xrw HX-Boosted=$debug_boost code=$code");
+	}
+	if($is_htmx) {
+		// HTMX boost 导航（GET 请求）+ 错误 → 返回完整 HTML 错误页面
+		if($is_htmx_boost && $code != 0) {
+			$err_code = ($code < 0) ? 500 : 404;
+			if(function_exists('error_page')) {
+				error_page($err_code, is_string($message) ? $message : '');
+			} else {
+				http_response_code($err_code);
+				echo '<h1>' . ($err_code == 404 ? '404 Not Found' : 'Server Error') . '</h1>';
+			}
+			exit;
+		}
+		// HTMX 表单提交 + 错误 → 返回 HTML 错误消息片段
+		if($code != 0) {
+			$msg = is_string($message) ? $message : xn_json_encode($message);
+			header('Content-Type: text/html; charset=utf-8');
+			$code_attr = htmlspecialchars(is_numeric($code) ? $code : -1, ENT_QUOTES, 'UTF-8');
+			$wait_attr = '';
+			if(!empty($extra['wait'])) {
+				$wait_attr = ' data-wait="' . intval($extra['wait']) . '"';
+			}
+			echo '<div class="alert alert-danger py-2 small mb-2" data-code="' . $code_attr . '"' . $wait_attr . '>' . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . '</div>';
+			exit;
+		}
+		// 成功 + 有跳转 → HX-Trigger 触发 toast + 延迟跳转（返回 200 + 空片段确保 htmx 处理响应头）
+		if(!empty($arr['redirect_url'])) {
+			$msg = is_string($message) ? $message : lang('operate_successfully');
+			// HTTP 头不支持 UTF-8 中文，需要 rawurlencode 编码
+			$trigger_data = json_encode(array('message' => rawurlencode($msg), 'redirect' => $arr['redirect_url']), JSON_UNESCAPED_UNICODE);
+			header("HX-Trigger: {\"htmxSuccessRedirect\":$trigger_data}");
+			header('Content-Type: text/html; charset=utf-8');
+			// 返回空 span，htmx 会 swap 到 target 并处理 HX-Trigger 头
+			echo '<span class="htmx-redirect-pending" style="display:none"></span>';
+			exit;
+		}
+		// 成功无跳转 → 返回 HTML 成功消息片段
+		$msg = is_string($message) ? $message : '';
+		header('Content-Type: text/html; charset=utf-8');
+		if($msg) {
+			echo '<div class="alert alert-success py-2 small mb-2">' . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . '</div>';
+		} else {
+			echo '<div class="alert alert-success py-2 small mb-2">' . lang('operate_successfully') . '</div>';
+		}
+		exit;
+	}
+
+	// API 请求检测：Accept: application/json 或 X-API-Request 或 X-Requested-With header
+	$is_api = (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+		|| !empty($_SERVER['HTTP_X_API_REQUEST'])
+		|| (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower(trim($_SERVER['HTTP_X_REQUESTED_WITH'])) == 'xmlhttprequest');
+	if($is_api) {
+		header('Content-Type: application/json; charset=utf-8');
+		echo xn_json_encode($arr);
+		exit;
+	}
+
 	if($ajax) {
 		echo xn_json_encode($arr);
 	} else {
@@ -110,6 +249,57 @@ function message($code, $message, $extra = array()) {
 		}
 	}
 	// hook model_message_end.php
+	exit;
+}
+
+// 错误页面展示
+function error_page($code, $message = '') {
+	global $conf, $header;
+
+	// 确保 $header 已初始化，防止极早期异常时未定义
+	if(!isset($header) || !is_array($header)) {
+		$header = array('title' => '');
+	}
+
+	// 防止 error_page 自身出现错误死循环
+	static $called = FALSE;
+	if($called) {
+		http_response_code($code);
+		exit;
+	}
+	$called = TRUE;
+
+	// 设置 HTTP 状态码
+	http_response_code($code);
+
+	// 错误类型配置
+	$error_configs = array(
+		404 => array(
+			'title' => '页面不存在',
+			'icon'  => 'ti-error-404',
+		),
+		403 => array(
+			'title' => '禁止访问',
+			'icon'  => 'ti-lock-access',
+		),
+		500 => array(
+			'title' => '服务器内部错误',
+			'icon'  => 'ti-server-bolt',
+		),
+	);
+
+	$config = isset($error_configs[$code]) ? $error_configs[$code] : $error_configs[500];
+
+	$error_type = intval($code);
+	$error_title = $config['title'];
+	$error_icon = $config['icon'];
+	$error_message = $message;
+
+	// 设置页面标题
+	$header['title'] = $error_title . ' - ' . (isset($conf['sitename']) ? $conf['sitename'] : '');
+
+	// 渲染错误模板
+	include _include(APP_PATH."view/htm/error.htm");
 	exit;
 }
 

@@ -87,7 +87,17 @@ function group_find($cond = array(), $orderby = array('gid'=>1), $page = 1, $pag
 
 function group_format(&$group) {
 	// hook model_group_format_start.php
-	
+	if(isset($group['gid'])) {
+		$group['icon_class'] = group_icon($group);
+	}
+}
+
+// 返回用户组图标类名，无图标时返回空字符串
+function group_icon($group) {
+	if(!isset($group['icon']) || empty($group['icon'])) {
+		return '';
+	}
+	return $group['icon'];
 }
 
 function group_name($gid) {

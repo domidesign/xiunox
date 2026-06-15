@@ -4,6 +4,9 @@
 // 只能在当前 request 生命周期缓存，要跨进程，可以再加一层缓存： memcached/xcache/apc/
 $g_static_users = array(); // 变量缓存
 
+// user_update() 受保护字段，禁止通过 user_update() 直接修改
+define('USER_UPDATE_PROTECTED_FIELDS', array('password', 'password_hash', 'salt', 'gid'));
+
 // hook model_user_start.php
 
 // ------------> 最原生的 CURD，无关联其他数据。
@@ -52,14 +55,37 @@ function user_create($arr) {
 }
 
 function user_update($uid, $arr) {
+	// 过滤受保护字段，防止通过 user_update() 直接修改密码、盐值、用户组等敏感字段
+	foreach(USER_UPDATE_PROTECTED_FIELDS as $field) {
+		if(array_key_exists($field, $arr)) {
+			xn_log("user_update(): Attempt to modify protected field '$field' for uid=$uid, ignored. Use user_change_password() instead.", 'security');
+			unset($arr[$field]);
+		}
+	}
 	// hook model_user_update_start.php
 	global $conf, $g_static_users;
 	$r = user__update($uid, $arr);
-	$conf['cache']['type'] != 'mysql' AND cache_delete("user-$uid");
+	!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
 	isset($g_static_users[$uid]) AND $g_static_users[$uid] = array_merge($g_static_users[$uid], $arr);
 	
 	// hook model_user_update_end.php
 	return $r;
+}
+
+function user_login_verify($password, $user) {
+	if(!empty($user['password_hash'])) {
+		return password_verify($password, $user['password_hash']);
+	}
+	if(!empty($user['password'])) {
+		if(md5($password.$user['salt']) == $user['password']) {
+			if(db_check_column_exists('user', 'password_hash')) {
+				user__update($user['uid'], array('password_hash' => password_hash($password, PASSWORD_DEFAULT)));
+			}
+			return TRUE;
+		}
+		return FALSE;
+	}
+	return FALSE;
 }
 
 function user_read($uid) {
@@ -85,7 +111,7 @@ function user_read_cache($uid) {
 	// 游客
 	if($uid == 0) return user_guest();
 	
-	if($conf['cache']['type'] != 'mysql') {
+	if(!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql'))) {
 		$r = cache_get("user-$uid");
 		if($r === NULL) {
 			$r = user_read($uid);
@@ -105,6 +131,9 @@ function user_delete($uid) {
 	global $conf, $g_static_users;
 	// hook model_user_delete_start.php
 	
+	$user = user_read($uid);
+	if(empty($user)) return NULL;
+	
 	// 清理主题帖
 	$threadlist = mythread_find_by_uid($uid, 1, 1000);
 	foreach($threadlist as $thread) {
@@ -116,10 +145,14 @@ function user_delete($uid) {
 	
 	// 清理附件
 	attach_delete_by_uid($uid);
+
+	user_follow_delete_by_uid($uid);
+
+	$user['avatar_path'] AND xn_unlink($user['avatar_path']);
 	
 	$r = user__delete($uid);
 	
-	$conf['cache']['type'] != 'mysql' AND cache_delete("user-$uid");
+	!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
 	if(isset($g_static_users[$uid])) unset($g_static_users[$uid]);
 	
 	// 全站统计
@@ -148,6 +181,7 @@ function user_read_by_email($email) {
 	// hook model_user_read_by_email_start.php
 	$user = db_find_one('user', array('email'=>$email));
 	user_format($user);
+	if(empty($user)) return $user;
 	$g_static_users[$user['uid']] = $user;
 	// hook model_user_read_by_email_end.php
 	return $user;
@@ -158,6 +192,7 @@ function user_read_by_username($username) {
 	// hook model_user_read_by_username_start.php
 	$user = db_find_one('user', array('username'=>$username));
 	user_format($user);
+	if(empty($user)) return $user;
 	$g_static_users[$user['uid']] = $user;
 	// hook model_user_read_by_username_end.php
 	return $user;
@@ -177,24 +212,72 @@ function user_maxid($cond = array()) {
 	return $n;
 }
 
+function avatar_preset_files() {
+	static $cache = null;
+	if($cache !== null) return $cache;
+	$dir = APP_PATH.'view/img/avatars/';
+	if(!is_dir($dir)) { $cache = array(); return $cache; }
+	$files = glob($dir.'*.{png,jpg,jpeg,gif,svg,webp,bmp}', GLOB_BRACE);
+	if(!$files) { $cache = array(); return $cache; }
+	sort($files, SORT_NATURAL);
+	$result = array();
+	foreach($files as $i => $fullpath) {
+		$basename = basename($fullpath);
+		$result[$i + 1] = array(
+			'filename' => $basename,
+			'url' => '/view/img/avatars/'.$basename
+		);
+	}
+	$cache = $result;
+	return $result;
+}
+
 function user_format(&$user) {
 	global $conf, $grouplist;
 	if(empty($user)) return;
 
 	// hook model_user_format_start.php
 	
-	$user['create_ip_fmt']   = long2ip($user['create_ip']);
+	$user['create_ip_fmt']   = long2ip(intval($user['create_ip']));
 	$user['create_date_fmt'] = empty($user['create_date']) ? '0000-00-00' : date('Y-m-d', $user['create_date']);
-	$user['login_ip_fmt']    = long2ip($user['login_ip']);
+	$user['login_ip_fmt']    = long2ip(intval($user['login_ip']));
 	$user['login_date_fmt'] = empty($user['login_date']) ? '0000-00-00' : date('Y-m-d', $user['login_date']);
 	
 	$user['groupname'] = group_name($user['gid']);
 	
 	$dir = substr(sprintf("%09d", $user['uid']), 0, 3);
 	// hook model_user_format_avatar_url_before.php
-	$user['avatar_url'] = $user['avatar'] ? $conf['upload_url']."avatar/$dir/$user[uid].png?".$user['avatar'] : 'view/img/avatar.png';
-
+	if($user['avatar'] < 0) {
+		$preset_id = abs($user['avatar']);
+		$preset_list = avatar_preset_files();
+		if(isset($preset_list[$preset_id])) {
+			$user['avatar_url'] = $preset_list[$preset_id]['url'];
+		} else {
+			$user['avatar_url'] = '/view/img/avatar.png';
+		}
+		$user['avatar_path'] = '';
+	} elseif($user['avatar'] > 0) {
+		$user['avatar_url'] = $conf['upload_url']."avatar/$dir/$user[uid].png?".$user['avatar'];
+		$user['avatar_path'] = $conf['upload_path']."avatar/$dir/$user[uid].png?".$user['avatar'];
+	} else {
+		$user['avatar_url'] = '/view/img/avatar.png';
+		$user['avatar_path'] = '';
+	}
+	
+	if(isset($grouplist[$user['gid']])) {
+		$user['group_icon_class'] = group_icon($grouplist[$user['gid']]);
+		$user['group_color'] = isset($grouplist[$user['gid']]['color']) ? $grouplist[$user['gid']]['color'] : '';
+	} else {
+		$user['group_icon_class'] = '';
+		$user['group_color'] = '';
+	}
+	
 	$user['online_status'] = 1;
+	$user['is_followed'] = 0;
+	if(!empty($uid) && $uid != $user['uid']) {
+		$is_followed = user_follow_read($uid, $user['uid']);
+		$user['is_followed'] = !empty($is_followed) ? 1 : 0;
+	}
 	// hook model_user_format_end.php
 }
 
@@ -210,7 +293,7 @@ function user_guest() {
 		'gid' => 0,
 		'groupname' => lang('guest_group'),
 		'username' => lang('guest'),
-		'avatar_url' => 'view/img/avatar.png',
+		'avatar_url' => '/view/img/avatar.png',
 		'create_ip_fmt' => '',
 		'create_date_fmt' => '',
 		'login_date_fmt' => '',
@@ -294,11 +377,10 @@ function user_safe_info($user) {
 function user_token_get() {
 	global $time;
 	$_uid = user_token_get_do();
-	
 	// hook model_user_token_get_start.php
-	
+
 	if(!$_uid) {
-		setcookie('bbs_token', '', $time - 86400, '');
+		//setcookie('bbs_token', '', $time - 86400, '');
 	}
 	
 	// hook model_user_token_get_end.php
@@ -318,10 +400,20 @@ function user_token_get_do() {
 	$s = xn_decrypt($token, $tokenkey);
 	if(empty($s)) return FALSE;
 	$arr = explode("\t", $s);
-	if(count($arr) != 3) return FALSE;
-	list($_ip, $_time, $_uid) = $arr;
+	if(count($arr) != 4) return FALSE;
+	list($_ip, $_time, $_uid, $_pwd) = $arr;
 	//if($ip != $_ip) return FALSE;
 	//if($time - $_time > 86400) return FALSE;
+	// 检查密码是否被修改。
+	if($time - $_time > 1800) {
+		$user = user_read($_uid);
+		if(empty($user)) return 0;
+		if(md5($user['password']) != $_pwd) {
+			return 0;
+		}
+	}
+	
+	
 	
 	// hook model_user_token_get_do_end.php
 	
@@ -350,8 +442,10 @@ function user_token_gen($uid) {
 	
 	// hook model_user_token_gen_start.php
 	
+	$user = user_read($uid);
+	$pwd = md5($user['password']);
 	$tokenkey = md5(xn_key());
-	$token = xn_encrypt("$ip	$time	$uid", $tokenkey);
+	$token = xn_encrypt("$ip	$time	$uid	$pwd", $tokenkey);
 	
 	// hook model_user_token_gen_end.php
 	
@@ -368,6 +462,152 @@ function user_login_check() {
 	empty($user) AND http_location(url('user-login'));
 	
 	// hook model_user_login_check_end.php
+}
+
+
+
+// 获取用户来路
+function user_http_referer() {
+	// hook user_http_referer_start.php
+	$referer = param('referer'); // 优先从参数获取 | GET is priority
+	empty($referer) AND $referer = array_value($_SERVER, 'HTTP_REFERER', '');
+	
+	$referer = str_replace(array('\"', '"', '<', '>', ' ', '*', "\t", "\r", "\n"), '', $referer); // 干掉特殊字符 strip special chars
+	
+	if(
+		!preg_match('#^(http|https)://[\w\-=/\.]+/[\w\-=.%\#?]*$#is', $referer) 
+		|| strpos($referer, 'user-login.htm') !== FALSE 
+		|| strpos($referer, 'user-logout.htm') !== FALSE 
+		|| strpos($referer, 'user-create.htm') !== FALSE 
+		|| strpos($referer, 'user-setpw.htm') !== FALSE 
+		|| strpos($referer, 'user-resetpw_complete.htm') !== FALSE
+	) {
+		$referer = './';
+	}
+	// hook user_http_referer_end.php
+	return $referer;
+}
+
+function user_auth_check($token) {
+	// hook user_auth_check_start.php
+	global $time;
+	$auth = param(2);
+	$s = decrypt($auth);
+	empty($s) AND message(-1, lang('decrypt_failed'));
+	$arr = explode('-', $s);
+	count($arr) != 3 AND message(-1, lang('encrypt_failed'));
+	list($_ip, $_time, $_uid) = $arr;
+	$_user = user_read($_uid);
+	empty($_user) AND message(-1, lang('user_not_exists'));
+	$time - $_time > 3600 AND message(-1, lang('link_has_expired'));
+	// hook user_auth_check_end.php
+	return $_user;
+}
+
+
+// 安全修改密码（替代直接 user_update 修改 password 字段）
+// $uid: 目标用户 UID
+// $new_password: 新密码（已通过 password_md5 处理的）
+// $old_password: 旧密码（已通过 password_md5 处理的），管理员模式可留空
+// $is_admin: 是否管理员模式，管理员模式跳过旧密码验证
+function user_change_password($uid, $new_password, $old_password = '', $is_admin = FALSE) {
+	global $conf, $g_static_users;
+
+	// hook model_user_change_password_start.php
+
+	$user = user_read($uid);
+	if(empty($user)) return FALSE;
+
+	if($is_admin) {
+		// 管理员模式：验证当前操作者是管理员
+		global $user;
+		if(empty($user) || $user['gid'] != 1) {
+			xn_log("user_change_password(): Non-admin attempted admin password reset for uid=$uid", 'security');
+			return FALSE;
+		}
+	} else {
+		// 普通模式：验证旧密码
+		if(empty($old_password) || !user_login_verify($old_password, $user)) {
+			return FALSE;
+		}
+	}
+
+	// 生成新 salt 并更新密码
+	$salt = xn_rand(16);
+	$update = array(
+		'password' => md5($new_password . $salt),
+		'salt' => $salt,
+	);
+
+	// 同时更新 password_hash（bcrypt）
+	if(db_check_column_exists('user', 'password_hash')) {
+		$update['password_hash'] = password_hash($new_password, PASSWORD_DEFAULT);
+	}
+
+	// 直接调用 user__update 绕过白名单（本函数已做权限验证）
+	$r = user__update($uid, $update);
+
+	if($r !== FALSE) {
+		// 清除用户 token，强制重新登录
+		user_token_clear();
+
+		// 更新静态缓存
+		isset($g_static_users[$uid]) AND $g_static_users[$uid] = array_merge($g_static_users[$uid], $update);
+
+		// 清除其他缓存
+		!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
+
+		xn_log("user_change_password(): Password changed for uid=$uid" . ($is_admin ? " (by admin)" : ""), 'security');
+	}
+
+	// hook model_user_change_password_end.php
+
+	return $r;
+}
+
+// 安全修改用户组（替代直接 user_update 修改 gid 字段）
+// $uid: 目标用户 UID
+// $new_gid: 新用户组 GID
+function user_change_group($uid, $new_gid) {
+	global $conf, $g_static_users, $user;
+
+	// hook model_user_change_group_start.php
+
+	// 验证当前操作者是管理员
+	if(empty($user) || $user['gid'] != 1) {
+		xn_log("user_change_group(): Non-admin attempted to change group for uid=$uid to gid=$new_gid", 'security');
+		return FALSE;
+	}
+
+	$_user = user_read($uid);
+	if(empty($_user)) return FALSE;
+
+	// 禁止将最后一个管理员降级
+	if($_user['gid'] == 1 && $new_gid != 1) {
+		$admin_count = user_count(array('gid'=>1));
+		if($admin_count <= 1) {
+			xn_log("user_change_group(): Attempt to demote the last admin uid=$uid", 'security');
+			return FALSE;
+		}
+	}
+
+	// 直接调用 user__update 绕过白名单（本函数已做权限验证）
+	$update = array('gid' => $new_gid);
+	$r = user__update($uid, $update);
+
+	if($r !== FALSE) {
+		// 更新静态缓存
+		isset($g_static_users[$uid]) AND $g_static_users[$uid]['gid'] = $new_gid;
+
+		// 清除其他缓存
+		!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
+
+		xn_log("user_change_group(): Group changed for uid=$uid to gid=$new_gid by admin uid={$user['uid']}", 'security');
+	}
+
+	// hook model_user_change_group_end.php
+
+	return $r;
 }
 
 // hook model_user_end.php

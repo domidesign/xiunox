@@ -14,7 +14,7 @@
 
 // 0: Production mode; 1: Developer mode; 2: Plugin developement mode;
 // 0: 线上模式; 1: 调试模式; 2: 插件开发模式;
-!defined('DEBUG') AND define('DEBUG', 0);
+!defined('DEBUG') AND define('DEBUG', 2);
 define('APP_PATH', dirname(__FILE__).'/'); // __DIR__
 !defined('ADMIN_PATH') AND define('ADMIN_PATH', APP_PATH.'admin/');
 !defined('XIUNOPHP_PATH') AND define('XIUNOPHP_PATH', APP_PATH.'xiunophp/');
@@ -26,15 +26,29 @@ $conf = (@include APP_PATH.'conf/conf.php') OR exit('<script>window.location="in
 
 // 兼容 4.0.3 的配置文件	
 !isset($conf['user_create_on']) AND $conf['user_create_on'] = 1;
-!isset($conf['logo_mobile_url']) AND $conf['logo_mobile_url'] = 'view/img/logo.png';
-!isset($conf['logo_pc_url']) AND $conf['logo_pc_url'] = 'view/img/logo.png';
-!isset($conf['logo_water_url']) AND $conf['logo_water_url'] = 'view/img/water-small.png';
+!isset($conf['cache_disable']) AND $conf['cache_disable'] = 0;
+!isset($conf['logo_mobile_url']) AND $conf['logo_mobile_url'] = '/view/img/logo.png';
+!isset($conf['logo_pc_url']) AND $conf['logo_pc_url'] = '/view/img/logo.png';
+!isset($conf['logo_water_url']) AND $conf['logo_water_url'] = '/view/img/water-small.png';
 $conf['version'] = '4.0.4';		// 定义版本号！避免手工修改 conf/conf.php
 
 // 转换为绝对路径，防止被包含时出错。
 substr($conf['log_path'], 0, 2) == './' AND $conf['log_path'] = APP_PATH.$conf['log_path']; 
 substr($conf['tmp_path'], 0, 2) == './' AND $conf['tmp_path'] = APP_PATH.$conf['tmp_path']; 
 substr($conf['upload_path'], 0, 2) == './' AND $conf['upload_path'] = APP_PATH.$conf['upload_path']; 
+
+// 确保 view_url 和 upload_url 为绝对路径（以 / 开头），避免在 /admin/ 下解析为 /admin/view/ 或 /admin/upload/
+foreach(array('view_url', 'upload_url') as $_url_key) {
+	if(!empty($conf[$_url_key]) && $conf[$_url_key][0] !== '/' && strpos($conf[$_url_key], '://') === FALSE && strpos($conf[$_url_key], '//') !== 0) {
+		$conf[$_url_key] = '/' . $conf[$_url_key];
+	}
+}
+// 确保 logo 等图片路径也是绝对路径
+foreach(array('logo_mobile_url', 'logo_pc_url', 'logo_water_url') as $_logo_key) {
+	if(!empty($conf[$_logo_key]) && $conf[$_logo_key][0] !== '/' && strpos($conf[$_logo_key], '://') === FALSE && strpos($conf[$_logo_key], '//') !== 0) {
+		$conf[$_logo_key] = '/' . $conf[$_logo_key];
+	}
+}
 
 $_SERVER['conf'] = $conf;
 
@@ -48,7 +62,12 @@ if(DEBUG > 1) {
 //db_connect() OR exit($errstr);
 
 include APP_PATH.'model/plugin.func.php';
+// model.inc.php 和 index.inc.php 需要走 _include() 以支持插件 hook 注入
+// _include() 已修复原子写入，不再有并发截断问题
 include _include(APP_PATH.'model.inc.php');
+include APP_PATH.'lib/ErrorHandler.php';
+ErrorHandler::register();
+require_once APP_PATH.'lib/avatar_component.php';
 include _include(APP_PATH.'index.inc.php');
 
 //file_put_contents((ini_get('xhprof.output_dir') ? : '/tmp') . '/' . uniqid() . '.xhprof.xhprof', serialize(xhprof_disable()));

@@ -6,8 +6,53 @@
 
 $sid = sess_start();
 
+include APP_PATH.'lib/CsrfService.php';
+include APP_PATH.'lib/EscapeService.php';
+include APP_PATH.'lib/EditorService.php';
+include APP_PATH.'lib/PermissionService.php';
+
+// 用户级语言切换：cookie > 浏览器 > 站点默认
+$user_lang = _COOKIE('lang');
+if ($user_lang && is_dir(APP_PATH."lang/$user_lang")) {
+    $conf['lang'] = $user_lang;
+} elseif (empty($user_lang)) {
+    $accept_langs = isset($_SERVER['HTTP_ACCEPT_LANGUAGE']) ? substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 5) : '';
+    $lang_map = array('zh-cn'=>'zh-cn', 'zh-tw'=>'zh-tw', 'en'=>'en-us', 'ru'=>'ru-ru', 'th'=>'th-th', 'ja'=>'ja-jp', 'ko'=>'ko-kr');
+    foreach ($lang_map as $prefix => $locale) {
+        if (stripos($accept_langs, $prefix) === 0 && is_dir(APP_PATH."lang/$locale")) {
+            $conf['lang'] = $locale;
+            break;
+        }
+    }
+}
+
 // 语言 / Language
-$_SERVER['lang'] = $lang = include _include(APP_PATH."lang/$conf[lang]/bbs.php");
+$_r = include _include(APP_PATH."lang/$conf[lang]/bbs.php");
+$_SERVER['lang'] = $lang = is_array($_r) ? $_r : array();
+
+// 积分类型名称动态覆盖
+if(isset($conf['credits_name']) && $conf['credits_name']) {
+    $lang['credits_label'] = $conf['credits_name'];
+    $lang['admin_credits_type_credits'] = $conf['credits_name'];
+}
+if(isset($conf['golds_name']) && $conf['golds_name']) {
+    $lang['golds_label'] = $conf['golds_name'];
+    $lang['admin_credits_type_golds'] = $conf['golds_name'];
+}
+if(isset($conf['rmbs_name']) && $conf['rmbs_name']) {
+    $lang['admin_credits_type_rmbs'] = $conf['rmbs_name'];
+}
+// 积分规则相关名称覆盖
+if(isset($conf['credits_name']) && $conf['credits_name']) {
+    $lang['admin_credits_rule_credits_change'] = $conf['credits_name'] . '变化';
+}
+if(isset($conf['golds_name']) && $conf['golds_name']) {
+    $lang['admin_credits_rule_golds_change'] = $conf['golds_name'] . '变化';
+}
+if(isset($conf['rmbs_name']) && $conf['rmbs_name']) {
+    $lang['admin_credits_rule_rmbs_change'] = $conf['rmbs_name'] . '变化';
+}
+$_SERVER['lang'] = $lang;
 
 // 用户组 / Group
 $grouplist = group_list_cache();
@@ -23,8 +68,8 @@ $group = isset($grouplist[$gid]) ? $grouplist[$gid] : $grouplist[0];
 
 // 版块 / Forum
 $fid = 0;
-$forumlist = forum_list_cache();
-$forumlist_show = forum_list_access_filter($forumlist, $gid);	// 有权限查看的板块 / filter no permission forum
+$forumlist = function_exists('forum_list_cache') ? forum_list_cache() : array();
+$forumlist_show = function_exists('forum_list_access_filter') ? forum_list_access_filter($forumlist, $gid) : $forumlist;
 $forumarr = arrlist_key_values($forumlist_show, 'fid', 'name');
 
 // 头部 header.inc.htm 
@@ -37,8 +82,14 @@ $header = array(
 	'navs'=>array(),
 );
 
+$header['csrf_token'] = CsrfService::generate();
+
 // 运行时数据，存放于 cache_set() / runtime data
 $runtime = runtime_init();
+
+// 安全配置缓存（避免 header_nav 每次查库）
+if(!class_exists('SecurityConfigService')) include APP_PATH . 'lib/security/SecurityConfigService.php';
+$_search_require_login = SecurityConfigService::get('security_search_require_login', 1);
 
 // 检测站点运行级别 / restricted access
 check_runlevel();
@@ -46,9 +97,75 @@ check_runlevel();
 // 全站的设置数据，站点名称，描述，关键词
 // $setting = kv_get('setting');
 
+// 固定链接 301 重定向：旧格式 URL 自动跳转到新格式
+if(!empty($conf['url_rewrite_on'])) {
+    $request_uri = $_SERVER['REQUEST_URI'];
+    $uri_no_path = isset($_SERVER['REQUEST_URI_NO_PATH']) ? $_SERVER['REQUEST_URI_NO_PATH'] : '';
+
+    // 检测是否为旧格式 ?xxx-yyy.htm（url_rewrite_on=0 的格式）
+    // 当 url_rewrite_on > 0 时，如果 URL 以 ? 开头（如 /?user-1.htm），说明是旧格式
+    // 兼容微信等应用复制 URL 自动追加等号（如 /?index.htm=）
+    if(preg_match('#^/\?[\w\-]+.*\.htm=?#', $request_uri)) {
+        // 构建新格式 URL
+        $path = http_url_path();
+        $new_url = '';
+        if($conf['url_rewrite_on'] == 1) {
+            // 伪静态：去掉问号 /?user-1.htm → /user-1.htm
+            $new_url = str_replace('/?', '/', $request_uri);
+        } elseif($conf['url_rewrite_on'] == 3) {
+            // 路径风格：/?user-1.htm → /user/1
+            $new_url = str_replace('/?', '/', $request_uri);
+            $new_url = preg_replace('#/([\w]+)-([\w\-]+)\.htm#', '/$1/$2', $new_url);
+            $new_url = preg_replace('#/([\w]+)\.htm#', '/$1', $new_url);
+        }
+        // 去掉微信等应用追加的尾部等号
+        $new_url = rtrim($new_url, '=');
+        if($new_url && $new_url != $request_uri) {
+            header("HTTP/1.1 301 Moved Permanently");
+            header("Location: " . $path . ltrim($new_url, '/'));
+            exit;
+        }
+    }
+}
+
 $route = param(0, 'index');
 
+// 兼容 ?keyword=xxx 格式的搜索 URL（缺少路由标识时自动跳转搜索）
+if(isset($_REQUEST['keyword']) && trim($_REQUEST['keyword']) !== '') {
+    $valid_routes = array('index','thread','forum','user','my','attach','post','mod','browser','theme','search','lang','api','forums','rank','notice','captcha');
+    if(!in_array($route, $valid_routes)) {
+        http_location('search.htm?keyword=' . urlencode(trim($_REQUEST['keyword'])));
+    }
+}
+
 // hook index_inc_route_before.php
+
+// API 路由：支持伪静态 /api/v1/xxx 和非伪静态 ?api-v1-xxx.htm 两种格式
+$isApiRoute = false;
+if (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/api/v1/') === 0) {
+    // 伪静态格式：/api/v1/auth/login
+    $isApiRoute = true;
+} elseif ($route === 'api') {
+    // 非伪静态格式：?api-v1-auth-login.htm
+    $subRoute = param(1, '');
+    if ($subRoute === 'v1') {
+        $isApiRoute = true;
+        // 将路由参数还原到 REQUEST_URI，使 bootstrap.php 能正确解析
+        $apiPath = '/api/v1';
+        $i = 2;
+        while (($seg = param($i, '')) !== '') {
+            $apiPath .= '/' . $seg;
+            $i++;
+        }
+        $_SERVER['REQUEST_URI'] = $apiPath;
+    }
+}
+
+if ($isApiRoute) {
+    define('SKIP_ROUTE', true);
+    include APP_PATH . 'api/v1/bootstrap.php';
+    exit;
+}
 
 if(!defined('SKIP_ROUTE')) {
 	
@@ -65,17 +182,22 @@ if(!defined('SKIP_ROUTE')) {
 		case 'post': 	include _include(APP_PATH.'route/post.php'); 	break;
 		case 'mod': 	include _include(APP_PATH.'route/mod.php'); 	break;
 		case 'browser': include _include(APP_PATH.'route/browser.php'); break;
+		case 'theme': 	include _include(APP_PATH.'route/theme.php'); 	break;
+	case 'search': 	include _include(APP_PATH.'route/search.php'); 	break;
+	case 'lang': 	include _include(APP_PATH.'route/lang.php'); 	break;
+	case 'api':		include _include(APP_PATH.'api/v1/bootstrap.php');	break;
+	case 'forums':	include _include(APP_PATH.'route/forum_index.php');	break;
+	case 'rank':	include _include(APP_PATH.'route/rank.php');	break;
+	case 'notice':	include _include(APP_PATH.'route/notice.php');	break;
+	case 'captcha':	include _include(APP_PATH.'route/captcha.php');	break;
 		// hook index_route_case_end.php
-		default: 
+		default:
 			// hook index_route_case_default.php
-			include _include(APP_PATH.'route/index.php'); 	break;
-			//http_404();
-			/*
 			!is_word($route) AND http_404();
-			$routefile = _include(APP_PATH."route/$route.php");
+			$routefile = APP_PATH."route/$route.php";
 			!is_file($routefile) AND http_404();
-			include $routefile;
-			*/
+			include _include($routefile);
+			break;
 	}
 }
 
