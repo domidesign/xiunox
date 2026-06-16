@@ -65,7 +65,7 @@ return array (
 	
 	'cookie_domain' => '',
 	'cookie_path' => '',
-	'auth_key' => 'efdkjfjiiiwurjdmclsldow753jsdj438',
+	'auth_key' => 'change_this_to_your_own_random_string',
 	
 	'pagesize' => 20,
 	'postlist_pagesize' => 100,

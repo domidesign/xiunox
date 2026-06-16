@@ -7,8 +7,15 @@ tmp/*
 log/*
 !log/.gitkeep
 
-# Generated config (created during installation)
+# Config files with sensitive data
 conf/conf.php
+conf/smtp.conf.php
+
+# Credentials and secrets
+.env
+*.pem
+*.key
+credentials.*
 
 # Upload files
 upload/attach/*
