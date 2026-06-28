@@ -224,7 +224,7 @@ class EditorService {
         li.innerHTML = '<span class="att-icon"><i class="ti ti-paperclip"></i></span>' +
             '<span class="att-name" title="' + name + '">' + nameHtml + '</span>' +
             (size ? '<span class="att-size">' + size + '</span>' : '') +
-            '<button type="button" class="btn btn-sm btn-outline-danger rounded-pill py-0 px-2" title="删除" onclick="deleteAttach(this, ' + (msg.aid || 0) + ')"><i class="ti ti-trash" style="font-size:12px;"></i></button>';
+            '<button type="button" class="btn btn-sm btn-outline-danger rounded-pill py-0 px-2" title="删除" onclick="deleteAttach(this, \'' + (msg.aid || 0) + '\')"><i class="ti ti-trash" style="font-size:12px;"></i></button>';
         attachmentList.appendChild(li);
     }
 
