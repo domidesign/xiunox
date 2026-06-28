@@ -198,7 +198,16 @@ if(empty($action)) {
 				}
 			}
 			if($r === FALSE) {
-			message(-1, "$errstr (errno: $errno)");
+			// 根据错误码给出友好提示
+			if($errno == 1045) {
+				message(-1, lang('db_connect_denied'));
+			} elseif($errno == 1049) {
+				message(-1, lang('db_not_found'));
+			} elseif($errno == 2002) {
+				message(-1, lang('db_host_unreachable'));
+			} else {
+				message(-1, lang('db_connect_failed') . " ($errstr, errno: $errno)");
+			}
 		}
 	}
 

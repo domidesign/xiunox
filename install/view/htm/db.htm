@@ -79,7 +79,8 @@ jform.addEventListener('submit', function(e) {
 
 	fetch(jform.action, {
 		method: 'POST',
-		body: postdata
+		body: postdata,
+		headers: {'X-Requested-With': 'XMLHttpRequest'}
 	}).then(function(response) {
 		return response.json();
 	}).then(function(data) {

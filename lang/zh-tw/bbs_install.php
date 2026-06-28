@@ -78,6 +78,11 @@ XIUNOX 採用 MIT 協議發布，您可以自由修改、派生版本、商用�
 
 	'db_already_exists_confirm' => '數據庫中已存在 Xiuno BBS 的表，繼續安裝將清空所有數據！點擊確定繼續，取消返回修改。',
 
+	'db_connect_denied' => '數據庫連接被拒絕，請檢查用戶名和密碼是否正確',
+	'db_not_found' => '數據庫不存在，請先創建數據庫或檢查數據庫名是否正確',
+	'db_host_unreachable' => '無法連接數據庫服務器，請檢查主機地址和端口是否正確',
+	'db_connect_failed' => '數據庫連接失敗',
+
 	// ========== 安裝界面擴展 ==========
 	'install_choose_language' => '選擇語言',
 	'install_next_step' => '下一步',

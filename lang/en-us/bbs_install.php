@@ -78,6 +78,11 @@ XIUNOX is released under the MIT license. You are free to modify, create derivat
 	'admin_email_invalid'=>'Administrator email format is invalid',
 	'db_already_exists_confirm'=>'XIUNOX tables already exist in the database. Continuing will clear all data! Click OK to continue, or Cancel to go back.',
 
+	'db_connect_denied' => 'Database access denied, please check your username and password',
+	'db_not_found' => 'Database does not exist, please create it first or check the database name',
+	'db_host_unreachable' => 'Cannot connect to database server, please check the host address and port',
+	'db_connect_failed' => 'Database connection failed',
+
 	// ========== Installation Interface Extensions ==========
 	'install_choose_language' => 'Choose Language',
 	'install_next_step' => 'Next',
