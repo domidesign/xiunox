@@ -1,6 +1,6 @@
 <?php $step = 4; include INSTALL_PATH.'view/htm/header.inc.htm';?>
 
-<div class="x-card  cardrounded-3">
+<div class="x-card  card">
     <div class="card-body text-center">
         <div class="mb-3">
             <i class="ti ti-circle-check text-success" style="font-size:4rem"></i>
@@ -8,12 +8,12 @@
         <h3 class="text-success"><?php echo lang('install_success') ?? '安装成功！'; ?></h3>
         <hr>
         <div class="text-start">
-            <h5><i class="ti ti-alert-triangle text-danger me-1"></i>安全提示</h5>
+            <h5><i class="ti ti-alert-triangle text-danger me-1"></i><?php echo lang('install_security_tips'); ?></h5>
             <ul class="list-unstyled ms-4">
-                <li class="mb-2"><i class="ti ti-check text-success me-1"></i><strong>删除安装目录</strong>：系统已自动锁定安装程序，但仍建议手动删除 <code>install/</code> 目录以确保安全</li>
-                <li class="mb-2"><i class="ti ti-check text-success me-1"></i><strong>修改管理员密码</strong>：登录后请及时修改管理员密码为强密码</li>
-                <li class="mb-2"><i class="ti ti-check text-success me-1"></i><strong>配置 HTTPS</strong>：建议为站点配置 SSL 证书，启用 HTTPS</li>
-                <li class="mb-2"><i class="ti ti-check text-success me-1"></i><strong>修改数据库密码</strong>：如果使用了默认数据库密码，请及时修改</li>
+                <li class="mb-2"><i class="ti ti-check text-success me-1"></i><strong><?php echo lang('install_tip_delete_install_dir'); ?></strong>：<?php echo lang('install_tip_delete_install_dir_desc'); ?> <code>install/</code> 目录以确保安全</li>
+                <li class="mb-2"><i class="ti ti-check text-success me-1"></i><strong><?php echo lang('install_tip_change_admin_pw'); ?></strong>：<?php echo lang('install_tip_change_admin_pw_desc'); ?></li>
+                <li class="mb-2"><i class="ti ti-check text-success me-1"></i><strong><?php echo lang('install_tip_configure_https'); ?></strong>：<?php echo lang('install_tip_configure_https_desc'); ?></li>
+                <li class="mb-2"><i class="ti ti-check text-success me-1"></i><strong><?php echo lang('install_tip_change_db_pw'); ?></strong>：<?php echo lang('install_tip_change_db_pw_desc'); ?></li>
             </ul>
         </div>
         <div class="mt-4">

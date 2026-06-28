@@ -6,7 +6,7 @@
 
 <div class="x-card card">
 	<div class="card-body">
-		<form action="<?php echo url('group-list');?>" method="post" id="form">
+		<form action="<?php echo admin_group_list_url();?>" method="post" id="form">
 			<?php echo CsrfService::input(); ?>
 			<div class="arrlist space-y-3">
 				<div class="d-none d-md-grid gap-2 text-center text-body-secondary text-sm font-medium" style="grid-template-columns:48px 80px 1fr 60px 100px 100px 40px 40px;">
@@ -29,7 +29,7 @@
 					<input type="color" class="form-control form-control-color p-0" name="color[<?php echo $_gid;?>]" value="<?php echo isset($_group['color']) && $_group['color'] ? $_group['color'] : '#6c757d';?>" style="width:40px;height:30px" title="<?php echo isset($_group['color']) ? $_group['color'] : '';?>" />
 					<input type="text" class="form-control form-control-sm" name="creditsfrom[<?php echo $_gid;?>]" value="<?php echo $_group['creditsfrom']; ?>" placeholder="<?php echo lang('group_credits_from');?>" style="width:100px;" />
 					<input type="text" class="form-control form-control-sm" name="creditsto[<?php echo $_gid;?>]" value="<?php echo $_group['creditsto']; ?>" placeholder="<?php echo lang('group_credits_to');?>" style="width:100px;" />
-					<a class="row-action row_edit text-center" role="button" title="<?php echo lang('edit');?>"><i class="ti ti-pencil"></i></a>
+					<a class="row-action text-center" href="?group-update-<?php echo $_gid;?>.htm" role="button" title="<?php echo lang('edit');?>"><i class="ti ti-pencil"></i></a>
 					<?php if(!in_array($_gid, $system_group)) { ?>
 					<a class="row-action row_delete text-center" role="button" title="<?php echo lang('delete');?>"><i class="ti ti-trash"></i></a>
 					<?php } else { ?>
@@ -55,63 +55,93 @@
 
 <script>
 
+console.log('[group_list] script start');
+console.log('[group_list] xn:', typeof xn);
+console.log('[group_list] showToast:', typeof showToast);
+
 var maxgid = <?php echo $maxgid;?>;
 
-var jform = $("#form");
-var jsubmit = $("#submit");
-jform.on('submit', function(){
-	jform.reset();
-	jsubmit.button('loading');
-	var postdata = jform.serialize();
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
-		if(code == 0) {
-			showToast(message, 'success');
-			jsubmit.text(message).delay(3000).location();
-			return;
+var jform = document.getElementById('form');
+var jsubmit = document.getElementById('submit');
+console.log('[group_list] form:', jform, 'submit:', jsubmit);
+
+jform.addEventListener('submit', function(e) {
+	e.preventDefault();
+	jsubmit.disabled = true;
+	jsubmit.textContent = '<?php echo lang('submiting');?>...';
+	var postdata = new FormData(jform);
+
+	fetch(jform.action, {
+		method: 'POST',
+		body: postdata,
+		headers: { 'X-Requested-With': 'XMLHttpRequest' }
+	})
+	.then(function(r) { console.log('[group_list] submit response status:', r.status); return r.text(); })
+	.then(function(text) {
+		console.log('[group_list] submit response:', text.substring(0, 200));
+		var res;
+		try { res = JSON.parse(text); } catch(e) { console.log('[group_list] JSON parse error'); return; }
+		if (parseInt(res.code) == 0) {
+			showToast(res.message, 'success');
+			setTimeout(function() { window.location.href = window.location.href; }, 1500);
 		} else {
-			showToast(message, 'error');
-			jsubmit.button('reset');
+			showToast(res.message, 'error');
+			jsubmit.disabled = false;
+			jsubmit.textContent = '<?php echo lang('confirm');?>';
+		}
+	})
+	.catch(function(err) {
+		console.log('[group_list] submit error:', err);
+		showToast('请求失败', 'error');
+		jsubmit.disabled = false;
+		jsubmit.textContent = '<?php echo lang('confirm');?>';
+	});
+});
+
+// 删除按钮
+document.querySelector('.arrlist').addEventListener('click', function(e) {
+	var deleteBtn = e.target.closest('a.row_delete');
+	if (deleteBtn) {
+		console.log('[group_list] delete button clicked');
+		var row = deleteBtn.closest('.group-item');
+		if (row) row.remove();
+	}
+});
+
+// 添加行
+document.querySelector('a.row_add').addEventListener('click', function(e) {
+	e.preventDefault();
+	console.log('[group_list] add row clicked');
+	var arrlist = document.querySelector('.arrlist');
+	var lastItem = arrlist.querySelector('.group-item:last-child');
+	var clone = lastItem.cloneNode(true);
+	arrlist.appendChild(clone);
+	var rowid = ++maxgid;
+
+	// 更新 rowid
+	clone.setAttribute('rowid', rowid);
+
+	// 更新图标为默认图标
+	var iconSpan = clone.querySelector('.icon-preview-span');
+	if (iconSpan) iconSpan.innerHTML = '<i class="ti ti-circle-dot text-body-secondary"></i>';
+
+	// 清空输入框
+	var inputs = clone.querySelectorAll('input');
+	inputs.forEach(function(inp) {
+		if (inp.name && inp.name.indexOf('_gid') !== -1) {
+			inp.value = rowid;
+		} else {
+			inp.value = '';
+		}
+		// 更新 name 属性中的索引
+		var match = inp.name.match(/\[(\d+)\]/);
+		if (match) {
+			inp.name = inp.name.replace(/\[\d+\]/, '[' + rowid + ']');
 		}
 	});
-	return false;
 });
 
-var jarrlist = $('.arrlist');
-var jedit = $('a.row_edit');
-jarrlist.on('click', 'a.row_edit', function() {
-	var jthis = $(this);
-	var jtr = jthis.parents('.group-item');
-	var rowid = jtr.attr('rowid');
-	window.location = xn.url('group-update-'+rowid);
-});
-
-var jdelete = $('a.row_delete');
-jarrlist.on('click', 'a.row_delete', function() {
-	var jthis = $(this);
-	var jtr = jthis.parents('.group-item');
-	var rowid = jtr.attr('rowid');
-	jtr.remove();
-	return false;
-});
-var jadd = $('a.row_add');
-jadd.on('click', function() {
-	var jclone = jarrlist.find('.group-item').last().clone();
-	jclone.insertAfter(jarrlist.find('.group-item').last());
-	var jgid = jclone.find('input[name^="_gid"]');
-	var rowid = ++maxgid;
-	jgid.val(rowid);
-	jclone.attr('rowid', rowid);
-	
-	// 更新图标为默认图标
-	jclone.find('.icon-preview-span').html('<i class="ti ti-circle-dot text-body-secondary"></i>');
-	
-	// 清空输入框
-	jclone.find('input').not('[name^="_gid"]').val('');
-
-	jclone.find('input').attr_name_index(rowid);
-
-	return false;
-});
+console.log('[group_list] script end');
 
 
 </script>

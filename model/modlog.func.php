@@ -34,6 +34,13 @@ function modlog__delete($logid) {
 
 function modlog__find($cond = array(), $orderby = array(), $page = 1, $pagesize = 20) {
 	// hook model_modlog__find_start.php
+
+	// 排序字段白名单验证，防止 SQL 注入
+	$allow_orders = array('logid', 'create_date');
+	if(!is_array($orderby) || empty($orderby) || !in_array(key($orderby), $allow_orders)) {
+		$orderby = array('logid'=>-1);
+	}
+
 	$modloglist = db_find('modlog', $cond, $orderby, $page, $pagesize);
 	// hook model_modlog__find_end.php
 	return $modloglist;
@@ -46,6 +53,59 @@ function modlog_create($arr) {
 	$r = modlog__create($arr);
 	// hook model_modlog_create_end.php
 	return $r;
+}
+
+// 批量插入版主操作日志，单次 SQL 插入多条记录，消除 N+1 INSERT
+// 参数 $records 为关联数组数组，每条包含 modlog 表字段（uid, tid, pid, subject, comment, create_date, action 等）
+function modlog_create_batch($records) {
+	// hook model_modlog_create_batch_start.php
+	if(empty($records) || !is_array($records)) return 0;
+
+	global $db;
+	if(!$db) return 0;
+	$tablepre = $db->tablepre;
+
+	// 收集所有字段（取并集），保证不同字段集的记录也能批量插入
+	$allkeys = array();
+	foreach($records as $rec) {
+		if(empty($rec) || !is_array($rec)) continue;
+		foreach($rec as $k=>$v) {
+			$allkeys[$k] = true;
+		}
+	}
+	if(empty($allkeys)) return 0;
+	$keys = array_keys($allkeys);
+
+	// 构建字段列表
+	$keystr = implode(',', array_map(function($k) {
+		return '`'.addslashes((string)$k).'`';
+	}, $keys));
+
+	// 构建值列表
+	$values_parts = array();
+	foreach($records as $rec) {
+		if(empty($rec) || !is_array($rec)) continue;
+		$vals = array();
+		foreach($keys as $k) {
+			$v = isset($rec[$k]) ? $rec[$k] : '';
+			if(is_int($v) || is_float($v)) {
+				$vals[] = $v;
+			} else {
+				$vals[] = "'".addslashes((string)$v)."'";
+			}
+		}
+		$values_parts[] = '('.implode(',', $vals).')';
+	}
+
+	if(empty($values_parts)) return 0;
+
+	$valstr = implode(',', $values_parts);
+	$sql = "INSERT INTO {$tablepre}modlog ($keystr) VALUES $valstr";
+	$n = db_exec($sql);
+
+	// hook model_modlog_create_batch_end.php
+
+	return $n !== FALSE ? count($values_parts) : 0;
 }
 
 function modlog_update($logid, $arr) {

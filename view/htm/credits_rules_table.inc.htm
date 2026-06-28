@@ -1,0 +1,40 @@
+<?php
+// 积分规则表格片段（供 htmx 请求返回）
+// 变量: $credits_rules
+?>
+<?php if(!empty($credits_rules)) { ?>
+<div class="table-responsive">
+	<table class="table table-sm table-hover mb-0 credits-rules-table">
+		<thead>
+			<tr>
+				<th><?php echo lang('event_name');?></th>
+				<th class="text-center"><?php echo lang('credits_label');?></th>
+				<th class="text-center"><?php echo lang('golds_label');?></th>
+				<th class="text-center"><?php echo lang('rmb_label');?></th>
+			</tr>
+		</thead>
+		<tbody>
+		<?php foreach($credits_rules as $rule) {
+			$credits_change = intval($rule['credits_change'] ?? 0);
+			$golds_change = intval($rule['golds_change'] ?? 0);
+			$rmbs_change = intval($rule['rmbs_change'] ?? 0);
+		?>
+		<tr>
+			<td class="text-nowrap"><?php echo esc_html(credits_event_name($rule['event']));?></td>
+			<td class="text-center <?php echo $credits_change > 0 ? 'text-success' : ($credits_change < 0 ? 'text-danger' : '');?>">
+				<?php echo $credits_change > 0 ? '+' : '';echo $credits_change;?>
+			</td>
+			<td class="text-center <?php echo $golds_change > 0 ? 'text-success' : ($golds_change < 0 ? 'text-danger' : '');?>">
+				<?php echo $golds_change > 0 ? '+' : '';echo $golds_change;?>
+			</td>
+			<td class="text-center <?php echo $rmbs_change > 0 ? 'text-success' : ($rmbs_change < 0 ? 'text-danger' : '');?>">
+				<?php echo $rmbs_change > 0 ? '+' : '';echo $rmbs_change;?>
+			</td>
+		</tr>
+		<?php } ?>
+		</tbody>
+	</table>
+</div>
+<?php } else { ?>
+<div class="text-center text-body-secondary py-4"><?php echo lang('no_credits_rules');?></div>
+<?php } ?>

@@ -113,6 +113,10 @@ if(empty($action) || $action == 'create') {
 
         unset($attach['path']);
 
+        // 立即保存 session，确保 tmp_files 写入数据库
+        // 避免后续请求（发帖/回帖）读不到 tmp_files 导致路径替换失败
+        sess_save();
+
         // hook attach_create_end.php
 
         message(0, $attach);
@@ -196,6 +200,9 @@ if(empty($action) || $action == 'create') {
         $_SESSION['tmp_files'][$n] = $attach;
 
         unset($attach['path']);
+
+        // 立即保存 session，确保 tmp_files 写入数据库
+        sess_save();
 
         // hook attach_create_end.php
 
@@ -379,6 +386,60 @@ if(empty($action) || $action == 'create') {
 
         http_location($attachurl);
     }
+
+} elseif($action == 'fetch') {
+
+    // 方案C+D：签名 token + AJAX 下载，防止直接访问 URL 下载
+    // URL 格式：attach-fetch-{aid}-{token}-{expires}
+    // token 由服务端在 post_file_list_html 渲染时生成并输出到 data-token
+    $aid = param(2, 0);
+    $token = param(3, '');
+    $expires = param(4, 0);
+
+    // 必须 AJAX 请求（带 X-Requested-With 头）
+    $is_ajax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    if(!$is_ajax) {
+        http_status(403);
+        exit('Forbidden');
+    }
+
+    $attach = attach_read($aid);
+    empty($attach) AND message(-1, lang('attach_not_exists'));
+
+    // 签名校验
+    $sign_key = array_value($conf, 'attach_sign_key', '');
+    $expected_token = md5($aid . $expires . $sign_key);
+    if($token !== $expected_token) {
+        http_status(403);
+        exit('Invalid token');
+    }
+
+    // 时效校验（默认 1 小时 = 3600 秒）
+    if($expires < $time) {
+        http_status(403);
+        exit('Token expired');
+    }
+
+    // 权限校验
+    $tid = $attach['tid'];
+    $thread = thread_read($tid);
+    $fid = $thread['fid'];
+    $allowdown = forum_access_user($fid, $gid, 'allowdown');
+    empty($allowdown) AND message(-1, lang('insufficient_privilege_to_download'));
+
+    $attachpath = $conf['upload_path'].'attach/'.$attach['filename'];
+    !is_file($attachpath) AND message(-1, lang('attach_not_exists'));
+
+    // 记录下载
+    attach_update($aid, array('downloads+'=>1));
+
+    // 输出文件流
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename="'.$attach['orgfilename'].'"');
+    header('Content-Length: '.filesize($attachpath));
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    readfile($attachpath);
+    exit;
 }
 
 // hook attach_end.php

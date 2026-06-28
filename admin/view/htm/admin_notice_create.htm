@@ -18,7 +18,7 @@
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="tab-send-notice" role="tabpanel">
                     <div class="card-body">
-                        <form action="<?php echo url('notice-create');?>" method="post" id="sendNoticeForm">
+                        <form action="<?php echo admin_notice_create_url();?>" method="post" id="sendNoticeForm">
                             <?php echo CsrfService::input(); ?>
                             <div class="mb-3">
                                 <label class="form-label fw-medium"><?php echo lang('admin_notice_recvuid');?></label>
@@ -84,7 +84,7 @@ if(sendNoticeForm) {
     sendNoticeForm.addEventListener('submit', function(e) {
         e.preventDefault();
         var formData = new FormData(sendNoticeForm);
-        fetch('<?php echo url("notice-create");?>', {
+        fetch('<?php echo admin_notice_create_url();?>', {
             method: 'POST',
             body: formData,
             headers: {'X-Requested-With': 'XMLHttpRequest'}
@@ -107,7 +107,7 @@ if(announceForm) {
     announceForm.addEventListener('submit', function(e) {
         e.preventDefault();
         var formData = new FormData(announceForm);
-        fetch('<?php echo url("notice-publish");?>', {
+        fetch('<?php echo admin_notice_publish_url();?>', {
             method: 'POST',
             body: formData,
             headers: {'X-Requested-With': 'XMLHttpRequest'}

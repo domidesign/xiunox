@@ -426,7 +426,7 @@ xn.pages = function (url, totalnum, page, pagesize) {
 	if(left < 0) end = xn.min(totalpage, end -= left);
 
 	var s = '';
-	if(page != 1) s += '<a href="'+xn.str_replace('{page}', page-1, url)+'">◀</a>';
+	if(page != 1) s += '<a href="'+xn.str_replace('{page}', page-1, url)+'"><i class="ti ti-chevron-left"></i></a>';
 	if(start > 1) s += '<a href="'+xn.str_replace('{page}', 1, url)+'">1 '+(start > 2 ? '... ' : '')+'</a>';
 	for(i=start; i<=end; i++) {
 		if(i == page) {
@@ -436,7 +436,7 @@ xn.pages = function (url, totalnum, page, pagesize) {
 		}
 	}
 	if(end != totalpage) s += '<a href="'+xn.str_replace('{page}', totalpage, url)+'">'+(totalpage - end > 1 ? '... ' : '')+totalpage+'</a>';
-	if(page != totalpage) s += '<a href="'+xn.str_replace('{page}', page+1, url)+'">▶</a>';
+	if(page != totalpage) s += '<a href="'+xn.str_replace('{page}', page+1, url)+'"><i class="ti ti-chevron-right"></i></a>';
 	return s;
 };
 
@@ -531,6 +531,11 @@ xn.url = function(u, url_rewrite) {
 		r = path + '?' + xn.str_replace('-', '/', query);
 	} else if(on == 3) {
 		r = path + xn.str_replace('-', '/', query);
+	} else if(on == 4) {
+		r = path + query + '.html';
+	} else if(on == 5) {
+		// on=5 自定义规则前端无法获取，fallback 到 on=1 的 .htm 格式
+		r = path + query + '.htm';
 	}
 	return r;
 };

@@ -6,9 +6,9 @@
 	<?php echo admin_tab_active($menu['setting']['tab'], 'footer');?>
 </div>
 
-<div class="x-card  cardrounded-3">
+<div class="x-card  card">
 	<div class="card-body">
-		<form action="<?php echo url('setting-footer');?>" method="post" id="footerForm">
+		<form action="<?php echo admin_setting_url('footer');?>" method="post" id="footerForm">
 			<?php echo CsrfService::input(); ?>
 
 			<!-- Tab 导航 -->
@@ -88,7 +88,7 @@
 							<thead>
 								<tr>
 									<th><?php echo lang('admin_col_name');?></th>
-									<th>URL</th>
+									<th><?php echo lang('admin_col_url'); ?></th>
 									<th style="width:60px"></th>
 								</tr>
 							</thead>

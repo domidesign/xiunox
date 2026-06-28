@@ -6,9 +6,9 @@
 
 <div class="x-card card">
 	<div class="card-body">
-		<form action="<?php echo url("forum-update-$_fid");?>" method="post" enctype="multipart/form-data" id="form">
+		<form action="<?php echo admin_forum_update_url($_fid);?>" method="post" enctype="multipart/form-data" id="form">
 			<?php echo CsrfService::input(); ?>
-			<h4 class="card-title"><i class="ti ti-message-circle"></i> <?php echo lang('forum_edit');?> - <?php echo $_forum['name'];?></h4>
+			<h4 class="card-title"><i class="ti ti-message-circle"></i> <?php echo lang('forum_edit');?> - <?php echo esc_html($_forum['name'] ?? '');?></h4>
 			<div class="d-flex gap-4 align-items-center mb-3">
 				<label class="form-label" style="width:25%"><?php echo lang('admin_label_icon')?>：</label>
 				<div style="width:75%" class="d-flex align-items-center gap-3">
@@ -16,11 +16,13 @@
 						<?php
 						$icon_val = isset($_forum['icon']) ? $_forum['icon'] : '';
 						if(!empty($icon_val) && (strpos($icon_val, '.') !== false || strpos($icon_val, '/') !== false)) {
-							echo '<img src="'.$icon_val.'" style="max-width:56px;max-height:56px" class="rounded" />';
+							// 使用 icon_url 确保路径含前导 /，避免在 /admin/ 下解析错误
+							$icon_src = isset($_forum['icon_url']) ? $_forum['icon_url'] : '/' . $icon_val;
+							echo '<img src="'.esc_attr($icon_src).'" style="max-width:56px;max-height:56px" class="rounded" />';
 						} elseif(!empty($icon_val)) {
-							echo '<i class="'.$icon_val.'" style="font-size:2rem"></i>';
+							echo '<i class="'.esc_attr($icon_val).'" style="font-size:2rem"></i>';
 						} else {
-							echo '<i class="ti ti-message-circle text-body-secondary" style="font-size:2rem"></i>';
+							echo '<img src="/view/img/forum.png" style="max-width:56px;max-height:56px" class="rounded" />';
 						}
 						?>
 					</div>
@@ -102,7 +104,7 @@
 								<?php foreach ($accesslist as &$access) { ?>
 								<tr align="center">
 									<td><label class="d-flex align-items-center justify-content-center"><input type="checkbox" class="form-check-input" name="checkall" /></label></td>
-								<td align="left"><?php echo $access['name']; ?></td>
+								<td align="left"><?php echo esc_html($access['name'] ?? '');?></td>
 								<td><label class="d-flex align-items-center justify-content-center"><input type="checkbox" class="form-check-input" name="allowread[<?php echo $access['gid']; ?>]" value="1"<?php echo ($access['allowread'] ? 'checked' : ''); ?> /></label></td>
 								<td><label class="d-flex align-items-center justify-content-center"><input type="checkbox" class="form-check-input" name="allowthread[<?php echo $access['gid']; ?>]" value="1"<?php echo ($access['allowthread'] ? 'checked' : ''); ?> /></label></td>
 								<td><label class="d-flex align-items-center justify-content-center"><input type="checkbox" class="form-check-input" name="allowpost[<?php echo $access['gid']; ?>]" value="1"<?php echo ($access['allowpost'] ? 'checked' : ''); ?> /></label></td>

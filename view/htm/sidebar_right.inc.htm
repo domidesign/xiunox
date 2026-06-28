@@ -18,28 +18,75 @@ if($_is_mobile) return;
 			<div class="d-flex align-items-center gap-2 mb-3">
 				<?php echo avatar_component($uid, 'lg'); ?>
 				<div class="flex-grow-1" style="min-width:0">
-					<h5 class="card-title mb-0"><?php echo $user['username'];?></h5>
-					<div class="text-body-secondary small"><?php echo lang('user_id_label');?>: <?php echo $uid;?> · <?php echo $user['groupname'] ?? '';?></div>
+					<div class="d-flex align-items-center flex-wrap gap-1">
+						<span class="fw-semibold text-truncate"><?php echo esc_html($user['display_name'] ?? $user['username']);?></span>
+						<?php if(class_exists('MedalService')) {
+							$_home_medals = MedalService::getUserWearingMedalsCached($uid);
+							if(!empty($_home_medals)) {
+								echo '<span class="medal-icons d-inline-flex align-items-center" style="gap:2px;vertical-align:middle">';
+								foreach($_home_medals as $_hm) {
+									if(!empty($_hm['medal']['icon'])) {
+										echo '<a href="' . url('medal-' . intval($_hm['medal']['id'])) . '" title="' . esc_attr($_hm['medal']['name']) . '" style="display:flex;align-items:center">';
+										echo '<img src="' . esc_attr($_hm['medal']['icon']) . '" alt="' . esc_attr($_hm['medal']['name']) . '" style="width:16px;height:16px">';
+										echo '</a>';
+									}
+								}
+								echo '</span>';
+							}
+						} ?>
+					</div>
+					<div class="d-flex align-items-center flex-wrap gap-1 mt-1">
+						<span class="badge bg-secondary bg-opacity-10 text-secondary" style="font-size:0.65em">uid:<?php echo $uid;?></span>
+						<?php if(!empty($user['groupname'])): ?>
+						<span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:0.65em">
+							<?php echo esc_html($user['groupname']);?>
+						</span>
+						<?php endif; ?>
+					</div>
 				</div>
 			</div>
 		</div>
+		<?php if(!empty($user['signature'])): ?>
+		<!-- 用户签名独立区块 -->
+		<div class="card-body py-2">
+			<div class="bg-body-tertiary rounded-1 p-1 small text-body-secondary">
+				<?php echo esc_html($user['signature']);?>
+			</div>
+		</div>
+		<?php endif; ?>
 		<div class=" ">
 			<div class="d-grid text-center small rounded-3 py-3" style="grid-template-columns:1fr 1fr 1fr 1fr; ">
 				<div>
-					<span class="text-secondary"><?php echo lang('threads_label');?></span><br>
-					<b class="stat-count" data-count="<?php echo $user['threads'];?>"><?php echo $user['threads'];?></b>
+					<span class="text-secondary">
+						<?php echo lang('threads_label');?>
+					</span><br>
+					<b class="stat-count" data-count="<?php echo $user['threads'];?>">
+						<?php echo $user['threads'];?>
+					</b>
 				</div>
 				<div>
-					<span class="text-secondary"><?php echo lang('credits_label');?></span><br>
-					<b class="stat-count" data-count="<?php echo $user['credits'];?>"><?php echo $user['credits'];?></b>
+					<span class="text-secondary">
+						<?php echo lang('credits_label');?>
+					</span><br>
+					<b class="stat-count" data-count="<?php echo $user['credits'];?>">
+						<?php echo $user['credits'];?>
+					</b>
 				</div>
 				<div>
-					<span class="text-secondary"><?php echo lang('following_label');?></span><br>
-					<b class="stat-count" data-count="<?php echo $user['follows'];?>"><?php echo $user['follows'];?></b>
+					<span class="text-secondary">
+						<?php echo lang('following_label');?>
+					</span><br>
+					<b class="stat-count" data-count="<?php echo $user['follows'];?>">
+						<?php echo $user['follows'];?>
+					</b>
 				</div>
 				<div>
-					<span class="text-secondary"><?php echo lang('followers_label');?></span><br>
-					<b class="stat-count" data-count="<?php echo $user['followeds'];?>"><?php echo $user['followeds'];?></b>
+					<span class="text-secondary">
+						<?php echo lang('followers_label');?>
+					</span><br>
+					<b class="stat-count" data-count="<?php echo $user['followeds'];?>">
+						<?php echo $user['followeds'];?>
+					</b>
 				</div>
 			</div>
 		</div>
@@ -51,37 +98,66 @@ if($_is_mobile) return;
 			?>
 			<div class="d-flex align-items-center gap-2">
 				<?php if($_logo_src) { ?>
-				<img src="<?php echo $_logo_src;?>" alt="<?php echo $conf['sitename'];?>" class="avatar-lg flex-shrink-0" onerror="this.src='/view/img/avatar.png'">
+				<img src="<?php echo esc_attr($_logo_src);?>" alt="<?php echo esc_attr($conf['sitename']);?>"
+					class="avatar-lg flex-shrink-0" onerror="this.src='/view/img/avatar.png'">
 				<?php } ?>
 				<div class="flex-grow-1" style="min-width:0">
-					<h5 class="card-title mb-1"><?php echo $conf['sitename'];?></h5>
-					<p class="small lh-base text-body-secondary mb-0"><?php echo $conf['sitebrief'];?></p>
+					<h5 class="card-title mb-1">
+						<?php echo esc_html($conf['sitename']);?>
+					</h5>
+
 				</div>
 			</div>
+		
+			 
+			 
 		</div>
+			<div class="card-body py-2">
+				<div class="bg-body-tertiary rounded-1 p-1 small text-body-secondary">
+					<?php echo esc_html($conf['sitebrief']);?> </div>
+			</div>
 		<div class="pt-3 ">
 			<div class="d-grid text-center small rounded-3 p-2" style="grid-template-columns:1fr 1fr 1fr 1fr;">
 				<div>
-					<span class="text-secondary"><?php echo lang('threads');?></span><br>
-					<b class="stat-count" data-count="<?php echo $runtime['threads'];?>"><?php echo $runtime['threads'];?></b>
+					<span class="text-secondary">
+						<?php echo lang('threads');?>
+					</span><br>
+					<b class="stat-count" data-count="<?php echo $runtime['threads'];?>">
+						<?php echo $runtime['threads'];?>
+					</b>
 				</div>
 				<div>
-					<span class="text-secondary"><?php echo lang('posts');?></span><br>
-					<b class="stat-count" data-count="<?php echo $runtime['posts'];?>"><?php echo $runtime['posts'];?></b>
+					<span class="text-secondary">
+						<?php echo lang('posts');?>
+					</span><br>
+					<b class="stat-count" data-count="<?php echo $runtime['posts'];?>">
+						<?php echo $runtime['posts'];?>
+					</b>
 				</div>
 				<div>
-					<span class="text-secondary"><?php echo lang('users');?></span><br>
-					<b class="stat-count" data-count="<?php echo $runtime['users'];?>"><?php echo $runtime['users'];?></b>
+					<span class="text-secondary">
+						<?php echo lang('users');?>
+					</span><br>
+					<b class="stat-count" data-count="<?php echo $runtime['users'];?>">
+						<?php echo $runtime['users'];?>
+					</b>
 				</div>
 				<div>
-					<span class="text-secondary"><?php echo lang('online');?></span><br>
-					<b class="stat-count" data-count="<?php echo $runtime['onlines'] > 0 ? $runtime['onlines'] : 0;?>"><?php echo $runtime['onlines'] > 0 ? $runtime['onlines'] : 0;?></b>
+					<span class="text-secondary">
+						<?php echo lang('online');?>
+					</span><br>
+					<b class="stat-count" data-count="<?php echo $runtime['onlines'] > 0 ? $runtime['onlines'] : 0;?>">
+						<?php echo $runtime['onlines'] > 0 ? $runtime['onlines'] : 0;?>
+					</b>
 				</div>
 			</div>
 		</div>
 		<?php } ?>
-		<div class="py-3 d-flex gap-2">
-			<a role="button" class="btn btn-primary flex-fill rounded-pill" href="<?php echo url('thread-create-'.$fid);?>" hx-boost="false"><i class="ti ti-pencil me-1"></i> <?php echo lang('thread_create_new');?></a>
+		<div class="py-3 d-flex gap-2 flex-wrap">
+			<a role="button" class="btn btn-primary flex-fill rounded-pill"
+				href="<?php echo thread_create_url($fid);?>" hx-boost="false"><i class="ti ti-pencil me-1"></i>
+				<?php echo lang('thread_create_new');?>
+			</a>
 			<!--{hook index_site_brief_post_after.htm}-->
 		</div>
 		<!--{hook index_site_brief_stats_after.htm}-->
@@ -90,171 +166,9 @@ if($_is_mobile) return;
 	<!--{hook index_site_brief_after.htm}-->
 
 	<!--{hook sidebar_hot_before.htm}-->
-	<?php
-	// 推荐帖子：直接查询，不使用缓存
-	$_hot_threads = array();
-	$_hot_since = time() - 7 * 86400;
-	$_hot_sql = "SELECT tid, fid, uid, subject, views, posts, likes, create_date, audit_status FROM " . $db->table('thread') . " WHERE create_date >= {$_hot_since} AND closed = 0 ORDER BY views DESC, posts DESC LIMIT 20";
-	$_hot_threads = db_sql_find($_hot_sql);
-	if(!empty($_hot_threads)) {
-		// 过滤待审帖子和无权限版块的帖子
-		foreach($_hot_threads as $_hk => $_ht) {
-			// 待审帖子：非管理员不可见
-			if(($gid == 0 || $gid > 2) && isset($_ht['audit_status']) && $_ht['audit_status'] == 0) {
-				unset($_hot_threads[$_hk]);
-				continue;
-			}
-			// 版块权限过滤
-			$_ht_fid = intval($_ht['fid']);
-			if(!empty($forumlist[$_ht_fid]['accesson']) && !forum_access_user($_ht_fid, $gid, 'allowread')) {
-				unset($_hot_threads[$_hk]);
-				continue;
-			}
-		}
-		// 只取前5条
-		$_hot_threads = array_slice($_hot_threads, 0, 5);
-		// 补充用户信息
-		foreach($_hot_threads as &$_ht) {
-			$_hu = user_read_cache(intval($_ht['uid']));
-			$_ht['username'] = $_hu ? $_hu['username'] : '';
-			$_ht['avatar_url'] = !empty($_hu['avatar_url']) ? $_hu['avatar_url'] : '/view/img/avatar.png';
-		}
-		unset($_ht);
-	}
-	?>
-	<div class="x-card card mt-3" id="hot-threads-block">
-		<div class="card-body">
-			<h3 class="card-title small"><i class="ti ti-flame"></i> <?php echo lang('recommended_threads');?></h3>
-		</div>
-		<div class=" " id="hot-threads-list">
-			<?php if(!empty($_hot_threads)) { ?>
-			<div class="d-flex flex-column gap-1">
-				<?php foreach($_hot_threads as $_ht) { ?>
-				<a href="<?php echo url('thread-'.$_ht['tid']);?>" class="text-decoration-none hot-thread-item">
-					<div class="text-body   lh-base mb-1 hot-thread-title"><?php echo esc_html($_ht['subject']);?></div>
-					<div class="d-flex align-items-center justify-content-between">
-						<div class="d-flex align-items-center gap-1">
-							<img src="<?php echo $_ht['avatar_url'];?>" width="16" height="16" class="rounded-circle flex-shrink-0" onerror="this.src='/view/img/avatar.png'">
-							<span class="text-secondary small text-truncate"><?php echo esc_html($_ht['username']);?></span>
-							<span class="text-body-tertiary" style="font-size:11px"><?php echo humandate($_ht['create_date']);?></span>
-						</div>
-						<div class="d-flex gap-2 text-body-tertiary" style="font-size:11px">
-							<!-- <span><i class="ti ti-eye"></i> <?php echo $_ht['views'] ?: 0;?></span> -->
-							<span><i class="ti ti-thumb-up"></i> <?php echo $_ht['likes'] ?: 0;?></span>
-							<span><i class="ti ti-message"></i> <?php echo $_ht['posts'] ?: 0;?></span>
-						</div>
-					</div>
-				</a>
-				<?php } ?>
-			</div>
-			<?php } else { ?>
-			<div class="text-center py-3 text-body-secondary small"><?php echo lang('no_recommended_threads');?></div>
-			<?php } ?>
-		</div>
-	</div>
 	<!--{hook sidebar_hot_after.htm}-->
 
 	<!--{hook sidebar_friendlink_before.htm}-->
-	<?php
-	$_friendlinks = cache_get('sidebar_friendlinks');
-	if(!$_friendlinks) {
-		$_friendlinks = @db_find('friendlink', array('type'=>0), array('rank'=>-1), 1, 20, 'linkid');
-		if($_friendlinks) cache_set('sidebar_friendlinks', $_friendlinks, 3600);
-	}
-	if(!$_friendlinks) $_friendlinks = array();
-	?>
-	<div class="x-card card mt-3 rounded-1">
-		<div class="card-body">
-			<h3 class="card-title small"><i class="ti ti-link"></i> <?php echo lang('friendlink');?></h3>
-		</div>
-		<div class="my-2">
-			<div class="d-flex flex-wrap gap-2">
-				<?php if($_friendlinks) { ?>
-				<?php foreach($_friendlinks as $_fl) { ?>
-				<a href="<?php echo $_fl['url'];?>" target="_blank" rel="noopener" class="d-flex align-items-center gap-1 px-2 py-1 rounded-1 small text-decoration-none transition-colors" style="background:var(--bs-tertiary-bg)">
-					<?php if(!empty($_fl['favicon'])) { ?>
-					<img src="<?php echo $_fl['favicon'];?>" width="14" height="14" class="rounded-sm" onerror="this.style.display='none'">
-					<?php } ?>
-					<span><?php echo $_fl['name'];?></span>
-				</a>
-				<?php } ?>
-				<?php } ?>
-				<?php if(!empty($uid)) { ?>
-				<a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#friendlink_apply_modal" class="d-flex align-items-center gap-1 px-2 py-1 rounded-1 small text-decoration-none transition-colors" style="border:1px dashed var(--bs-primary);color:var(--bs-primary)">
-					<i class="ti ti-plus" style="font-size:12px"></i>
-					<span><?php echo lang('friendlink_apply');?></span>
-				</a>
-				<?php } ?>
-			</div>
-			<?php if(empty($_friendlinks) && empty($uid)) { ?>
-			<div class="text-center py-2 text-body-secondary small"><?php echo lang('no_friendlinks');?></div>
-			<?php } ?>
-		</div>
-	</div>
 	<!--{hook sidebar_friendlink_after.htm}-->
 </div>
-
-<div class="modal fade" id="friendlink_apply_modal" tabindex="-1" aria-hidden="true">
-	<div class="modal-dialog modal-dialog-centered">
-		<div class="modal-content border-0 rounded-1">
-			<div class="modal-header">
-				<h5 class="modal-title"><i class="ti ti-link me-1"></i> <?php echo lang('friendlink_apply');?></h5>
-				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-			</div>
-			<div class="modal-body">
-				<div class="mb-3">
-					<label class="form-label" for="friendlink_apply_name"><?php echo lang('friendlink_apply_name');?></label>
-					<input type="text" id="friendlink_apply_name" class="form-control " placeholder="<?php echo lang('friendlink_apply_name');?>">
-				</div>
-				<div class="mb-3">
-					<label class="form-label" for="friendlink_apply_url"><?php echo lang('friendlink_apply_url');?></label>
-					<input type="url" id="friendlink_apply_url" class="form-control " placeholder="https://">
-				</div>
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal"><?php echo lang('close');?></button>
-				<button class="btn btn-primary rounded-pill" id="friendlink_apply_btn" onclick="friendlink_apply_submit()"><?php echo lang('friendlink_apply_submit');?></button>
-			</div>
-		</div>
-	</div>
-</div>
-<script>
-function friendlink_apply_submit() {
-	var name = document.getElementById('friendlink_apply_name').value.trim();
-	var url = document.getElementById('friendlink_apply_url').value.trim();
-	if(!name || !url) { showToast('<?php echo lang('data_is_empty');?>', 'warning'); return; }
-
-	var btn = document.getElementById('friendlink_apply_btn');
-	btn.disabled = true;
-	btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('submiting');?>...';
-
-	fetch('<?php echo url('friendlink-apply');?>', {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/x-www-form-urlencoded',
-			'X-Requested-With': 'XMLHttpRequest',
-			'X-CSRF-TOKEN': '<?php echo CsrfService::getToken();?>'
-		},
-		body: 'name=' + encodeURIComponent(name) + '&url=' + encodeURIComponent(url)
-	})
-	.then(function(r) { return r.json(); })
-	.then(function(res) {
-		if(res.code == 0) {
-			showToast('<?php echo lang('friendlink_apply_success');?>', 'success');
-			bootstrap.Modal.getInstance(document.getElementById('friendlink_apply_modal')).hide();
-			document.getElementById('friendlink_apply_name').value = '';
-			document.getElementById('friendlink_apply_url').value = '';
-		} else {
-			showToast(res.message || '<?php echo lang('error');?>', 'danger');
-		}
-		btn.disabled = false;
-		btn.innerHTML = '<?php echo lang('friendlink_apply_submit');?>';
-	})
-	.catch(function() {
-		showToast('<?php echo lang('error');?>', 'danger');
-		btn.disabled = false;
-		btn.innerHTML = '<?php echo lang('friendlink_apply_submit');?>';
-	});
-}
-</script>
 <!--{hook sidebar_right_end.htm}-->

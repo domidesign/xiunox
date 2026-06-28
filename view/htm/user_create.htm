@@ -2,7 +2,7 @@
 
 <?php
 include_once APP_PATH . 'lib/security/CaptchaService.php';
-$captcha_register_on = CaptchaService::is_enabled('register');
+$captcha_register_on = CaptchaService::is_enabled('register', $gid);
 ?>
 
 <!--{hook user_create_start.htm}-->
@@ -19,7 +19,7 @@ $captcha_register_on = CaptchaService::is_enabled('register');
 			<!--{hook user_create_title_after.htm}-->
 		</div>
 		<div class="card-body">
-			<form hx-post="<?php echo url('user-create');?>" hx-target="#create-msg" hx-swap="innerHTML" id="form">
+			<form hx-post="<?php echo user_create_url();?>" hx-target="#create-msg" hx-swap="innerHTML" id="form">
 				<?php echo CsrfService::input(); ?>
 				<input type="hidden" name="next" value="<?php echo htmlspecialchars(http_referer());?>">
 				<div id="create-msg"></div>
@@ -61,7 +61,7 @@ $captcha_register_on = CaptchaService::is_enabled('register');
 						</div>
 					</div>
 					<div class="self-center">
-						<button type="button" class="btn btn-primary btn-sm " id="sendcode" data-url="<?php echo url('user-send_code-user_create');?>" onclick="sendVerifyCode(this)"><?php echo lang('send_verify_code');?></button>
+						<button type="button" class="btn btn-primary btn-sm " id="sendcode" data-url="<?php echo user_send_code_url('user_create');?>" onclick="sendVerifyCode(this)"><?php echo lang('send_verify_code');?></button>
 					</div>
 				</div>
 				<?php } ?>
@@ -84,7 +84,7 @@ $captcha_register_on = CaptchaService::is_enabled('register');
 				<!--{hook user_create_submit_after.htm}-->
 
 				<div class="d-flex justify-content-between align-items-center">
-					<a href="<?php echo url('user-login');?>" class="text-primary text-decoration-none fw-medium" hx-boost="false"><span class="small"><?php echo lang('user_login');?></span></a>
+					<a href="<?php echo user_login_url();?>" class="text-primary text-decoration-none fw-medium" hx-boost="false"><span class="small"><?php echo lang('user_login');?></span></a>
 					<div>
 						<!--{hook user_create_form_footer_right_start.htm}-->
 						<!--{hook user_create_form_footer_right_end.htm}-->

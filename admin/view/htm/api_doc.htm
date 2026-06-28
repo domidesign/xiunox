@@ -60,7 +60,7 @@
         <h5 class="mb-3 fw-bold"><i class="ti ti-book"></i> <?php echo lang('api_doc_title');?></h5>
 
         <table class="table table-sm table-hover api-info-table mb-4">
-            <tr><td>Base URL</td><td><code><?php echo $baseUrl;?>api/v1/</code></td></tr>
+            <tr><td><?php echo lang('admin_api_base_url'); ?></td><td><code><?php echo $baseUrl;?>api/v1/</code></td></tr>
             <tr><td><?php echo lang('api_response_format');?></td><td><code>JSON {"code": 0, "msg": "ok", "data": {...}}</code></td></tr>
             <tr><td><?php echo lang('api_auth_method');?></td><td><code>Authorization: Bearer &lt;token&gt;</code></td></tr>
             <tr><td><?php echo lang('api_token_expire');?></td><td><?php echo $tokenExpire;?> <?php echo lang('day');?></td></tr>
@@ -200,7 +200,7 @@ function tryInDebug(method, path, needAuth, bodyData) {
     params.set('endpoint', path.replace(/^\//, ''));
     if (needAuth) params.set('authtoken', '1');
     if (bodyData) params.set('body', JSON.stringify(bodyData));
-    window.location.href = '<?php echo url("api-debug");?>&' + params.toString();
+    window.location.href = '<?php echo admin_api_debug_url();?>&' + params.toString();
 }
 
 function copyJson(btn) {

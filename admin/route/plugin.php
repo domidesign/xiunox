@@ -204,7 +204,7 @@ if($action == 'local') {
 	}
 	
 	$msg = lang('plugin_install_sucessfully', array('name'=>$name));
-	message(0, jump($msg, http_referer(), 3));
+	message(0, $msg, array('redirect_url' => http_referer()));
 	
 } elseif($action == 'unstall') {
 	
@@ -236,7 +236,7 @@ if($action == 'local') {
 	admin_log_create('plugin_uninstall', 'plugin', $dir, '卸载插件：' . $name);
 
 	$msg = lang('plugin_unstall_sucessfully', array('name'=>$name, 'dir'=>"plugin/$dir"));
-	message(0, jump($msg, http_referer(), 5));
+	message(0, $msg, array('redirect_url' => http_referer()));
 	
 } elseif($action == 'enable') {
 	
@@ -260,7 +260,7 @@ if($action == 'local') {
 	admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 
 	$msg = lang('plugin_enable_sucessfully', array('name'=>$name));
-	message(0, jump($msg, http_referer(), 1));
+	message(0, $msg, array('redirect_url' => http_referer()));
 	
 } elseif($action == 'disable') {
 	
@@ -284,7 +284,7 @@ if($action == 'local') {
 	admin_log_create('plugin_disable', 'plugin', $dir, '禁用插件：' . $name);
 
 	$msg = lang('plugin_disable_sucessfully', array('name'=>$name));
-	message(0, jump($msg, http_referer(), 3));
+	message(0, $msg, array('redirect_url' => http_referer()));
 	
 } elseif($action == 'upgrade') {
 	
@@ -308,7 +308,7 @@ if($action == 'local') {
 	admin_log_create('plugin_upgrade', 'plugin', $dir, '升级插件：' . $name);
 
 	$msg = lang('plugin_upgrade_sucessfully', array('name'=>$name));
-	message(0, jump($msg, http_referer(), 3));
+	message(0, $msg, array('redirect_url' => http_referer()));
 	
 } elseif($action == 'setting') {
 	

@@ -3,7 +3,7 @@
 		<h3 class="fs-5 fw-bold mb-0"><?php echo lang('close_thread');?></h3>
 	</div> -->
 	<div class="card-body ajax-body">
-		<form method="post" id="mod_close_form" data-action="<?php echo url("mod-close");?>" onsubmit="return submitModForm(event, this, '#mod-close-msg')">
+		<form method="post" id="mod_close_form" data-action="<?php echo mod_close_url();?>" onsubmit="return submitModForm(event, this, '#mod-close-msg')">
 			<?php echo CsrfService::input(); ?>
 			<input type="hidden" name="tidarr" id="tidarr">
 			<div class="d-flex align-items-center gap-2 mb-3">

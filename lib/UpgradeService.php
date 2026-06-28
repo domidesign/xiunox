@@ -4,7 +4,7 @@ class UpgradeService {
     private $db;
     private array $conf;
     private string $backupPath;
-    private string $targetVersion = '1.0.1';
+    private string $targetVersion = 'X1.0.1';
 
     public function __construct($db, array $conf) {
         $this->db = $db;
@@ -55,8 +55,13 @@ class UpgradeService {
         if (file_exists($this->backupPath)) {
             return ['ok' => true, 'message' => '备份目录已存在，跳过备份', 'backup_path' => $this->backupPath, 'files' => []];
         }
-        if (!mkdir($this->backupPath, 0755, true)) {
-            return ['ok' => false, 'message' => '创建备份目录失败'];
+        $oldUmask = umask(0);
+        $created = @mkdir($this->backupPath, 0755, true);
+        umask($oldUmask);
+        if (!$created) {
+            $error = error_get_last();
+            $errMsg = !empty($error['message']) ? $error['message'] : '未知错误';
+            return ['ok' => false, 'message' => '创建备份目录失败: ' . $this->backupPath . ' (' . $errMsg . ')'];
         }
 
         $backups = [];
@@ -125,6 +130,10 @@ class UpgradeService {
             ['user', 'banned_until', "ALTER TABLE `{$tablepre}user` ADD COLUMN `banned_until` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `last_login_time`"],
             ['thread', 'videos', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `videos` tinyint(6) NOT NULL DEFAULT 0 AFTER `files`"],
             ['post', 'videos', "ALTER TABLE `{$tablepre}post` ADD COLUMN `videos` smallint(6) NOT NULL DEFAULT 0 AFTER `files`"],
+            ['post', 'is_top', "ALTER TABLE `{$tablepre}post` ADD COLUMN `is_top` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否置顶评论: 0否/1是' AFTER `audit_status`"],
+            ['user', 'nickname', "ALTER TABLE `{$tablepre}user` ADD COLUMN `nickname` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '昵称' AFTER `username`"],
+            ['credits_rule_global', 'daily_limit', "ALTER TABLE `{$tablepre}credits_rule_global` ADD COLUMN `daily_limit` INT NOT NULL DEFAULT 0 COMMENT '每日防刷限制次数，0使用全局设置' AFTER `enabled`"],
+            ['credits_rule_forum', 'daily_limit', "ALTER TABLE `{$tablepre}credits_rule_forum` ADD COLUMN `daily_limit` INT NOT NULL DEFAULT 0 COMMENT '每日防刷限制次数，0使用全局设置' AFTER `enabled`"],
         ];
 
         foreach ($columns as $col) {
@@ -143,6 +152,32 @@ class UpgradeService {
           KEY (uid, time)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci", $tablepre);
         $results[] = ['name' => 'user_login_log', 'ok' => $r['ok'], 'message' => $r['message']];
+
+        // 昵称修改日志表
+        $r = $this->createTable('nickname_change_log', "CREATE TABLE `{$tablepre}nickname_change_log` (
+          id INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+          uid INT(11) UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户id',
+          old_nickname VARCHAR(32) NOT NULL DEFAULT '' COMMENT '旧昵称',
+          new_nickname VARCHAR(32) NOT NULL DEFAULT '' COMMENT '新昵称',
+          change_time INT(11) UNSIGNED NOT NULL DEFAULT 0 COMMENT '修改时间',
+          ip INT(11) UNSIGNED NOT NULL DEFAULT 0 COMMENT '操作IP',
+          PRIMARY KEY (id),
+          KEY (uid, change_time)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci", $tablepre);
+        $results[] = ['name' => 'nickname_change_log', 'ok' => $r['ok'], 'message' => $r['message']];
+
+        // 签名修改日志表
+        $r = $this->createTable('signature_change_log', "CREATE TABLE `{$tablepre}signature_change_log` (
+          id INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+          uid INT(11) UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户id',
+          old_signature VARCHAR(255) NOT NULL DEFAULT '' COMMENT '旧签名',
+          new_signature VARCHAR(255) NOT NULL DEFAULT '' COMMENT '新签名',
+          change_time INT(11) UNSIGNED NOT NULL DEFAULT 0 COMMENT '修改时间',
+          ip INT(11) UNSIGNED NOT NULL DEFAULT 0 COMMENT '操作IP',
+          PRIMARY KEY (id),
+          KEY (uid, change_time)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci", $tablepre);
+        $results[] = ['name' => 'signature_change_log', 'ok' => $r['ok'], 'message' => $r['message']];
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
         $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === '完成'; }));
@@ -331,6 +366,18 @@ class UpgradeService {
             $results[] = ['name' => 'credits_rule_global.init_data', 'ok' => true, 'message' => '插入 ' . count($builtinRules) . ' 条内置规则'];
         }
 
+        // 补充 unlike/unfavorite 事件（对已存在的系统追加新事件，使用 INSERT IGNORE 避免重复）
+        $newEvents = [
+            ['unlike', '取消点赞'],
+            ['unfavorite', '取消收藏'],
+        ];
+        $insertedNew = 0;
+        foreach ($newEvents as $ev) {
+            $r = $this->execSql("INSERT IGNORE INTO `{$tablepre}credits_rule_global` (`event`, `label`, `credits_change`, `golds_change`, `rmbs_change`, `enabled`, `daily_limit`) VALUES ('{$ev[0]}', '{$ev[1]}', 0, 0, 0, 1, 0)");
+            if ($r['ok']) $insertedNew++;
+        }
+        $results[] = ['name' => 'credits_rule_global.unlike_unfavorite', 'ok' => true, 'message' => "补充 unlike/unfavorite 事件（新增 {$insertedNew} 条）"];
+
         $allOk = !in_array(false, array_column($results, 'ok'), true);
         $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
         return [
@@ -481,24 +528,30 @@ class UpgradeService {
     }
 
     public function migratePasswords(int $batchSize = 100): array {
+        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
         $total = $this->db->count('user');
-        $migrated = 0;
 
+        // 统计旧格式用户（password 字段非空，说明是 md5(md5(明文)+salt) 格式）
+        $legacyUsers = 0;
         $pages = ceil($total / $batchSize);
         for ($page = 1; $page <= $pages; $page++) {
             $users = $this->db->find('user', [], [], $page, $batchSize, 'uid');
             foreach ($users as $user) {
                 if (!empty($user['password']) && !empty($user['salt'])) {
-                    $migrated++;
+                    $legacyUsers++;
                 }
             }
         }
 
+        // 清空旧格式用户的 password_hash，让他们下次登录时走旧 password 字段验证后自动升级为 bcrypt(明文)
+        // 注意：仅清空 password 非空的用户（旧格式），全新安装的用户 password 为空不受影响
+        $r = $this->execSql("UPDATE `{$tablepre}user` SET `password_hash` = '' WHERE `password` != ''");
+
         return [
-            'ok' => true,
-            'message' => "密码迁移策略：{$migrated} 个用户需在下次登录时自动升级为 bcrypt",
+            'ok' => $r['ok'],
+            'message' => "密码迁移：{$legacyUsers} 个旧格式用户已清空 password_hash，下次登录时自动升级为 bcrypt(明文)",
             'total' => $total,
-            'pending' => $migrated,
+            'pending' => $legacyUsers,
         ];
     }
 
@@ -523,6 +576,26 @@ class UpgradeService {
             }
         }
 
+        // 数据库连接 charset 升级为 utf8mb4（支持 emoji）
+        if (isset($this->conf['db']['pdo_mysql']['master']['charset']) && $this->conf['db']['pdo_mysql']['master']['charset'] !== 'utf8mb4') {
+            $this->conf['db']['pdo_mysql']['master']['charset'] = 'utf8mb4';
+            $changes['db.pdo_mysql.master.charset'] = 'utf8mb4';
+        }
+        if (isset($this->conf['db']['pdo_mysql']['slaves'])) {
+            foreach ($this->conf['db']['pdo_mysql']['slaves'] as $i => &$slave) {
+                if (isset($slave['charset']) && $slave['charset'] !== 'utf8mb4') {
+                    $slave['charset'] = 'utf8mb4';
+                    $changes["db.pdo_mysql.slaves.{$i}.charset"] = 'utf8mb4';
+                }
+            }
+            unset($slave);
+        }
+        // 兼容旧版 mysql 驱动配置
+        if (isset($this->conf['db']['mysql']['master']['charset']) && $this->conf['db']['mysql']['master']['charset'] !== 'utf8mb4') {
+            $this->conf['db']['mysql']['master']['charset'] = 'utf8mb4';
+            $changes['db.mysql.master.charset'] = 'utf8mb4';
+        }
+
         $this->conf['version'] = $this->targetVersion;
         $changes['version'] = $this->targetVersion;
 
@@ -535,6 +608,51 @@ class UpgradeService {
             'ok' => true,
             'message' => '配置更新完成，共 ' . count($changes) . ' 项变更',
             'changes' => $changes,
+        ];
+    }
+
+    public function upgradeUtf8mb4(): array {
+        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $results = [];
+
+        // 需要转换的核心表（含文本字段，可能存储 emoji）
+        $tables = [
+            'thread', 'post', 'user', 'forum', 'group', 'attach',
+            'modlog', 'notify', 'kv',
+        ];
+
+        foreach ($tables as $table) {
+            $fullTable = $tablepre . $table;
+            // 检查表是否存在
+            $exists = $this->dbTableExists($table, $tablepre);
+            if (!$exists) {
+                $results[] = ['name' => $table, 'ok' => true, 'message' => '表不存在，跳过'];
+                continue;
+            }
+
+            // 检查当前字符集
+            $colInfo = $this->db->sqlFindOne("SELECT TABLE_COLLATION FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$fullTable}'");
+            $currentCollation = !empty($colInfo) ? $colInfo['TABLE_COLLATION'] : '';
+
+            if (strpos($currentCollation, 'utf8mb4') === 0) {
+                $results[] = ['name' => $table, 'ok' => true, 'message' => '已是 utf8mb4，跳过'];
+                continue;
+            }
+
+            // 转换表字符集
+            $r = $this->execSql("ALTER TABLE `{$fullTable}` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+            $results[] = ['name' => $table, 'ok' => $r['ok'], 'message' => $r['ok'] ? '已转换为 utf8mb4' : $r['message']];
+        }
+
+        // 修复已损坏的 emoji（? 字符无法恢复，但确保后续写入正确）
+        $results[] = ['name' => 'note', 'ok' => true, 'message' => '已有 emoji 数据若显示为?则无法恢复，新写入的 emoji 将正常显示'];
+
+        $allOk = !in_array(false, array_column($results, 'ok'), true);
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已是 utf8mb4，跳过' && $r['message'] !== '表不存在，跳过'; }));
+        return [
+            'ok' => $allOk,
+            'message' => $allOk ? "UTF8MB4 升级完成（{$doneCount} 项转换）" : '部分转换失败',
+            'results' => $results,
         ];
     }
 
@@ -568,6 +686,54 @@ class UpgradeService {
             'ok' => true,
             'message' => "插件重编译完成，清理 {$deleted} 个缓存文件",
             'deleted' => $deleted,
+        ];
+    }
+
+    /**
+     * 性能索引优化：为高频查询添加联合索引
+     */
+    public function upgradePerfIndexes(): array {
+        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $results = [];
+
+        // thread 表：用户帖子列表 WHERE uid=X ORDER BY tid DESC
+        if (!$this->dbIndexExists('thread', 'idx_uid_tid', $tablepre)) {
+            $r = $this->execSql("ALTER TABLE `{$tablepre}thread` ADD INDEX `idx_uid_tid` (`uid`, `tid`)");
+            $results[] = ['name' => 'thread.idx_uid_tid', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+        } else {
+            $results[] = ['name' => 'thread.idx_uid_tid', 'ok' => true, 'message' => '已存在，跳过'];
+        }
+
+        // thread 表：用户版块帖子 WHERE uid=X AND fid IN(...) ORDER BY lastpid DESC
+        if (!$this->dbIndexExists('thread', 'idx_uid_fid', $tablepre)) {
+            $r = $this->execSql("ALTER TABLE `{$tablepre}thread` ADD INDEX `idx_uid_fid` (`uid`, `fid`)");
+            $results[] = ['name' => 'thread.idx_uid_fid', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+        } else {
+            $results[] = ['name' => 'thread.idx_uid_fid', 'ok' => true, 'message' => '已存在，跳过'];
+        }
+
+        // post 表：用户回帖列表 WHERE uid=X AND isfirst=0 ORDER BY pid DESC
+        if (!$this->dbIndexExists('post', 'idx_uid_isfirst_pid', $tablepre)) {
+            $r = $this->execSql("ALTER TABLE `{$tablepre}post` ADD INDEX `idx_uid_isfirst_pid` (`uid`, `isfirst`, `pid`)");
+            $results[] = ['name' => 'post.idx_uid_isfirst_pid', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+        } else {
+            $results[] = ['name' => 'post.idx_uid_isfirst_pid', 'ok' => true, 'message' => '已存在，跳过'];
+        }
+
+        // thread 表：审核状态过滤 WHERE fid=X AND audit_status!=0 ORDER BY lastpid DESC
+        if (!$this->dbIndexExists('thread', 'idx_fid_audit_lastpid', $tablepre)) {
+            $r = $this->execSql("ALTER TABLE `{$tablepre}thread` ADD INDEX `idx_fid_audit_lastpid` (`fid`, `audit_status`, `lastpid`)");
+            $results[] = ['name' => 'thread.idx_fid_audit_lastpid', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+        } else {
+            $results[] = ['name' => 'thread.idx_fid_audit_lastpid', 'ok' => true, 'message' => '已存在，跳过'];
+        }
+
+        $allOk = !in_array(false, array_column($results, 'ok'), true);
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === '完成'; }));
+        return [
+            'ok' => $allOk,
+            'message' => $allOk ? "性能索引优化完成（{$doneCount} 项新增）" : '部分索引创建失败',
+            'results' => $results,
         ];
     }
 
@@ -686,6 +852,7 @@ class UpgradeService {
         $results = [];
 
         // 如果 notify 表不存在，先建表（含 is_read 字段，对齐 install.sql）
+        // notice 表已废弃合并到 notify，此处只建 notify 表
         if (!$this->dbTableExists('notify', $tablepre)) {
             $r = $this->createTable('notify', "CREATE TABLE `{$tablepre}notify` (
               nid int(11) unsigned NOT NULL AUTO_INCREMENT,
@@ -701,7 +868,7 @@ class UpgradeService {
               KEY (uid, is_read, nid),
               KEY (uid, type)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci", $tablepre);
-            $results[] = ['name' => 'notice', 'ok' => $r['ok'], 'message' => $r['ok'] ? '建表完成' : $r['message']];
+            $results[] = ['name' => 'notify', 'ok' => $r['ok'], 'message' => $r['ok'] ? '建表完成' : $r['message']];
 
             // 同时确保 user 表有 notices / unread_notices 字段
             $userCols = [
@@ -842,10 +1009,15 @@ class UpgradeService {
         // 3. 确保 tmp/cache 目录存在
         $cacheDir = APP_PATH . 'tmp/cache/';
         if (!is_dir($cacheDir)) {
-            if (mkdir($cacheDir, 0755, true)) {
+            $oldUmask = umask(0);
+            $created = @mkdir($cacheDir, 0755, true);
+            umask($oldUmask);
+            if ($created) {
                 $results[] = ['name' => 'cache_dir_create', 'ok' => true, 'message' => '缓存目录已创建'];
             } else {
-                $results[] = ['name' => 'cache_dir_create', 'ok' => false, 'message' => '创建缓存目录失败'];
+                $error = error_get_last();
+                $errMsg = !empty($error['message']) ? $error['message'] : '未知错误';
+                $results[] = ['name' => 'cache_dir_create', 'ok' => false, 'message' => '创建缓存目录失败: ' . $cacheDir . ' (' . $errMsg . ')'];
             }
         } else {
             $results[] = ['name' => 'cache_dir_create', 'ok' => true, 'message' => '已存在，跳过'];
@@ -936,9 +1108,13 @@ class UpgradeService {
         if (!file_exists($wordsFile)) {
             $dir = dirname($wordsFile);
             if (!is_dir($dir)) {
-                mkdir($dir, 0755, true);
+                $oldUmask = umask(0);
+                @mkdir($dir, 0755, true);
+                umask($oldUmask);
             }
-            if (file_put_contents($wordsFile, "# 敏感词库\n# 每行一个词，# 开头为注释\n") !== false) {
+            if (!is_dir($dir)) {
+                $results[] = ['name' => 'sensitive_words.txt', 'ok' => false, 'message' => '创建目录失败: ' . $dir];
+            } elseif (file_put_contents($wordsFile, "# 敏感词库\n# 每行一个词，# 开头为注释\n") !== false) {
                 $results[] = ['name' => 'sensitive_words.txt', 'ok' => true, 'message' => '创建完成'];
             } else {
                 $results[] = ['name' => 'sensitive_words.txt', 'ok' => false, 'message' => '创建失败'];
@@ -968,13 +1144,19 @@ class UpgradeService {
         if (!file_exists($securityConfigFile)) {
             $dir = dirname($securityConfigFile);
             if (!is_dir($dir)) {
-                mkdir($dir, 0755, true);
+                $oldUmask = umask(0);
+                @mkdir($dir, 0755, true);
+                umask($oldUmask);
             }
-            $defaultSecurityConfig = "<?php\n// 安全与审核系统配置\n// 修改后需清理 tmp/ 缓存\n\nreturn array(\n\n    'captcha' => array(\n        'login' => 0,\n        'register' => 0,\n        'post' => 0,\n        'resetpw' => 0,\n        'type' => 'gd_image',\n    ),\n\n    'sensitive_word' => array(\n        'enabled' => 0,\n        'action' => 'reject',\n        'words_file' => APP_PATH . 'config/sensitive_words.txt',\n    ),\n\n    'audit' => array(\n        'enabled' => 0,\n        'credits_on_approve' => 0,\n        'credits_amount' => 1,\n    ),\n\n    'moderation' => array(\n        'enabled' => 0,\n    ),\n\n    'security' => array(\n        'prevent_enumeration' => 1,\n        'verify_sensitive_action' => 1,\n        'show_last_login' => 1,\n    ),\n\n);\n";
-            if (file_put_contents($securityConfigFile, $defaultSecurityConfig) !== false) {
-                $results[] = ['name' => 'config/security.php', 'ok' => true, 'message' => '创建完成'];
+            if (!is_dir($dir)) {
+                $results[] = ['name' => 'config/security.php', 'ok' => false, 'message' => '创建目录失败: ' . $dir];
             } else {
-                $results[] = ['name' => 'config/security.php', 'ok' => false, 'message' => '创建失败'];
+                $defaultSecurityConfig = "<?php\n// 安全与审核系统配置\n// 修改后需清理 tmp/ 缓存\n\nreturn array(\n\n    'captcha' => array(\n        'login' => 0,\n        'register' => 0,\n        'post' => 0,\n        'resetpw' => 0,\n        'type' => 'gd_image',\n    ),\n\n    'sensitive_word' => array(\n        'enabled' => 0,\n        'action' => 'reject',\n        'words_file' => APP_PATH . 'config/sensitive_words.txt',\n    ),\n\n    'audit' => array(\n        'enabled' => 0,\n        'credits_on_approve' => 0,\n        'credits_amount' => 1,\n    ),\n\n    'moderation' => array(\n        'enabled' => 0,\n    ),\n\n    'security' => array(\n        'prevent_enumeration' => 1,\n        'verify_sensitive_action' => 1,\n        'show_last_login' => 1,\n    ),\n\n);\n";
+                if (file_put_contents($securityConfigFile, $defaultSecurityConfig) !== false) {
+                    $results[] = ['name' => 'config/security.php', 'ok' => true, 'message' => '创建完成'];
+                } else {
+                    $results[] = ['name' => 'config/security.php', 'ok' => false, 'message' => '创建失败'];
+                }
             }
         } else {
             $results[] = ['name' => 'config/security.php', 'ok' => true, 'message' => '已存在，跳过'];
@@ -987,6 +1169,11 @@ class UpgradeService {
             ['post', 'audit_status', "ALTER TABLE `{$tablepre}post` ADD COLUMN `audit_status` tinyint(1) NOT NULL DEFAULT 1 COMMENT '审核状态: 0待审/1通过/2驳回'"],
             ['forum', 'audit_thread', "ALTER TABLE `{$tablepre}forum` ADD COLUMN `audit_thread` tinyint(1) NOT NULL DEFAULT 0 COMMENT '发帖审核: 0不审核/1需审核'"],
             ['group', 'allow_direct_post', "ALTER TABLE `{$tablepre}group` ADD COLUMN `allow_direct_post` tinyint(1) NOT NULL DEFAULT 1 COMMENT '免审核发帖: 0需审核/1直接发布'"],
+            // 驳回重提相关字段
+            ['thread', 'resubmit_count', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `resubmit_count` tinyint(3) NOT NULL DEFAULT 0 COMMENT '重新提交次数（含首次发布）'"],
+            ['post', 'resubmit_count', "ALTER TABLE `{$tablepre}post` ADD COLUMN `resubmit_count` tinyint(3) NOT NULL DEFAULT 0 COMMENT '重新提交次数（含首次发布）'"],
+            ['thread', 'reject_reason', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `reject_reason` varchar(255) NOT NULL DEFAULT '' COMMENT '驳回原因'"],
+            ['post', 'reject_reason', "ALTER TABLE `{$tablepre}post` ADD COLUMN `reject_reason` varchar(255) NOT NULL DEFAULT '' COMMENT '驳回原因'"],
         ];
 
         foreach ($auditColumns as $col) {
@@ -1118,23 +1305,9 @@ class UpgradeService {
         $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
         $results = [];
 
-        // 创建友情链接表
-        $r = $this->createTable('friendlink', "CREATE TABLE `{$tablepre}friendlink` (
-          `linkid` bigint(11) unsigned NOT NULL AUTO_INCREMENT,
-          `type` smallint(11) NOT NULL DEFAULT '0',
-          `rank` smallint(11) NOT NULL DEFAULT '0',
-          `create_date` int(11) unsigned NOT NULL DEFAULT '0',
-          `name` char(32) NOT NULL DEFAULT '',
-          `url` char(64) NOT NULL DEFAULT '',
-          `favicon` char(128) NOT NULL DEFAULT '',
-          PRIMARY KEY (`linkid`),
-          KEY `type` (`type`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='友情链接'", $tablepre);
-        $results[] = ['name' => 'friendlink', 'ok' => $r['ok'], 'message' => $r['message']];
-
         // 添加精华帖相关字段
         $columns = [
-            ['thread', 'is_digest', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `is_digest` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否精华: 0否/1是'"],
+            ['thread', 'digest', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `digest` tinyint(1) NOT NULL DEFAULT 0 COMMENT '精华级别: 0否/1-3精华'"],
             ['thread', 'digest_date', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `digest_date` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '精华时间'"],
         ];
         foreach ($columns as $col) {
@@ -1142,19 +1315,31 @@ class UpgradeService {
             $results[] = ['name' => $col[0].'.'.$col[1], 'ok' => $r['ok'], 'message' => $r['message']];
         }
 
+        // 创建精华帖索引表（thread_digest_change 依赖此表）
+        $r = $this->createTable('thread_digest', "CREATE TABLE `{$tablepre}thread_digest` (
+          `fid` smallint(6) NOT NULL DEFAULT '0',
+          `tid` int(11) unsigned NOT NULL DEFAULT '0',
+          `uid` int(11) unsigned NOT NULL DEFAULT '0',
+          `digest` tinyint(6) NOT NULL DEFAULT '0',
+          PRIMARY KEY (`tid`),
+          KEY `fid` (`fid`),
+          KEY `uid` (`uid`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='精华主题'", $tablepre);
+        $results[] = ['name' => 'thread_digest', 'ok' => $r['ok'], 'message' => $r['message']];
+
         // 创建精华帖索引
-        if (!$this->dbIndexExists('thread', 'idx_is_digest', $tablepre)) {
-            $r = $this->execSql("ALTER TABLE `{$tablepre}thread` ADD INDEX `idx_is_digest` (`is_digest`)");
-            $results[] = ['name' => 'thread.idx_is_digest', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+        if (!$this->dbIndexExists('thread', 'idx_digest', $tablepre)) {
+            $r = $this->execSql("ALTER TABLE `{$tablepre}thread` ADD INDEX `idx_digest` (`digest`)");
+            $results[] = ['name' => 'thread.idx_digest', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
         } else {
-            $results[] = ['name' => 'thread.idx_is_digest', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'thread.idx_digest', 'ok' => true, 'message' => '已存在，跳过'];
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
         $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "友情链接与精华帖升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? "精华帖升级完成（{$doneCount} 项操作）" : '部分升级失败',
             'results' => $results,
         ];
     }
@@ -1240,7 +1425,7 @@ class UpgradeService {
             ['id' => 'credits_rule', 'name' => '积分规则引擎', 'description' => '创建积分规则表，初始化内置事件规则'],
             ['id' => 'search_indexes', 'name' => '全文搜索索引', 'description' => '为帖子标题和内容添加 FULLTEXT 索引（支持中文分词搜索）'],
             ['id' => 'icon_color_fields', 'name' => '图标与颜色字段', 'description' => '添加用户组图标/颜色、版块图标字段，迁移旧数据并设置默认值'],
-            ['id' => 'notice_is_read', 'name' => '通知系统', 'description' => '创建 notice 表（含 is_read 字段）及 user 关联字段，或为已有表添加 is_read 列和索引'],
+            ['id' => 'notice_is_read', 'name' => '通知系统', 'description' => '创建 notify 表（含 is_read 字段）及 user 关联字段，或为已有表添加 is_read 列和索引（notice 表已废弃）'],
             ['id' => 'permission_system', 'name' => '权限系统', 'description' => '创建 group_permission 表，迁移旧权限数据，支持统一权限管理'],
             ['id' => 'forum_management', 'name' => '版块管理优化', 'description' => '增加发帖审核/回帖审核权限字段，扩展版块图标字段支持图片路径'],
             ['id' => 'group_audit_permissions', 'name' => '审核权限', 'description' => '添加用户组审核权限字段（发帖审核/回帖审核/资料审核），创建个人资料审核表'],
@@ -1248,11 +1433,16 @@ class UpgradeService {
             ['id' => 'admin_log_table', 'name' => '管理操作日志表', 'description' => '创建管理操作日志表，用于记录附件删除等后台操作'],
             ['id' => 'plugin_table', 'name' => '插件管理表', 'description' => '创建插件管理表，支持插件时间记录和排序'],
             ['id' => 'email_log', 'name' => '邮件发送日志表', 'description' => '创建邮件发送日志表，记录邮件发送状态、错误信息等'],
-            ['id' => 'friendlink_digest', 'name' => '友情链接与精华帖', 'description' => '创建友情链接表，添加帖子精华字段（is_digest, digest_date）'],
+            ['id' => 'friendlink_digest', 'name' => '精华帖', 'description' => '添加帖子精华字段（digest, digest_date），创建精华帖索引表'],
             ['id' => 'cache_system', 'name' => '缓存系统优化', 'description' => '迁移旧缓存配置到 setting，清理过时驱动（xcache/apc/yac），初始化默认缓存配置'],
+            ['id' => 'nickname_field', 'name' => '昵称字段迁移', 'description' => '将现有用户名复制到昵称字段，支持用户名不可修改、昵称可修改'],
+            ['id' => 'notify_merge', 'name' => '通知系统合并', 'description' => '扩展 notify 表字段（message/icon/url 等），将 notice 表数据迁移到 notify 表，删除旧 notice 表'],
+            ['id' => 'utf8mb4', 'name' => 'UTF8MB4 字符集升级', 'description' => '将数据库表从 utf8 转换为 utf8mb4，支持 emoji 等四字节字符'],
             ['id' => 'password', 'name' => '密码升级', 'description' => '标记旧密码需登录后自动升级'],
             ['id' => 'config', 'name' => '配置调整', 'description' => '更新版本号，新增配置项'],
+            ['id' => 'user_group_resync', 'name' => '用户组重同步', 'description' => '修复存量用户组与积分不匹配（遍历所有积分用户组用户，按当前 credits 重新计算用户组）'],
             ['id' => 'recompile', 'name' => '插件重编译', 'description' => '清空缓存，重编译所有插件'],
+            ['id' => 'perf_indexes', 'name' => '性能索引优化', 'description' => '为用户帖子列表、回帖列表等高频查询添加联合索引，消除全表扫描'],
         ];
     }
 
@@ -1278,10 +1468,253 @@ class UpgradeService {
             case 'email_log': return $this->upgradeEmailLogTable();
             case 'friendlink_digest': return $this->upgradeFriendlinkTable();
             case 'cache_system': return $this->upgradeCacheSystem();
+            case 'nickname_field': return $this->upgradeNicknameField();
+            case 'notify_merge': return $this->upgradeNotifyMerge();
+            case 'utf8mb4': return $this->upgradeUtf8mb4();
             case 'password': return $this->migratePasswords();
             case 'config': return $this->adjustConfig();
+            case 'user_group_resync': return $this->upgradeUserGroupResync();
             case 'recompile': return $this->recompilePlugins();
+            case 'perf_indexes': return $this->upgradePerfIndexes();
             default: return ['ok' => false, 'message' => '未知步骤：' . $stepId];
         }
+    }
+
+    /**
+     * 昵称字段迁移：将现有 username 复制到 nickname
+     */
+    public function upgradeNicknameField(): array {
+        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $results = [];
+
+        // 检查 nickname 字段是否存在
+        if (!$this->dbColumnExists('user', 'nickname', $tablepre)) {
+            return ['ok' => false, 'message' => 'nickname 字段尚未创建，请先执行数据库结构升级'];
+        }
+
+        // 将现有 username 复制到 nickname（仅处理 nickname 为空的记录）
+        $sql = "UPDATE `{$tablepre}user` SET `nickname` = `username` WHERE `nickname` = ''";
+        $r = $this->execSql($sql);
+        $results[] = ['name' => 'copy_username_to_nickname', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+
+        // 为 nickname 添加唯一索引
+        try {
+            $r2 = $this->execSql("ALTER TABLE `{$tablepre}user` ADD UNIQUE INDEX `nickname` (`nickname`)");
+            $results[] = ['name' => 'nickname_unique_index', 'ok' => true, 'message' => '完成'];
+        } catch (\Exception $e) {
+            // 索引可能已存在
+            $results[] = ['name' => 'nickname_unique_index', 'ok' => true, 'message' => '已存在，跳过'];
+        }
+
+        $allOk = !in_array(false, array_column($results, 'ok'), true);
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === '完成'; }));
+        return [
+            'ok' => $allOk,
+            'message' => $allOk ? "昵称字段迁移完成（{$doneCount} 项操作）" : '部分迁移失败',
+            'results' => $results,
+        ];
+    }
+
+    /**
+     * 通知系统合并：将 notice 表数据迁移到 notify 表，扩展 notify 表字段
+     */
+    public function upgradeNotifyMerge(): array {
+        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $results = [];
+
+        // 1. 扩展 notify 表字段
+        // content 从 char(128) 改为 text
+        if ($this->dbColumnExists('notify', 'content', $tablepre)) {
+            $r = $this->execSql("ALTER TABLE `{$tablepre}notify` MODIFY COLUMN `content` TEXT COMMENT '内容摘要或全文'");
+            $results[] = ['name' => 'notify.content->text', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+        }
+
+        // 新增 message 字段（富文本消息）
+        $r = $this->addColumn('notify', 'message', "ALTER TABLE `{$tablepre}notify` ADD COLUMN `message` LONGTEXT AFTER `content`", $tablepre);
+        $results[] = ['name' => 'notify.message', 'ok' => $r['ok'], 'message' => $r['message']];
+
+        // 新增 icon 字段
+        $r = $this->addColumn('notify', 'icon', "ALTER TABLE `{$tablepre}notify` ADD COLUMN `icon` VARCHAR(64) DEFAULT '' AFTER `message`", $tablepre);
+        $results[] = ['name' => 'notify.icon', 'ok' => $r['ok'], 'message' => $r['message']];
+
+        // 新增 url 字段
+        $r = $this->addColumn('notify', 'url', "ALTER TABLE `{$tablepre}notify` ADD COLUMN `url` VARCHAR(255) DEFAULT '' AFTER `icon`", $tablepre);
+        $results[] = ['name' => 'notify.url', 'ok' => $r['ok'], 'message' => $r['message']];
+
+        // 新增 reply_to_uid 字段
+        $r = $this->addColumn('notify', 'reply_to_uid', "ALTER TABLE `{$tablepre}notify` ADD COLUMN `reply_to_uid` INT(11) UNSIGNED DEFAULT 0 AFTER `pid`", $tablepre);
+        $results[] = ['name' => 'notify.reply_to_uid', 'ok' => $r['ok'], 'message' => $r['message']];
+
+        // 新增 parent_pid 字段
+        $r = $this->addColumn('notify', 'parent_pid', "ALTER TABLE `{$tablepre}notify` ADD COLUMN `parent_pid` INT(11) UNSIGNED DEFAULT 0 AFTER `reply_to_uid`", $tablepre);
+        $results[] = ['name' => 'notify.parent_pid', 'ok' => $r['ok'], 'message' => $r['message']];
+
+        // 2. 迁移 notice 数据到 notify（仅迁移尚未迁移的数据）
+        if ($this->dbTableExists('notice', $tablepre)) {
+            // 检查是否已迁移过：全局公告(uid=0)是 notice 表迁移的标志数据
+            // 注意：from_uid 是管理员 uid（非0），不能用 from_uid=0 判断
+            $checkSql = "SELECT COUNT(*) as cnt FROM `{$tablepre}notify` WHERE uid = 0 AND type IN ('announcement','system','pm','other')";
+            $checkResult = $this->db->sqlFindOne($checkSql);
+            $alreadyMigrated = !empty($checkResult) && intval($checkResult['cnt']) > 0;
+
+            if (!$alreadyMigrated) {
+                $migrateSql = "INSERT INTO `{$tablepre}notify` (`uid`, `from_uid`, `type`, `tid`, `pid`, `content`, `message`, `icon`, `url`, `create_date`, `is_read`)
+                SELECT
+                  `recvuid`,
+                  `fromuid`,
+                  CASE `type`
+                    WHEN 1 THEN 'announcement'
+                    WHEN 3 THEN 'system'
+                    WHEN 7 THEN 'pm'
+                    ELSE 'other'
+                  END,
+                  0, 0,
+                  LEFT(`message`, 1000),
+                  `message`,
+                  `icon`,
+                  `url`,
+                  `create_date`,
+                  `is_read`
+                FROM `{$tablepre}notice`";
+                $r = $this->execSql($migrateSql);
+                $results[] = ['name' => 'migrate_notice_data', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+            } else {
+                $results[] = ['name' => 'migrate_notice_data', 'ok' => true, 'message' => '已迁移，跳过'];
+            }
+            // 清理重复的公告数据：保留每个 message 的最小 nid，删除其余重复记录
+            $dedupSql = "DELETE n1 FROM `{$tablepre}notify` n1
+                INNER JOIN `{$tablepre}notify` n2
+                ON n1.`message` = n2.`message`
+                AND n1.`uid` = n2.`uid`
+                AND n1.`type` = n2.`type`
+                AND n1.`nid` > n2.`nid`
+                WHERE n1.`uid` = 0 AND n1.`type` IN ('announcement','system','pm','other')";
+            $r = $this->execSql($dedupSql);
+            $results[] = ['name' => 'dedup_announcements', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+        } else {
+            $results[] = ['name' => 'migrate_notice_data', 'ok' => true, 'message' => 'notice 表不存在，跳过'];
+        }
+
+        // 3. 更新 user.unread_notices 为合并后的未读数
+        $updateCountSql = "UPDATE `{$tablepre}user` u SET u.`unread_notices` = (
+            SELECT COUNT(*) FROM `{$tablepre}notify` WHERE `uid` = u.`uid` AND `is_read` = 0
+        )";
+        $r = $this->execSql($updateCountSql);
+        $results[] = ['name' => 'update_unread_count', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+
+        // 4. 删除旧的 bbs_notice 表（数据已迁移到 notify，model/notice.func.php 兼容层已移除）
+        if ($this->dbTableExists('notice', $tablepre)) {
+            $dropSql = "DROP TABLE IF EXISTS `{$tablepre}notice`";
+            $r = $this->execSql($dropSql);
+            $results[] = ['name' => 'drop_notice_table', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+        } else {
+            $results[] = ['name' => 'drop_notice_table', 'ok' => true, 'message' => '表不存在，跳过'];
+        }
+
+        $allOk = !in_array(false, array_column($results, 'ok'), true);
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === '完成'; }));
+        return [
+            'ok' => $allOk,
+            'message' => $allOk ? "通知系统合并完成（{$doneCount} 项操作）" : '部分合并失败',
+            'results' => $results,
+        ];
+    }
+
+    /**
+     * 修复存量用户组与积分不匹配
+     * 由于历史 bug（gid 被 USER_UPDATE_PROTECTED_FIELDS 过滤 + CreditsService 缓存未清），
+     * 部分用户的积分已变动但用户组未更新。此步骤遍历所有积分用户组（gid >= 100）用户，
+     * 根据当前 credits 自动重新计算并更新到正确的用户组。
+     */
+    public function upgradeUserGroupResync(): array {
+        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $results = [];
+
+        // 1. 加载 user_update_group 函数（admin 已通过 index.php 加载过 index.inc.php）
+        if (!function_exists('user_update_group')) {
+            $modelFile = APP_PATH . 'model/user.func.php';
+            if (file_exists($modelFile)) {
+                include_once _include($modelFile);
+            }
+        }
+        if (!function_exists('user_update_group')) {
+            return [
+                'ok' => false,
+                'message' => 'user_update_group 函数不可用，跳过',
+                'results' => [],
+            ];
+        }
+
+        // 2. 确保 group_list 已加载（$grouplist）
+        global $grouplist;
+        if (empty($grouplist)) {
+            $grouplist = function_exists('group_list_cache') ? group_list_cache() : array();
+        }
+
+        // 3. 查询所有 gid >= 100 的用户
+        $sql = "SELECT uid, gid, credits FROM `{$tablepre}user` WHERE gid >= 100";
+        $rows = $this->db->sqlFind($sql);
+        if (empty($rows)) {
+            return [
+                'ok' => true,
+                'message' => '无积分用户组用户，跳过',
+                'results' => [],
+            ];
+        }
+
+        $scanned = 0;
+        $upgraded = 0;
+        $unchanged = 0;
+        $examples = [];
+
+        foreach ($rows as $row) {
+            $scanned++;
+            $oldGid = intval($row['gid']);
+            $credits = intval($row['credits']);
+            $targetGid = $oldGid;
+
+            // 根据积分匹配用户组
+            foreach ($grouplist as $group) {
+                if ($group['gid'] < 100) continue;
+                if ($credits >= $group['creditsfrom'] && $credits < $group['creditsto']) {
+                    $targetGid = intval($group['gid']);
+                    break;
+                }
+            }
+
+            if ($targetGid !== $oldGid) {
+                // 调用 user_update_group 执行升级（会清缓存 + user__update 写库）
+                if (function_exists('user_update_group')) {
+                    user_update_group(intval($row['uid']));
+                    // user_update_group 找到第一个匹配就 return，可能没真正升级（如果原 gid 不在有效区间）
+                    // 兜底：直接 user__update
+                    $check = $this->db->findOne('user', ['uid' => intval($row['uid'])]);
+                    if (intval($check['gid']) !== $targetGid) {
+                        $this->db->update('user', ['uid' => intval($row['uid'])], ['gid' => $targetGid]);
+                    }
+                } else {
+                    $this->db->update('user', ['uid' => intval($row['uid'])], ['gid' => $targetGid]);
+                }
+                $upgraded++;
+                if (count($examples) < 10) {
+                    $examples[] = "uid={$row['uid']} gid {$oldGid}->{$targetGid} (credits={$credits})";
+                }
+            } else {
+                $unchanged++;
+            }
+        }
+
+        $results[] = [
+            'name' => 'resync_user_group',
+            'ok' => true,
+            'message' => "扫描 {$scanned} 个积分用户，升级 {$upgraded} 个，未变 {$unchanged} 个"
+                . ($examples ? '，示例：' . implode('; ', $examples) : ''),
+        ];
+
+        return [
+            'ok' => true,
+            'message' => "用户组重同步完成：扫描 {$scanned}，升级 {$upgraded}，未变 {$unchanged}",
+            'results' => $results,
+        ];
     }
 }

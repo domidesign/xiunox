@@ -73,10 +73,24 @@ function user_profile_audit_find_pending($page = 1, $pagesize = 20) {
     $cond = array('audit_status'=>0);
     $auditlist = db_find('user_profile_audit', $cond, array('id'=>-1), $page, $pagesize, 'id');
     if($auditlist) {
+        global $conf;
         foreach($auditlist as &$item) {
             $user = user_read_cache($item['uid']);
-            $item['username'] = $user['username'] ?? '';
+            $item['username'] = isset($user['display_name']) ? $user['display_name'] : ($user['username'] ?? '');
             $item['avatar_url'] = $user['avatar_url'] ?? '';
+            // 头像审核：生成新头像URL（临时文件，兼容 jpg/png）
+            if($item['field_name'] === 'avatar' && !empty($item['new_value'])) {
+                $avatar_dir = substr(sprintf("%09d", $item['uid']), 0, 3).'/';
+                $pending_base = $conf['upload_path'].'avatar/'.$avatar_dir.$item['uid'].'_pending_'.$item['new_value'];
+                $pending_url_base = $conf['upload_url'].'avatar/'.$avatar_dir.$item['uid'].'_pending_'.$item['new_value'];
+                if(is_file($pending_base.'.jpg')) {
+                    $item['new_avatar_url'] = $pending_url_base.'.jpg';
+                } elseif(is_file($pending_base.'.png')) {
+                    $item['new_avatar_url'] = $pending_url_base.'.png';
+                } else {
+                    $item['new_avatar_url'] = '';
+                }
+            }
         }
         unset($item);
     }

@@ -196,29 +196,48 @@ function xn_smtp_get() {
 function xn_email_rate_check($email, $ip = '') {
     if (!function_exists('kv_get')) return TRUE;
 
-    // 同一邮箱 60 秒内只能发送一次
+    // 读取后台配置
+    $interval = 60;
+    $daily_limit = 5;
+    $ip_hourly_limit = 10;
+    if (class_exists('SecurityConfigService')) {
+        $interval = intval(SecurityConfigService::get('security_email_code_interval', 60));
+        $daily_limit = intval(SecurityConfigService::get('security_email_code_daily_limit', 5));
+        $ip_hourly_limit = intval(SecurityConfigService::get('security_email_code_ip_hourly_limit', 10));
+    }
+
+    global $time;
+
+    // 同一邮箱发送间隔检查
     $email_key = 'email_rate_' . md5($email);
     $last_send = kv_get($email_key);
     if (!empty($last_send)) {
-        global $time;
         $elapsed = $time - intval($last_send);
-        if ($elapsed < 60) {
-            $remaining = 60 - $elapsed;
+        if ($elapsed < $interval) {
+            $remaining = $interval - $elapsed;
             return "发送太频繁，请 {$remaining} 秒后再试";
         }
     }
 
-    // 同一 IP 60 分钟内最多发送 10 次
-    if (!empty($ip)) {
+    // 同一邮箱每日发送上限检查
+    if ($daily_limit > 0) {
+        $daily_key = 'email_rate_daily_' . md5($email) . '_' . date('Ymd', $time);
+        $daily_count = intval(kv_get($daily_key));
+        if ($daily_count >= $daily_limit) {
+            return "该邮箱今日发送次数已达上限（{$daily_limit} 次），请明天再试";
+        }
+    }
+
+    // 同一 IP 每小时发送上限检查
+    if (!empty($ip) && $ip_hourly_limit > 0) {
         $ip_key = 'email_rate_ip_' . $ip;
         $ip_data = kv_get($ip_key);
         if (!empty($ip_data) && is_array($ip_data)) {
-            global $time;
             // 清理超过 60 分钟的记录
             $ip_data = array_filter($ip_data, function($t) use ($time) {
                 return ($time - $t) < 3600;
             });
-            if (count($ip_data) >= 10) {
+            if (count($ip_data) >= $ip_hourly_limit) {
                 return "该 IP 发送次数已达上限，请稍后再试";
             }
         }
@@ -241,6 +260,11 @@ function xn_email_rate_record($email, $ip = '') {
     // 记录邮箱发送时间
     $email_key = 'email_rate_' . md5($email);
     kv_set($email_key, $time);
+
+    // 记录邮箱每日发送计数
+    $daily_key = 'email_rate_daily_' . md5($email) . '_' . date('Ymd', $time);
+    $daily_count = intval(kv_get($daily_key));
+    kv_set($daily_key, $daily_count + 1, 86400 * 2); // 保留 2 天自动过期
 
     // 记录 IP 发送次数
     if (!empty($ip)) {

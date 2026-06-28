@@ -91,6 +91,73 @@ class db_pdo_mysql implements DatabaseInterface {
 		return $this->sql_find_one("SELECT $cols FROM {$this->tablepre}$table $cond$orderby LIMIT 1");
 	}
 
+	/**
+	 * 带 GROUP BY 的聚合查询
+	 * @param string $table 表名（不含前缀）
+	 * @param array $cond WHERE 条件
+	 * @param array $groupby GROUP BY 字段数组，如 ['uid'] 或 ['uid', 'fid']
+	 * @param array $having HAVING 条件，格式同 $cond，如 ['cnt' => ['>' => 5]]
+	 * @param array $orderby 排序，如 ['cnt' => -1]
+	 * @param int $page 页码
+	 * @param int $pagesize 每页数量
+	 * @param string $key 返回数组的 key 字段
+	 * @param array $col SELECT 字段，如 ['uid', 'COUNT(*) as cnt']，注意聚合字段必须用别名
+	 * @return array
+	 */
+	public function find_group(string $table, array $cond = [], array $groupby = [], array $having = [], array $orderby = [], int $page = 1, int $pagesize = 10, string $key = '', array $col = []): array {
+		$page = max(1, $page);
+		$condSql = db_cond_to_sqladd($cond);
+		$orderbySql = db_orderby_to_sqladd($orderby);
+		$offset = ($page - 1) * $pagesize;
+		$cols = $col ? implode(',', $col) : '*';
+
+		$groupbySql = '';
+		if (!empty($groupby)) {
+			$groupbySql = ' GROUP BY ' . implode(',', $groupby);
+		}
+
+		$havingSql = '';
+		if (!empty($having)) {
+			$havingSql = db_cond_to_sqladd($having);
+			// db_cond_to_sqladd 返回 ' WHERE ...'，需要替换为 ' HAVING ...'
+			$havingSql = str_replace(' WHERE ', ' HAVING ', $havingSql);
+		}
+
+		$sql = "SELECT $cols FROM {$this->tablepre}$table $condSql$groupbySql$havingSql$orderbySql LIMIT $offset,$pagesize";
+		$r = $this->sql_find($sql, $key);
+		return is_array($r) ? $r : [];
+	}
+
+	/**
+	 * 带 GROUP BY 的单条聚合查询
+	 * @param string $table 表名（不含前缀）
+	 * @param array $cond WHERE 条件
+	 * @param array $groupby GROUP BY 字段数组
+	 * @param array $having HAVING 条件
+	 * @param array $orderby 排序
+	 * @param array $col SELECT 字段（含聚合函数别名）
+	 * @return array|null
+	 */
+	public function find_one_group(string $table, array $cond = [], array $groupby = [], array $having = [], array $orderby = [], array $col = []): ?array {
+		$condSql = db_cond_to_sqladd($cond);
+		$orderbySql = db_orderby_to_sqladd($orderby);
+		$cols = $col ? implode(',', $col) : '*';
+
+		$groupbySql = '';
+		if (!empty($groupby)) {
+			$groupbySql = ' GROUP BY ' . implode(',', $groupby);
+		}
+
+		$havingSql = '';
+		if (!empty($having)) {
+			$havingSql = db_cond_to_sqladd($having);
+			$havingSql = str_replace(' WHERE ', ' HAVING ', $havingSql);
+		}
+
+		$sql = "SELECT $cols FROM {$this->tablepre}$table $condSql$groupbySql$havingSql$orderbySql LIMIT 1";
+		return $this->sql_find_one($sql);
+	}
+
 	public function findOne(string $table, array $cond = [], array $orderby = [], array $col = []): ?array {
 		return $this->find_one($table, $cond, $orderby, $col);
 	}
@@ -100,6 +167,7 @@ class db_pdo_mysql implements DatabaseInterface {
 		if(!$query) return NULL;
 		$query->setFetchMode(PDO::FETCH_ASSOC);
 		$r = $query->fetch();
+		$query->closeCursor();
 		return $r === FALSE ? NULL : $r;
 	}
 
@@ -108,6 +176,7 @@ class db_pdo_mysql implements DatabaseInterface {
 		if(!$query) return [];
 		$query->setFetchMode(PDO::FETCH_ASSOC);
 		$arrlist = $query->fetchAll();
+		$query->closeCursor();
 		$key AND $arrlist = arrlist_change_key($arrlist, $key);
 		return is_array($arrlist) ? $arrlist : [];
 	}
@@ -116,6 +185,8 @@ class db_pdo_mysql implements DatabaseInterface {
 		$this->errno = 0;
 		$this->errstr = '';
 		if(!$this->wlink && !$this->connect_master()) return 0;
+		// 修复：关闭 rlink 上未消费的 PDOStatement，避免 "Cannot execute queries while other unbuffered queries are active"
+		$this->link = NULL;
 		$link = $this->link = $this->wlink;
 		$n = 0;
 		try {
@@ -132,12 +203,11 @@ class db_pdo_mysql implements DatabaseInterface {
 			$t1 = microtime(1);
 			$n = $link->exec($sql);
 			$t2 = microtime(1);
-			$t3 = substr($t2 - $t1, 0, 6);
 		} catch (Exception $e) {
 			$this->error($e->getCode(), $e->getMessage());
 			return 0;
 		}
-		if(count($this->sqls) < 1000) $this->sqls[] = "[$t3]".$sql;
+		if(count($this->sqls) < 1000) $this->sqls[] = '['.number_format($t2 - $t1, 4).']'.$sql;
 
 		if($n !== FALSE) {
 			$pre = strtoupper(substr(trim($sql), 0, 7));
@@ -218,18 +288,19 @@ class db_pdo_mysql implements DatabaseInterface {
 		$this->errno = 0;
 		$this->errstr = '';
 		if(!$this->rlink && !$this->connect_slave()) return FALSE;
+		// 修复：关闭 wlink 上未消费的 PDOStatement
+		$this->link = NULL;
 		$link = $this->link = $this->rlink;
 		try {
 			$t1 = microtime(1);
 			$query = $link->query($sql);
 			$t2 = microtime(1);
-			$t3 = substr($t2 - $t1, 0, 6);
 		} catch (Exception $e) {
 			$this->error($e->getCode(), $e->getMessage());
 			return FALSE;
 		}
 		if($query === FALSE) $this->error();
-		if(count($this->sqls) < 1000) $this->sqls[] = substr($t2 - $t1, 0, 6).' '.$sql;
+		if(count($this->sqls) < 1000) $this->sqls[] = number_format($t2 - $t1, 4).' '.$sql;
 		return $query;
 	}
 

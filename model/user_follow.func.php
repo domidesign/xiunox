@@ -3,8 +3,18 @@
 // hook model_user_follow_start.php
 
 function user_follow__create($arr) {
-	$r = db_insert('user_follow', $arr);
-	return $r;
+	global $db;
+	$tablepre = $db->tablepre;
+	// 使用 INSERT IGNORE 避免主键冲突
+	$keys = array();
+	$values = array();
+	foreach($arr as $k=>$v) {
+		$keys[] = '`'.addslashes($k).'`';
+		$values[] = "'".addslashes((string)$v)."'";
+	}
+	$sql = "INSERT IGNORE INTO {$tablepre}user_follow (".implode(',', $keys).") VALUES (".implode(',', $values).")";
+	$r = db_exec($sql);
+	return $r; // 1=新增成功，0=已存在，FALSE=失败
 }
 
 function user_follow__delete($uid, $follow_uid) {
@@ -20,14 +30,14 @@ function user_follow_read($uid, $follow_uid) {
 function user_follow_create($uid, $follow_uid) {
 	global $time, $db;
 	if($uid == $follow_uid) return FALSE;
-	$exists = user_follow_read($uid, $follow_uid);
-	if(!empty($exists)) return FALSE;
+	// 使用 INSERT IGNORE，无需先 SELECT 检查，避免主键冲突和竞争
 	$r = user_follow__create(array(
 		'uid' => $uid,
 		'follow_uid' => $follow_uid,
 		'create_date' => $time,
 	));
-	if($r !== FALSE) {
+	// $r 为受影响行数：1=新增成功，0=已存在
+	if($r == 1) {
 		$tablepre = $db->tablepre;
 		db_exec("UPDATE {$tablepre}user SET follows=follows+1 WHERE uid='$uid'");
 		db_exec("UPDATE {$tablepre}user SET followeds=followeds+1 WHERE uid='$follow_uid'");
@@ -88,14 +98,20 @@ function user_follow_delete_by_uid($uid) {
 	$tablepre = $db->tablepre;
 	$following = db_find('user_follow', array('uid'=>$uid), array(), 1, 10000);
 	if($following) {
-		foreach($following as $f) {
-			db_exec("UPDATE {$tablepre}user SET followeds=IF(followeds>0,followeds-1,0) WHERE uid='".$f['follow_uid']."'");
+		// 批量更新关注者的 followeds 计数（替代逐个 UPDATE 的 N+1 查询）
+		$follow_uids = arrlist_values($following, 'follow_uid');
+		if(!empty($follow_uids)) {
+			$uid_list = implode(',', array_map('intval', $follow_uids));
+			db_exec("UPDATE {$tablepre}user SET followeds=IF(followeds>0,followeds-1,0) WHERE uid IN ($uid_list)");
 		}
 	}
 	$followers = db_find('user_follow', array('follow_uid'=>$uid), array(), 1, 10000);
 	if($followers) {
-		foreach($followers as $f) {
-			db_exec("UPDATE {$tablepre}user SET follows=IF(follows>0,follows-1,0) WHERE uid='".$f['uid']."'");
+		// 批量更新粉丝的 follows 计数（替代逐个 UPDATE 的 N+1 查询）
+		$follower_uids = arrlist_values($followers, 'uid');
+		if(!empty($follower_uids)) {
+			$uid_list = implode(',', array_map('intval', $follower_uids));
+			db_exec("UPDATE {$tablepre}user SET follows=IF(follows>0,follows-1,0) WHERE uid IN ($uid_list)");
 		}
 	}
 	db_delete('user_follow', array('uid'=>$uid));

@@ -28,6 +28,9 @@ if($action == 'top') {
 			
 		// hook mod_top_start.php
 		
+		// 批量置顶：先收集通过权限检查的 tid，再批量更新 thread_top 与 thread.top，消除 N+1 UPDATE/REPLACE
+		$top_tids = array();
+		$modlog_records = array();
 		foreach($threadlist as &$thread) {
 			$fid = $thread['fid'];
 			$tid = $thread['tid'];
@@ -35,8 +38,8 @@ if($action == 'top') {
 				continue;
 			}
 			if(forum_access_mod($fid, $gid, 'allowtop')) {
-				thread_top_change($tid, $top);
-				$arr = array(
+				$top_tids[] = $tid;
+				$modlog_records[] = array(
 					'uid' => $uid,
 					'tid' => $thread['tid'],
 					'pid' => $thread['firstpid'],
@@ -45,27 +48,31 @@ if($action == 'top') {
 					'create_date' => $time,
 					'action' => 'top',
 				);
-				
+
 				// hook mod_top_log_create_before.php
-				modlog_create($arr);
-				
 			}
 		}
-		
+		// 批量更新置顶状态
+		!empty($top_tids) AND thread_top_change_batch($top_tids, $threadlist, $top);
+		// 批量插入版主日志，消除 N+1 INSERT
+		!empty($modlog_records) AND modlog_create_batch($modlog_records);
+
 		// hook mod_top_end.php
 
-		// 积分规则：置顶获得积分
+		// 积分规则：置顶获得积分（批量预查规则后循环调用，消除规则 N+1 查询）
 		if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
+		$_top_uid_fid_pairs = array();
 		foreach($threadlist as $_thread) {
 			if(!empty($_thread['uid'])) {
-				CreditsRuleService::applyRule('thread_top', intval($_thread['uid']), intval($_thread['fid']));
+				$_top_uid_fid_pairs[] = array(intval($_thread['uid']), intval($_thread['fid']));
 			}
 		}
+		CreditsRuleService::applyRuleBatch('thread_top', $_top_uid_fid_pairs);
 
 		// hook mod_digest_end.php
 
 		header('Content-Type: application/json; charset=utf-8');
-		echo json_encode(array('code' => 0, 'message' => lang('set_completely'), 'redirect_url' => './'), JSON_UNESCAPED_UNICODE);
+		echo json_encode(array('code' => 0, 'message' => lang('set_completely'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
 		exit;
 	}
 
@@ -86,13 +93,16 @@ if($action == 'top') {
 		$threadlist = thread_find_by_tids($tidarr);
 			
 		// hook mod_close_start.php
-		
+
+		// 批量关闭：先收集通过权限检查的 tid，再批量更新，消除 N+1 查询
+		$close_tids = array();
+		$modlog_records = array();
 		foreach($threadlist as &$thread) {
 			$fid = $thread['fid'];
 			$tid = $thread['tid'];
 			if(forum_access_mod($fid, $gid, 'allowtop')) {
-				thread_update($tid, array('closed'=>$close));
-				$arr = array(
+				$close_tids[] = $tid;
+				$modlog_records[] = array(
 					'uid' => $uid,
 					'tid' => $thread['tid'],
 					'pid' => $thread['firstpid'],
@@ -101,16 +111,21 @@ if($action == 'top') {
 					'create_date' => $time,
 					'action' => 'close',
 				);
-				
+
 				// hook mod_close_log_create_before.php
-				modlog_create($arr);
 			}
 		}
+		// 批量更新关闭状态
+		if(!empty($close_tids)) {
+			db_update('thread', array('tid'=>$close_tids), array('closed'=>$close));
+		}
+		// 批量插入版主日志，消除 N+1 INSERT
+		!empty($modlog_records) AND modlog_create_batch($modlog_records);
 		
 		// hook mod_close_end.php
 		
 		header('Content-Type: application/json; charset=utf-8');
-		echo json_encode(array('code' => 0, 'message' => lang('set_completely'), 'redirect_url' => './'), JSON_UNESCAPED_UNICODE);
+		echo json_encode(array('code' => 0, 'message' => lang('set_completely'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
 		exit;
 	}
 	
@@ -130,13 +145,16 @@ if($action == 'top') {
 		$threadlist = thread_find_by_tids($tidarr);
 		
 		// hook mod_delete_start.php
-		
+
+		// 批量删除：先收集通过权限检查的 tid 与日志记录，再一次性批量删除，消除 N+1 DELETE
+		$delete_tids = array();
+		$modlog_records = array();
 		foreach($threadlist as &$thread) {
 			$fid = $thread['fid'];
 			$tid = $thread['tid'];
 			if(forum_access_mod($fid, $gid, 'allowdelete')) {
-				thread_delete($tid);
-				$arr = array(
+				$delete_tids[] = $tid;
+				$modlog_records[] = array(
 					'uid' => $uid,
 					'tid' => $thread['tid'],
 					'pid' => $thread['firstpid'],
@@ -146,22 +164,27 @@ if($action == 'top') {
 					'action' => 'delete',
 				);
 				// hook mod_delete_log_create_before.php
-				modlog_create($arr);
 			}
 		}
-		
+		// 批量删除主题（post/attach/mythread/favorite/thread 全部合并清理）
+		!empty($delete_tids) AND thread_delete_batch($delete_tids);
+		// 批量插入版主日志，消除 N+1 INSERT
+		!empty($modlog_records) AND modlog_create_batch($modlog_records);
+
 		// hook mod_delete_end.php
 
-		// 积分规则：删主题扣除作者积分
+		// 积分规则：删主题扣除作者积分（批量预查规则后循环调用，消除规则 N+1 查询）
 		if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
+		$_delete_uid_fid_pairs = array();
 		foreach($threadlist as $_thread) {
 			if(!empty($_thread['uid'])) {
-				CreditsRuleService::applyRule('thread_delete', intval($_thread['uid']), intval($_thread['fid']));
+				$_delete_uid_fid_pairs[] = array(intval($_thread['uid']), intval($_thread['fid']));
 			}
 		}
+		CreditsRuleService::applyRuleBatch('thread_delete', $_delete_uid_fid_pairs);
 
 		header('Content-Type: application/json; charset=utf-8');
-		echo json_encode(array('code' => 0, 'message' => lang('delete_completely'), 'redirect_url' => './'), JSON_UNESCAPED_UNICODE);
+		echo json_encode(array('code' => 0, 'message' => lang('delete_completely'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
 		exit;
 	}
 	
@@ -184,14 +207,17 @@ if($action == 'top') {
 		!forum_read($newfid) AND message(1, lang('forum_not_exists'));
 		
 		// hook mod_move_start.php
-		
+
+		// 批量移动：先收集通过权限检查且目标版块不同的 tid，再批量更新，消除 N+1 查询
+		$move_tids = array();
+		$modlog_records = array();
 		foreach($threadlist as &$thread) {
 			$fid = $thread['fid'];
 			$tid = $thread['tid'];
 			if(forum_access_mod($fid, $gid, 'allowmove')) {
 				if($fid == $newfid) continue;
-				thread_update($tid, array('fid'=>$newfid));
-				$arr = array(
+				$move_tids[] = $tid;
+				$modlog_records[] = array(
 					'uid' => $uid,
 					'tid' => $thread['tid'],
 					'pid' => $thread['firstpid'],
@@ -201,9 +227,14 @@ if($action == 'top') {
 					'action' => 'move',
 				);
 				// hook mod_move_log_create_before.php
-				modlog_create($arr);
 			}
 		}
+		// 批量更新版块
+		if(!empty($move_tids)) {
+			db_update('thread', array('tid'=>$move_tids), array('fid'=>$newfid));
+		}
+		// 批量插入版主日志，消除 N+1 INSERT
+		!empty($modlog_records) AND modlog_create_batch($modlog_records);
 		
 		// 清理下缓存
 		forum_list_cache_delete();
@@ -211,7 +242,7 @@ if($action == 'top') {
 		// hook mod_move_end.php
 		
 		header('Content-Type: application/json; charset=utf-8');
-		echo json_encode(array('code' => 0, 'message' => lang('move_completely'), 'redirect_url' => './'), JSON_UNESCAPED_UNICODE);
+		echo json_encode(array('code' => 0, 'message' => lang('move_completely'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
 		exit;
 		
 	}
@@ -239,7 +270,7 @@ if($action == 'top') {
 	// hook mod_delete_user_end.php
 	
 	header('Content-Type: application/json; charset=utf-8');
-	echo json_encode(array('code' => 0, 'message' => lang('delete_successfully'), 'redirect_url' => './'), JSON_UNESCAPED_UNICODE);
+	echo json_encode(array('code' => 0, 'message' => lang('delete_successfully'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
 	exit;
 
 } elseif($action == 'digest') {
@@ -260,12 +291,15 @@ if($action == 'top') {
 
 		// hook mod_digest_start.php
 
+		// 批量精华：先收集通过权限检查的 tid，再批量更新 thread_digest/thread.digest/user.digests/forum.digests，消除 N+1
+		$digest_tids = array();
+		$modlog_records = array();
 		foreach($threadlist as &$thread) {
 			$fid = $thread['fid'];
 			$tid = $thread['tid'];
 			if(forum_access_mod($fid, $gid, 'allowtop')) {
-				thread_digest_change($tid, $digest, $thread['uid'], $thread['fid']);
-				$arr = array(
+				$digest_tids[] = $tid;
+				$modlog_records[] = array(
 					'uid' => $uid,
 					'tid' => $thread['tid'],
 					'pid' => $thread['firstpid'],
@@ -274,16 +308,186 @@ if($action == 'top') {
 					'create_date' => $time,
 					'action' => 'digest',
 				);
-				modlog_create($arr);
 			}
 		}
+		// 批量更新精华状态
+		!empty($digest_tids) AND thread_digest_change_batch($digest_tids, $threadlist, $digest);
+		// 批量插入版主日志，消除 N+1 INSERT
+		!empty($modlog_records) AND modlog_create_batch($modlog_records);
 
 		// hook mod_digest_end.php
 
 		header('Content-Type: application/json; charset=utf-8');
-		echo json_encode(array('code' => 0, 'message' => lang('set_completely'), 'redirect_url' => './'), JSON_UNESCAPED_UNICODE);
+		echo json_encode(array('code' => 0, 'message' => lang('set_completely'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
 		exit;
 	}
+
+} elseif($action == 'audit') {
+
+	if($method == 'GET') {
+
+		include _include(APP_PATH.'view/htm/mod_audit.htm');
+
+	} else {
+
+		CsrfService::check();
+
+		$audit_status = param('audit_status', 1);
+
+		$tidarr = param('tidarr', array(0));
+		empty($tidarr) AND message(-1, lang('please_choose_thread'));
+
+		// hook mod_audit_start.php
+
+		if(!class_exists('AuditService')) include_once APP_PATH . 'lib/security/AuditService.php';
+
+		$updated = 0;
+		// 批量读取帖子，消除 N+1 查询
+		$_audit_tidarr = array();
+		foreach($tidarr as $_tid) {
+			$_tid = intval($_tid);
+			if(!empty($_tid)) $_audit_tidarr[] = $_tid;
+		}
+		$_audit_threads = empty($_audit_tidarr) ? array() : thread_find_by_tids($_audit_tidarr);
+		// 先过滤出通过权限检查的 tid，再调用批量审核接口，消除 N+1 UPDATE/notify
+		$_audit_valid_tids = array();
+		foreach($_audit_tidarr as $_tid) {
+			if(!isset($_audit_threads[$_tid])) continue;
+			$thread = $_audit_threads[$_tid];
+			$fid = $thread['fid'];
+			if(!forum_access_mod($fid, $gid, 'allowtop')) continue;
+			$_audit_valid_tids[] = $_tid;
+		}
+
+		if(!empty($_audit_valid_tids)) {
+			if($audit_status == 1) {
+				// 批量审核通过
+				$updated = AuditService::batch_approve('thread', $_audit_valid_tids, $uid);
+			} elseif($audit_status == 2) {
+				// 批量审核驳回
+				$updated = AuditService::batch_reject('thread', $_audit_valid_tids, $uid);
+			}
+		}
+
+		// hook mod_audit_end.php
+
+		if($updated > 0) {
+			$msg = $audit_status == 1 ? lang('audit_approve') : lang('audit_reject');
+			header('Content-Type: application/json; charset=utf-8');
+			echo json_encode(array('code' => 0, 'message' => $msg . lang('success_label'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
+		} else {
+			header('Content-Type: application/json; charset=utf-8');
+			echo json_encode(array('code' => -1, 'message' => lang('operation_failed')), JSON_UNESCAPED_UNICODE);
+		}
+		exit;
+	}
+
+} elseif($action == 'audit_post') {
+
+	// 回帖审核（通过/驳回）
+	CsrfService::check();
+
+	$pid = param('pid', 0);
+	$audit_status = param('audit_status', 1);
+	$reason = param('reason', '', FALSE);
+
+	if(empty($pid)) {
+		header('Content-Type: application/json; charset=utf-8');
+		echo json_encode(array('code' => -1, 'message' => lang('data_malformation')), JSON_UNESCAPED_UNICODE);
+		exit;
+	}
+
+	// 权限检查：管理员/版主
+	$post = post_read($pid);
+	if(empty($post) || !empty($post['isfirst'])) {
+		header('Content-Type: application/json; charset=utf-8');
+		echo json_encode(array('code' => -1, 'message' => lang('post_not_exists')), JSON_UNESCAPED_UNICODE);
+		exit;
+	}
+
+	$thread = thread_read($post['tid']);
+	if(empty($thread)) {
+		header('Content-Type: application/json; charset=utf-8');
+		echo json_encode(array('code' => -1, 'message' => lang('thread_not_exists')), JSON_UNESCAPED_UNICODE);
+		exit;
+	}
+
+	$fid = $thread['fid'];
+	if(!forum_access_mod($fid, $gid, 'allowtop')) {
+		header('Content-Type: application/json; charset=utf-8');
+		echo json_encode(array('code' => -1, 'message' => lang('user_group_insufficient_privilege')), JSON_UNESCAPED_UNICODE);
+		exit;
+	}
+
+	if(!class_exists('AuditService')) include_once APP_PATH . 'lib/security/AuditService.php';
+
+	if($audit_status == 1) {
+		$r = AuditService::approve('post', $pid, $uid);
+	} else {
+		$r = AuditService::reject('post', $pid, $uid, $reason);
+	}
+
+	if($r) {
+		$msg = $audit_status == 1 ? lang('audit_approve') : lang('audit_reject');
+		header('Content-Type: application/json; charset=utf-8');
+		echo json_encode(array('code' => 0, 'message' => $msg . lang('success_label')), JSON_UNESCAPED_UNICODE);
+	} else {
+		header('Content-Type: application/json; charset=utf-8');
+		echo json_encode(array('code' => -1, 'message' => lang('operation_failed')), JSON_UNESCAPED_UNICODE);
+	}
+	exit;
+
+} elseif($action == 'top_post') {
+
+	// 评论置顶/取消置顶
+	CsrfService::check();
+
+	$pid = param('pid', 0);
+	$tid = param('tid', 0);
+	$is_top = param('is_top', 0);
+
+	if(empty($pid) || empty($tid)) {
+		header('Content-Type: application/json; charset=utf-8');
+		echo json_encode(array('code' => -1, 'message' => lang('data_malformation')), JSON_UNESCAPED_UNICODE);
+		exit;
+	}
+
+	// 权限检查：管理员或帖子作者
+	$thread = thread_read($tid);
+	if(empty($thread)) {
+		header('Content-Type: application/json; charset=utf-8');
+		echo json_encode(array('code' => -1, 'message' => lang('thread_not_exists')), JSON_UNESCAPED_UNICODE);
+		exit;
+	}
+
+	$fid = $thread['fid'];
+	$is_admin = forum_access_mod($fid, $gid, 'allowtop');
+	$is_author = ($uid == $thread['uid']);
+
+	if(!$is_admin && !$is_author) {
+		header('Content-Type: application/json; charset=utf-8');
+		echo json_encode(array('code' => -1, 'message' => lang('user_group_insufficient_privilege')), JSON_UNESCAPED_UNICODE);
+		exit;
+	}
+
+	// 更新置顶状态
+	$post = post_read($pid);
+	if(empty($post) || $post['tid'] != $tid || !empty($post['isfirst'])) {
+		header('Content-Type: application/json; charset=utf-8');
+		echo json_encode(array('code' => -1, 'message' => lang('post_not_exists')), JSON_UNESCAPED_UNICODE);
+		exit;
+	}
+
+	$r = post_update($pid, array('is_top' => $is_top ? 1 : 0));
+	if($r !== FALSE) {
+		$msg = $is_top ? lang('post_top_success') : lang('post_untop_success');
+		header('Content-Type: application/json; charset=utf-8');
+		echo json_encode(array('code' => 0, 'message' => $msg), JSON_UNESCAPED_UNICODE);
+	} else {
+		header('Content-Type: application/json; charset=utf-8');
+		echo json_encode(array('code' => -1, 'message' => lang('operation_failed')), JSON_UNESCAPED_UNICODE);
+	}
+	exit;
 
 } elseif($action == 'announcement') {
 	
@@ -305,16 +509,15 @@ if($action == 'top') {
 		// hook mod_announcement_start.php
 		
 		$updated = 0;
+		// 批量公告：先收集通过权限检查的 tid，再批量更新，消除 N+1 查询
+		$announce_tids = array();
+		$modlog_records = array();
 		foreach($threadlist as &$thread) {
 			$fid = $thread['fid'];
 			$tid = $thread['tid'];
 			if(forum_access_mod($fid, $gid, 'allowtop')) {
-				$r = thread_update($tid, array(
-					'is_announcement' => $is_announcement,
-					'announcement_order' => $is_announcement ? $announcement_order : 0
-				));
-				if($r) $updated++;
-				$arr = array(
+				$announce_tids[] = $tid;
+				$modlog_records[] = array(
 					'uid' => $uid,
 					'tid' => $thread['tid'],
 					'pid' => $thread['firstpid'],
@@ -325,9 +528,18 @@ if($action == 'top') {
 				);
 
 				// hook mod_announcement_log_create_before.php
-				modlog_create($arr);
 			}
 		}
+		// 批量更新公告状态
+		if(!empty($announce_tids)) {
+			$r = db_update('thread', array('tid'=>$announce_tids), array(
+				'is_announcement' => $is_announcement,
+				'announcement_order' => $is_announcement ? $announcement_order : 0
+			));
+			if($r !== FALSE) $updated = count($announce_tids);
+		}
+		// 批量插入版主日志，消除 N+1 INSERT
+		!empty($modlog_records) AND modlog_create_batch($modlog_records);
 
 		// 清理缓存
 		cache_delete('sidebar_announcements');

@@ -8,7 +8,7 @@
 			<h5 class="fw-bold d-flex align-items-center gap-2"><i class="ti ti-shield-check"></i> <?php echo lang('plugin_scanner_title');?></h5>
 			<div class="d-flex gap-1">
 				<a href="javascript:void(0)" class="admin-quick-link" onclick="exportCSV()"><i class="ti ti-download"></i> <?php echo lang('plugin_scanner_export_csv');?></a>
-				<a href="<?php echo url('plugin-scanner');?>" class="admin-quick-link"><i class="ti ti-refresh"></i> <?php echo lang('plugin_scanner_refresh');?></a>
+				<a href="<?php echo admin_plugin_scanner_url();?>" class="admin-quick-link"><i class="ti ti-refresh"></i> <?php echo lang('plugin_scanner_refresh');?></a>
 			</div>
 		</div>
 		<p class="text-secondary fs-6 mb-3">
@@ -122,7 +122,7 @@ function startScan() {
 	spinner.classList.remove('d-none');
 	statusEl.textContent = '<?php echo lang('plugin_scanner_scanning');?>';
 
-	var url = '<?php echo url("plugin-scanner-do");?>';
+	var url = '<?php echo admin_plugin_scanner_do_url();?>';
 	if (pluginDir) {
 		url += '?dir=' + encodeURIComponent(pluginDir);
 	}
@@ -226,7 +226,7 @@ function filterResults() {
 
 function exportCSV() {
 	var pluginDir = document.getElementById('pluginFilter').value;
-	var url = '<?php echo url("plugin-scanner-export");?>';
+	var url = '<?php echo admin_plugin_scanner_export_url();?>';
 	if (pluginDir) {
 		url += '?dir=' + encodeURIComponent(pluginDir);
 	}

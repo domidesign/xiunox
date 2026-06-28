@@ -10,6 +10,8 @@
 
     // 删除单个附件
     var deleteButtons = XN.$$('.btn-delete-attach');
+    // 操作模式：'single' = 单删, 'batch' = 批量清理孤儿
+    var deleteMode = 'single';
     var currentDeleteAid = 0;
     var currentDeleteOrphan = 0;
 
@@ -19,6 +21,7 @@
             var isOrphan = this.getAttribute('data-orphan') === '1';
             currentDeleteAid = aid;
             currentDeleteOrphan = isOrphan;
+            deleteMode = 'single';
 
             var modal = document.getElementById('deleteConfirmModal');
             var title = document.getElementById('deleteModalTitle');
@@ -37,10 +40,29 @@
         });
     });
 
-    // 确认删除
+    // 确认删除（统一处理单删和批量清理）
     var confirmBtn = document.getElementById('btnConfirmDelete');
     if (confirmBtn) {
         confirmBtn.addEventListener('click', function() {
+            if (deleteMode === 'batch') {
+                // 批量清理孤儿附件
+                var data = {};
+                data[csrfToken ? 'csrf_token' : 'bbs_admin_token'] = csrfToken || '';
+
+                XN.post(attach_batch_delete_url, data, function(code, message) {
+                    if (code === 0) {
+                        var m = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+                        if (m) m.hide();
+                        showToast(message, 'success');
+                        setTimeout(function() { location.reload(); }, 1000);
+                    } else {
+                        showToast(message || 'Error', 'danger');
+                    }
+                });
+                return;
+            }
+
+            // 单个删除
             if (!currentDeleteAid) return;
 
             var data = {
@@ -49,7 +71,7 @@
             };
             data[csrfToken ? 'csrf_token' : 'bbs_admin_token'] = csrfToken || '';
 
-            XN.post(url('attach-delete'), data, function(code, message) {
+            XN.post(attach_delete_url, data, function(code, message) {
                 if (code === 0) {
                     var modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
                     if (modal) modal.hide();
@@ -86,29 +108,12 @@
             title.textContent = lang.admin_attach_clean_orphan;
             body.textContent = lang.admin_attach_clean_orphan_confirm.replace('{n}', orphanCount);
 
-            currentDeleteAid = 0; // 标记为批量操作
+            // 设置为批量模式
+            deleteMode = 'batch';
+            currentDeleteAid = 0;
 
             var bsModal = new bootstrap.Modal(modal);
             bsModal.show();
-
-            // 替换确认按钮行为
-            var origHandler = confirmBtn.onclick;
-            confirmBtn.onclick = function() {
-                var data = {};
-                data[csrfToken ? 'csrf_token' : 'bbs_admin_token'] = csrfToken || '';
-
-                XN.post(url('attach-batch_delete'), data, function(code, message) {
-                    if (code === 0) {
-                        var m = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
-                        if (m) m.hide();
-                        showToast(message, 'success');
-                        setTimeout(function() { location.reload(); }, 1000);
-                    } else {
-                        showToast(message || 'Error', 'danger');
-                    }
-                    confirmBtn.onclick = origHandler;
-                });
-            };
         });
     }
 

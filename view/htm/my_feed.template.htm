@@ -7,10 +7,10 @@
 		<div class="card-body">
 			<ul class="nav nav-tabs">
 				<!--{hook my_nav_feed_before.htm}-->
-				<li class="nav-item"><a class="nav-link" href="<?php echo url("my-thread");?>"><?php echo lang('my_thread');?></a></li>
-				<li class="nav-item"><a class="nav-link" href="<?php echo url("my-favorite");?>"><?php echo lang('my_favorite');?></a></li>
-				<li class="nav-item"><a class="nav-link active" href="<?php echo url("my-feed");?>"><?php echo lang('my_feed');?></a></li>
-				<li class="nav-item"><a class="nav-link" href="<?php echo url("my-notify");?>"><?php echo lang('my_notify');?></a></li>
+				<li class="nav-item"><a class="nav-link" href="<?php echo my_thread_url();?>"><?php echo lang('my_thread');?></a></li>
+			<li class="nav-item"><a class="nav-link" href="<?php echo my_favorite_url();?>"><?php echo lang('my_favorite');?></a></li>
+			<li class="nav-item"><a class="nav-link active" href="<?php echo my_feed_url();?>"><?php echo lang('my_feed');?></a></li>
+			<li class="nav-item"><a class="nav-link" href="<?php echo my_notify_url();?>"><?php echo lang('my_notify');?></a></li>
 				<!--{hook my_nav_feed_after.htm}-->
 			</ul>
 		</div>

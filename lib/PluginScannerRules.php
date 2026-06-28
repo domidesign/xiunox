@@ -38,8 +38,8 @@ class PluginScannerRules {
                 'HTTP_POST_VARS', 'HTTP_GET_VARS', 'HTTP_SESSION_VARS',
             ],
             'dangerous_functions' => [
-                'eval(', 'system(', 'exec(', 'passthru(', 'shell_exec(',
-                'popen(', 'proc_open(', 'pcntl_exec(',
+                '\beval\(', '\bsystem\(', '(?<![_>])\bexec\(', '\bpassthru\(', '\bshell_exec\(',
+                '\bpopen\(', '\bproc_open\(', '\bpcntl_exec\(',
             ],
             'bs4_classes' => [
                 ' ml-' => 'BS4 margin-left → BS5 ms-',
@@ -89,7 +89,7 @@ class PluginScannerRules {
                 '\$\.post\(' => '使用 htmx hx-post 或原生 fetch 替代 $.post',
                 '\$\.get\(' => '使用 htmx hx-get 或原生 fetch 替代 $.get',
                 '\$\.each\(' => '使用 Array.forEach() 替代 $.each',
-                '\$\.fn\.' => '迁移 jQuery 插件到 Alpine.js 组件',
+                '\$\.fn\.' => '迁移到原生 JS 类或 htmx 组件',
                 '\$\.extend\(' => '使用 Object.assign() 替代 $.extend',
                 '\$\.trim\(' => '使用 String.trim() 替代 $.trim',
                 '\$\.parseJSON\(' => '使用 JSON.parse() 替代 $.parseJSON',
@@ -98,7 +98,7 @@ class PluginScannerRules {
                 '\$\.browser' => '$.browser 已移除，使用特性检测替代',
                 '\$\(document\)\.ready' => '使用 DOMContentLoaded 替代 $(document).ready',
                 '\$\(function\(' => '使用 DOMContentLoaded 替代 $(function())',
-                'jQuery\(' => '迁移 jQuery 代码到 htmx + Alpine.js',
+                'jQuery\(' => '迁移到 htmx 4 属性或原生 JS',
             ],
             'bs3_classes' => [
                 'panel-heading' => 'BS3 .panel-heading → BS5 .card-header',
@@ -136,14 +136,14 @@ class PluginScannerRules {
                 '\$\(.*\)\.collapse\(' => 'jQuery .collapse() → new bootstrap.Collapse()',
                 '\$\(.*\)\.carousel\(' => 'jQuery .carousel() → new bootstrap.Carousel()',
                 '\$\(.*\)\.alert\(' => 'jQuery .alert() → new bootstrap.Alert()',
-                '\$\(.*\)\.button\(' => 'jQuery .button("loading") → Alpine.js x-data loading 状态控制',
+                '\$\(.*\)\.button\(' => 'jQuery .button("loading") → htmx hx-disabled-elt 或原生 JS disabled 属性',
                 '\$\(.*\)\.tab\(' => 'jQuery .tab() → new bootstrap.Tab()',
             ],
             'missing_csrf' => [
                 'method="post"' => 'POST 表单缺少 CSRF 令牌，请添加 CsrfService::input()',
             ],
             'direct_db' => [
-                'db_exec(' => '原始 SQL 执行，注意 SQL 注入风险，install/uninstall 脚本中为正常用法',
+                'db_exec(' => '原始 SQL 执行，注意 SQL 注入风险',
                 'db_sql_find_one(' => '原始 SQL 查询，注意 SQL 注入风险，建议优先使用 db_find_one()',
                 'db_sql_find(' => '原始 SQL 查询，注意 SQL 注入风险，建议优先使用 db_find()',
             ],
@@ -156,9 +156,13 @@ class PluginScannerRules {
                 'is_resource(' => 'is_resource() 对 PDO/MySQLi 对象返回 false（PHP 8.0+），改用 instanceof',
             ],
             'icon_libraries' => [
-                ' fa-' => 'Font Awesome 图标 → Tabler Icons ti-*',
-                ' bi-' => 'Bootstrap Icons → Tabler Icons ti-*',
-                'glyphicon-' => 'Glyphicon 图标 → Tabler Icons ti-*',
+                'class="[^"]*\bfa-[a-z]' => 'Font Awesome 图标 → Tabler Icons ti-*',
+                'class="[^"]*\bbi-[a-z]' => 'Bootstrap Icons → Tabler Icons ti-*',
+                'class="[^"]*glyphicon glyphicon-' => 'Glyphicon 图标 → Tabler Icons ti-*',
+            ],
+            'frontend_md5' => [
+                'hex_md5(' => '前端 MD5 哈希已移除，密码必须明文提交由服务端 password_md5() 处理',
+                'md5_hex(' => '前端 MD5 哈希已移除，密码必须明文提交由服务端 password_md5() 处理',
             ],
         ];
     }
@@ -184,8 +188,19 @@ class PluginScannerRules {
             'direct_db' => 'info',
             'php8_deprecated' => 'fatal',
             'icon_libraries' => 'medium',
-            'alpine_scope' => 'warning',
-            'alpine_register' => 'info',
+            'php_comment_close_tag' => 'fatal',
+            'frontend_md5' => 'warning',
+            'md5js_global_load' => 'warning',
+            'password_update_api' => 'warning',
+            'db_charset' => 'warning',
+            'service_undefined_var' => 'fatal',
+            'raw_htmlspecialchars' => 'warning',
+            'heredoc_php_tag' => 'fatal',
+            'bs_tab_navigation' => 'warning',
+            'hook_htm_header' => 'fatal',
+            'db_find_col_string' => 'warning',
+            'app_path_in_url' => 'fatal',
+            'install_non_idempotent' => 'warning',
         ];
     }
 
@@ -203,15 +218,26 @@ class PluginScannerRules {
             'bs4_data_attrs' => 'BS4 旧 data 属性',
             'fontello_icons' => 'Fontello 旧图标',
             'permission_security' => '权限安全（敏感字段修改）',
-            'jquery_usage' => 'jQuery 使用（建议迁移 htmx/Alpine.js）',
+            'jquery_usage' => 'jQuery 使用（建议迁移 htmx/原生 JS）',
             'bs3_classes' => 'Bootstrap 3 旧类名',
             'bs_js_api' => 'Bootstrap jQuery 插件调用',
             'missing_csrf' => 'POST 表单缺少 CSRF 令牌',
             'direct_db' => '原始 SQL 操作（注意注入风险）',
             'php8_deprecated' => 'PHP 8.0+ 废弃函数',
             'icon_libraries' => '非 Tabler Icons 图标库',
-            'alpine_scope' => 'Alpine.js x-data 作用域越界',
-            'alpine_register' => 'Alpine.js 组件未通过 Alpine.data() 注册',
+            'php_comment_close_tag' => 'PHP 注释中包含 ?> 结束标签',
+            'frontend_md5' => '前端 MD5 哈希（密码应明文提交）',
+            'md5js_global_load' => '全局加载 md5.js（已禁止）',
+            'password_update_api' => 'user_update() 修改密码（应用 user__update()）',
+            'db_charset' => '数据库字符集 utf8（应为 utf8mb4）',
+            'service_undefined_var' => 'Service 类 SQL 拼接使用未定义变量',
+            'raw_htmlspecialchars' => '裸 htmlspecialchars（应用 esc_html/esc_attr/esc_js）',
+            'heredoc_php_tag' => 'HEREDOC 内含 PHP 标签（应用 {$var} 语法）',
+            'bs_tab_navigation' => '外层导航误用 Bootstrap Tab（应改用 a 链接）',
+            'hook_htm_header' => '.htm hook 文件以 exit 开头（会白屏）',
+            'db_find_col_string' => 'db_find_one() 第 4 参数为字符串（应为数组）',
+            'app_path_in_url' => 'script/link 用 APP_PATH（浏览器无法访问）',
+            'install_non_idempotent' => 'CREATE TABLE 缺少 IF NOT EXISTS',
         ];
     }
 
@@ -228,6 +254,11 @@ class PluginScannerRules {
             'permission_security',
             'php8_deprecated',
             'direct_db',
+            'password_update_api',
+            'db_charset',
+            'service_undefined_var',
+            'raw_htmlspecialchars',
+            'db_find_col_string',
         ];
     }
 

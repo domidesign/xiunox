@@ -31,7 +31,7 @@ if ($isVerify) {
         ApiResponse::validationError('请输入验证码');
     }
 
-    $result = CaptchaService::verify($scene, $input);
+    $result = CaptchaService::verify($scene, $input, $gid);
 
     if ($result) {
         ApiResponse::success(null, '验证码正确');
@@ -44,8 +44,8 @@ if ($isVerify) {
         ApiResponse::error(405, '请求方法不允许');
     }
 
-    // 检查该场景是否启用验证码
-    if (!CaptchaService::is_enabled($scene)) {
+    // 检查当前用户组是否需要验证码
+    if (!CaptchaService::is_enabled($scene, $gid)) {
         ApiResponse::success(['image' => '', 'key' => ''], '该场景未启用验证码');
     }
 

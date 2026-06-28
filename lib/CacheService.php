@@ -453,6 +453,64 @@ class CacheService {
     }
 
     /**
+     * 获取 OPcache 状态信息
+     */
+    public static function getOpcacheStatus() {
+        $status = array(
+            'available' => function_exists('opcache_get_status'),
+            'enabled' => false,
+            'stats' => array(),
+        );
+
+        if(!$status['available']) {
+            return $status;
+        }
+
+        $info = @opcache_get_status(false);
+        if(empty($info) || empty($info['opcache_statistics'])) {
+            return $status;
+        }
+
+        $status['enabled'] = !empty($info['opcache_statistics']['num_cached_scripts']);
+
+        // 内存使用
+        if(!empty($info['memory_usage'])) {
+            $used = intval($info['memory_usage']['used_memory']);
+            $free = intval($info['memory_usage']['free_memory']);
+            $total = $used + $free;
+            $status['stats']['memory_used'] = self::formatBytes($used);
+            $status['stats']['memory_free'] = self::formatBytes($free);
+            $status['stats']['memory_total'] = self::formatBytes($total);
+            $status['stats']['memory_usage_pct'] = $total > 0 ? round($used / $total * 100, 1) . '%' : '0%';
+            $status['stats']['wasted_memory'] = self::formatBytes(intval($info['memory_usage']['wasted_memory']));
+        }
+
+        // 缓存统计
+        if(!empty($info['opcache_statistics'])) {
+            $stats = $info['opcache_statistics'];
+            $status['stats']['cached_scripts'] = isset($stats['num_cached_scripts']) ? intval($stats['num_cached_scripts']) : 0;
+            $status['stats']['cached_keys'] = isset($stats['num_cached_keys']) ? intval($stats['num_cached_keys']) : 0;
+            $hits = isset($stats['hits']) ? intval($stats['hits']) : 0;
+            $misses = isset($stats['misses']) ? intval($stats['misses']) : 0;
+            $status['stats']['hit_rate'] = ($hits + $misses) > 0 ? round($hits / ($hits + $misses) * 100, 1) . '%' : 'N/A';
+            $status['stats']['hits'] = $hits;
+            $status['stats']['misses'] = $misses;
+            $status['enabled'] = true;
+        }
+
+        // 配置信息
+        $config = @opcache_get_configuration();
+        if(!empty($config['directives'])) {
+            $d = $config['directives'];
+            $status['stats']['opcache_enable'] = isset($d['opcache.enable']) ? ($d['opcache.enable'] ? 'On' : 'Off') : 'N/A';
+            $status['stats']['opcache_validate_timestamps'] = isset($d['opcache.validate_timestamps']) ? ($d['opcache.validate_timestamps'] ? 'On' : 'Off') : 'N/A';
+            $status['stats']['opcache_revalidate_freq'] = isset($d['opcache.revalidate_freq']) ? $d['opcache.revalidate_freq'] . 's' : 'N/A';
+        }
+
+        return $status;
+    }
+
+    /**
      * 获取驱动类型标签
      */
     public static function getTypeLabel($type) {

@@ -4,7 +4,7 @@
 function db_new($dbconf) {
 	global $errno, $errstr;
 	// 数据库初始化，这里并不会产生连接！
-	if($dbconf) {
+	if($dbconf && isset($dbconf['type'])) {
 		//print_r($dbconf);
 		// 代码不仅仅是给人看的，更重要的是给编译器分析的，不要玩 $db = new $dbclass()，那样不利于优化和 opcache 。
 		switch ($dbconf['type']) {
@@ -194,12 +194,49 @@ function db_find($table, $cond = array(), $orderby = array(), $page = 1, $pagesi
 
 function db_find_one($table, $cond = array(), $orderby = array(), $col = array(), $d = NULL) {
 	$db = $_SERVER['db'];
-	
+
 	// 高效写法，定参有利于编译器优化
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
-	
+
 	return $d->find_one($table, $cond, $orderby, $col);
+}
+
+/**
+ * 带 GROUP BY 的聚合查询
+ * @param string $table 表名（不含前缀）
+ * @param array $cond WHERE 条件
+ * @param array $groupby GROUP BY 字段数组，如 ['uid']
+ * @param array $having HAVING 条件
+ * @param array $orderby 排序
+ * @param int $page 页码
+ * @param int $pagesize 每页数量
+ * @param string $key 返回数组的 key 字段
+ * @param array $col SELECT 字段（含聚合函数别名）
+ * @return array
+ */
+function db_find_group($table, $cond = array(), $groupby = array(), $having = array(), $orderby = array(), $page = 1, $pagesize = 10, $key = '', $col = array(), $d = NULL) {
+	$db = $_SERVER['db'];
+	$d = $d ? $d : $db;
+	if(!$d) return FALSE;
+	return $d->find_group($table, $cond, $groupby, $having, $orderby, $page, $pagesize, $key, $col);
+}
+
+/**
+ * 带 GROUP BY 的单条聚合查询
+ * @param string $table 表名（不含前缀）
+ * @param array $cond WHERE 条件
+ * @param array $groupby GROUP BY 字段数组
+ * @param array $having HAVING 条件
+ * @param array $orderby 排序
+ * @param array $col SELECT 字段（含聚合函数别名）
+ * @return array|null
+ */
+function db_find_one_group($table, $cond = array(), $groupby = array(), $having = array(), $orderby = array(), $col = array(), $d = NULL) {
+	$db = $_SERVER['db'];
+	$d = $d ? $d : $db;
+	if(!$d) return FALSE;
+	return $d->find_one_group($table, $cond, $groupby, $having, $orderby, $col);
 }
 
 // 保存 $db 错误到全局
@@ -250,8 +287,15 @@ function db_cond_to_sqladd($cond) {
 		$s = ' WHERE ';
 		foreach($cond as $k=>$v) {
 			if(!is_array($v)) {
+				// 解析列名中的比较操作符后缀：>, <, >=, <=, !=, <>
+				$col = $k;
+				$op = '=';
+				if(preg_match('/^(.+?)(>=|<=|!=|<>|>|<)$/', $k, $m)) {
+					$col = $m[1];
+					$op = $m[2];
+				}
 				$v = (is_int($v) || is_float($v)) ? $v : "'".addslashes((string)$v)."'";
-				$s .= "`$k`=$v AND ";
+				$s .= "`$col`$op$v AND ";
 			} elseif(isset($v[0])) {
 				$s .= '(';
 				//$v = array_reverse($v);

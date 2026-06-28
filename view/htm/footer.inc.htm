@@ -21,19 +21,22 @@
 	</div>
 	
 	<!--{hook footer_nav_before.htm}-->
-	
+
+	<!-- 全局右侧悬浮操作栏 -->
+	<?php include _include(APP_PATH.'view/htm/floating_action.inc.htm');?>
+
 	<?php include _include(APP_PATH.'view/htm/footer_nav.inc.htm');?>
 	<?php include _include(APP_PATH.'view/htm/bottom_nav.inc.htm');?>
 	
 	<!--{hook footer_nav_after.htm}-->
 	
 	<!--[if ltg IE 9]>
-	<script>window.location = '<?php echo url('browser');?>';</script>
+	<script>window.location = <?php echo json_encode(browser_url());?>;</script>
 	<![endif]-->
 	
 	<!--{hook footer_js_before.htm}-->
 	
-	<script src="lang/<?php echo $conf['lang'];?>/bbs.js<?php echo $static_version;?>"></script>
+	<script src="/lang/<?php echo $conf['lang'];?>/bbs.js<?php echo $static_version;?>"></script>
 	<script src="<?php echo $conf['view_url'];?>js/jquery-3.7.1.min.js<?php echo $static_version;?>"></script>
 	<script src="<?php echo $conf['view_url'];?>vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 	<script src="<?php echo $conf['view_url'];?>js/xiuno.js<?php echo $static_version;?>"></script>
@@ -46,34 +49,65 @@
 	var fid = <?php echo $fid;?>;
 	var uid = <?php echo intval($uid);?>;
 	var gid = <?php echo intval($gid);?>;
-	xn.options.water_image_url = '<?php echo $conf['logo_water_url'];?>';
+	xn.options.water_image_url = <?php echo json_encode($conf['logo_water_url'] ?? '');?>;
 	// 语言字符串（供 bbs.js 使用）
 	var bbs_lang = {
-		captcha_sent: '<?php echo lang('captcha_sent');?>',
-		send_failed: '<?php echo lang('send_failed');?>',
-		deleted: '<?php echo lang('deleted');?>',
-		delete_failed: '<?php echo lang('delete_failed');?>',
-		please_select_thread: '<?php echo lang('please_select_thread');?>',
-		load_failed: '<?php echo lang('load_failed');?>',
-		operate_successfully: '<?php echo lang('operate_successfully');?>',
-		operation_failed: '<?php echo lang('operation_failed');?>',
-		network_request_failed: '<?php echo lang('network_request_failed');?>',
-		all_marked_as_read: '<?php echo lang('all_marked_as_read');?>',
-		no_notify: '<?php echo lang('no_notify');?>'
+		captcha_sent: <?php echo json_encode(lang('captcha_sent'));?>,
+		send_failed: <?php echo json_encode(lang('send_failed'));?>,
+		deleted: <?php echo json_encode(lang('deleted'));?>,
+		delete_failed: <?php echo json_encode(lang('delete_failed'));?>,
+		please_select_thread: <?php echo json_encode(lang('please_select_thread'));?>,
+		load_failed: <?php echo json_encode(lang('load_failed'));?>,
+		operate_successfully: <?php echo json_encode(lang('operate_successfully'));?>,
+		operation_failed: <?php echo json_encode(lang('operation_failed'));?>,
+		network_request_failed: <?php echo json_encode(lang('network_request_failed'));?>,
+		all_marked_as_read: <?php echo json_encode(lang('all_marked_as_read'));?>,
+		no_notify: <?php echo json_encode(lang('no_notify'));?>
 	};
 	// 通知相关 URL
 	var bbs_notify_urls = {
-		unread_count: '<?php echo url("my-notify_unread_count");?>',
-		dropdown: '<?php echo url("my-notify_dropdown");?>',
-		mark_all_read: '<?php echo url("my-notify_mark_read");?>',
-		notice_mark_read: '<?php echo url("notice-mark_read");?>',
-		notify_read_base: '<?php echo str_replace(".htm", "", url("my-notify_read"));?>'
+		unread_count: <?php echo json_encode(my_notify_unread_count_url());?>,
+		dropdown: <?php echo json_encode(my_notify_dropdown_url());?>,
+		mark_all_read: <?php echo json_encode(my_notify_mark_read_url());?>,
+		notice_mark_read: <?php echo json_encode(notice_mark_read_url());?>,
+		// notify_read URL 模板：用 __NID__ 占位符，JS 替换为实际 nid
+		// 兼容所有 url_rewrite_on（包括 .html 后缀格式）
+		notify_read_template: <?php echo json_encode(str_replace('read', 'read-__NID__', my_notify_read_url()));?>
 	};
 	// 公告接口 URL
-	var bbs_notice_announcements_url = '<?php echo url("notice-announcements");?>';
+	var bbs_notice_announcements_url = <?php echo json_encode(notice_announcements_url());?>;
+	// 验证码 URL 模板（用 PHP url() 函数生成，兼容所有伪静态格式）
+	var bbs_captcha_url_template = <?php echo json_encode(route_url('captcha', ['scene' => '__SCENE__']));?>;
 	</script>
 	<script src="<?php echo $conf['view_url'];?>js/bbs.js<?php echo $static_version;?>"></script>
 	<!--{hook footer_js_after.htm}-->
+
+	<!-- Flash toast：读取 PRG 重定向时设置的 flash cookie，显示 toast 后清除 -->
+	<script>
+	(function() {
+		function getCookie(name) {
+			var value = "; " + document.cookie;
+			var parts = value.split("; " + name + "=");
+			if (parts.length == 2) return parts.pop().split(";").shift();
+			return '';
+		}
+		function deleteCookie(name) {
+			document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+		}
+		var flashMsg = getCookie('flash_msg');
+		var flashType = getCookie('flash_type') || 'success';
+		if (flashMsg) {
+			try { flashMsg = decodeURIComponent(flashMsg); } catch(e) {}
+			deleteCookie('flash_msg');
+			deleteCookie('flash_type');
+			if (typeof showToast === 'function') {
+				showToast(flashMsg, flashType);
+			} else if (typeof XN !== 'undefined' && typeof XN.toast === 'function') {
+				XN.toast(flashMsg, flashType);
+			}
+		}
+	})();
+	</script>
 
 </body>
 <!--{hook footer_body_after.htm}-->

@@ -5,24 +5,24 @@
 </div>
 
 <!-- 筛选和搜索区域 -->
-<div class="x-card  cardrounded-3 p-3 mb-4">
+<div class="x-card  card p-3 mb-4">
     <div class="row g-3">
         <!-- 类型 Tab -->
         <div class="col-12">
             <ul class="nav   nav-tabs" id="pluginTypeTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <a class="nav-link <?php echo $input['type'] == 0 ? 'active' : '';?>" 
-                       href="<?php echo url('plugin');?>?type=0&amp;status=<?php echo $input['status'];?>&amp;keyword=<?php echo urlencode($input['keyword']);?>"
+                       href="<?php echo admin_plugin_url();?>?type=0&amp;status=<?php echo $input['status'];?>&amp;keyword=<?php echo urlencode($input['keyword']);?>"
                        role="tab"><?php echo lang('admin_plugin_all')?></a>
                 </li>
                 <li class="nav-item" role="presentation">
                     <a class="nav-link <?php echo $input['type'] == 1 ? 'active' : '';?>" 
-                       href="<?php echo url('plugin');?>?type=1&amp;status=<?php echo $input['status'];?>&amp;keyword=<?php echo urlencode($input['keyword']);?>"
+                       href="<?php echo admin_plugin_url();?>?type=1&amp;status=<?php echo $input['status'];?>&amp;keyword=<?php echo urlencode($input['keyword']);?>"
                        role="tab"><?php echo lang('admin_plugin_type')?></a>
                 </li>
                 <li class="nav-item" role="presentation">
                     <a class="nav-link <?php echo $input['type'] == 2 ? 'active' : '';?>" 
-                       href="<?php echo url('plugin');?>?type=2&amp;status=<?php echo $input['status'];?>&amp;keyword=<?php echo urlencode($input['keyword']);?>"
+                       href="<?php echo admin_plugin_url();?>?type=2&amp;status=<?php echo $input['status'];?>&amp;keyword=<?php echo urlencode($input['keyword']);?>"
                        role="tab"><?php echo lang('admin_template_type')?></a>
                 </li>
             </ul>
@@ -31,12 +31,12 @@
         <!-- 搜索和状态筛选 -->
         <div class="col-12">
             <div class="d-flex flex-wrap gap-2 align-items-center  ">
-                <form class="d-flex flex-grow-1 flex-wrap gap-2" method="get" action="<?php echo url('plugin');?>">
+                <form class="d-flex flex-grow-1 flex-wrap gap-2" method="get" action="<?php echo admin_plugin_url();?>">
                     <input type="hidden" name="type" value="<?php echo $input['type'];?>">
                     <div class="input-group" style="max-width: 400px;">
                         <span class="input-group-text"><i class="ti ti-search"></i></span>
                         <input type="text" class="form-control rounded-pill" name="keyword" 
-                               value="<?php echo htmlspecialchars($input['keyword']);?>" 
+                               value="<?php echo esc_attr($input['keyword'] ?? '');?>" 
                                placeholder="<?php echo lang('admin_search_plugin_placeholder')?>">
                     </div>
                     <select class="form-select rounded-pill" name="status" style="width: auto;" onchange="this.form.submit()">
@@ -55,8 +55,8 @@
 </div>
 
 <!-- 插件网格 -->
-<div class="row g-4">
-    <?php if(empty($pluginlist)):?>
+<div class="row g-4 plugin-grid">
+       <?php if(empty($pluginlist)):?>
         <div class="col-12">
             <div class="text-center py-5 text-secondary">
                 <i class="ti ti-inbox" style="font-size: 3rem;"></i>
@@ -74,25 +74,25 @@
                 $plugin['type'] = array_value($plugin, 'type', 0);
             ?>
             <div class="col-12 col-md-6 col-lg-4 col-xl-3">
-                <div class="cardh-100 rounded-3 shadow-sm hover-shadow">
-                    <div class="card-body">
+                <div class="x-card card   hover-shadow">
+                    <div class=" ">
                         <div class="d-flex align-items-start gap-2 mb-3">
-                            <img src="<?php echo $plugin['icon_url'];?>" 
+                            <img src="<?php echo esc_attr($plugin['icon_url'] ?? '');?>" 
                                  width="42" height="42" 
                                  class="rounded-2 plugin-icon" 
-                                 data-dir="<?php echo $dir;?>"
+                                 data-dir="<?php echo esc_attr($dir);?>"
                                  onerror="handlePluginIconError(this)">
                             <div class="flex-grow-1">
-                                <h6 class="mb-1 small font-bold text-truncate text-xl" title="<?php echo $plugin['name'];?>"><?php echo $plugin['name'];?></h6>
+                                <h6 class="mb-1 small font-bold text-truncate text-xl" title="<?php echo esc_attr($plugin['name'] ?? '');?>"><?php echo esc_html($plugin['name'] ?? '');?></h6>
                                 <div class="d-flex flex-wrap gap-1 align-items-center">
-                                    <span class="badge bg-secondary">v<?php echo $plugin['version'];?></span>
+                                    <span class="badge bg-secondary">v<?php echo esc_html($plugin['version'] ?? '');?></span>
                                     <span class="badge <?php echo $plugin['type'] == 1 ? 'bg-warning' : 'bg-primary';?>">
                                         <?php echo $plugin['type'] == 1 ? lang('admin_template_type') : lang('admin_plugin_type');?>
                                     </span>
                                     <?php if($plugin['enable']):?>
                                         <span class="badge bg-success"><?php echo lang('admin_status_enabled')?></span>
                                     <?php elseif($plugin['installed']):?>
-                                        <span class="badge bg-info"><?php echo lang('admin_status_installed')?></span>
+                                        <span class="badge bg-warning text-dark"><?php echo lang('admin_status_installed_disabled')?></span>
                                     <?php else:?>
                                         <span class="badge bg-secondary"><?php echo lang('admin_status_not_installed')?></span>
                                     <?php endif;?>
@@ -100,44 +100,44 @@
                             </div>
                         </div>
                         
-                        <p class="text-secondary small mb-3 plugin-brief"><?php echo $plugin['brief'] ? $plugin['brief'] : '&nbsp;';?></p>
+                        <p class="text-secondary small mb-3 plugin-brief"><?php echo $plugin['brief'] ? esc_html($plugin['brief']) : '&nbsp;';?></p>
                         
                         <!-- 操作按钮 -->
                         <div class="d-flex flex-wrap gap-2 justify-content-end">
                             <?php if($plugin['setting_url']):?>
-                                <a class="btn btn-sm btn-outline-primary rounded-pill" 
-                                   href="<?php echo url("plugin-setting-$dir");?>">
+                                <a class="btn btn-sm btn-outline  rounded-pill" 
+                                   href="<?php echo admin_plugin_setting_url($dir);?>">
                                     <i class="ti ti-settings"></i> <?php echo lang('admin_btn_settings')?>
                                 </a>
                             <?php endif;?>
                             
                             <?php if(!$plugin['installed'] && $plugin['downloaded']):?>
-                                <button type="button" class="btn btn-sm btn-primary rounded-pill"
-                                   data-install-url="<?php echo url("plugin-install-$dir");?>"
-                                   onclick="preInstallScan('<?php echo $dir;?>', '<?php echo htmlspecialchars($plugin['name'], ENT_QUOTES);?>', this)">
+                                <button type="button" class="btn btn-sm btn-outline rounded-pill"
+                                   data-install-url="<?php echo admin_plugin_install_url($dir);?>"
+                                   onclick="preInstallScan('<?php echo esc_attr($dir);?>', '<?php echo esc_attr($plugin['name'] ?? '');?>', this)">
                                     <i class="ti ti-download"></i> <?php echo lang('admin_btn_install')?>
                                 </button>
                             <?php endif;?>
                             
                             <?php if($plugin['installed'] && $plugin['enable']):?>
-                                <a class="btn btn-sm btn-warning rounded-pill" 
-                                   href="<?php echo url("plugin-disable-$dir");?>">
+                                <a class="btn btn-sm btn-outline rounded-pill" 
+                                   href="<?php echo admin_plugin_disable_url($dir);?>">
                                     <i class="ti ti-player-pause"></i> <?php echo lang('admin_btn_disable')?>
                                 </a>
                             <?php endif;?>
                             
                             <?php if($plugin['installed'] && !$plugin['enable']):?>
-                                <a class="btn btn-sm btn-success rounded-pill" 
-                                   href="<?php echo url("plugin-enable-$dir");?>">
+                                <a class="btn btn-sm btn-outline rounded-pill" 
+                                   href="<?php echo admin_plugin_enable_url($dir);?>">
                                     <i class="ti ti-player-play"></i> <?php echo lang('admin_btn_enable')?>
                                 </a>
                             <?php endif;?>
                             
                             <?php if($plugin['installed']):?>
-                                <a class="btn btn-sm btn-danger rounded-pill confirm" 
+                                <a class="btn btn-sm btn-outline rounded-pill confirm" 
                                    data-method="post" 
-                                   data-confirm-text="<?php echo lang('plugin_unstall_confirm_tips', array('name'=>$plugin['name']));?>" 
-                                   href="<?php echo url("plugin-unstall-$dir");?>">
+                                   data-confirm-text="<?php echo esc_attr(lang('plugin_unstall_confirm_tips', array('name'=>$plugin['name'])));?>" 
+                                   href="<?php echo admin_plugin_unstall_url($dir);?>">
                                     <i class="ti ti-trash"></i> <?php echo lang('admin_btn_uninstall')?>
                                 </a>
                             <?php endif;?>
@@ -164,11 +164,20 @@
         transform: translateY(-2px);
     }
     .plugin-brief {
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-        min-height: 42px;
+          display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 54px;
+    line-height: 18px;
+    }
+    .row>*{
+        margin-top: 12px;
+
+    }
+    .row>* .card{
+        margin-bottom: 0;
+
     }
 </style>
 
@@ -200,7 +209,7 @@ function preInstallScan(dir, name, btn) {
     document.getElementById('preinstallActions').classList.add('d-none');
     modal.show();
 
-    fetch('<?php echo url("plugin-scanner-preinstall");?>?dir=' + encodeURIComponent(dir))
+    fetch('<?php echo admin_plugin_scanner_preinstall_url();?>?dir=' + encodeURIComponent(dir))
         .then(function(r) { return r.json(); })
         .then(function(data) {
             renderPreinstallResult(data);
@@ -223,6 +232,7 @@ function renderPreinstallResult(data) {
     if (data.can_install && data.total === 0) {
         // 无任何问题
         html = '<div class="alert alert-success py-2"><i class="ti ti-circle-check me-1"></i><?php echo lang('plugin_preinstall_pass');?></div>';
+        document.getElementById('preinstallScanResult').innerHTML = html;
         actionsEl.innerHTML = '<a class="btn btn-primary rounded-pill" href="' + preinstallUrl + '"><i class="ti ti-download me-1"></i><?php echo lang('admin_btn_install');?></a>';
         actionsEl.classList.remove('d-none');
         return;

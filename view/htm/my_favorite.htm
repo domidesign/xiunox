@@ -1,15 +1,24 @@
-<template include="./view/htm/my_favorite.template.htm">
-	<slot name="my_body">
-		<ul class="list-unstyled threadlist mb-0">
-			<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm');?>
-		</ul>
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
 
-		<?php if($pagination) { ?>
-		<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap"><?php echo $pagination; ?></ul></nav>
-		<?php } ?>
-	</slot>
-</template>
+<?php include _include(APP_PATH.'view/htm/my.layout.inc.htm');?>
 
-<script>
-$('a[data-active="my-favorite"]').addClass('active');
-</script>
+	<!-- 我的收藏 -->
+	<div class="x-card card">
+		<div class="card-body">
+			<ul class="list-unstyled threadlist mb-0">
+				<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm');?>
+			</ul>
+
+			<?php if($pagination) { ?>
+			<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap mt-3"><?php echo $pagination;?></ul></nav>
+			<?php } ?>
+		</div>
+	</div>
+
+</div>
+
+<!-- 右侧空栏 -->
+<div class="d-none d-lg-block col-lg-3"></div>
+</div>
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>

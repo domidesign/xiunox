@@ -77,6 +77,28 @@ XIUNOX is released under the MIT license. You are free to modify, create derivat
 	'admin_email_is_empty'=>'Administrator email cannot be empty',
 	'admin_email_invalid'=>'Administrator email format is invalid',
 	'db_already_exists_confirm'=>'XIUNOX tables already exist in the database. Continuing will clear all data! Click OK to continue, or Cancel to go back.',
+
+	// ========== Installation Interface Extensions ==========
+	'install_choose_language' => 'Choose Language',
+	'install_next_step' => 'Next',
+	'install_loading' => 'Loading...',
+	'install_installing' => 'Installing...',
+	'install_submit' => 'Submit',
+	'install_request_failed' => 'Request failed: ',
+	'install_license_not_found' => 'LICENSE file not found.',
+	'install_meta_author' => 'XiunoBBS 4.0',
+
+	// ========== Installation Success Security Tips ==========
+	'install_security_tips' => 'Security Tips',
+	'install_tip_delete_install_dir' => 'Delete install directory',
+	'install_tip_delete_install_dir_desc' => 'The system has automatically locked the installer, but manual deletion is still recommended',
+	'install_tip_change_admin_pw' => 'Change admin password',
+	'install_tip_change_admin_pw_desc' => 'Please change the admin password to a strong one after login',
+	'install_tip_configure_https' => 'Configure HTTPS',
+	'install_tip_configure_https_desc' => 'It is recommended to configure SSL certificate and enable HTTPS',
+	'install_tip_change_db_pw' => 'Change database password',
+	'install_tip_change_db_pw_desc' => 'If using the default database password, please change it promptly',
+
 );
 
 ?>

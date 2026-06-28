@@ -13,7 +13,7 @@
 
 			<?php echo xn_debug_info();?>
 		</div>
-        <div class="d-flex justify-content-end text-muted p-2">  Powered by <a class="mx-2" href="https://www.xiunox.org/" target="_blank">  XIUNOX </a> Based on  Xiuno BBS 4.0.4 </div>
+        <div class="d-flex justify-content-end text-muted p-2">  <?php echo lang('admin_powered_by'); ?> <a class="mx-2" href="https://www.xiunox.org/" target="_blank">  <?php echo lang('admin_brand_name'); ?> </a> <?php echo lang('admin_based_on'); ?> </div>
 
 	</div>
 
@@ -41,6 +41,33 @@
 	<script src="../view/js/bootstrap-plugin.js<?php echo $static_version;?>"></script>
 	
 	<!--{hook admin_footer_js_after.htm}-->
+
+	<!-- Flash toast：读取 PRG 重定向时设置的 flash cookie，显示 toast 后清除 -->
+	<script>
+	(function() {
+		function getCookie(name) {
+			var value = "; " + document.cookie;
+			var parts = value.split("; " + name + "=");
+			if (parts.length == 2) return parts.pop().split(";").shift();
+			return '';
+		}
+		function deleteCookie(name) {
+			document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+		}
+		var flashMsg = getCookie('flash_msg');
+		var flashType = getCookie('flash_type') || 'success';
+		if (flashMsg) {
+			try { flashMsg = decodeURIComponent(flashMsg); } catch(e) {}
+			deleteCookie('flash_msg');
+			deleteCookie('flash_type');
+			if (typeof showToast === 'function') {
+				showToast(flashMsg, flashType);
+			} else if (typeof XN !== 'undefined' && typeof XN.toast === 'function') {
+				XN.toast(flashMsg, flashType);
+			}
+		}
+	})();
+	</script>
 	
 <script>
 (function(){
@@ -104,38 +131,79 @@
     }
 })();
 
-(function(){
-	var current = localStorage.getItem('theme') || 'light';
+// ========== 主题切换（明亮/暗黑/跟随系统 + 主题色） ==========
+(function () {
 	var iconLight = document.getElementById('theme-icon-light');
 	var iconDark = document.getElementById('theme-icon-dark');
-	if(iconLight && iconDark) {
-		if(current === 'dark') {
-			iconLight.classList.add('d-none');
-			iconDark.classList.remove('d-none');
-		} else {
-			iconLight.classList.remove('d-none');
-			iconDark.classList.add('d-none');
-		}
-	}
-})();
+	var iconAuto = document.getElementById('theme-icon-auto');
+	var modeBtns = document.querySelectorAll('.theme-mode-btn');
+	var colorBtns = document.querySelectorAll('.theme-color-btn');
 
-document.getElementById('theme-toggle').addEventListener('click', function() {
-	var current = document.documentElement.getAttribute('data-bs-theme') || 'light';
-	var next = current === 'dark' ? 'light' : 'dark';
-	document.documentElement.setAttribute('data-bs-theme', next);
-	localStorage.setItem('theme', next);
-	var iconLight = document.getElementById('theme-icon-light');
-	var iconDark = document.getElementById('theme-icon-dark');
-	if(iconLight && iconDark) {
-		if(next === 'dark') {
-			iconLight.classList.add('d-none');
-			iconDark.classList.remove('d-none');
-		} else {
-			iconLight.classList.remove('d-none');
-			iconDark.classList.add('d-none');
-		}
+	function safeGet(key) {
+		try { return localStorage.getItem(key); } catch (e) { return null; }
 	}
-});
+	function safeSet(key, val) {
+		try { localStorage.setItem(key, val); } catch (e) {}
+	}
+
+	var darkMQ = window.matchMedia('(prefers-color-scheme: dark)');
+
+	function getEffectiveTheme(mode) {
+		if (mode === 'auto') {
+			return darkMQ.matches ? 'dark' : 'light';
+		}
+		return mode;
+	}
+
+	function applyThemeMode(mode) {
+		var effective = getEffectiveTheme(mode);
+		document.documentElement.setAttribute('data-bs-theme', effective);
+		if (iconLight) iconLight.classList.toggle('d-none', mode !== 'light');
+		if (iconDark) iconDark.classList.toggle('d-none', mode !== 'dark');
+		if (iconAuto) iconAuto.classList.toggle('d-none', mode !== 'auto');
+		modeBtns.forEach(function(btn) {
+			var isActive = btn.getAttribute('data-mode') === mode;
+			btn.classList.toggle('btn-secondary', isActive);
+			btn.classList.toggle('btn-outline-secondary', !isActive);
+		});
+		safeSet('theme', mode);
+	}
+
+	function applyThemeColor(color) {
+		document.documentElement.setAttribute('data-theme', color);
+		safeSet('theme-color', color);
+		colorBtns.forEach(function(btn) {
+			var isActive = btn.getAttribute('data-color') === color;
+			btn.style.outline = isActive ? '2px solid var(--bs-body-color)' : 'none';
+			btn.style.outlineOffset = '2px';
+		});
+	}
+
+	// 初始化
+	var storedMode = safeGet('theme') || (document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light');
+	applyThemeMode(storedMode);
+
+	var storedColor = safeGet('theme-color') || document.documentElement.getAttribute('data-theme') || 'blue';
+	applyThemeColor(storedColor);
+
+	modeBtns.forEach(function(btn) {
+		btn.addEventListener('click', function() {
+			applyThemeMode(this.getAttribute('data-mode'));
+		});
+	});
+
+	colorBtns.forEach(function(btn) {
+		btn.addEventListener('click', function() {
+			applyThemeColor(this.getAttribute('data-color'));
+		});
+	});
+
+	darkMQ.addEventListener('change', function() {
+		if (safeGet('theme') === 'auto') {
+			applyThemeMode('auto');
+		}
+	});
+})();
 </script>
 
 </body>

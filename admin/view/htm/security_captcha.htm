@@ -4,36 +4,96 @@
 
 <div class="x-card card">
     <div class="card-body">
-        <form action="<?php echo url('security-captcha');?>" method="post" id="form">
+        <form action="<?php echo admin_security_url('captcha');?>" method="post" id="form">
             <?php echo CsrfService::input(); ?>
 
-            <?php foreach(CaptchaService::SCENES as $scene):
-                $scene_config = isset($captcha_config[$scene]) ? $captcha_config[$scene] : ['enabled'=>0, 'type'=>'gd_image'];
-                $scene_label = array(
-                    'login' => lang('admin_captcha_login'),
-                    'register' => lang('admin_captcha_register'),
-                    'post' => lang('admin_captcha_post'),
-                    'resetpw' => lang('admin_captcha_resetpw'),
-                );
-                $label = isset($scene_label[$scene]) ? $scene_label[$scene] : $scene;
-            ?>
-            <div class="mb-4">
-                <label class="form-label fw-medium"><?php echo $label;?></label>
-                <div class="d-flex align-items-center gap-3">
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input" type="checkbox" name="captcha_<?php echo $scene;?>_enabled" id="captcha_<?php echo $scene;?>_enabled" value="1" <?php echo !empty($scene_config['enabled']) ? 'checked' : '';?>>
-                        <label class="form-check-label" for="captcha_<?php echo $scene;?>_enabled"><?php echo !empty($scene_config['enabled']) ? lang('admin_status_on') : lang('admin_status_off');?></label>
-                    </div>
-                    <select class="form-select" name="captcha_<?php echo $scene;?>_type" style="max-width:200px;">
-                        <option value="gd_image" <?php echo ($scene_config['type'] ?? 'gd_image') == 'gd_image' ? 'selected' : '';?>><?php echo lang('admin_captcha_image')?></option>
-                        <option value="gd_math" <?php echo ($scene_config['type'] ?? 'gd_image') == 'gd_math' ? 'selected' : '';?>><?php echo lang('admin_captcha_math')?></option>
-                    </select>
-                </div>
-            </div>
-            <?php endforeach; ?>
+            <!-- 区块1：各场景验证码类型 -->
+            <h6 class="fw-semibold mb-3"><i class="ti ti-shield-check me-1"></i><?php echo lang('admin_captcha_type_section');?></h6>
+            <div class="text-body-secondary small mb-3"><?php echo lang('admin_captcha_type_section_tip');?></div>
+            <table class="table table-hover align-middle mb-4" style="max-width:500px;">
+                <thead>
+                    <tr>
+                        <th><?php echo lang('admin_captcha_scene');?></th>
+                        <th width="80"><?php echo lang('admin_captcha_on_off');?></th>
+                        <th width="160"><?php echo lang('admin_captcha_type');?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php
+                    $scene_labels = array(
+                        'login' => lang('admin_captcha_login'),
+                        'register' => lang('admin_captcha_register'),
+                        'post' => lang('admin_captcha_post'),
+                        'reply' => lang('admin_captcha_reply'),
+                        'resetpw' => lang('admin_captcha_resetpw'),
+                    );
+                    $captcha_gids = $captcha_config['gids'] ?? [];
+                    foreach(CaptchaService::SCENES as $scene):
+                        $label = isset($scene_labels[$scene]) ? $scene_labels[$scene] : $scene;
+                        // 判断是否开启：login/register/resetpw 看游客(0)是否在gids中，post/reply 看是否有任何组在gids中
+                        if (in_array($scene, ['login', 'register', 'resetpw'])) {
+                            $is_on = in_array(0, $captcha_gids[$scene] ?? []);
+                        } else {
+                            $is_on = !empty($captcha_gids[$scene]);
+                        }
+                        $type = $captcha_config['types'][$scene] ?? ($captcha_config['type'] ?? 'gd_image');
+                    ?>
+                    <tr>
+                        <td><?php echo $label;?></td>
+                        <td class="text-center">
+                            <div class="form-check form-switch d-inline-block mb-0">
+                                <input class="form-check-input scene-switch" type="checkbox" name="captcha_on[<?php echo $scene;?>]" value="1" <?php echo $is_on ? 'checked' : '';?> data-scene="<?php echo $scene;?>">
+                            </div>
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm scene-type" name="captcha_type[<?php echo $scene;?>]" style="max-width:150px;">
+                                <option value="gd_image" <?php echo $type == 'gd_image' ? 'selected' : '';?>><?php echo lang('admin_captcha_image');?></option>
+                                <option value="gd_math" <?php echo $type == 'gd_math' ? 'selected' : '';?>><?php echo lang('admin_captcha_math');?></option>
+                            </select>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
 
-            <div class="mb-4">
-                <button type="submit" class="btn btn-primary w-100" id="submit"><?php echo lang('admin_save_config')?></button>
+            <!-- 区块2：发帖/回帖用户组设置 -->
+            <h6 class="fw-semibold mb-3"><i class="ti ti-users me-1"></i><?php echo lang('admin_captcha_group_section');?></h6>
+            <div class="text-body-secondary small mb-3"><?php echo lang('admin_captcha_group_section_tip');?></div>
+            <div class="overflow-x-auto">
+                <table class="table table-hover align-middle mb-0" style="max-width:400px;">
+                    <thead>
+                        <tr>
+                            <th><?php echo lang('user_group');?></th>
+                            <th class="text-center" width="80"><?php echo lang('admin_captcha_post');?></th>
+                            <th class="text-center" width="80"><?php echo lang('admin_captcha_reply');?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach($grouplist as $group):
+                            $gid = intval($group['gid']);
+                        ?>
+                        <tr>
+                            <td>
+                                <?php if(!empty($group['icon_class'])): ?>
+                                <i class="ti <?php echo $group['icon_class'];?> me-1"></i>
+                                <?php endif; ?>
+                                <?php echo $group['name'];?>
+                            </td>
+                            <?php foreach(['post', 'reply'] as $scene):
+                                $checked = in_array($gid, $captcha_gids[$scene] ?? []);
+                            ?>
+                            <td class="text-center">
+                                <input type="checkbox" class="form-check-input" name="captcha_gids[<?php echo $scene;?>][]" value="<?php echo $gid;?>" <?php echo $checked ? 'checked' : '';?>>
+                            </td>
+                            <?php endforeach; ?>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mb-4 mt-4">
+                <button type="submit" class="btn btn-primary w-100" id="submit"><?php echo lang('admin_save_config');?></button>
             </div>
         </form>
     </div>
@@ -49,7 +109,7 @@ document.getElementById('form').addEventListener('submit', function(e) {
     var formData = new FormData(form);
     var btn = document.getElementById('submit');
     btn.disabled = true;
-    btn.textContent = '<?php echo lang('admin_submitting')?>...';
+    btn.textContent = '<?php echo lang('admin_submitting');?>...';
 
     fetch(form.action, {
         method: 'POST',
@@ -61,21 +121,11 @@ document.getElementById('form').addEventListener('submit', function(e) {
         var type = parseInt(data.code) === 0 ? 'success' : 'danger';
         XN.toast(data.message, type);
         btn.disabled = false;
-        btn.textContent = '<?php echo lang('admin_save_config')?>';
+        btn.textContent = '<?php echo lang('admin_save_config');?>';
     })
     .catch(function(err) {
         btn.disabled = false;
-        btn.textContent = '<?php echo lang('admin_save_config')?>';
-    });
-});
-
-// 开关标签同步
-document.querySelectorAll('#form .form-switch input').forEach(function(input) {
-    input.addEventListener('change', function() {
-        var label = this.nextElementSibling;
-        if(label && label.classList.contains('form-check-label')) {
-            label.textContent = this.checked ? '<?php echo lang('admin_status_on') ?>' : '<?php echo lang('admin_status_off') ?>';
-        }
+        btn.textContent = '<?php echo lang('admin_save_config');?>';
     });
 });
 </script>

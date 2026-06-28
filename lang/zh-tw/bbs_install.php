@@ -77,6 +77,28 @@ XIUNOX 採用 MIT 協議發布，您可以自由修改、派生版本、商用�
 	'admin_email_invalid' => '管理員郵箱格式不正確',
 
 	'db_already_exists_confirm' => '數據庫中已存在 Xiuno BBS 的表，繼續安裝將清空所有數據！點擊確定繼續，取消返回修改。',
+
+	// ========== 安裝界面擴展 ==========
+	'install_choose_language' => '選擇語言',
+	'install_next_step' => '下一步',
+	'install_loading' => '加載中...',
+	'install_installing' => '安裝中...',
+	'install_submit' => '提交',
+	'install_request_failed' => '請求失敗：',
+	'install_license_not_found' => 'LICENSE 文件未找到。',
+	'install_meta_author' => 'XiunoBBS 4.0',
+
+	// ========== 安裝成功安全提示 ==========
+	'install_security_tips' => '安全提示',
+	'install_tip_delete_install_dir' => '刪除安裝目錄',
+	'install_tip_delete_install_dir_desc' => '系統已自動鎖定安裝程序，但仍建議手動刪除',
+	'install_tip_change_admin_pw' => '修改管理員密碼',
+	'install_tip_change_admin_pw_desc' => '登錄後請及時修改管理員密碼為強密碼',
+	'install_tip_configure_https' => '配置 HTTPS',
+	'install_tip_configure_https_desc' => '建議為站點配置 SSL 證書，啟用 HTTPS',
+	'install_tip_change_db_pw' => '修改數據庫密碼',
+	'install_tip_change_db_pw_desc' => '如果使用了默認數據庫密碼，請及時修改',
+
 );
 
 ?>

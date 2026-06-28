@@ -37,7 +37,7 @@ $footer_show_powered = isset($footer_config['show_powered']) ? intval($footer_co
                         <?php endif; ?>
                     </div>
                     <div class="text-body-secondary" style="font-size:0.75rem">
-                        Processed in <b><?php echo substr(microtime(1) - $starttime, 0, 5);?></b> seconds, <b><?php echo count($db->sqls);?></b> queries
+                        <?php echo lang('footer_processed_info', array('time'=>'<b>'.substr(microtime(1) - $starttime, 0, 5).'</b>', 'queries'=>'<b>'.count($db->sqls).'</b>'));?>
                     </div>
                 </div>
             </div>

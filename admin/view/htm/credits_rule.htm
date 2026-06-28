@@ -11,23 +11,23 @@
 		<!-- 子Tab导航：全局规则 / 版块覆盖 -->
 		<ul class="nav nav-tabs mb-4" role="tablist">
 			<li class="nav-item" role="presentation">
-				<button class="nav-link active" data-bs-toggle="tab" data-bs-target="#globalRulePane" type="button" role="tab">
+				<a class="nav-link active" href="#globalRule" data-credits-tab="globalRule">
 					<i class="ti ti-world me-1"></i><?php echo lang('admin_credits_rule_global');?>
-				</button>
+				</a>
 			</li>
 			<li class="nav-item" role="presentation">
-				<button class="nav-link" data-bs-toggle="tab" data-bs-target="#forumRulePane" type="button" role="tab">
+				<a class="nav-link" href="#forumRule" data-credits-tab="forumRule">
 					<i class="ti ti-layout-board me-1"></i><?php echo lang('admin_credits_rule_forum');?>
-				</button>
+				</a>
 			</li>
 		</ul>
 
 		<div class="tab-content">
 
 		<!-- ==================== 全局规则 Tab ==================== -->
-		<div class="tab-pane fade show active" id="globalRulePane" role="tabpanel">
+		<div class="credits-tab-pane" id="globalRulePane">
 
-		<form action="<?php echo url('credits_rule-global');?>" method="post" id="globalForm">
+		<form action="<?php echo admin_credits_rule_url('global');?>" method="post" id="globalForm">
 			<?php echo CsrfService::input(); ?>
 
 			<p class="text-body-secondary fs-6 mb-3"><i class="ti ti-info-circle me-1"></i><?php echo lang('admin_credits_rule_positive_tip');?></p>
@@ -36,10 +36,11 @@
 				<table class="table table-hover align-middle mb-0">
 					<thead>
 						<tr>
-							<th style="width:28%;"><?php echo lang('admin_credits_rule_label');?></th>
-							<th style="width:18%;"><?php echo lang('admin_credits_rule_credits_change');?></th>
-							<th style="width:18%;"><?php echo lang('admin_credits_rule_golds_change');?></th>
-							<th style="width:18%;"><?php echo lang('admin_credits_rule_rmbs_change');?></th>
+							<th style="width:22%;"><?php echo lang('admin_credits_rule_label');?></th>
+							<th style="width:15%;"><?php echo lang('admin_credits_rule_credits_change');?></th>
+							<th style="width:15%;"><?php echo lang('admin_credits_rule_golds_change');?></th>
+							<th style="width:15%;"><?php echo lang('admin_credits_rule_rmbs_change');?></th>
+							<th style="width:15%;"><?php echo lang('admin_credits_daily_limit');?></th>
 							<th style="width:18%;"><?php echo lang('admin_credits_rule_enabled');?></th>
 						</tr>
 					</thead>
@@ -58,6 +59,8 @@
 							'be_commented'   => lang('admin_credits_event_be_commented'),
 							'favorite'       => lang('admin_credits_event_favorite'),
 							'be_favorited'   => lang('admin_credits_event_be_favorited'),
+							'unlike'         => lang('admin_credits_event_unlike'),
+							'unfavorite'     => lang('admin_credits_event_unfavorite'),
 							'daily_login'    => lang('admin_credits_event_daily_login'),
 						);
 
@@ -67,6 +70,7 @@
 							$_golds = isset($_rule['golds_change']) ? intval($_rule['golds_change']) : 0;
 							$_rmbs = isset($_rule['rmbs_change']) ? intval($_rule['rmbs_change']) : 0;
 							$_enabled = isset($_rule['enabled']) ? intval($_rule['enabled']) : 1;
+							$_daily_limit = isset($_rule['daily_limit']) ? intval($_rule['daily_limit']) : 0;
 						?>
 						<tr>
 							<td>
@@ -82,6 +86,9 @@
 							</td>
 							<td>
 								<input type="number" name="rmbs_change_<?php echo $event;?>" value="<?php echo $_rmbs;?>" class="form-control form-control-sm rounded-pill" min="-999" max="999">
+							</td>
+							<td>
+								<input type="number" name="daily_limit_<?php echo $event;?>" value="<?php echo $_daily_limit;?>" class="form-control form-control-sm rounded-pill" min="-1" max="9999" placeholder="<?php echo lang('admin_credits_daily_limit_default');?>">
 							</td>
 							<td>
 								<div class="form-check form-switch">
@@ -102,7 +109,7 @@
 		</div><!-- /globalRulePane -->
 
 		<!-- ==================== 版块覆盖 Tab ==================== -->
-		<div class="tab-pane fade" id="forumRulePane" role="tabpanel">
+		<div class="credits-tab-pane" id="forumRulePane" style="display:none;">
 
 		<!-- 版块选择 -->
 		<div class="mb-4 d-flex align-items-center gap-3">
@@ -136,6 +143,40 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
+// ====== 子Tab切换（使用 URL hash 保持刷新后状态） ======
+var creditsTabMap = {
+    'globalRule': 'globalRulePane',
+    'forumRule': 'forumRulePane'
+};
+
+function switchCreditsTab(tabName) {
+    document.querySelectorAll('[data-credits-tab]').forEach(function(a) { a.classList.remove('active'); });
+    document.querySelectorAll('.credits-tab-pane').forEach(function(p) { p.style.display = 'none'; });
+    var activeLink = document.querySelector('[data-credits-tab="' + tabName + '"]');
+    var targetPane = document.getElementById(creditsTabMap[tabName]);
+    if(activeLink) activeLink.classList.add('active');
+    if(targetPane) targetPane.style.display = '';
+    if(history.replaceState) {
+        history.replaceState(null, '', '#' + tabName);
+    }
+}
+
+document.querySelectorAll('[data-credits-tab]').forEach(function(a) {
+    a.addEventListener('click', function(e) {
+        e.preventDefault();
+        var tab = this.getAttribute('data-credits-tab');
+        if(tab) switchCreditsTab(tab);
+    });
+});
+
+// 页面加载时根据 URL hash 恢复 tab
+(function() {
+    var hash = location.hash.replace('#', '');
+    if(hash && creditsTabMap[hash]) {
+        switchCreditsTab(hash);
+    }
+})();
+
 // 全局规则表单提交
 var jglobalForm = $('#globalForm');
 var jglobalSubmit = $('#globalSubmit');

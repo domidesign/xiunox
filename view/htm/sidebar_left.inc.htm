@@ -27,10 +27,10 @@
 			<?php
 				} else {
 			?>
-				<li class="side-nav-item" data-active="nav-<?php echo $_sni['slug'];?>">
-					<a href="<?php echo $_sni['url'];?>" class="side-nav-link">
-						<span class="menu-icon"><?php if(!empty($_sni['icon'])) { ?><i class="<?php echo $_sni['icon'];?>"></i><?php } else { ?><i class="ti ti-link"></i><?php } ?></span>
-						<span class="menu-text"><?php echo $_sni['name'];?></span>
+				<li class="side-nav-item" data-active="nav-<?php echo esc_attr($_sni['slug']);?>">
+					<a href="<?php echo esc_attr($_sni['url']);?>" class="side-nav-link">
+						<span class="menu-icon"><?php if(!empty($_sni['icon'])) { ?><i class="<?php echo esc_attr($_sni['icon']);?>"></i><?php } else { ?><i class="ti ti-link"></i><?php } ?></span>
+						<span class="menu-text"><?php echo esc_html($_sni['name']);?></span>
 					</a>
 				</li>
 			<?php

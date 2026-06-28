@@ -1,0 +1,454 @@
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<!-- Cropper.js 2.x 仅在本页面加载（CSS-in-JS，无需单独 CSS） -->
+<script src="<?php echo $conf['view_url'];?>vendor/cropperjs/cropper.min.js"></script>
+
+<?php include _include(APP_PATH.'view/htm/my.layout.inc.htm');?>
+
+		<!-- 头像设置 -->
+		<div class="x-card card">
+			<div class="card-body">
+				<?php $pending_avatar = !empty($pending_profile_fields) && in_array('avatar', $pending_profile_fields); ?>
+				<?php if($pending_avatar): ?>
+				<div class="alert alert-info d-flex align-items-center mb-3" role="alert">
+					<i class="ti ti-clock-hour-4 me-2"></i>
+					<div><?php echo lang('avatar_audit_pending_tip');?></div>
+				</div>
+				<?php endif; ?>
+
+				<!-- 当前头像 -->
+				<div class="text-center mb-4">
+					<img id="avatar_img" class="rounded-1 border border-3" style="width:128px;height:128px;object-fit:cover;" src="<?php echo $user['avatar_url'];?>" alt="" onerror="this.src='/view/img/avatar.png'">
+					<div class="mt-2">
+						<button type="button" class="btn btn-sm btn-outline-secondary" id="avatar_reset_btn"<?php echo $pending_avatar ? ' disabled' : '';?>>
+							<i class="ti ti-arrow-back-up"></i> <?php echo lang('reset_default');?>
+						</button>
+					</div>
+				</div>
+
+				<?php if(!$pending_avatar): ?>
+				<!-- 子 Tab：上传 / 预设 -->
+				<ul class="nav nav-pills mb-3 justify-content-center" role="tablist">
+					<?php if($allowattach) { ?>
+					<li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#avatar-upload-tab" type="button"><i class="ti ti-upload"></i> <?php echo lang('upload_avatar');?></button></li>
+					<?php } ?>
+					<li class="nav-item"><button class="nav-link<?php echo !$allowattach ? ' active' : '';?>" data-bs-toggle="pill" data-bs-target="#avatar-preset-tab" type="button"><i class="ti ti-grid-dots"></i> <?php echo lang('preset_avatar_tab');?></button></li>
+				</ul>
+
+				<div class="tab-content">
+					<?php if($allowattach) { ?>
+				<!-- 上传头像 Tab -->
+				<div class="tab-pane fade show active" id="avatar-upload-tab">
+					<!-- 上传限制提示 -->
+					<div class="alert alert-light border d-flex flex-wrap justify-content-center gap-3 mb-3 py-2 small">
+						<span class="text-body-secondary">
+							<i class="ti ti-photo me-1"></i><?php echo lang('avatar_max_size_label');?>：
+							<strong class="text-body"><?php echo $avatar_max_size > 0 ? $avatar_max_size . ' KB' : lang('unlimited');?></strong>
+						</span>
+						<span class="text-body-secondary">
+							<i class="ti ti-upload me-1"></i><?php echo lang('avatar_upload_limit_label');?>：
+							<strong class="text-body"><?php echo $avatar_upload_limit > 0 ? $avatar_upload_limit . ' ' . lang('times') : lang('unlimited');?></strong>
+						</span>
+						<?php if($avatar_upload_limit > 0) { ?>
+						<span class="text-body-secondary">
+							<i class="ti ti-clock me-1"></i><?php echo lang('avatar_remaining_label');?>：
+							<strong class="<?php echo $avatar_remaining <= 0 ? 'text-danger' : 'text-success';?>"><?php echo $avatar_remaining;?></strong>
+						</span>
+						<?php } ?>
+					</div>
+					<?php if($avatar_upload_limit > 0 && $avatar_remaining <= 0): ?>
+					<div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+						<i class="ti ti-alert-triangle me-2"></i>
+						<div><?php echo lang('avatar_upload_limit_reached');?></div>
+					</div>
+					<?php endif; ?>
+					<form id="avatar_upload_form" action="<?php echo my_avatar_url();?>" method="POST" enctype="multipart/form-data" hx-boost="false"<?php echo ($avatar_upload_limit > 0 && $avatar_remaining <= 0) ? ' style="pointer-events:none;opacity:0.5;"' : '';?>>
+							<?php echo CsrfService::input(); ?>
+							<div class="text-center p-4 border border-2 rounded-3 mb-3" id="avatar_dropzone" style="border-style:dashed!important;cursor:pointer;transition:all 0.2s;<?php echo ($avatar_upload_limit > 0 && $avatar_remaining <= 0) ? 'cursor:not-allowed;' : '';?>">
+								<div id="avatar_preview_wrap" style="display:none;">
+									<img id="avatar_preview_img" class="rounded-1 mx-auto d-block" style="width:200px;height:200px;object-fit:cover;" src="" alt="<?php echo lang('preview');?>">
+									<p class="mt-2 small text-body-secondary mb-0"><?php echo lang('click_to_reselect');?></p>
+								</div>
+								<div id="avatar_select_hint">
+									<i class="ti ti-cloud-upload d-block mb-2" style="font-size:2.5rem;opacity:0.4;"></i>
+									<p class="mb-1 text-body-secondary"><?php echo lang('click_select_or_drag');?></p>
+									<small class="text-body-secondary"><?php echo lang('supported_image_formats_avatar', array('maxsize' => ($avatar_max_size > 0 ? $avatar_max_size . ' KB' : lang('unlimited'))));?></small>
+								</div>
+								<input type="file" name="file" id="avatar_file_input" accept="image/jpeg,image/png,image/gif,image/webp,image/bmp" class="d-none">
+							</div>
+							<div class="text-center">
+								<button type="submit" class="btn btn-primary" id="avatar_upload_btn" disabled>
+									<i class="ti ti-check"></i> <?php echo lang('confirm_upload_avatar');?>
+								</button>
+							</div>
+						</form>
+					</div>
+					<?php } ?>
+
+					<!-- 预设头像 Tab -->
+					<div class="tab-pane fade<?php echo !$allowattach ? ' show active' : '';?>" id="avatar-preset-tab">
+						<?php
+						$preset_list = avatar_preset_files();
+						$current_preset = ($user['avatar'] < 0) ? abs($user['avatar']) : 0;
+						?>
+						<?php if(!empty($preset_list)) { ?>
+						<div class="row g-2" id="preset_avatars">
+							<?php foreach($preset_list as $idx => $preset) {
+								$active = ($idx == $current_preset) ? ' border-primary border-3' : '';
+							?>
+							<div class="col-3 col-sm-2">
+								<img class="preset-avatar rounded-1 w-100 border<?php echo $active;?>" style="aspect-ratio:1;object-fit:cover;cursor:pointer;" src="<?php echo $preset['url'];?>" data-index="<?php echo $idx;?>" data-src="<?php echo $preset['url'];?>" onerror="this.parentElement.style.display='none'">
+							</div>
+							<?php } ?>
+						</div>
+						<?php } else { ?>
+						<p class="text-body-secondary text-center small"><?php echo lang('no_preset_avatar_tip');?> <code>view/img/avatars/</code> <?php echo lang('preset_avatar_dir_tip');?></p>
+						<?php } ?>
+					</div>
+				</div>
+
+				<!-- 预设头像提交表单（隐藏） -->
+				<form id="preset_form" action="<?php echo my_avatar_preset_url();?>" method="POST" hx-boost="false" style="display:none;">
+					<?php echo CsrfService::input(); ?>
+					<input type="hidden" name="avatar_index" id="preset_index_input" value="">
+					<button type="submit" name="submit" style="display:none;"></button>
+				</form>
+
+				<!-- 恢复默认表单（隐藏） -->
+				<form id="reset_form" action="<?php echo my_avatar_preset_url();?>" method="POST" hx-boost="false" style="display:none;">
+					<?php echo CsrfService::input(); ?>
+					<input type="hidden" name="avatar_index" value="0">
+					<button type="submit" name="submit" style="display:none;"></button>
+				</form>
+				<?php endif; ?>
+			</div>
+		</div>
+
+	</div>
+
+	<!-- 右侧空栏 -->
+	<div class="d-none d-lg-block col-lg-3"></div>
+</div>
+
+<!-- 裁剪弹窗 -->
+<div class="modal fade" id="avatar_crop_modal" tabindex="-1">
+	<div class="modal-dialog modal-lg">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title"><i class="ti ti-crop me-2"></i><?php echo lang('crop_avatar');?></h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+			</div>
+			<div class="modal-body p-0">
+				<div id="cropper-container" style="width:100%;height:400px;background:#f8f9fa;">
+					<img id="avatar_crop_img" src="" style="max-width:100%;display:none;">
+				</div>
+				<div class="mt-3 d-flex gap-2 justify-content-center">
+					<button type="button" class="btn btn-sm btn-outline-secondary" id="crop_rotate_left_btn"><i class="ti ti-rotate-2"></i></button>
+					<button type="button" class="btn btn-sm btn-outline-secondary" id="crop_rotate_right_btn"><i class="ti ti-rotate"></i></button>
+					<button type="button" class="btn btn-sm btn-outline-secondary" id="crop_zoom_in_btn"><i class="ti ti-zoom-in"></i></button>
+					<button type="button" class="btn btn-sm btn-outline-secondary" id="crop_zoom_out_btn"><i class="ti ti-zoom-out"></i></button>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?php echo lang('cancel');?></button>
+				<button type="button" class="btn btn-primary" id="avatar_crop_confirm"><i class="ti ti-check me-1"></i><?php echo lang('confirm_crop');?></button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+// ========== 头像设置（Cropper.js 2.x 前端裁剪 + WebP 导出） ==========
+(function(){
+	var fileInput = document.getElementById('avatar_file_input');
+	var previewWrap = document.getElementById('avatar_preview_wrap');
+	var previewImg = document.getElementById('avatar_preview_img');
+	var selectHint = document.getElementById('avatar_select_hint');
+	var uploadBtn = document.getElementById('avatar_upload_btn');
+	var dropzone = document.getElementById('avatar_dropzone');
+	var cropModal = document.getElementById('avatar_crop_modal');
+	var cropImg = document.getElementById('avatar_crop_img');
+	var cropConfirmBtn = document.getElementById('avatar_crop_confirm');
+
+	// 裁剪按钮
+	var rotateLeftBtn = document.getElementById('crop_rotate_left_btn');
+	var rotateRightBtn = document.getElementById('crop_rotate_right_btn');
+	var zoomInBtn = document.getElementById('crop_zoom_in_btn');
+	var zoomOutBtn = document.getElementById('crop_zoom_out_btn');
+
+	var cropper = null;
+	var currentFile = null;
+	var maxSizeKB = <?php echo intval($avatar_max_size);?>;
+
+	// 自定义模板：强制 1:1 比例 + 移动/缩放选区
+	var CROPPER_TEMPLATE =
+		'<cropper-canvas style="width:100%;height:100%;" background>'
+			+ '<cropper-image rotatable scalable translatable></cropper-image>'
+			+ '<cropper-shade hidden></cropper-shade>'
+			+ '<cropper-handle action="select" plain></cropper-handle>'
+			+ '<cropper-selection initial-coverage="0.9" movable resizable zoomable aspect-ratio="1">'
+				+ '<cropper-grid role="grid" bordered covered></cropper-grid>'
+				+ '<cropper-crosshair centered></cropper-crosshair>'
+				+ '<cropper-handle action="move" theme-color="rgba(255, 255, 255, 0.35)"></cropper-handle>'
+				+ '<cropper-handle action="n-resize"></cropper-handle>'
+				+ '<cropper-handle action="e-resize"></cropper-handle>'
+				+ '<cropper-handle action="s-resize"></cropper-handle>'
+				+ '<cropper-handle action="w-resize"></cropper-handle>'
+				+ '<cropper-handle action="ne-resize"></cropper-handle>'
+				+ '<cropper-handle action="nw-resize"></cropper-handle>'
+				+ '<cropper-handle action="se-resize"></cropper-handle>'
+				+ '<cropper-handle action="sw-resize"></cropper-handle>'
+			+ '</cropper-selection>'
+		+ '</cropper-canvas>';
+
+	function handleFileSelect(file) {
+		if(!file || !file.type.match(/^image\//)) return;
+
+		// 文件大小校验
+		if(maxSizeKB > 0) {
+			var maxBytes = maxSizeKB * 1024;
+			if(file.size > maxBytes) {
+				XN.toast('<?php echo lang('avatar_max_size_label');?>：' + maxSizeKB + ' KB', 'danger');
+				return;
+			}
+		}
+
+		currentFile = file;
+		var reader = new FileReader();
+		reader.onload = function(e) {
+			cropImg.src = e.target.result;
+			cropImg.style.display = '';
+			var modal = new bootstrap.Modal(cropModal);
+			modal.show();
+		};
+		reader.readAsDataURL(file);
+	}
+
+	// 初始化 Cropper（2.x：shown.bs.modal 时创建实例）
+	cropModal.addEventListener('shown.bs.modal', function() {
+		if(cropper) {
+			cropper.destroy();
+			cropper = null;
+		}
+		// Cropper.js 2.x UMD 版本将构造函数导出为 Cropper.default
+		var CropperCtor = Cropper.default || Cropper;
+		cropper = new CropperCtor(cropImg, {
+			template: CROPPER_TEMPLATE
+		});
+	});
+
+	// 销毁 Cropper
+	cropModal.addEventListener('hidden.bs.modal', function() {
+		if(cropper) {
+			cropper.destroy();
+			cropper = null;
+		}
+		cropImg.style.display = 'none';
+	});
+
+	// 左旋转 90°
+	if(rotateLeftBtn) {
+		rotateLeftBtn.addEventListener('click', function() {
+			if(!cropper) return;
+			var image = cropper.getCropperImage();
+			if(image) image.$rotate(-90);
+		});
+	}
+
+	// 右旋转 90°
+	if(rotateRightBtn) {
+		rotateRightBtn.addEventListener('click', function() {
+			if(!cropper) return;
+			var image = cropper.getCropperImage();
+			if(image) image.$rotate(90);
+		});
+	}
+
+	// 放大
+	if(zoomInBtn) {
+		zoomInBtn.addEventListener('click', function() {
+			if(!cropper) return;
+			var image = cropper.getCropperImage();
+			if(image) image.$zoom(0.1);
+		});
+	}
+
+	// 缩小
+	if(zoomOutBtn) {
+		zoomOutBtn.addEventListener('click', function() {
+			if(!cropper) return;
+			var image = cropper.getCropperImage();
+			if(image) image.$zoom(-0.1);
+		});
+	}
+
+	// 确认裁剪（2.x 使用 cropper-selection 的 $toCanvas 返回 Promise）
+	cropConfirmBtn.addEventListener('click', function() {
+		if(!cropper) return;
+
+		// 导出为 PNG，不降低质量
+		var outputType = 'image/png';
+
+		// 获取裁剪选区元素，使用其 $toCanvas 方法
+		var selection = cropper.getCropperSelection();
+		if(!selection) {
+			XN.toast('<?php echo lang('image_process_failed');?>', 'danger');
+			return;
+		}
+
+		selection.$toCanvas({
+			width: 512,
+			height: 512
+		}).then(function(canvas) {
+			canvas.toBlob(function(blob) {
+				if(!blob) {
+					XN.toast('<?php echo lang('image_process_failed');?>', 'danger');
+					return;
+				}
+
+				// 检查大小
+				if(maxSizeKB > 0 && blob.size > maxSizeKB * 1024) {
+					XN.toast('<?php echo lang('avatar_max_size_label');?>：' + maxSizeKB + ' KB', 'danger');
+					return;
+				}
+
+				// 创建新文件
+				var newFile = new File([blob], 'avatar.png', { type: outputType });
+				currentFile = newFile;
+
+				// 更新预览
+				var reader = new FileReader();
+				reader.onload = function(e) {
+					previewImg.src = e.target.result;
+					previewWrap.style.display = 'block';
+					selectHint.style.display = 'none';
+					uploadBtn.disabled = false;
+				};
+				reader.readAsDataURL(blob);
+
+				// 关闭弹窗
+				bootstrap.Modal.getInstance(cropModal).hide();
+			}, outputType);
+		}).catch(function(err) {
+			console.error('Cropper $toCanvas error:', err);
+			XN.toast('<?php echo lang('image_process_failed');?>', 'danger');
+		});
+	});
+
+	// 文件选择
+	if(fileInput) {
+		fileInput.addEventListener('change', function() {
+			if(this.files && this.files[0]) handleFileSelect(this.files[0]);
+		});
+	}
+
+	// 拖拽上传
+	if(dropzone) {
+		dropzone.addEventListener('click', function(e) {
+			if(e.target.tagName !== 'INPUT') fileInput.click();
+		});
+		dropzone.addEventListener('dragover', function(e) { e.preventDefault(); this.style.borderColor = 'var(--bs-primary)'; });
+		dropzone.addEventListener('dragleave', function(e) { e.preventDefault(); this.style.borderColor = ''; });
+		dropzone.addEventListener('drop', function(e) {
+			e.preventDefault();
+			this.style.borderColor = '';
+			if(e.dataTransfer.files && e.dataTransfer.files[0]) {
+				handleFileSelect(e.dataTransfer.files[0]);
+			}
+		});
+	}
+
+	// 表单提交（使用 FormData + fetch 发送裁剪后的文件，避免 DataTransfer 兼容性问题）
+	var form = document.getElementById('avatar_upload_form');
+	if(form) {
+		form.addEventListener('submit', function(e) {
+			e.preventDefault();
+			if(!currentFile) return;
+
+			uploadBtn.disabled = true;
+			uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('uploading');?>';
+
+			var fd = new FormData();
+			// 附加 CSRF token
+			var csrfInput = form.querySelector('input[name="csrf_token"]');
+			if(csrfInput) fd.append('csrf_token', csrfInput.value);
+			// 附加裁剪后的头像文件
+			fd.append('file', currentFile);
+
+			fetch(form.action, {
+				method: 'POST',
+				body: fd,
+				headers: { 'X-Requested-With': 'XMLHttpRequest' }
+			}).then(function(response) {
+				// 服务端上传成功后会 302 重定向到 my-avatar 页面，fetch 自动跟随
+				if(response.redirected && response.ok) {
+					// 使用带时间戳的 URL 刷新，避免浏览器缓存旧头像
+					window.location.href = window.location.pathname + '?t=' + Date.now();
+					return;
+				}
+				// 错误情况：服务端返回 JSON（X-Requested-With 触发 is_api 分支）
+				return response.json().then(function(json) {
+					var code = parseInt(json.code);
+					if(code === 0) {
+						// 成功但未走重定向（如审核模式），也刷新页面
+						window.location.href = window.location.pathname + '?t=' + Date.now();
+						return;
+					}
+					var msg = json.message || '<?php echo lang('upload_failed');?>';
+					XN.toast(msg, 'danger');
+					uploadBtn.disabled = false;
+					uploadBtn.innerHTML = '<i class="ti ti-check"></i> <?php echo lang('confirm_upload_avatar');?>';
+				}).catch(function() {
+					// 非 JSON 响应，刷新页面
+					window.location.href = window.location.pathname + '?t=' + Date.now();
+				});
+			}).catch(function() {
+				XN.toast('<?php echo lang('network_error');?>', 'danger');
+				uploadBtn.disabled = false;
+				uploadBtn.innerHTML = '<i class="ti ti-check"></i> <?php echo lang('confirm_upload_avatar');?>';
+			});
+		});
+	}
+
+	// 预设头像
+	var presetContainer = document.getElementById('preset_avatars');
+	var presetIndexInput = document.getElementById('preset_index_input');
+	var presetForm = document.getElementById('preset_form');
+
+	if(presetContainer && presetForm) {
+		presetContainer.addEventListener('click', function(e) {
+			var img = e.target.closest('.preset-avatar');
+			if(!img) return;
+			var idx = img.getAttribute('data-index');
+			if(!idx) return;
+			XN.confirm('<?php echo lang('confirm_use_avatar');?>', function() {
+				presetIndexInput.value = idx;
+				var btn = document.createElement('button');
+				btn.type = 'submit';
+				btn.name = 'submit';
+				presetForm.appendChild(btn);
+				btn.click();
+				btn.remove();
+			});
+		});
+	}
+
+	// 恢复默认
+	var resetBtn = document.getElementById('avatar_reset_btn');
+	var resetForm = document.getElementById('reset_form');
+	if(resetBtn && resetForm) {
+		resetBtn.addEventListener('click', function() {
+			XN.confirm('<?php echo lang('confirm_reset_avatar');?>', function() {
+				var btn = document.createElement('button');
+				btn.type = 'submit';
+				btn.name = 'submit';
+				resetForm.appendChild(btn);
+				btn.click();
+				btn.remove();
+			});
+		});
+	}
+})();
+</script>

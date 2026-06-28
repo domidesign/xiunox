@@ -7,8 +7,10 @@ CREATE TABLE `bbs_user` (
   gid smallint(6) unsigned NOT NULL DEFAULT '0' COMMENT '用户组编号',	# 如果要屏蔽，调整用户组即可
   email char(40) NOT NULL DEFAULT '' COMMENT '邮箱',
   username char(32) NOT NULL DEFAULT '' COMMENT '用户名',	# 不可以重复
-  realname char(16) NOT NULL DEFAULT '' COMMENT '用户名',	# 真实姓名，天朝预留
-  idnumber char(19) NOT NULL DEFAULT '' COMMENT '用户名',	# 真实身份证号码，天朝预留
+  nickname varchar(32) NOT NULL DEFAULT '' COMMENT '昵称',	# 可修改，display_name 优先使用
+  signature varchar(255) NOT NULL DEFAULT '' COMMENT '个性签名',
+  realname char(16) NOT NULL DEFAULT '' COMMENT '真实姓名',	# 真实姓名，天朝预留
+  idnumber char(19) NOT NULL DEFAULT '' COMMENT '身份证号',	# 真实身份证号码，天朝预留
   `password` char(32) NOT NULL DEFAULT '' COMMENT '密码',
   `password_sms` char(16) NOT NULL DEFAULT '' COMMENT '密码',	# 预留，手机发送的 sms 验证码
   salt char(16) NOT NULL DEFAULT '' COMMENT '密码混杂',
@@ -38,10 +40,11 @@ CREATE TABLE `bbs_user` (
   unread_notices mediumint(8) unsigned NOT NULL DEFAULT '0' COMMENT '未读通知数',
   PRIMARY KEY (uid),
   UNIQUE KEY username (username),
+  UNIQUE KEY nickname (nickname),
   UNIQUE KEY email (email),						# 升级的时候可能为空
   KEY gid (gid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-INSERT INTO `bbs_user` SET uid=1, gid=1, email='admin@admin.com', username='admin',`password`='d98bb50e808918dd45a8d92feafc4fa3',salt='123456';
+INSERT INTO `bbs_user` SET uid=1, gid=1, email='admin@admin.com', username='admin', nickname='admin', `password`='d98bb50e808918dd45a8d92feafc4fa3',salt='123456';
 
 # 用户组
 DROP TABLE IF EXISTS `bbs_group`;
@@ -150,9 +153,11 @@ CREATE TABLE bbs_thread (
   mods tinyint(6) NOT NULL default '0',			# 预留：版主操作次数，如果 > 0, 则查询 modlog，显示斑竹的评分
   closed tinyint(1) unsigned NOT NULL default '0',	# 预留：是否关闭，关闭以后不能再回帖、编辑。
   audit_status tinyint(1) NOT NULL DEFAULT '1' COMMENT '审核状态: 0待审/1通过/2驳回',
+  resubmit_count tinyint(3) NOT NULL DEFAULT '0' COMMENT '重新提交次数（含首次发布）',
+  reject_reason varchar(255) NOT NULL DEFAULT '' COMMENT '驳回原因',
   is_announcement tinyint(1) unsigned NOT NULL DEFAULT '0' COMMENT '是否公告: 0否/1是',
   announcement_order int(11) unsigned NOT NULL DEFAULT '0' COMMENT '公告排序',
-  is_digest tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否精华: 0否/1是',
+  digest tinyint(1) NOT NULL DEFAULT 0 COMMENT '精华级别: 0否/1-3精华',
   digest_date int(11) unsigned NOT NULL DEFAULT 0 COMMENT '精华时间',
   firstpid int(11) unsigned NOT NULL default '0',	# 首贴 pid
   lastuid int(11) unsigned NOT NULL default '0',	# 最近参与的 uid
@@ -161,6 +166,9 @@ CREATE TABLE bbs_thread (
   KEY (lastpid),					# 最后回复排序
   KEY (fid, tid),					# 发帖时间排序，正序。数据量大时可以考虑建立小表，对小表进行分区优化，只有数据量达到千万级以上时才需要。
   KEY (fid, lastpid),					# 顶贴时间排序，倒序
+  KEY idx_uid_tid (uid, tid),				# 用户帖子列表
+  KEY idx_uid_fid (uid, fid),				# 用户版块帖子
+  KEY idx_fid_audit_lastpid (fid, audit_status, lastpid),	# 版块列表含审核过滤
   FULLTEXT INDEX ft_subject (subject) WITH PARSER ngram	# 全文搜索索引（中文分词）
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -173,6 +181,18 @@ CREATE TABLE bbs_thread_top (
   PRIMARY KEY (tid),					#
   KEY (top, tid),					# 最新贴：top=0 order by tid desc / 全局置顶： top=3
   KEY (fid, top)					# 版块置顶的贴 fid=1 and top=1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+# 精华主题
+DROP TABLE IF EXISTS bbs_thread_digest;
+CREATE TABLE bbs_thread_digest (
+  fid smallint(6) NOT NULL DEFAULT '0',			# 版块 id
+  tid int(11) unsigned NOT NULL DEFAULT '0',		# 主题id
+  uid int(11) unsigned NOT NULL DEFAULT '0',		# 用户id
+  digest tinyint(6) NOT NULL DEFAULT '0',		# 精华级别: 1-3
+  PRIMARY KEY (tid),
+  KEY (fid),						# 按版块查找精华
+  KEY (uid)						# 按用户查找精华
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 # 论坛帖子数据
@@ -191,12 +211,16 @@ CREATE TABLE bbs_post (
   quotepid int(11) NOT NULL default '0',		# 引用哪个 pid，可能不存在
   likes int(11) NOT NULL DEFAULT '0',			# 点赞数
   audit_status tinyint(1) NOT NULL DEFAULT '1' COMMENT '审核状态: 0待审/1通过/2驳回',
+  resubmit_count tinyint(3) NOT NULL DEFAULT '0' COMMENT '重新提交次数（含首次发布）',
+  reject_reason varchar(255) NOT NULL DEFAULT '' COMMENT '驳回原因',
+  is_top tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否置顶评论: 0否/1是',
 
   message longtext NOT NULL,				# 内容，用户提示的原始数据
   message_fmt longtext NOT NULL,			# 内容，存放的过滤后的html内容，可以定期清理，减肥。
   PRIMARY KEY (pid),
   KEY (tid, pid),
   KEY (uid),						# 我的回帖，清理数据需要
+  KEY idx_uid_isfirst_pid (uid, isfirst, pid),		# 用户回帖列表
   FULLTEXT INDEX ft_message (message) WITH PARSER ngram	# 全文搜索索引（中文分词）
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 # 编辑历史
@@ -291,24 +315,8 @@ CREATE TABLE bbs_modlog (
   KEY (tid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-# 通知表
-DROP TABLE IF EXISTS bbs_notice;
-CREATE TABLE bbs_notice (
-  nid int(11) unsigned NOT NULL AUTO_INCREMENT,
-  fromuid int(11) unsigned NOT NULL DEFAULT '0',
-  recvuid int(11) unsigned NOT NULL DEFAULT '0',
-  create_date int(11) unsigned NOT NULL DEFAULT '0',
-  isread tinyint(3) unsigned NOT NULL DEFAULT '0',
-  is_read tinyint(1) unsigned NOT NULL DEFAULT '0',
-  type tinyint(3) unsigned NOT NULL DEFAULT '0',
-  message longtext NOT NULL,
-  icon varchar(64) NOT NULL DEFAULT '' COMMENT '公告图标类名',
-  url varchar(255) NOT NULL DEFAULT '' COMMENT '公告跳转链接',
-  PRIMARY KEY (nid),
-  KEY (fromuid, type),
-  KEY (recvuid, type),
-  KEY (recvuid, is_read)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+# 通知表（notice 表已合并到 notify，仅保留 notify 一张表）
+# bbs_notify 表在下方统一创建
 
 # 持久的 key value 数据存储, ttserver, mysql
 DROP TABLE IF EXISTS bbs_kv;
@@ -368,6 +376,32 @@ CREATE TABLE `bbs_user_login_log` (
   PRIMARY KEY (`id`),
   KEY (`uid`, `time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+# 昵称修改日志
+DROP TABLE IF EXISTS `bbs_nickname_change_log`;
+CREATE TABLE `bbs_nickname_change_log` (
+  id int(11) unsigned NOT NULL AUTO_INCREMENT,
+  uid int(11) unsigned NOT NULL DEFAULT 0 COMMENT '用户id',
+  old_nickname varchar(32) NOT NULL DEFAULT '' COMMENT '旧昵称',
+  new_nickname varchar(32) NOT NULL DEFAULT '' COMMENT '新昵称',
+  change_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '修改时间',
+  ip int(11) unsigned NOT NULL DEFAULT 0 COMMENT '操作IP',
+  PRIMARY KEY (id),
+  KEY uid_change_time (uid, change_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='昵称修改日志';
+
+# 签名修改日志
+DROP TABLE IF EXISTS `bbs_signature_change_log`;
+CREATE TABLE `bbs_signature_change_log` (
+  id int(11) unsigned NOT NULL AUTO_INCREMENT,
+  uid int(11) unsigned NOT NULL DEFAULT 0 COMMENT '用户id',
+  old_signature varchar(255) NOT NULL DEFAULT '' COMMENT '旧签名',
+  new_signature varchar(255) NOT NULL DEFAULT '' COMMENT '新签名',
+  change_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '修改时间',
+  ip int(11) unsigned NOT NULL DEFAULT 0 COMMENT '操作IP',
+  PRIMARY KEY (id),
+  KEY uid_change_time (uid, change_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='签名修改日志';
 
 # 帖子点赞
 DROP TABLE IF EXISTS bbs_post_like;
@@ -557,7 +591,9 @@ INSERT INTO bbs_credits_rule_global (event, label, credits_change, golds_change,
 ('be_commented', '被回复', 0, 0, 0, 1),
 ('favorite', '收藏', 0, 0, 0, 1),
 ('be_favorited', '被收藏', 0, 0, 0, 1),
-('daily_login', '每日首次登录', 0, 0, 0, 1);
+('daily_login', '每日首次登录', 0, 0, 0, 1),
+('unlike', '取消点赞', 0, 0, 0, 1),
+('unfavorite', '取消收藏', 0, 0, 0, 1);
 
 # 版块积分规则覆盖
 DROP TABLE IF EXISTS bbs_credits_rule_forum;
@@ -676,17 +712,4 @@ INSERT INTO bbs_group_permission (gid, permission_key, value) VALUES
 (104, 'allowread', 1), (104, 'allowthread', 1), (104, 'allowpost', 1), (104, 'allowattach', 1), (104, 'allowdown', 1),
 (105, 'allowread', 1), (105, 'allowthread', 1), (105, 'allowpost', 1), (105, 'allowattach', 1), (105, 'allowdown', 1);
 
-# 友情链接
-DROP TABLE IF EXISTS bbs_friendlink;
-CREATE TABLE bbs_friendlink (
-  linkid bigint(11) unsigned NOT NULL AUTO_INCREMENT,
-  type smallint(11) NOT NULL DEFAULT '0',
-  `rank` smallint(11) NOT NULL DEFAULT '0',
-  create_date int(11) unsigned NOT NULL DEFAULT '0',
-  name char(32) NOT NULL DEFAULT '',
-  url char(64) NOT NULL DEFAULT '',
-  favicon char(128) NOT NULL DEFAULT '',
-  PRIMARY KEY (linkid),
-  KEY type (type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='友情链接';
 

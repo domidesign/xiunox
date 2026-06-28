@@ -2,7 +2,7 @@
 
 <!--{hook user_index_start.htm}-->
 
-<div class="mx-auto  " style="max-width:48rem" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
+<div class="mx-auto" style="max-width:48rem;">
 
 	<?php if(!empty($security_notice)): ?>
 	<div class="alert alert-info d-flex align-items-center mb-3 py-2" role="alert">
@@ -17,173 +17,21 @@
 	</div>
 	<?php endif; ?>
 
-	<div class="x-card card mb-3">
-		<div class="card-body d-flex align-items-center gap-3 flex-wrap">
-			<?php echo avatar_component_from_data($_user['avatar_url'], 'xl', isset($_user['group_icon_class']) ? $_user['group_icon_class'] : '', isset($_user['group_color']) ? $_user['group_color'] : '', isset($_user['gid']) ? $_user['gid'] : 0);?>
-			<div class="flex-fill" style="min-width:0">
-				<h5 class="fw-bold mb-1">
-					<?php echo esc_html($_user['username']);?>
-				</h5>
-				<span class="badge bg-primary  mb-2">
-					<?php echo $_user['groupname'];?>
-				</span>
-				<?php if(!empty($_user['signature'])) { ?>
-				<p class="text-body-secondary small mb-0">
-					<?php echo esc_html($_user['signature']);?>
-				</p>
-				<?php } ?>
-				<div class="d-flex gap-4 mt-2">
-					<a href="javascript:;" class="text-decoration-none" data-tab="thread"><span
-							class="fw-bold text-primary">
-							<?php echo $_user['threads'];?>
-						</span> <small class="text-body-secondary">
-							<?php echo lang('user_thread');?>
-						</small></a>
-					<a href="javascript:;" class="text-decoration-none" data-tab="followers"><span
-							class="fw-bold text-primary">
-							<?php echo $_user['followeds'];?>
-						</span> <small class="text-body-secondary">
-							<?php echo lang('followers');?>
-						</small></a>
-					<a href="javascript:;" class="text-decoration-none" data-tab="following"><span
-							class="fw-bold text-primary">
-							<?php echo $_user['follows'];?>
-						</span> <small class="text-body-secondary">
-							<?php echo lang('following');?>
-						</small></a>
-				</div>
-			</div>
-			<div>
-				<?php if(!empty($uid) && $uid != $_uid) {
-					$_is_user_followed = !empty($_user['is_followed']);
-				?>
-				<?php if($_is_user_followed) { ?>
-				<button class="btn btn-sm btn-outline-secondary user-follow-btn"
-					hx-post="<?php echo url('user-follow-'.$_uid);?>"
-					hx-target="this"
-					hx-swap="outerHTML"
-					hx-optimistic>
-						<i class="ti ti-user-minus"></i>
-						<span><?php echo lang('unfollow');?></span>
-					</button>
-				<?php } else { ?>
-				<button class="btn btn-sm btn-primary user-follow-btn"
-					hx-post="<?php echo url('user-follow-'.$_uid);?>"
-					hx-target="this"
-					hx-swap="outerHTML"
-					hx-optimistic>
-						<i class="ti ti-user-plus"></i>
-						<span><?php echo lang('follow');?></span>
-					</button>
-				<?php } ?>
-				<?php } elseif(!empty($uid) && $uid == $_uid) { ?>
-				<a href="<?php echo url('my');?>" class="btn btn-outline-primary btn-sm "><i class="ti ti-pencil"></i>
-					<?php echo lang('edit_profile');?>
-				</a>
-				<?php } ?>
-			</div>
-		</div>
-	</div>
+	<!-- 用户信息卡片 -->
+	<?php include _include(APP_PATH.'view/htm/user_info_card.inc.htm');?>
 
-
-
+	<!-- Tab 导航 + 内容主体 -->
 	<div class="x-card card">
-		<ul class="nav nav-tabs mb-3" id="userTab" role="tablist">
-			<li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-thread" data-tab-name="thread" type="button">
-					<?php echo lang('user_thread');?>
-				</button></li>
-			<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-post" data-tab-name="post" type="button"
-					hx-get="<?php echo url("user-tab_posts-$_uid");?>"
-					hx-target="#tab-post"
-					hx-swap="innerHTML"
-					hx-trigger="click once">
-					<?php echo lang('reply');?>
-				</button></li>
-			<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-following" data-tab-name="following" type="button"
-					hx-get="<?php echo url("user-tab_following-$_uid");?>"
-					hx-target="#tab-following"
-					hx-swap="innerHTML"
-					hx-trigger="click once">
-					<?php echo lang('following');?>
-				</button></li>
-			<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-followers" data-tab-name="followers" type="button"
-					hx-get="<?php echo url("user-tab_followers-$_uid");?>"
-					hx-target="#tab-followers"
-					hx-swap="innerHTML"
-					hx-trigger="click once">
-					<?php echo lang('followers');?>
-				</button></li>
-			<?php if(!empty($uid) && $uid == $_uid) { ?>
-			<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-favorite" data-tab-name="favorite" type="button"
-					hx-get="<?php echo url("user-tab_favorites-$_uid");?>"
-					hx-target="#tab-favorite"
-					hx-swap="innerHTML"
-					hx-trigger="click once">
-					<?php echo lang('favorite');?>
-				</button></li>
-			<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-like" data-tab-name="like" type="button"
-					hx-get="<?php echo url("user-tab_likes-$_uid");?>"
-					hx-target="#tab-like"
-					hx-swap="innerHTML"
-					hx-trigger="click once">
-					<?php echo lang('like');?>
-				</button></li>
-
-			<?php } ?>
-		</ul>
-		<div class="tab-content">
-			<div class="tab-pane fade show active" id="tab-thread" role="tabpanel">
-				<ul class="list-unstyled threadlist mb-0">
-					<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm'); ?>
-				</ul>
-				<?php if($pagination) { ?>
-				<nav>
-					<ul class="pagination pagination-boxed justify-content-end flex-wrap">
-						<?php echo $pagination; ?>
-					</ul>
-				</nav>
-				<?php } ?>
-			</div>
-
-			<div class="tab-pane fade" id="tab-post" role="tabpanel">
-				<div class="text-center text-body-secondary py-5">
-					<div class="spinner-border spinner-border-sm me-1" role="status"></div>
-					<?php echo lang('loading');?>
-				</div>
-			</div>
-
-			<div class="tab-pane fade" id="tab-following" role="tabpanel">
-				<div class="text-center text-body-secondary py-5">
-					<div class="spinner-border spinner-border-sm me-1" role="status"></div>
-					<?php echo lang('loading');?>
-				</div>
-			</div>
-
-			<div class="tab-pane fade" id="tab-followers" role="tabpanel">
-				<div class="text-center text-body-secondary py-5">
-					<div class="spinner-border spinner-border-sm me-1" role="status"></div>
-					<?php echo lang('loading');?>
-				</div>
-			</div>
-
-			<?php if(!empty($uid) && $uid == $_uid) { ?>
-			<div class="tab-pane fade" id="tab-favorite" role="tabpanel">
-				<div class="text-center text-body-secondary py-5">
-					<div class="spinner-border spinner-border-sm me-1" role="status"></div>
-					<?php echo lang('loading');?>
-				</div>
-			</div>
-
-			<div class="tab-pane fade" id="tab-like" role="tabpanel">
-				<div class="text-center text-body-secondary py-5">
-					<div class="spinner-border spinner-border-sm me-1" role="status"></div>
-					<?php echo lang('loading');?>
-				</div>
-			</div>
-
-			<?php } ?>
+		<div class="card-body">
+			<!--{hook user_nav_before.htm}-->
+			<slot name="user_nav" />
+			<!--{hook user_nav_after.htm}-->
+		</div>
+		<div class="card-body">
+			<slot name="user_body" />
 		</div>
 	</div>
+
 </div>
 
 <!--{hook user_index_end.htm}-->
@@ -191,84 +39,9 @@
 <?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-	document.querySelectorAll('a[data-tab]').forEach(function(link) {
-		link.addEventListener('click', function() {
-			var tabName = this.dataset.tab;
-			var tabBtn = document.querySelector('#userTab button[data-bs-target="#tab-' + tabName + '"]');
-			if (tabBtn) tabBtn.click();
-		});
-	});
-
-	// Tab hash 路由
-	(function() {
-		var validTabs = ['thread', 'post', 'following', 'followers', 'favorite', 'like'];
-		var tabEl = document.getElementById('userTab');
-		if (!tabEl) return;
-
-		// 页面加载时根据 hash 切换 tab
-		var hash = location.hash.replace('#', '');
-		if (hash && validTabs.indexOf(hash) !== -1) {
-			var tabBtn = tabEl.querySelector('button[data-tab-name="' + hash + '"]');
-			if (tabBtn) {
-				tabBtn.click();
-			}
-		}
-
-		// tab 切换时更新 hash
-		tabEl.addEventListener('shown.bs.tab', function(e) {
-			var tabName = e.target.getAttribute('data-tab-name');
-			if (tabName && history.replaceState) {
-				history.replaceState(null, '', '#' + tabName);
-			}
-		});
-
-		// 监听 hash 变化
-		window.addEventListener('hashchange', function() {
-			var h = location.hash.replace('#', '');
-			if (h && validTabs.indexOf(h) !== -1) {
-				var tabBtn = tabEl.querySelector('button[data-tab-name="' + h + '"]');
-				if (tabBtn) tabBtn.click();
-			}
-		});
-	})();
-
-	// 帖子/关注/粉丝列表淡入动画
-	(function(){
-		if(typeof anime === 'undefined') return;
-		var animate = anime.animate;
-		var stagger = anime.stagger;
-
-		function animateUserList() {
-			var items = document.querySelectorAll('#userTab + .tab-content .thread-list-item:not([data-animated]), #userTab + .tab-content .list-group-item:not([data-animated]), #userTab + .tab-content .d-flex.align-items-center.gap-3:not([data-animated])');
-			if(!items.length) return;
-
-			items.forEach(function(item) {
-				item.style.opacity = '0';
-				item.style.transform = 'translateY(15px)';
-			});
-
-			animate(items, {
-				opacity: 1,
-				translateY: 0,
-				duration: 300,
-				delay: stagger(40),
-				ease: 'outQuad',
-				onComplete: function() {
-					items.forEach(function(item) {
-						item.setAttribute('data-animated', '1');
-					});
-				}
-			});
-		}
-
-		animateUserList();
-
-		// tab 切换后执行动画
-		var userTab = document.getElementById('userTab');
-		if(userTab) {
-			userTab.addEventListener('shown.bs.tab', function() {
-				setTimeout(animateUserList, 100);
-			});
-		}
-	})();
+// 高亮当前 tab（子模板通过 data-active 标记）
+(function(){
+	var active = document.querySelector('a.nav-link.active[data-active]');
+	// active class 已在子模板服务端输出，此处仅做兜底
+})();
 </script>

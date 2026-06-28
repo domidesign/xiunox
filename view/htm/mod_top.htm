@@ -3,7 +3,7 @@
 		<h3 class="fs-5 fw-bold mb-0"><?php echo lang('top_thread');?></h3>
 	</div> -->
 	<div class="card-body ajax-body">
-		<form method="post" id="mod_top_form" data-action="<?php echo url("mod-top");?>" onsubmit="return submitModForm(event, this, '#mod-top-msg')">
+		<form method="post" id="mod_top_form" data-action="<?php echo mod_top_url();?>" onsubmit="return submitModForm(event, this, '#mod-top-msg')">
 			<?php echo CsrfService::input(); ?>
 			<input type="hidden" name="tidarr" id="tidarr">
 			<div class="d-flex align-items-center gap-2 mb-3">

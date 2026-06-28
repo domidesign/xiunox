@@ -15,35 +15,29 @@
 			<div class="x-card card py-1">
 				<div class="d-flex justify-content-between align-items-center flex-wrap">
 					<ul class="nav thread-nav-tabs" role="tablist">
-					<li class="nav-item"><a class="nav-link<?php echo $orderby == 'lastpid' || $orderby == 'tid' ? ' active' : '';?>" role="tab" href="<?php echo url("forum-$fid", array('orderby' => 'lastpid'));?>" hx-get="<?php echo url("forum-$fid", array('orderby' => 'lastpid', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('latest_tab');?></a></li>
-					<li class="nav-item"><a class="nav-link<?php echo $orderby == 'hot' ? ' active' : '';?>" role="tab" href="<?php echo url("forum-$fid", array('orderby' => 'hot'));?>" hx-get="<?php echo url("forum-$fid", array('orderby' => 'hot', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('hottest_tab');?></a></li>
-					<li class="nav-item"><a class="nav-link<?php echo $orderby == 'digest' ? ' active' : '';?>" role="tab" href="<?php echo url("forum-$fid", array('orderby' => 'digest'));?>" hx-get="<?php echo url("forum-$fid", array('orderby' => 'digest', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('digest');?></a></li>
+					<li class="nav-item"><a class="nav-link<?php echo $orderby == 'lastpid' || $orderby == 'tid' ? ' active' : '';?>" role="tab" href="<?php echo url("forum-$fid", array('orderby' => 'lastpid'));?>" hx-get="<?php echo url("forum-$fid", array('orderby' => 'lastpid'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('latest_tab');?></a></li>
+					<li class="nav-item"><a class="nav-link<?php echo $orderby == 'hot' ? ' active' : '';?>" role="tab" href="<?php echo url("forum-$fid", array('orderby' => 'hot'));?>" hx-get="<?php echo url("forum-$fid", array('orderby' => 'hot'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('hottest_tab');?></a></li>
+					<li class="nav-item"><a class="nav-link<?php echo $orderby == 'digest' ? ' active' : '';?>" role="tab" href="<?php echo url("forum-$fid", array('orderby' => 'digest'));?>" hx-get="<?php echo url("forum-$fid", array('orderby' => 'digest'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('digest');?></a></li>
 					<?php if(!empty($uid)) { ?>
-					<li class="nav-item"><a class="nav-link<?php echo $orderby == 'follow' ? ' active' : '';?>" role="tab" href="<?php echo url("forum-$fid", array('orderby' => 'follow'));?>" hx-get="<?php echo url("forum-$fid", array('orderby' => 'follow', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('follow_tab');?></a></li>
+					<li class="nav-item"><a class="nav-link<?php echo $orderby == 'follow' ? ' active' : '';?>" role="tab" href="<?php echo url("forum-$fid", array('orderby' => 'follow'));?>" hx-get="<?php echo url("forum-$fid", array('orderby' => 'follow'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('follow_tab');?></a></li>
 					<?php } ?>
 					<!--{hook forum_thread_list_nav_item_after.htm}-->
 				</ul>
-					<?php $toggle_url = url("forum-$fid-$page", array('orderby' => $orderby) + ($extra ?? array())); ?>
-					<?php include _include(APP_PATH.'view/htm/view_toggle.inc.htm');?>
+				<?php if($orderby == 'lastpid' || $orderby == 'tid') { ?>
+				<div class="btn-group btn-group-sm" role="group">
+					<a class="btn btn-outline-secondary<?php echo $orderby == 'lastpid' ? ' active' : '';?>" href="<?php echo url("forum-$fid", array('orderby' => 'lastpid'));?>" hx-get="<?php echo url("forum-$fid", array('orderby' => 'lastpid'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('latest_reply');?></a>
+					<a class="btn btn-outline-secondary<?php echo $orderby == 'tid' ? ' active' : '';?>" href="<?php echo url("forum-$fid", array('orderby' => 'tid'));?>" hx-get="<?php echo url("forum-$fid", array('orderby' => 'tid'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('new_thread');?></a>
+				</div>
+				<?php } ?>
 				</div>
 			</div>
 			<div>
 				<!--{hook forum_threadlist_before.htm}-->
-				<?php if ($view_mode == 'list') { ?>
 				<ul class="list-none threadlist x-card card mb-0">
 					<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm');?>
 				</ul>
-				<?php } elseif ($view_mode == 'timeline') { ?>
-				<div class="timeline-feed">
-					<?php include _include(APP_PATH.'view/htm/thread_list_timeline.inc.htm');?>
-				</div>
-				<?php } else { ?>
-				<div class="masonry-container">
-					<?php include _include(APP_PATH.'view/htm/thread_list_masonry.inc.htm');?>
-				</div>
-				<?php } ?>
 				<!--{hook forum_threadlist_after.htm}-->
-				<?php if($view_mode == 'list') { include _include(APP_PATH.'view/htm/thread_list_mod.inc.htm'); } ?>
+				<?php include _include(APP_PATH.'view/htm/thread_list_mod.inc.htm'); ?>
 			</div>
 		</div>
 
@@ -52,7 +46,7 @@
 		<!--{hook forum_page_after.htm}-->
 	</div>
 	<div class="d-none d-lg-block col-lg-3 aside">
-		<div class="x-card card card-forum-info rounded-1 mb-3">
+		<div class="x-card card card-forum-info   mb-3">
 			<div class="card-body">
 				<div class="d-flex align-items-center gap-3">
 					<?php if(!empty($forum['icon_url'])): ?>
@@ -64,9 +58,6 @@
 					<?php endif; ?>
 					<div class="flex-fill" style="min-width:0">
 						<h6 class="fw-bold mb-0"><?php echo esc_html($forum['name']);?></h6>
-						<?php if(!empty($forum['brief'])): ?>
-						<p class="text-body-secondary small mb-0 mt-1 text-truncate"><?php echo $forum['brief'];?></p>
-						<?php endif; ?>
 					</div>
 					<span id="forum-follow-btn"
 					hx-get="<?php echo url('forum-follow_status-'.$fid);?>"
@@ -80,11 +71,19 @@
 				</span>
 				</div>
 			</div>
+			<?php if(!empty($forum['brief'])): ?>
+			<!-- 版块简介独立区块 -->
+			<div class="card-body py-2">
+				<div class="bg-body-tertiary rounded-1 p-1 small text-body-secondary">
+					<?php echo esc_html($forum['brief']);?>
+				</div>
+			</div>
+			<?php endif; ?>
 			<div class="card-body p-2">
 				<div class="d-flex small text-center">
 					<div class="flex-fill py-1"><span class="text-body-secondary d-block"><?php echo lang('threads_label');?></span><b><?php echo $forum['threads'];?></b></div>
 					<div class="flex-fill py-1"><span class="text-body-secondary d-block"><?php echo lang('today_replies');?></span><b><?php echo $forum['todayposts'];?></b></div>
-					<div class="flex-fill py-1"><span class="text-body-secondary d-block"><?php echo lang('members');?></span><b><?php echo $forum['follows'];?></b></div>
+					<div class="flex-fill py-1"><span class="text-body-secondary d-block"><?php echo lang('members');?></span><b><a href="<?php echo url("forum-followers-$fid");?>" class="text-decoration-none" id="forum-follows-count"><?php echo $forum['follows'];?></a></b></div>
 				</div>
 			</div>
 			<div class="px-3 pb-3">
@@ -94,22 +93,24 @@
 
 		<!--{hook forum_mod_before.htm}-->
 		<?php if($forum['announcement'] || $forum['modlist']) { ?>
-		<div class="x-card card card-mod-info rounded-1 mb-3">
+		<div class="x-card card card-mod-info   mb-3">
 			<div class="card-body">
 				<?php if($forum['announcement']) { ?>
-				<h6 class="fw-semibold"><i class="ti ti-speakerphone me-1"></i><?php echo lang('forum_anouncement');?></h6>
+				<h3 class="card-title small"><i class="ti ti-speakerphone me-1"></i><?php echo lang('forum_anouncement');?></h3>
 				<div class="alert alert-info border-0 rounded-1 small mb-0">
 					<?php echo $forum['announcement'];?>
 				</div>
 				<?php  } ?>
 
 				<?php if($forum['modlist']) { ?>
-				<h6 class="fw-semibold"><?php echo lang('forum_moderator');?>：</h6>
+				<h3 class="card-title small"><i class="ti ti-users me-1"></i><?php echo lang('forum_moderator');?></h3>
 				<div class="d-flex flex-wrap gap-2">
 					<?php foreach ($forum['modlist'] as $mod) { ?>
 					<div class="text-center">
-						<a href="#"><img src="<?php echo $conf['view_url'];?>img/avatar.png" class="avatar-sm" alt="" onerror="this.src='/view/img/avatar.png'"></a><br>
-						<a href="<?php echo url("user-$mod[uid]");?>" class="small text-body-secondary text-nowrap text-decoration-none"><?php echo esc_html($mod['username']);?></a>
+						<a href="<?php echo url("user-$mod[uid]");?>">
+							<img src="<?php echo !empty($mod['avatar_url']) ? $mod['avatar_url'] : $conf['view_url'].'img/avatar.png';?>" class="rounded-circle" width="32" height="32" alt="<?php echo esc_html(!empty($mod['display_name']) ? $mod['display_name'] : $mod['username']);?>" onerror="this.src='/view/img/avatar.png'">
+						</a><br>
+						<a href="<?php echo url("user-$mod[uid]");?>" class="small text-body-secondary text-nowrap text-decoration-none"><?php echo esc_html(!empty($mod['display_name']) ? $mod['display_name'] : $mod['username']);?></a>
 					</div>
 					<?php } ?>
 				</div>
@@ -118,6 +119,7 @@
 		</div>
 		<?php  } ?>
 		<!--{hook forum_mod_after.htm}-->
+
 	</div>
 </div>
 

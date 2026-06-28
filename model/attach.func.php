@@ -86,6 +86,9 @@ function attach_delete_by_pid($pid) {
 	global $conf;
 	list($attachlist, $imagelist, $filelist) = attach_find_by_pid($pid);
 	// hook model_attach_delete_by_pid_start.php
+	if(empty($attachlist)) return 0;
+
+	// 删除物理文件和缩略图
 	foreach($attachlist as $attach) {
 		$path = $conf['upload_path'].'attach/'.$attach['filename'];
 		file_exists($path) AND unlink($path);
@@ -95,8 +98,14 @@ function attach_delete_by_pid($pid) {
 			$full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
 			file_exists($full_thumb_path) AND unlink($full_thumb_path);
 		}
-		attach__delete($attach['aid']);
 	}
+
+	// 批量删除数据库记录，消除 N+1 查询
+	$aids = arrlist_values($attachlist, 'aid');
+	if(!empty($aids)) {
+		db_delete('attach', array('aid'=>$aids));
+	}
+
 	// hook model_attach_delete_by_pid_end.php
 	return count($attachlist);
 }
@@ -104,17 +113,33 @@ function attach_delete_by_pid($pid) {
 function attach_delete_by_uid($uid) {
 	global $conf;
 	// hook model_attach_delete_by_uid_start.php
-	$attachlist = db_find('attach', array('uid'=>$uid), array(), 1, 9000);
-	foreach ($attachlist as $attach) {
-		$path = $conf['upload_path'].'attach/'.$attach['filename'];
-		file_exists($path) AND unlink($path);
-		// 删除缩略图
-		$thumb_path = attach_thumb_path($attach['filename']);
-		if($thumb_path) {
-			$full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
-			file_exists($full_thumb_path) AND unlink($full_thumb_path);
+	// 分批处理，避免一次查询过多数据
+	$batch_size = 1000;
+	$page = 1;
+	while(true) {
+		$attachlist = db_find('attach', array('uid'=>$uid), array(), $page, $batch_size);
+		if(empty($attachlist)) break;
+
+		// 删除物理文件和缩略图
+		foreach ($attachlist as $attach) {
+			$path = $conf['upload_path'].'attach/'.$attach['filename'];
+			file_exists($path) AND unlink($path);
+			// 删除缩略图
+			$thumb_path = attach_thumb_path($attach['filename']);
+			if($thumb_path) {
+				$full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
+				file_exists($full_thumb_path) AND unlink($full_thumb_path);
+			}
 		}
-		attach__delete($attach['aid']);
+
+		// 批量删除数据库记录，消除 N+1 查询
+		$aids = arrlist_values($attachlist, 'aid');
+		if(!empty($aids)) {
+			db_delete('attach', array('aid'=>$aids));
+		}
+
+		if(count($attachlist) < $batch_size) break;
+		$page++;
 	}
 	// hook model_attach_delete_by_uid_end.php
 }
@@ -263,26 +288,40 @@ function attach_assoc_post($pid) {
 	$tid = $post['tid'];
 	$post['message_old'] = $post['message_fmt'];
 	
-	// 把临时文件 upload/tmp/xxx.xxx 也处理了
-	//preg_match_all('#src="upload/tmp/(\w+\.\w+)"#', $post['message_old'], $m);
-	//$use_tmp_files = $m[1]; // 实际使用的临时文件，不用的全部删除？如果是两个帖子一起编辑？
-	
-	// 将 session 中的数据和 message 中的数据合并。
-	//$tmp_files = array_unique(array_merge($sess_tmp_files, $use_tmp_files));
-	
 	$attach_dir_save_rule = array_value($conf, 'attach_dir_save_rule', 'Ym');
+	$day = date($attach_dir_save_rule, $time);
+	$attach_path = $conf['upload_path'].'attach/'.$day;
+	$attach_url = $conf['upload_url'].'attach/'.$day;
+	!is_dir($attach_path) AND mkdir($attach_path, 0777, TRUE);
 	
+	// ===== 方案1：从 session 中读取临时文件信息（原有逻辑） =====
+	// 修复孤儿附件：只处理 message 中实际存在的临时文件
+	// 对于附件（非图片/视频），由于不插入编辑器，始终保留
 	$tmp_files = $sess_tmp_files;
 	if($tmp_files) {
 		foreach($tmp_files as $file) {
 			
+			// 检查临时文件 URL 是否在 message 中（图片/视频）
+			// 附件（非图片/视频）不插入编辑器，始终保留
+			$file_url_in_message = (strpos($post['message'], $file['url']) !== false || strpos($post['message_fmt'], $file['url']) !== false);
+			$is_image_or_video = !empty($file['isimage']) || (isset($file['filetype']) && $file['filetype'] == 'video');
+			
+			if($is_image_or_video && !$file_url_in_message) {
+				// 图片/视频在编辑器中已被删除，跳过创建附件记录，直接清理临时文件
+				if(is_file($file['path'])) @unlink($file['path']);
+				if(!empty($file['thumb_url'])) {
+					$thumb_relative = str_replace($conf['upload_url'].'tmp/', '', $file['thumb_url']);
+					$thumb_src_path = $conf['upload_path'].'tmp/'.$thumb_relative;
+					if(is_file($thumb_src_path)) @unlink($thumb_src_path);
+				}
+				continue;
+			}
+			
 			// 将文件移动到 upload/attach 目录
 			$filename = file_name($file['url']);
 			
-			$day = date($attach_dir_save_rule, $time);
-			$path = $conf['upload_path'].'attach/'.$day;
-			$url = $conf['upload_url'].'attach/'.$day;
-			!is_dir($path) AND mkdir($path, 0777, TRUE);
+			$path = $attach_path;
+			$url = $attach_url;
 			
 			$destfile = $path.'/'.$filename;
 			$desturl = $url.'/'.$filename;
@@ -335,31 +374,161 @@ function attach_assoc_post($pid) {
 		}
 	}
 
+	// ===== 方案2：兜底扫描 message 中的 /upload/tmp/ 路径 =====
+	// 当 session 丢失或 str_replace 未匹配时，直接扫描 message 中的临时路径
+	// 匹配 src="/upload/tmp/xxx.ext" 或 src="/upload/tmp/xxx.ext" 等格式
+	$tmp_url_prefix = $conf['upload_url'].'tmp/';
+	$tmp_path_prefix = $conf['upload_path'].'tmp/';
+	$need_scan = (empty($tmp_files) || strpos($post['message'], $tmp_url_prefix) !== false || strpos($post['message_fmt'], $tmp_url_prefix) !== false);
+	if($need_scan) {
+		// 扫描 message 和 message_fmt 中所有 /upload/tmp/xxx.ext 的文件名
+		$pattern = '#'.preg_quote($tmp_url_prefix, '#').'([0-9a-f]+\.\w+)#';
+		$found_files = array();
+		if(preg_match_all($pattern, $post['message'], $m1)) {
+			$found_files = array_merge($found_files, $m1[1]);
+		}
+		if(preg_match_all($pattern, $post['message_fmt'], $m2)) {
+			$found_files = array_merge($found_files, $m2[1]);
+		}
+		$found_files = array_unique($found_files);
+
+		// 批量查询已存在的附件记录，消除 N+1 查询
+		$filenames_to_check = array();
+		foreach($found_files as $filename) {
+			$filenames_to_check[] = "$day/$filename";
+		}
+		$existing_attaches = empty($filenames_to_check) ? array() : db_find('attach', array('pid'=>$pid, 'filename'=>$filenames_to_check), array(), 1, count($filenames_to_check), 'filename');
+		$existing_filenames = array();
+		if($existing_attaches) {
+			foreach($existing_attaches as $ea) {
+				$existing_filenames[$ea['filename']] = 1;
+			}
+		}
+
+		foreach($found_files as $filename) {
+			$tmp_file_path = $tmp_path_prefix.$filename;
+			$tmp_file_url = $tmp_url_prefix.$filename;
+			$dest_file_path = $attach_path.'/'.$filename;
+			$dest_file_url = $attach_url.'/'.$filename;
+
+			// 检查临时文件是否存在（可能已被方案1移走）
+			if(!is_file($tmp_file_path)) continue;
+
+			// 移动文件到 attach 目录
+			$r = xn_copy($tmp_file_path, $dest_file_path);
+			!$r AND xn_log("xn_copy($tmp_file_path, $dest_file_path) failed (scan fallback), pid:$pid, tid:$tid", 'php_error');
+			if(is_file($dest_file_path) && filesize($dest_file_path) == filesize($tmp_file_path)) {
+				@unlink($tmp_file_path);
+			}
+
+			// 替换 message 中的 URL
+			$post['message'] = str_replace($tmp_file_url, $dest_file_url, $post['message']);
+			$post['message_fmt'] = str_replace($tmp_file_url, $dest_file_url, $post['message_fmt']);
+
+			// 检查是否已在方案1中创建了附件记录，避免重复（使用批量查询结果）
+			if(!isset($existing_filenames["$day/$filename"])) {
+				// 获取文件信息
+				$filesize = filesize($dest_file_path);
+				$filetype = attach_type($filename, include APP_PATH.'conf/attach.conf.php');
+				$isimage = ($filetype == 'image') ? 1 : 0;
+				$width = 0;
+				$height = 0;
+				if($isimage) {
+					$imginfo = @getimagesize($dest_file_path);
+					if($imginfo) {
+						$width = $imginfo[0];
+						$height = $imginfo[1];
+					}
+				}
+				if($filetype == 'video') {
+					if(class_exists('AttachmentService')) {
+						$video_info = AttachmentService::getVideoInfo($dest_file_path);
+						if($video_info) {
+							$width = $video_info['width'];
+							$height = $video_info['height'];
+						}
+					}
+				}
+				
+				$arr = array(
+					'tid'=>$tid,
+					'pid'=>$pid,
+					'uid'=>$uid,
+					'filesize'=>$filesize,
+					'width'=>$width,
+					'height'=>$height,
+					'filename'=>"$day/$filename",
+					'orgfilename'=>$filename,
+					'filetype'=>$filetype,
+					'create_date'=>$time,
+					'comment'=>'',
+					'downloads'=>0,
+					'isimage'=>$isimage
+				);
+				attach_create($arr);
+			}
+		}
+	}
+
 	// 清空 session
 	$_SESSION['tmp_files'] = array();
 	
-	$post['message_old'] != $post['message_fmt'] AND post__update($pid, array('message'=>$post['message'], 'message_fmt'=>$post['message_fmt']));
+	// 更新帖子内容（URL 替换后必须保存）
+	post__update($pid, array('message'=>$post['message'], 'message_fmt'=>$post['message_fmt']));
 	
-	// 处理不在 message 中的图片，删除掉没有插入的图片附件
-	/*
+	// 清理孤儿附件：删除不在 message 中的图片/视频附件
+	// 仅处理图片和视频（它们插入在编辑器中），附件（非图片/视频）不插入编辑器故不清理
 	list($attachlist, $imagelist, $filelist) = attach_find_by_pid($pid);
-	foreach($imagelist as $k=>$attach) {
+
+	// 收集需要删除的孤儿附件，避免循环内逐个 attach_delete 造成的 N+1 查询
+	$orphan_aids = array();
+	$orphan_attaches = array();
+	foreach($attachlist as $attach) {
+		// 只清理图片和视频类型
+		$is_image_or_video = !empty($attach['isimage']) || (isset($attach['filetype']) && $attach['filetype'] == 'video');
+		if(!$is_image_or_video) continue;
+
 		$url = $conf['upload_url'].'attach/'.$attach['filename'];
-		if(strpos($post['message_fmt'], $url) === FALSE) {
-			unset($imagelist[$k]);
-			attach_delete($attach['aid']);
+		// 检查 URL 是否在 message 中，不在则说明用户已从编辑器删除
+		if(strpos($post['message_fmt'], $url) === FALSE && strpos($post['message'], $url) === FALSE) {
+			$orphan_aids[] = $attach['aid'];
+			$orphan_attaches[] = $attach;
 		}
 	}
-	*/
-	
-	// 更新 images videos files
-	list($attachlist, $imagelist, $filelist) = attach_find_by_pid($pid);
-	$images = count($imagelist);
+
+	// 批量删除孤儿附件：物理文件 + 缩略图 + 数据库记录
+	if(!empty($orphan_aids)) {
+		// 删除物理文件和缩略图（保留 attach_delete 的 unlink 逻辑）
+		foreach($orphan_attaches as $attach) {
+			$path = $conf['upload_path'].'attach/'.$attach['filename'];
+			file_exists($path) AND unlink($path);
+			$thumb_path = attach_thumb_path($attach['filename']);
+			if($thumb_path) {
+				$full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
+				file_exists($full_thumb_path) AND unlink($full_thumb_path);
+			}
+		}
+		// 批量删除数据库记录，消除 N+1 查询
+		db_delete('attach', array('aid'=>$orphan_aids));
+
+		// 从 attachlist 中过滤掉已删除的，避免第二次 attach_find_by_pid 查询
+		$deleted_aid_map = array_flip($orphan_aids);
+		foreach($attachlist as $k => $attach) {
+			if(isset($deleted_aid_map[$attach['aid']])) {
+				unset($attachlist[$k]);
+			}
+		}
+		$attachlist = array_values($attachlist);
+	}
+
+	// 更新 images videos files（从过滤后的 attachlist 统计，无需重复查询）
+	$images = 0;
 	$videos = 0;
 	$files = 0;
 	foreach($attachlist as $attach) {
-		if(!empty($attach['isimage'])) continue; // images already counted
-		if(isset($attach['filetype']) && $attach['filetype'] == 'video') {
+		if(!empty($attach['isimage'])) {
+			$images++;
+		} elseif(isset($attach['filetype']) && $attach['filetype'] == 'video') {
 			$videos++;
 		} else {
 			$files++;
@@ -376,17 +545,15 @@ function attach_assoc_post($pid) {
 
 // ------------> 后台管理函数
 
-// 带筛选/排序/分页的附件列表查询
-function attach_admin_find($filter = array(), $orderby = array('aid'=>-1), $page = 1, $pagesize = 20) {
-    // hook model_attach_admin_find_start.php
-    $cond = array();
+// 构建附件筛选 WHERE 条件（供 attach_admin_count 和 attach_admin_find 复用）
+// 注意：孤儿筛选需要 LEFT JOIN，通过 $joins 参数返回 JOIN SQL
+function attach_admin_build_where($filter = array(), &$joins = '') {
+    $where = '';
 
     // 类型筛选：根据 filetype 或后缀归类
     if(!empty($filter['type_category'])) {
-        global $conf;
-        $types = include $conf['app_path'].'conf/attach.conf.php';
+        $types = include APP_PATH.'conf/attach.conf.php';
         $category = $filter['type_category'];
-        // 映射：image/video/music/document/archive/other
         $category_map = array(
             'image' => 'image',
             'video' => 'video',
@@ -405,16 +572,13 @@ function attach_admin_find($filter = array(), $orderby = array('aid'=>-1), $page
             } else {
                 $exts = isset($types[$mapped]) ? $types[$mapped] : array();
             }
-            // 使用 SQL LIKE 条件匹配后缀
             if(!empty($exts)) {
                 $like_parts = array();
                 foreach($exts as $ext) {
-                    $like_parts[] = "orgfilename LIKE '%." . addslashes($ext) . "'";
+                    $like_parts[] = "a.orgfilename LIKE '%." . addslashes($ext) . "'";
                 }
-                $cond['sql_extra'] = '(' . implode(' OR ', $like_parts) . ')';
+                $where .= ($where ? ' AND ' : '') . '(' . implode(' OR ', $like_parts) . ')';
             } elseif($category === 'other') {
-                // 其他类型：排除已知类型
-                $all_exts = isset($types['all']) ? $types['all'] : array();
                 $known_exts = array();
                 foreach($types as $k => $v) {
                     if($k !== 'all' && $k !== 'other' && !empty($v)) {
@@ -424,41 +588,113 @@ function attach_admin_find($filter = array(), $orderby = array('aid'=>-1), $page
                 if(!empty($known_exts)) {
                     $like_parts = array();
                     foreach($known_exts as $ext) {
-                        $like_parts[] = "orgfilename NOT LIKE '%." . addslashes($ext) . "'";
+                        $like_parts[] = "a.orgfilename NOT LIKE '%." . addslashes($ext) . "'";
                     }
-                    $cond['sql_extra'] = implode(' AND ', $like_parts);
+                    $where .= ($where ? ' AND ' : '') . implode(' AND ', $like_parts);
                 }
             }
         }
     }
 
     // 孤儿状态筛选
+    // 孤儿定义：tid=0 AND pid=0，或 tid>0 但帖子已删除，或 pid>0 但回复已删除
+    // 正常定义：tid>0 且帖子存在（pid=0 时），或 pid>0 且回复存在
     if(isset($filter['orphan']) && $filter['orphan'] !== '') {
         if($filter['orphan'] == 1) {
-            // 仅孤儿：tid=0 AND pid=0，或关联帖子/回复不存在
-            $orphan_sql = "(tid = 0 AND pid = 0)";
-            // 还需要包含 tid>0 但帖子已删除的，或 pid>0 但回复已删除的
-            // 这个通过后续标记处理，这里先只筛选 tid=0 AND pid=0 的
-            $cond['sql_extra'] = (isset($cond['sql_extra']) ? $cond['sql_extra'] . ' AND ' : '') . $orphan_sql;
+            // 仅孤儿：使用 LEFT JOIN 检测关联帖子/回复不存在
+            $joins .= " LEFT JOIN {$GLOBALS['db']->tablepre}thread t ON a.tid > 0 AND a.tid = t.tid";
+            $joins .= " LEFT JOIN {$GLOBALS['db']->tablepre}post p ON a.pid > 0 AND a.pid = p.pid";
+            $where .= ($where ? ' AND ' : '') . "(t.tid IS NULL AND p.pid IS NULL)";
         } elseif($filter['orphan'] == 0) {
-            // 仅正常：tid>0 OR pid>0
-            $cond['sql_extra'] = (isset($cond['sql_extra']) ? $cond['sql_extra'] . ' AND ' : '') . "(tid > 0 OR pid > 0)";
+            // 仅正常：tid>0 且帖子存在，或 pid>0 且回复存在
+            $joins .= " LEFT JOIN {$GLOBALS['db']->tablepre}thread t ON a.tid > 0 AND a.tid = t.tid";
+            $joins .= " LEFT JOIN {$GLOBALS['db']->tablepre}post p ON a.pid > 0 AND a.pid = p.pid";
+            $where .= ($where ? ' AND ' : '') . "(t.tid IS NOT NULL OR p.pid IS NOT NULL)";
         }
     }
 
     // 关键词搜索
     if(!empty($filter['keyword'])) {
         $kw = addslashes($filter['keyword']);
-        $kw_cond = "orgfilename LIKE '%{$kw}%'";
-        $cond['sql_extra'] = (isset($cond['sql_extra']) ? $cond['sql_extra'] . ' AND ' : '') . $kw_cond;
+        $where .= ($where ? ' AND ' : '') . "a.orgfilename LIKE '%{$kw}%'";
     }
 
-    $attachlist = db_find('attach', $cond, $orderby, $page, $pagesize);
+    return $where;
+}
+
+// 带筛选条件的附件总数查询（修复全表 count bug）
+function attach_admin_count($filter = array()) {
+    global $db;
+    // hook model_attach_admin_count_start.php
+    $joins = '';
+    $where = attach_admin_build_where($filter, $joins);
+    $where_sql = $where ? " WHERE $where" : '';
+    $sql = "SELECT COUNT(*) AS num FROM {$db->tablepre}attach a{$joins}{$where_sql}";
+    $arr = db_sql_find_one($sql);
+    // hook model_attach_admin_count_end.php
+    return !empty($arr) ? intval($arr['num']) : 0;
+}
+
+// 带筛选/排序/分页的附件列表查询
+function attach_admin_find($filter = array(), $orderby = array('aid'=>-1), $page = 1, $pagesize = 20) {
+    global $db;
+    // hook model_attach_admin_find_start.php
+
+    // 排序字段白名单验证，防止 SQL 注入
+    $allow_orders = array('aid', 'filesize', 'create_date');
+    if(!is_array($orderby) || empty($orderby) || !in_array(key($orderby), $allow_orders)) {
+        $orderby = array('aid'=>-1);
+    }
+    $order_key = key($orderby);
+    $order_dir = current($orderby) > 0 ? 'ASC' : 'DESC';
+
+    // 构建筛选 WHERE 条件（复用 attach_admin_build_where）
+    $joins = '';
+    $where = attach_admin_build_where($filter, $joins);
+    $where_sql = $where ? " WHERE $where" : '';
+
+    $page = max(1, intval($page));
+    $pagesize = max(1, intval($pagesize));
+    $offset = ($page - 1) * $pagesize;
+
+    // 使用原生 SQL 查询，支持复杂的 LIKE/OR/JOIN 条件
+    $sql = "SELECT a.* FROM {$db->tablepre}attach a{$joins}{$where_sql} ORDER BY a.`{$order_key}` {$order_dir} LIMIT {$offset},{$pagesize}";
+    $attachlist = db_sql_find($sql);
+
     if($attachlist) {
+        // 批量收集需要检查的 pid 和 tid，消除 N+1 查询
+        $pids_to_check = array();
+        $tids_to_check = array();
+        foreach($attachlist as $attach) {
+            if($attach['pid'] > 0) {
+                $pids_to_check[] = $attach['pid'];
+            }
+            if($attach['tid'] > 0) {
+                $tids_to_check[] = $attach['tid'];
+            }
+        }
+
+        // 批量查询 post 和 thread
+        $existing_posts = empty($pids_to_check) ? array() : db_find('post', array('pid'=>$pids_to_check), array(), 1, count($pids_to_check), 'pid');
+        $existing_threads = empty($tids_to_check) ? array() : db_find('thread', array('tid'=>$tids_to_check), array(), 1, count($tids_to_check), 'tid');
+
         foreach ($attachlist as &$attach) {
             attach_format($attach);
-            // 检测孤儿状态
-            $attach['is_orphan'] = attach_admin_check_orphan($attach);
+            // 批量检测孤儿状态：tid=0 AND pid=0，或 tid>0 但帖子已删除，或 pid>0 但回复已删除
+            $is_orphan = FALSE;
+            if($attach['tid'] == 0 && $attach['pid'] == 0) {
+                $is_orphan = TRUE;
+            } else {
+                // 检查 tid 对应的 thread 是否存在
+                if($attach['tid'] > 0 && !isset($existing_threads[$attach['tid']])) {
+                    $is_orphan = TRUE;
+                }
+                // 检查 pid 对应的 post 是否存在
+                if($attach['pid'] > 0 && !isset($existing_posts[$attach['pid']])) {
+                    $is_orphan = TRUE;
+                }
+            }
+            $attach['is_orphan'] = $is_orphan;
         }
         unset($attach);
     }
@@ -491,26 +727,19 @@ function attach_admin_stats() {
 
     // 总占用空间
     $tablepre = $db->tablepre;
-    $size_row = db_find_one("SELECT SUM(filesize) AS total_size FROM `{$tablepre}attach`");
+    $size_row = db_sql_find_one("SELECT SUM(filesize) AS total_size FROM `{$tablepre}attach`");
     $total_size = !empty($size_row['total_size']) ? $size_row['total_size'] : 0;
 
-    // 孤儿数量（tid=0 AND pid=0 的简单统计，加上关联不存在的）
-    // 先统计 tid=0 AND pid=0 的
-    $orphan_simple = db_count('attach', array('tid'=>0, 'pid'=>0));
-
-    // 统计 tid>0 但帖子已删除的
-    $orphan_thread = 0;
-    $orphan_post = 0;
-    $sql_orphan_thread = "SELECT COUNT(*) AS cnt FROM `{$tablepre}attach` a LEFT JOIN `{$tablepre}thread` t ON a.tid = t.tid WHERE a.tid > 0 AND a.pid = 0 AND t.tid IS NULL";
-    $row1 = db_find_one($sql_orphan_thread);
-    if(!empty($row1['cnt'])) $orphan_thread = intval($row1['cnt']);
-
-    // 统计 pid>0 但回复已删除的
-    $sql_orphan_post = "SELECT COUNT(*) AS cnt FROM `{$tablepre}attach` a LEFT JOIN `{$tablepre}post` p ON a.pid = p.pid WHERE a.pid > 0 AND p.pid IS NULL";
-    $row2 = db_find_one($sql_orphan_post);
-    if(!empty($row2['cnt'])) $orphan_post = intval($row2['cnt']);
-
-    $orphan_count = $orphan_simple + $orphan_thread + $orphan_post;
+    // 孤儿数量统计（与 attach_admin_build_where 的孤儿定义保持一致）
+    // 孤儿定义：tid=0 AND pid=0，或 tid>0 但帖子已删除，或 pid>0 但回复已删除
+    // 使用单条 SQL + LEFT JOIN 避免重复计数（同一个附件 tid>0 且 pid>0 但两者都删除时只算一次）
+    $orphan_count = 0;
+    $sql_orphan = "SELECT COUNT(*) AS cnt FROM `{$tablepre}attach` a
+        LEFT JOIN `{$tablepre}thread` t ON a.tid > 0 AND a.tid = t.tid
+        LEFT JOIN `{$tablepre}post` p ON a.pid > 0 AND a.pid = p.pid
+        WHERE (a.tid = 0 AND a.pid = 0) OR (a.tid > 0 AND t.tid IS NULL) OR (a.pid > 0 AND p.pid IS NULL)";
+    $orphan_row = db_sql_find_one($sql_orphan);
+    if(!empty($orphan_row['cnt'])) $orphan_count = intval($orphan_row['cnt']);
 
     // 按类型统计
     $types = include APP_PATH.'conf/attach.conf.php';
@@ -546,27 +775,32 @@ function attach_admin_stats() {
 }
 
 // 获取所有孤儿附件ID列表
-function attach_admin_orphan_ids() {
+function attach_admin_orphan_ids($page = 1, $pagesize = 1000) {
     global $db;
     $tablepre = $db->tablepre;
 
+    // 参数安全处理
+    $page = max(1, intval($page));
+    $pagesize = max(1, intval($pagesize));
+    $offset = ($page - 1) * $pagesize;
+
     // tid=0 AND pid=0
-    $orphans1 = db_find('attach', array('tid'=>0, 'pid'=>0), array(), 1, 10000);
+    $orphans1 = db_find('attach', array('tid'=>0, 'pid'=>0), array(), $page, $pagesize);
     $ids = array();
     if($orphans1) {
         foreach($orphans1 as $a) $ids[$a['aid']] = $a['aid'];
     }
 
-    // tid>0 AND pid=0 但帖子已删除
-    $sql1 = "SELECT a.aid FROM `{$tablepre}attach` a LEFT JOIN `{$tablepre}thread` t ON a.tid = t.tid WHERE a.tid > 0 AND a.pid = 0 AND t.tid IS NULL";
-    $rows1 = db_find($sql1);
+    // tid>0 但帖子已删除（不论 pid 是否为 0）
+    $sql1 = "SELECT a.aid FROM `{$tablepre}attach` a LEFT JOIN `{$tablepre}thread` t ON a.tid = t.tid WHERE a.tid > 0 AND t.tid IS NULL LIMIT $offset, $pagesize";
+    $rows1 = db_sql_find($sql1);
     if($rows1) {
         foreach($rows1 as $r) $ids[$r['aid']] = $r['aid'];
     }
 
     // pid>0 但回复已删除
-    $sql2 = "SELECT a.aid FROM `{$tablepre}attach` a LEFT JOIN `{$tablepre}post` p ON a.pid = p.pid WHERE a.pid > 0 AND p.pid IS NULL";
-    $rows2 = db_find($sql2);
+    $sql2 = "SELECT a.aid FROM `{$tablepre}attach` a LEFT JOIN `{$tablepre}post` p ON a.pid = p.pid WHERE a.pid > 0 AND p.pid IS NULL LIMIT $offset, $pagesize";
+    $rows2 = db_sql_find($sql2);
     if($rows2) {
         foreach($rows2 as $r) $ids[$r['aid']] = $r['aid'];
     }
@@ -581,16 +815,27 @@ function attach_admin_delete_orphans() {
     $ids = attach_admin_orphan_ids();
     if(empty($ids)) return 0;
 
+    // 批量读取附件信息，消除 N+1 查询
+    $attachlist = db_find('attach', array('aid'=>$ids), array(), 1, count($ids), 'aid');
+    if(empty($attachlist)) return 0;
+
     $deleted = 0;
     $deleted_filenames = array();
-    foreach($ids as $aid) {
-        $attach = attach_read($aid);
-        if(empty($attach)) continue;
-
-        $deleted_filenames[] = $attach['orgfilename'] . '(aid:' . $aid . ')';
-        attach_delete($aid); // 已处理物理文件+缩略图+数据库记录
+    foreach($attachlist as $attach) {
+        // 删除物理文件和缩略图
+        $path = $conf['upload_path'].'attach/'.$attach['filename'];
+        file_exists($path) AND unlink($path);
+        $thumb_path = attach_thumb_path($attach['filename']);
+        if($thumb_path) {
+            $full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
+            file_exists($full_thumb_path) AND unlink($full_thumb_path);
+        }
+        $deleted_filenames[] = $attach['orgfilename'] . '(aid:' . $attach['aid'] . ')';
         $deleted++;
     }
+
+    // 批量删除数据库记录
+    db_delete('attach', array('aid'=>$ids));
 
     // 记录日志
     if($deleted > 0) {

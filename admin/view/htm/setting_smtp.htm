@@ -6,7 +6,7 @@
 	<?php echo admin_tab_active($menu['setting']['tab'], 'smtp');?>
 </div>
 
-<div class="x-card  cardrounded-3">
+<div class="x-card  card">
 	<div class="card-body">
 
 		<!-- 内部 Tab 导航 -->
@@ -32,7 +32,7 @@
 
 			<!-- ====== Tab 1: SMTP 配置 ====== -->
 			<div class="tab-pane fade show active" id="smtpPane" role="tabpanel">
-				<form action="<?php echo url('setting-smtp');?>" method="post" id="smtpForm">
+				<form action="<?php echo admin_setting_url('smtp');?>" method="post" id="smtpForm">
 					<?php echo CsrfService::input(); ?>
 					<div id="smtp-manager">
 						<div class="table-responsive">
@@ -131,11 +131,11 @@
 
 			<!-- ====== Tab 2: 邮件模板 ====== -->
 			<div class="tab-pane fade" id="templatePane" role="tabpanel">
-				<form action="<?php echo url('setting-email_template');?>" method="post" id="templateForm">
+				<form action="<?php echo admin_setting_url('email_template');?>" method="post" id="templateForm">
 					<?php echo CsrfService::input(); ?>
 
 					<?php foreach($email_templates as $key => $tpl): ?>
-					<div class="x-card  card mb-3">
+					<div class="x-card  card ">
 						<div class="card-header">
 							<h5 class="card-title mb-0">
 								<?php
@@ -179,9 +179,9 @@
 				<!-- 筛选 -->
 				<div class="mb-3">
 					<div class="btn-group" role="group">
-						<a href="<?php echo url('setting-smtp');?>" data-tab="log" class="btn btn-sm <?php echo $email_log_filter < 0 ? 'btn-primary' : 'btn-outline-primary';?> log-filter-btn"><?php echo lang('smtp_filter_all');?></a>
-						<a href="<?php echo url('setting-smtp');?>" data-tab="log" data-status="1" class="btn btn-sm <?php echo $email_log_filter == 1 ? 'btn-success' : 'btn-outline-success';?> log-filter-btn"><?php echo lang('smtp_success');?></a>
-						<a href="<?php echo url('setting-smtp');?>" data-tab="log" data-status="0" class="btn btn-sm <?php echo $email_log_filter === 0 ? 'btn-danger' : 'btn-outline-danger';?> log-filter-btn"><?php echo lang('smtp_failed');?></a>
+						<a href="<?php echo admin_setting_url('smtp');?>" data-tab="log" class="btn btn-sm <?php echo $email_log_filter < 0 ? 'btn-primary' : 'btn-outline-primary';?> log-filter-btn"><?php echo lang('smtp_filter_all');?></a>
+						<a href="<?php echo admin_setting_url('smtp');?>" data-tab="log" data-status="1" class="btn btn-sm <?php echo $email_log_filter == 1 ? 'btn-success' : 'btn-outline-success';?> log-filter-btn"><?php echo lang('smtp_success');?></a>
+						<a href="<?php echo admin_setting_url('smtp');?>" data-tab="log" data-status="0" class="btn btn-sm <?php echo $email_log_filter === 0 ? 'btn-danger' : 'btn-outline-danger';?> log-filter-btn"><?php echo lang('smtp_failed');?></a>
 					</div>
 				</div>
 
@@ -189,7 +189,7 @@
 					<table class="table table-hover">
 						<thead>
 							<tr>
-								<th>ID</th>
+								<th><?php echo lang('admin_col_id'); ?></th>
 								<th><?php echo lang('smtp_log_recipient');?></th>
 								<th><?php echo lang('smtp_log_subject');?></th>
 								<th><?php echo lang('smtp_log_smtp_server');?></th>
@@ -328,7 +328,7 @@ function sendTestEmail() {
     var csrfToken = document.querySelector('input[name="csrf_token"]');
     var csrfValue = csrfToken ? csrfToken.value : '';
 
-    fetch('<?php echo url("setting-smtp_test");?>', {
+    fetch('<?php echo admin_setting_smtp_test_url();?>', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
         body: 'test_email=' + encodeURIComponent(testEmail) + '&smtp_index=' + encodeURIComponent(testSmtpIndex) + '&csrf_token=' + encodeURIComponent(csrfValue)
@@ -369,9 +369,9 @@ document.querySelectorAll('.log-filter-btn').forEach(function(btn) {
     btn.addEventListener('click', function(e) {
         e.preventDefault();
         var status = btn.getAttribute('data-status');
-        var url = '<?php echo url("setting-email_log");?>' + (status !== null ? '&status=' + status : '');
+        var url = '<?php echo admin_setting_url('email_log');?>' + (status !== null ? '&status=' + status : '');
         // 直接跳转到对应的独立页面（兼容）
-        window.location = '<?php echo url("setting-email_log");?>' + (status !== null ? '?status=' + status : '');
+        window.location = '<?php echo admin_setting_url('email_log');?>' + (status !== null ? '?status=' + status : '');
     });
 });
 

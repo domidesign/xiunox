@@ -6,15 +6,15 @@
 
 <div class="x-card card">
     <div class="card-header">
-        <h3 class="card-title"><i class="ti ti-mail"></i> 邮件发送日志</h3>
+        <h3 class="card-title"><i class="ti ti-mail"></i> <?php echo lang('smtp_send_log');?></h3>
     </div>
     <div class="card-body">
         <!-- 筛选 -->
         <div class="mb-3">
             <div class="btn-group" role="group">
-                <a href="<?php echo url('setting-email_log');?>" class="btn btn-sm <?php echo $filter_status < 0 ? 'btn-primary' : 'btn-outline-primary';?>">全部</a>
-                <a href="<?php echo url('setting-email_log', array('status'=>1));?>" class="btn btn-sm <?php echo $filter_status == 1 ? 'btn-success' : 'btn-outline-success';?>">成功</a>
-                <a href="<?php echo url('setting-email_log', array('status'=>0));?>" class="btn btn-sm <?php echo $filter_status === 0 ? 'btn-danger' : 'btn-outline-danger';?>">失败</a>
+                <a href="<?php echo admin_setting_url('email_log');?>" class="btn btn-sm <?php echo $filter_status < 0 ? 'btn-primary' : 'btn-outline-primary';?>"><?php echo lang('smtp_filter_all');?></a>
+                <a href="<?php echo admin_setting_url('email_log', array('status'=>1));?>" class="btn btn-sm <?php echo $filter_status == 1 ? 'btn-success' : 'btn-outline-success';?>"><?php echo lang('smtp_success');?></a>
+                <a href="<?php echo admin_setting_url('email_log', array('status'=>0));?>" class="btn btn-sm <?php echo $filter_status === 0 ? 'btn-danger' : 'btn-outline-danger';?>"><?php echo lang('smtp_failed');?></a>
             </div>
         </div>
 
@@ -23,13 +23,13 @@
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>收件人</th>
-                        <th>主题</th>
-                        <th>SMTP服务器</th>
-                        <th>状态</th>
-                        <th>时间</th>
-                        <th>错误信息</th>
+                        <th><?php echo lang('admin_col_id'); ?></th>
+                        <th><?php echo lang('smtp_log_recipient');?></th>
+                        <th><?php echo lang('smtp_log_subject');?></th>
+                        <th><?php echo lang('smtp_log_smtp_server');?></th>
+                        <th><?php echo lang('smtp_log_status');?></th>
+                        <th><?php echo lang('smtp_log_time');?></th>
+                        <th><?php echo lang('smtp_log_error_msg');?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -42,9 +42,9 @@
                         <td><?php echo esc_html($log['smtp_host']);?></td>
                         <td>
                             <?php if($log['status']): ?>
-                            <span class="badge bg-success"><i class="ti ti-check"></i> 成功</span>
+                            <span class="badge bg-success"><i class="ti ti-check"></i> <?php echo lang('smtp_success');?></span>
                             <?php else: ?>
-                            <span class="badge bg-danger"><i class="ti ti-x"></i> 失败</span>
+                            <span class="badge bg-danger"><i class="ti ti-x"></i> <?php echo lang('smtp_failed');?></span>
                             <?php endif; ?>
                         </td>
                         <td class="small"><?php echo $log['create_date_fmt'];?></td>
@@ -52,7 +52,7 @@
                     </tr>
                     <?php endforeach; ?>
                     <?php else: ?>
-                    <tr><td colspan="7" class="text-center text-body-secondary py-4">暂无日志记录</td></tr>
+                    <tr><td colspan="7" class="text-center text-body-secondary py-4"><?php echo lang('smtp_no_log_records');?></td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>

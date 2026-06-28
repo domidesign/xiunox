@@ -39,7 +39,7 @@ if(!empty($toplist)) {
         <div class="subject break-all">
             <i class="ti ti-pin-filled text-primary me-1"></i>
             <?php if(!empty($_thread['digest'])) { ?><i class="ti ti-star-filled text-warning me-1" title="<?php echo lang('digest');?>"></i><?php } ?>
-            <a href="<?php echo url("../thread-$_thread[tid]");?>" target="_blank" class="hover-text-primary"><?php echo $_thread['subject'];?></a>
+            <a href="<?php echo frontend_thread_url($_thread['tid']);?>" target="_blank" class="hover-text-primary"><?php echo $_thread['subject'];?></a>
             <?php if(isset($_thread['audit_status'])): ?>
                 <?php if($_thread['audit_status'] == 0): ?>
                     <span class="badge bg-warning text-dark ms-1"><?php echo lang('pending_audit');?></span>
@@ -79,7 +79,7 @@ if(!empty($threadlist)) { foreach($threadlist as &$_thread) { ?>
         <div class="subject break-all">
             <?php if($_thread['top'] > 0) { ?><i class="ti ti-pin-filled text-primary me-1"></i><?php } ?>
             <?php if(!empty($_thread['digest'])) { ?><i class="ti ti-star-filled text-warning me-1" title="<?php echo lang('digest');?>"></i><?php } ?>
-            <a href="<?php echo url("../thread-$_thread[tid]");?>" target="_blank" class="hover-text-primary"><?php echo $_thread['subject'];?></a>
+            <a href="<?php echo frontend_thread_url($_thread['tid']);?>" target="_blank" class="hover-text-primary"><?php echo $_thread['subject'];?></a>
             <?php if(isset($_thread['audit_status'])): ?>
                 <?php if($_thread['audit_status'] == 0): ?>
                     <span class="badge bg-warning text-dark ms-1"><?php echo lang('pending_audit');?></span>

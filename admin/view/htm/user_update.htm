@@ -9,7 +9,7 @@
 	<div class="x-card card">
 		<div class="card-body">
 			<h4 class="card-title"><i class="ti ti-user-cog"></i> <?php echo lang('edit_user');?></h4>
-			<form action="<?php echo url("user-update-$_uid");?>" method="post" id="form">
+			<form action="<?php echo admin_user_update_url($_uid);?>" method="post" id="form">
 				<?php echo CsrfService::input(); ?>
 				<div class="d-flex gap-4 align-items-center mb-3">
 					<label class="form-label" style="width:25%"><?php echo lang('email');?>：</label>
@@ -24,9 +24,16 @@
 					</div>
 				</div>
 				<div class="d-flex gap-4 align-items-center mb-3">
+					<label class="form-label" style="width:25%"><?php echo lang('nickname');?>：</label>
+					<div style="width:75%">
+						<?php echo $input['nickname'];?>
+					</div>
+				</div>
+				<div class="d-flex gap-4 align-items-center mb-3">
 					<label class="form-label" style="width:25%"><?php echo lang('password');?>：</label>
 					<div style="width:75%">
 						<?php echo $input['password'];?>
+						<div class="form-text"><?php echo lang('admin_password_leave_empty_tip');?></div>
 					</div>
 				</div>
 				<div class="d-flex gap-4 align-items-center mb-3">
@@ -36,6 +43,81 @@
 					</div>
 				</div>
 				<!--{hook admin_user_update_group_after.htm}-->
+				<!-- 头像 -->
+				<div class="d-flex gap-4 align-items-center mb-3">
+					<label class="form-label" style="width:25%"><?php echo lang('modify_avatar');?>：</label>
+					<div style="width:75%">
+						<div class="d-flex align-items-center gap-3">
+							<img src="<?php echo esc_attr($input['avatar_url'] ?? '');?>" class="rounded-circle" width="48" height="48" alt="avatar" />
+							<div class="form-check">
+								<input type="checkbox" class="form-check-input" name="reset_avatar" id="reset_avatar" value="1" <?php echo $input['avatar_val'] == 0 ? 'disabled' : '';?>>
+								<label class="form-check-label" for="reset_avatar"><?php echo lang('confirm_reset_avatar');?></label>
+							</div>
+						</div>
+					</div>
+				</div>
+				<!-- 积分调整 -->
+				<div class="d-flex gap-4 align-items-center mb-3">
+					<label class="form-label" style="width:25%"><?php echo lang('credits_label');?>：</label>
+					<div style="width:75%">
+						<div class="d-flex align-items-center gap-2 mb-1">
+							<span class="text-body-secondary"><?php echo lang('admin_credits_current');?>：<strong class="text-dark"><?php echo intval($_user['credits']);?></strong></span>
+						</div>
+						<div class="d-flex align-items-center gap-2">
+							<select name="credits_action" class="form-select form-select-sm rounded-pill" style="width:80px">
+								<option value="0"><?php echo lang('admin_credits_no_change');?></option>
+								<option value="1"><?php echo lang('admin_credits_increase');?></option>
+								<option value="-1"><?php echo lang('admin_credits_decrease');?></option>
+							</select>
+							<input type="number" name="credits_amount" class="form-control form-control-sm rounded-pill" style="width:100px" min="0" value="0" placeholder="<?php echo lang('admin_credits_amount');?>">
+						</div>
+					</div>
+				</div>
+				<div class="d-flex gap-4 align-items-center mb-3">
+					<label class="form-label" style="width:25%"><?php echo lang('admin_credits_type_golds');?>：</label>
+					<div style="width:75%">
+						<div class="d-flex align-items-center gap-2 mb-1">
+							<span class="text-body-secondary"><?php echo lang('admin_credits_current');?>：<strong class="text-dark"><?php echo intval($_user['golds']);?></strong></span>
+						</div>
+						<div class="d-flex align-items-center gap-2">
+							<select name="golds_action" class="form-select form-select-sm rounded-pill" style="width:80px">
+								<option value="0"><?php echo lang('admin_credits_no_change');?></option>
+								<option value="1"><?php echo lang('admin_credits_increase');?></option>
+								<option value="-1"><?php echo lang('admin_credits_decrease');?></option>
+							</select>
+							<input type="number" name="golds_amount" class="form-control form-control-sm rounded-pill" style="width:100px" min="0" value="0" placeholder="<?php echo lang('admin_credits_amount');?>">
+						</div>
+					</div>
+				</div>
+				<div class="d-flex gap-4 align-items-center mb-3">
+					<label class="form-label" style="width:25%"><?php echo lang('admin_credits_type_rmbs');?>：</label>
+					<div style="width:75%">
+						<div class="d-flex align-items-center gap-2 mb-1">
+							<span class="text-body-secondary"><?php echo lang('admin_credits_current');?>：<strong class="text-dark"><?php echo intval($_user['rmbs']);?></strong></span>
+						</div>
+						<div class="d-flex align-items-center gap-2">
+							<select name="rmbs_action" class="form-select form-select-sm rounded-pill" style="width:80px">
+								<option value="0"><?php echo lang('admin_credits_no_change');?></option>
+								<option value="1"><?php echo lang('admin_credits_increase');?></option>
+								<option value="-1"><?php echo lang('admin_credits_decrease');?></option>
+							</select>
+							<input type="number" name="rmbs_amount" class="form-control form-control-sm rounded-pill" style="width:100px" min="0" value="0" placeholder="<?php echo lang('admin_credits_amount');?>">
+						</div>
+					</div>
+				</div>
+				<div class="d-flex gap-4 align-items-start mb-3">
+					<label class="form-label" style="width:25%"><?php echo lang('admin_credits_adjust_reason');?>：</label>
+					<div style="width:75%">
+						<input type="text" name="credits_reason" class="form-control form-control-sm rounded-pill" placeholder="<?php echo lang('admin_credits_adjust_reason_placeholder');?>">
+					</div>
+				</div>
+				<!-- 个性签名 -->
+				<div class="d-flex gap-4 align-items-start mb-3">
+					<label class="form-label" style="width:25%"><?php echo lang('signature');?>：</label>
+					<div style="width:75%">
+						<?php echo $input['signature'];?>
+					</div>
+				</div>
 				<div class="d-flex gap-4 align-items-center mb-3">
 					<label class="form-label" style="width:25%"></label>
 					<div style="width:75%">
@@ -63,7 +145,7 @@ jform.on('submit', function() {
 	$.xpost(jform.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
 			showToast(message, 'success');
-			jsubmit.text(message).delay(3000).button('reset');
+			setTimeout(function(){ window.location.reload(); }, 1000);
 		} else if(xn.is_number(code)) {
 			showToast(message, 'error');
 			jsubmit.button('reset');

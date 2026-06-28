@@ -74,25 +74,33 @@ function forum_read($fid) {
 function forum_delete($fid) {
 	$forum = forum_read($fid);
 	$cond = array('fid'=>$fid);
-	$threadlist = db_find('thread', $cond, array(), 1, 1000000, '', array('tid', 'uid'));
-	
+
 	// hook model_forum_delete_start.php
-	
+
 	if(!empty($forum) && isset($forum['type']) && $forum['type'] == 1) {
 		$sub_forums = forum_find(array('fup'=>$fid));
 		foreach($sub_forums as $sub) {
 			forum__update($sub['fid'], array('fup'=>0));
 		}
 	}
-	
-	foreach ($threadlist as $thread) {
-		thread_delete($thread['tid']);
+
+	// 分批处理主题删除，避免一次查询过多数据导致内存溢出
+	$batch_size = 1000;
+	$page = 1;
+	while(true) {
+		$threadlist = db_find('thread', $cond, array(), $page, $batch_size, '', array('tid', 'uid'));
+		if(empty($threadlist)) break;
+		foreach ($threadlist as $thread) {
+			thread_delete($thread['tid']);
+		}
+		if(count($threadlist) < $batch_size) break;
+		$page++;
 	}
-	
+
 	$r = forum__delete($fid);
-	
+
 	forum_access_delete_by_fid($fid);
-	
+
 	forum_list_cache_delete();
 	// hook model_forum_delete_end.php
 	return $r;
@@ -100,6 +108,13 @@ function forum_delete($fid) {
 
 function forum_find($cond = array(), $orderby = array('rank'=>-1), $page = 1, $pagesize = 1000) {
 	// hook model_forum_find_start.php
+
+	// 排序字段白名单验证，防止 SQL 注入
+	$allow_orders = array('fid', 'rank', 'threads', 'posts', 'todayposts');
+	if(!is_array($orderby) || empty($orderby) || !in_array(key($orderby), $allow_orders)) {
+		$orderby = array('rank'=>-1);
+	}
+
 	$forumlist = forum__find($cond, $orderby, $page, $pagesize);
 	if($forumlist) foreach ($forumlist as &$forum) forum_format($forum);
 	// hook model_forum_find_end.php
@@ -128,9 +143,13 @@ function forum_format(&$forum) {
 		$forum['icon_url'] = '/view/img/forum.png';
 		$forum['icon_class'] = !empty($forum['icon']) ? $forum['icon'] : '';
 	}
-	// accesslist 已在 forum_list_cache() 中批量加载，此处仅作回退查询
+	// accesslist 优先使用 forum_list_cache() 批量加载的全局权限数组
 	if(!isset($forum['accesslist'])) {
-		$forum['accesslist'] = $forum['accesson'] ? forum_access_find_by_fid($forum['fid']) : array();
+		if(!empty($GLOBALS['_forum_access_by_fid'][$forum['fid']])) {
+			$forum['accesslist'] = $GLOBALS['_forum_access_by_fid'][$forum['fid']];
+		} else {
+			$forum['accesslist'] = $forum['accesson'] ? forum_access_find_by_fid($forum['fid']) : array();
+		}
 	}
 	$forum['modlist'] = array();
 	if($forum['moduids']) {
@@ -151,6 +170,11 @@ function forum_format(&$forum) {
 	} else {
 		$forum['fup_name'] = '';
 	}
+
+	// XSS 防护：转义属性字段（name/brief 不在此转义，因为会被用于构建 $header['title'] 等场景，由模板层负责转义）
+	$forum['icon_class'] = esc_attr($forum['icon_class'] ?? '');
+	$forum['icon_url'] = esc_attr($forum['icon_url'] ?? '');
+
 	// hook model_forum_format_end.php
 }
 
@@ -176,8 +200,7 @@ function forum_list_cache() {
 	// hook model_forum_list_cache_start.php
 
 	if($forumlist === NULL) {
-		$forumlist = forum_find();
-		// 批量查询所有版块权限数据，替代 forum_format 中逐版块查询
+		// 先批量查询所有版块权限数据，避免 forum_format 中逐版块回退查询
 		// 注意：不能以 gid 为key，因为同一gid在不同版块有多条记录，会导致覆盖丢失
 		$all_access = db_find('forum_access', array(), array('fid'=>1, 'gid'=>1), 1, 10000);
 		$access_by_fid = array();
@@ -189,7 +212,12 @@ function forum_list_cache() {
 				$access_by_fid[$a['fid']][$a['gid']] = $a;
 			}
 		}
-		// 设置 accesslist 和 fup_name，覆盖 forum_format 中的逐条查询结果
+		// 设置全局静态变量，forum_format 可直接使用，避免重复查库
+		$GLOBALS['_forum_access_by_fid'] = $access_by_fid;
+
+		$forumlist = forum_find();
+
+		// 覆盖 forum_format 中的结果，确保 accesslist 完整
 		foreach($forumlist as $fid=>&$forum) {
 			$forum['accesslist'] = !empty($forum['accesson']) && isset($access_by_fid[$fid]) ? $access_by_fid[$fid] : array();
 			// 从已构建的 forumlist 中取父版块名称，避免额外查库
@@ -242,13 +270,16 @@ function forum_filter_moduid($moduids) {
 	$moduids = trim($moduids);
 	if(empty($moduids)) return '';
 	$arr = explode(',', $moduids);
+	$arr = array_filter(array_map('intval', $arr));
+	if(empty($arr)) return '';
+
+	// 批量查询用户，消除 N+1 查询
+	$users = user_find_by_uids(implode(',', $arr));
 	$r = array();
 	foreach($arr as $_uid) {
-		$_uid = intval($_uid);
-		$_user = user_read($_uid);
-		if(empty($_user)) continue;
-		if($_user['gid'] > 4) continue;
-		$r[] = $_uid;
+		if(isset($users[$_uid]) && $users[$_uid]['gid'] <= 4) {
+			$r[] = $_uid;
+		}
 	}
 	return implode(',', $r);
 }

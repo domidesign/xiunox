@@ -31,6 +31,7 @@ $include_model_files = array (
 	APP_PATH.'model/cron.func.php',
 	APP_PATH.'model/form.func.php',
 	APP_PATH.'model/misc.func.php',
+	APP_PATH.'model/route.func.php',
 	APP_PATH.'model/session.func.php',
 	APP_PATH.'model/user_profile_audit.func.php',
 	APP_PATH.'model/admin_log.func.php',
@@ -69,8 +70,7 @@ if(DEBUG || !empty($conf['cache_disable'])) {
 	include $model_min_file;
 }
 
-// 通知系统模型（核心功能）
-include _include(APP_PATH.'model/notice.func.php');
+// 通知系统模型（notify.func.php 已在上方 model_min_file 中加载，notice 系统已合并删除）
 
 // hook model_inc_end.php
 

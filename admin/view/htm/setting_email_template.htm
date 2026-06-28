@@ -8,21 +8,21 @@
 
 <div class="x-card card">
     <div class="card-header">
-        <h3 class="card-title"><i class="ti ti-mail"></i> 邮件模板设置</h3>
+        <h3 class="card-title"><i class="ti ti-mail"></i> <?php echo lang('smtp_email_template');?></h3>
     </div>
     <div class="card-body">
-        <form action="<?php echo url('setting-email_template');?>" method="post">
+        <form action="<?php echo admin_setting_url('email_template');?>" method="post">
             <?php echo CsrfService::input(); ?>
 
             <?php foreach($templates as $key => $tpl): ?>
-            <div class="x-card  card mb-3">
+            <div class="x-card  card ">
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <?php
                         $names = array(
-                            'user_create_code' => '注册验证码',
-                            'user_resetpw_code' => '密码重置验证码',
-                            'email_change_code' => '邮箱变更验证码',
+                            'user_create_code' => lang('smtp_template_create_code'),
+                            'user_resetpw_code' => lang('smtp_template_resetpw_code'),
+                            'email_change_code' => lang('smtp_template_email_change_code'),
                         );
                         echo isset($names[$key]) ? $names[$key] : $key;
                         ?>
@@ -31,22 +31,22 @@
                 <div class="card-body">
                     <input type="hidden" name="template_key[]" value="<?php echo $key;?>" />
                     <div class="mb-3">
-                        <label class="form-label">邮件主题</label>
+                        <label class="form-label"><?php echo lang('smtp_email_subject');?></label>
                         <input type="text" class="form-control" name="subject[]" value="<?php echo esc_html($tpl['subject']);?>" />
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">邮件正文（支持 HTML）</label>
+                        <label class="form-label"><?php echo lang('smtp_email_body');?></label>
                         <textarea class="form-control" name="body[]" rows="10" style="font-family:monospace;font-size:13px;"><?php echo esc_html($tpl['body']);?></textarea>
                     </div>
                     <div class="text-body-secondary small">
-                        <i class="ti ti-info-circle"></i> 可用变量：{code}（验证码）、{sitename}（站点名称）、{username}（用户名）
+                        <i class="ti ti-info-circle"></i> <?php echo lang('smtp_available_vars');?>
                     </div>
                 </div>
             </div>
             <?php endforeach; ?>
 
             <div class="text-center">
-                <button type="submit" class="btn btn-primary" style="width:10rem">保存模板</button>
+                <button type="submit" class="btn btn-primary" style="width:10rem"><?php echo lang('smtp_save_template');?></button>
             </div>
         </form>
         <div id="template-result"></div>

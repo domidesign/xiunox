@@ -6,9 +6,9 @@
 	<?php echo admin_tab_active($menu['thread']['tab'], 'list');?>
 </div>
 
-<div class="x-card  cardmb-4 border rounded-3">
+<div class="x-card  card">
 	<div class="card-body">
-		<form action="<?php echo url('thread-scan');?>" method="post" id="form">
+		<form action="<?php echo admin_thread_scan_url();?>" method="post" id="form">
 			<?php echo CsrfService::input(); ?>
 			<div class="d-flex flex-wrap gap-3 align-items-end">
 				<div>
@@ -16,7 +16,7 @@
 					<select class="form-select form-select-sm" name="fid" id="fid">
 						<option value="0"></option>
 						<?php foreach ($forumlist as $forum) { ?>
-						<option value="<?php echo $forum['fid']; ?>"><?php echo $forum['name']; ?></option>
+						<option value="<?php echo $forum['fid']; ?>"><?php echo esc_html($forum['name']); ?></option>
 						<?php } ?>
 					</select>
 				</div>
@@ -48,7 +48,7 @@
 	</div>
 </div>
 
-<div class="x-card  cardrounded-3" id="search_result_card" style="display:none">
+<div class="x-card  card" id="search_result_card" style="display:none">
 	<div class="card-body p-0">
 		<!-- 批量操作栏 -->
 		<div id="batch_toolbar" class="d-flex flex-wrap align-items-center gap-2 px-3 py-2 border-bottom" style="display:none">
@@ -140,7 +140,7 @@ function loadThreadResults(page) {
 	page = page || 1;
 	currentFoundPage = page;
 	var ps = parseInt(jpagesize.val()) || 100;
-	var url = '<?php echo url('thread-found-{page}');?>'.replace('{page}', page) + '&pagesize=' + ps;
+	var url = '<?php echo route_url('admin_thread_found', []);?>'.replace('{page}', page) + '&pagesize=' + ps;
 	$.get(url, function(html) {
 		var $html = $('<div>').html(html.replace(/<script[\s\S]*?<\/script>/gi, ''));
 		var $tbody = $html.find('tbody');
@@ -289,7 +289,7 @@ jbatch_btns.on('click', function() {
 	XN.confirm(confirmMsg, function() {
 
 	// 执行批量操作
-	var url = '<?php echo url('thread-batch');?>';
+	var url = '<?php echo admin_thread_batch_url();?>';
 	var postdata = {
 		tids: tids.join(','),
 		op: op,

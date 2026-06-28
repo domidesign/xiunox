@@ -37,23 +37,23 @@
 
 		<p class="text-center">
 			<?php if($plugin['setting_url']) { ?>
-			<a class="admin-quick-link setting" href="<?php echo url("plugin-setting-$dir"); ?>"><?php echo lang('setting');?></a>
+			<a class="admin-quick-link setting" href="<?php echo admin_plugin_setting_url($dir); ?>"><?php echo lang('setting');?></a>
 			<?php } ?>
 
 			<?php if($islocal && !$plugin['installed']) { ?>
-			<a class="admin-quick-link install" href="<?php echo url("plugin-install-$dir"); ?>"><?php echo lang('install');?></a>
+			<a class="admin-quick-link install" href="<?php echo admin_plugin_install_url($dir); ?>"><?php echo lang('install');?></a>
 			<?php } ?>
 
 			<?php if($plugin['installed'] && $plugin['enable']) { ?>
-			<a class="admin-quick-link disable" href="<?php echo url("plugin-disable-$dir"); ?>"><?php echo lang('disable');?></a>
+			<a class="admin-quick-link disable" href="<?php echo admin_plugin_disable_url($dir); ?>"><?php echo lang('disable');?></a>
 			<?php } ?>
 
 			<?php if($plugin['installed'] && !$plugin['enable']) { ?>
-			<a class="admin-quick-link enable" href="<?php echo url("plugin-enable-$dir"); ?>"><?php echo lang('enable');?></a>
+			<a class="admin-quick-link enable" href="<?php echo admin_plugin_enable_url($dir); ?>"><?php echo lang('enable');?></a>
 			<?php } ?>
 
 			<?php if($plugin['installed']) { ?>
-			<a class="admin-quick-link text-danger unstall confirm" data-method="post" data-confirm-text="<?php echo lang('plugin_unstall_confirm_tips', array('name'=>$plugin['name']));?>" href="<?php echo url("plugin-unstall-$dir"); ?>"><?php echo lang('unstall');?></a>
+			<a class="admin-quick-link text-danger unstall confirm" data-method="post" data-confirm-text="<?php echo lang('plugin_unstall_confirm_tips', array('name'=>$plugin['name']));?>" href="<?php echo admin_plugin_unstall_url($dir); ?>"><?php echo lang('unstall');?></a>
 			<?php } ?>
 
 		</p>

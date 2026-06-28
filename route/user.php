@@ -24,16 +24,32 @@ if(empty($action)) {
 	// 设置当前查看用户的关注状态
 	$_user['is_followed'] = !empty($uid) && $uid != $_uid ? user_follow_read($uid, $_uid) : false;
 
-        $header['title'] = $_user['username'];
-        $header['mobile_title'] = $_user['username'];
+        $header['title'] = $_user['display_name'] ?? $_user['username'];
+        $header['mobile_title'] = $_user['display_name'] ?? $_user['username'];
 
 	$page = param(2, 1);
-	$pagesize = 20;
+	$pagesize = 10;
 
 	// 只加载帖子 tab，其他 tab 由 htmx 按需请求
-	$threadlist = mythread_find_by_uid($_uid, $page, $pagesize);
+	// 直接查 thread 表（与 user-thread 页一致），避免 mythread 表不同步
+	$thread_cond = array('uid' => $_uid);
+	if($gid == 0 || ($gid > 2 && $uid != $_uid)) {
+		$thread_cond['audit_status'] = 1;
+		$totalnum = thread_count($thread_cond);
+	} else {
+		$totalnum = $_user['threads'];
+	}
+	$threadlist = thread_find($thread_cond, array('tid' => -1), $page, $pagesize);
 	thread_list_access_filter($threadlist, $gid);
-	$totalnum = $_user['threads'];
+	// 加载版块列表，仅供管理工具栏（移动帖子）使用，普通用户（gid>=5）无需加载
+	$forumlist = array();
+	if($gid > 0 && $gid < 5) {
+		$forumlist = forum_list_cache();
+	}
+	// 管理员组强制显示勾选框
+	if($gid > 0 && $gid < 5) {
+		$force_show_checkbox = TRUE;
+	}
 	$pagination = pagination(url("user-$_uid-{page}"), $totalnum, $page, $pagesize);
 
 	// 其他 tab 数据不加载
@@ -60,7 +76,8 @@ if(empty($action)) {
 
 	$_uid = param(2, $uid);
 	$page = param(3, 1);
-	$pagesize = 20;
+	$pagesize = 10;
+	$is_user_post_list = TRUE; // 标记为用户中心回帖列表，用于截断内容
 
 	$postlist = array();
 	if(function_exists('post_find_by_uid')) {
@@ -69,6 +86,19 @@ if(empty($action)) {
 		$postlist = post_find(array('uid'=>$_uid, 'isfirst'=>0), array('pid'=>-1), $page, $pagesize);
 	}
 	post_list_access_filter($postlist, $gid);
+
+	// 为回帖添加帖子标题信息
+	if($postlist) {
+		// 批量查询帖子标题，消除 N+1 查询
+		$_post_tids = array_unique(array_column($postlist, 'tid'));
+		$_post_threads = empty($_post_tids) ? array() : db_find('thread', array('tid'=>$_post_tids), array(), 1, count($_post_tids), 'tid');
+		foreach($postlist as &$_p) {
+			if(isset($_post_threads[$_p['tid']])) {
+				$_p['thread_subject'] = $_post_threads[$_p['tid']]['subject'];
+			}
+		}
+		unset($_p);
+	}
 
 	header('Content-Type: text/html; charset=utf-8');
 	if(!empty($postlist)) {
@@ -83,7 +113,7 @@ if(empty($action)) {
 
 	$_uid = param(2, $uid);
 	$page = 1;
-	$pagesize = 20;
+	$pagesize = 10;
 
 	$followlist = user_follow_find_following($_uid, $page, $pagesize);
 	$following_userlist = array();
@@ -106,14 +136,14 @@ if(empty($action)) {
 	<div class="d-flex align-items-center gap-3 p-2 rounded">
 		<?php echo avatar_component_from_data($u['avatar_url'], 'md', isset($u['group_icon_class']) ? $u['group_icon_class'] : '', isset($u['group_color']) ? $u['group_color'] : '', isset($u['gid']) ? $u['gid'] : 0);?>
 		<div class="flex-fill">
-			<a href="<?php echo url("user-$u[uid]");?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['username']);?></a>
+			<a href="<?php echo user_url($u['uid']);?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['display_name'] ?? $u['username']);?></a>
 		</div>
 		<?php if(!empty($uid) && $uid != $u['uid']) {
 			$_u_is_followed = !empty($u['is_followed']);
 		?>
 		<?php if($_u_is_followed) { ?>
 		<button class="btn btn-sm btn-outline-secondary user-follow-btn"
-			hx-post="<?php echo url('user-follow-'.$u['uid']);?>"
+			hx-post="<?php echo user_follow_url($u['uid']);?>"
 			hx-target="this"
 			hx-swap="outerHTML"
 			hx-optimistic>
@@ -122,7 +152,7 @@ if(empty($action)) {
 		</button>
 		<?php } else { ?>
 		<button class="btn btn-sm btn-primary user-follow-btn"
-			hx-post="<?php echo url('user-follow-'.$u['uid']);?>"
+			hx-post="<?php echo user_follow_url($u['uid']);?>"
 			hx-target="this"
 			hx-swap="outerHTML"
 			hx-optimistic>
@@ -142,7 +172,7 @@ if(empty($action)) {
 
 	$_uid = param(2, $uid);
 	$page = 1;
-	$pagesize = 20;
+	$pagesize = 10;
 
 	$followerlist = user_follow_find_followers($_uid, $page, $pagesize);
 	$followers_userlist = array();
@@ -165,14 +195,14 @@ if(empty($action)) {
 	<div class="d-flex align-items-center gap-3 p-2 rounded">
 		<?php echo avatar_component_from_data($u['avatar_url'], 'md', isset($u['group_icon_class']) ? $u['group_icon_class'] : '', isset($u['group_color']) ? $u['group_color'] : '', isset($u['gid']) ? $u['gid'] : 0);?>
 		<div class="flex-fill">
-			<a href="<?php echo url("user-$u[uid]");?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['username']);?></a>
+			<a href="<?php echo user_url($u['uid']);?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['display_name'] ?? $u['username']);?></a>
 		</div>
 		<?php if(!empty($uid) && $uid != $u['uid']) {
 			$_u_is_followed = !empty($u['is_followed']);
 		?>
 		<?php if($_u_is_followed) { ?>
 		<button class="btn btn-sm btn-outline-secondary user-follow-btn"
-			hx-post="<?php echo url('user-follow-'.$u['uid']);?>"
+			hx-post="<?php echo user_follow_url($u['uid']);?>"
 			hx-target="this"
 			hx-swap="outerHTML"
 			hx-optimistic>
@@ -181,7 +211,7 @@ if(empty($action)) {
 		</button>
 		<?php } else { ?>
 		<button class="btn btn-sm btn-primary user-follow-btn"
-			hx-post="<?php echo url('user-follow-'.$u['uid']);?>"
+			hx-post="<?php echo user_follow_url($u['uid']);?>"
 			hx-target="this"
 			hx-swap="outerHTML"
 			hx-optimistic>
@@ -200,16 +230,15 @@ if(empty($action)) {
 } elseif($action == 'tab_favorites') {
 
 	$_uid = param(2, $uid);
-	$pagesize = 20;
+	$pagesize = 10;
 
 	$fav_threadlist = array();
 	if(!empty($uid) && $uid == $_uid) {
 		$favlist = thread_favorite_find_by_uid($_uid, 1, $pagesize);
 		if($favlist) {
-			foreach($favlist as $fav) {
-				$t = thread_read($fav['tid']);
-				if(!empty($t)) $fav_threadlist[$fav['tid']] = $t;
-			}
+			// 批量查询帖子，消除 N+1 查询
+			$fav_tids = array_column($favlist, 'tid');
+			$fav_threadlist = thread_find_by_tids($fav_tids);
 		}
 		thread_list_access_filter($fav_threadlist, $gid);
 	}
@@ -227,18 +256,16 @@ if(empty($action)) {
 } elseif($action == 'tab_likes') {
 
 	$_uid = param(2, $uid);
-	$pagesize = 20;
+	$pagesize = 10;
 
 	$like_threadlist = array();
 	if(!empty($uid) && $uid == $_uid) {
 		$likelist = post_like_find_by_uid($_uid, 1, $pagesize);
 		if($likelist) {
-			foreach($likelist as $like) {
-				$t = thread_read($like['tid']);
-				if(!empty($t) && !isset($like_threadlist[$like['tid']])) {
-					$like_threadlist[$like['tid']] = $t;
-				}
-			}
+			// 批量查询帖子，消除 N+1 查询（thread_find_by_tids 用 tid 作 key 天然去重）
+			$like_tids = array_column($likelist, 'tid');
+			$like_tids = array_unique($like_tids);
+			$like_threadlist = thread_find_by_tids($like_tids);
 		}
 		thread_list_access_filter($like_threadlist, $gid);
 	}
@@ -261,15 +288,25 @@ if(empty($action)) {
         $_user = user_read($_uid);
 
         empty($_user) AND error_page(404, lang('user_not_exists'));
-        $header['title'] = $_user['username'];
-        $header['mobile_title'] = $_user['username'];
+        $header['title'] = $_user['display_name'] ?? $_user['username'];
+        $header['mobile_title'] = $_user['display_name'] ?? $_user['username'];
 
         $page = param(3, 1);
-        $pagesize = 20;
-        $totalnum = $_user['threads'];
-        $pagination = pagination(url("user-thread-$_uid-{page}"), $totalnum, $page, $pagesize);
-        $threadlist = mythread_find_by_uid($_uid, $page, $pagesize);
-        thread_list_access_filter($threadlist, $gid);
+        $pagesize = 10;
+        // 非管理员查看他人帖子时，只显示审核通过的帖子（排除待审和驳回）
+        $thread_cond = array('uid' => $_uid);
+        if($gid == 0 || ($gid > 2 && $uid != $_uid)) {
+            $totalnum = thread_count(array('uid' => $_uid, 'audit_status' => 1));
+            $thread_cond['audit_status'] = 1;
+        } else {
+            $totalnum = $_user['threads'];
+        }
+        $pagination = pagination(route_url('user_thread_page', array('uid'=>$_uid)), $totalnum, $page, $pagesize);
+        // 直接用 thread_find 查询（含 audit_status 过滤），避免 mythread 表无法过滤待审帖子
+        $threadlist = thread_find($thread_cond, array('tid' => -1), $page, $pagesize);
+	thread_list_access_filter($threadlist, $gid);
+	// 加载版块列表，供管理工具栏（移动帖子）使用
+	$forumlist = forum_list_cache();
 
         // hook user_thread_end.php
 
@@ -286,7 +323,7 @@ if(empty($action)) {
 
 	// 已登录用户不允许访问登录页
 	if(!empty($uid)) {
-		message(0, lang('user_login_successfully'), array('redirect_url' => url("user-$uid")));
+		message(0, lang('user_login_successfully'), array('redirect_url' => user_url($uid)));
 	}
 
 	if($method == 'GET') {
@@ -309,12 +346,12 @@ if(empty($action)) {
 
 		// 登录验证码检查
 		include_once APP_PATH . 'lib/security/CaptchaService.php';
-		if (CaptchaService::is_enabled('login')) {
+		if (CaptchaService::is_enabled('login', $gid)) {
 		    $captcha_input = param('captcha');
 		    if (empty($captcha_input)) {
 		        message(-1001, lang('please_input_captcha'));
 		    }
-		    if (!CaptchaService::verify('login', $captcha_input)) {
+		    if (!CaptchaService::verify('login', $captcha_input, $gid)) {
 		        message(-1001, lang('captcha_error'));
 		    }
 		}
@@ -329,8 +366,6 @@ if(empty($action)) {
 			$_user = user_read_by_username($email);
 			empty($_user) AND message('email', lang('username_not_exists'));
 		}
-
-		password_md5($password);
 
 		LoginSecurityService::checkBan($_user['uid']);
 
@@ -355,14 +390,18 @@ if(empty($action)) {
 
 		// hook user_login_post_end.php
 
-		// 积分规则：每日首次登录获得积分
+		// 积分规则：每日首次登录获得积分（双重检查：路由层 + CreditsRuleService 层）
 		if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
-		CreditsRuleService::applyRule('daily_login', $uid);
+		$_todayStart = strtotime(date('Y-m-d'));
+		$_loginCount = db_count('credits_log', array('uid' => $uid, 'reason' => 'daily_login', 'create_date>' => $_todayStart));
+		if($_loginCount == 0) {
+			CreditsRuleService::applyRule('daily_login', $uid);
+		}
 
 		// 设置 token，下次自动登陆。
 
 		$referer = user_http_referer();
-		message(0, lang('user_login_successfully'), array('redirect_url' => $referer ?: url("user-$uid")));
+		message(0, lang('user_login_successfully'), array('redirect_url' => $referer ?: user_url($uid)));
 
 	}
 
@@ -374,7 +413,7 @@ if(empty($action)) {
 
 	// 已登录用户不允许访问注册页
 	if(!empty($uid)) {
-		message(0, lang('user_login_successfully'), array('redirect_url' => url("user-$uid")));
+		message(0, lang('user_login_successfully'), array('redirect_url' => user_url($uid)));
 	}
 
 	if($method == 'GET') {
@@ -396,12 +435,12 @@ if(empty($action)) {
 
 		// 注册验证码检查
 		include_once APP_PATH . 'lib/security/CaptchaService.php';
-		if (CaptchaService::is_enabled('register')) {
+		if (CaptchaService::is_enabled('register', $gid)) {
 		    $captcha_input = param('captcha');
 		    if (empty($captcha_input)) {
 		        message(-1001, lang('please_input_captcha'));
 		    }
-		    if (!CaptchaService::verify('register', $captcha_input)) {
+		    if (!CaptchaService::verify('register', $captcha_input, $gid)) {
 		        message(-1001, lang('captcha_error'));
 		    }
 		}
@@ -457,17 +496,26 @@ if(empty($action)) {
 		$_user = user_read_by_username($username);
 		$_user AND message('username', lang('username_is_in_use'));
 
-		!is_password($password, $err) AND message('password', $err);
-		password_md5($password);
+		// 用户名敏感词检查（拦截，不允许注册）
+		include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
+		$filter_result = SensitiveWordFilter::content_filter($username);
+		if (!$filter_result['pass']) {
+			message('username', lang('username_contains_sensitive_word'));
+		}
 
-		$salt = xn_rand(16);
-		$pwd = md5($password.$salt);
+		!is_password($password, $err) AND message('password', $err);
+
+		// 密码策略校验（最小长度 + 复杂度，读取后台安全配置）
+		$policy_err = SecurityConfigService::checkPasswordPolicy($password);
+		$policy_err AND message('password', $policy_err);
+
 		$gid = 101;
 		$_user = array (
 			'username' => $username,
+			'nickname' => $username,
 			'email' => $email,
-			'password' => $pwd,
-			'salt' => $salt,
+			'password' => '',
+			'salt' => '',
 			'gid' => $gid,
 			'create_ip' => $longip,
 			'create_date' => $time,
@@ -482,6 +530,9 @@ if(empty($action)) {
 		$uid === FALSE AND message('email', lang('user_create_failed'));
 		$user = user_read($uid);
 
+		// 记录 IP 注册时间，用于同IP注册间隔检查
+		kv_set('security_ip_register_' . $longip, $time);
+
 		// 更新 session
 
 		unset($_SESSION['user_create_email']);
@@ -493,7 +544,7 @@ if(empty($action)) {
 
 		// hook user_create_post_end.php
 
-		$extra['redirect_url'] = url("my");
+		$extra['redirect_url'] = my_url();
 		message(0, lang('user_create_sucessfully'), $extra);
 	}
 
@@ -535,12 +586,12 @@ if(empty($action)) {
 
 		// 找回密码验证码检查
 		include_once APP_PATH . 'lib/security/CaptchaService.php';
-		if (CaptchaService::is_enabled('resetpw')) {
+		if (CaptchaService::is_enabled('resetpw', $gid)) {
 		    $captcha_input = param('captcha');
 		    if (empty($captcha_input)) {
 		        message(-1001, lang('please_input_captcha'));
 		    }
-		    if (!CaptchaService::verify('resetpw', $captcha_input)) {
+		    if (!CaptchaService::verify('resetpw', $captcha_input, $gid)) {
 		        message(-1001, lang('captcha_error'));
 		    }
 		}
@@ -592,7 +643,7 @@ if(empty($action)) {
 
 		// hook user_resetpw_post_end.php
 
-		message(0, lang('check_ok_to_next_step'), array('redirect_url' => url('user-resetpw_complete')));
+		message(0, lang('check_ok_to_next_step'), array('redirect_url' => user_resetpw_complete_url()));
 	}
 
 // 重设密码第 3 步 | reset password step 3
@@ -630,15 +681,18 @@ if(empty($action)) {
 		$password = param('password');
 		empty($password) AND message('password', lang('please_input_password'));
 
-		password_md5($password);
-		$salt = $_user['salt'];
-		$update = array('password' => md5($password.$salt));
+		$update = array(
+			'password' => '',
+			'salt' => '',
+		);
 		if(db_check_column_exists('user', 'password_hash')) {
 			$update['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
 		}
 
-		!is_password($update['password'], $err) AND message('password', $err);
-		user_update($_uid, $update);
+		!is_password($password, $err) AND message('password', $err);
+		// 找回密码已通过邮箱验证码验证身份，直接调用 user__update 绕过保护字段过滤
+		$r = user__update($_uid, $update);
+		$r === FALSE AND message(-1, lang('update_error'));
 
 		unset($_SESSION['user_resetpw_email']);
 		unset($_SESSION['user_resetpw_code']);
@@ -646,7 +700,7 @@ if(empty($action)) {
 
 		// hook user_resetpw_post_end.php
 
-		message(0, lang('modify_successfully'), array('redirect_url' => url('user-login')));
+		message(0, lang('modify_successfully'), array('redirect_url' => user_login_url()));
 
 	}
 
@@ -671,6 +725,18 @@ if(empty($action)) {
 		empty($conf['user_create_email_on']) AND message(-1, lang('email_verify_not_on'));
 		$_user = user_read_by_email($email);
 		!empty($_user) AND message('email', lang('email_is_in_use'));
+
+		// 邮箱域名白名单检查（发送验证码时也检查，避免不在白名单的邮箱浪费发送配额）
+		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+		$allowed_domains = SecurityConfigService::get('security_allowed_email_domains', '');
+		if (!empty($allowed_domains)) {
+			$email_domain = strtolower(substr(strrchr($email, '@'), 1));
+			$allowed_list = array_map('trim', explode(',', strtolower($allowed_domains)));
+			$allowed_list = array_filter($allowed_list);
+			if (!empty($allowed_list) && !in_array($email_domain, $allowed_list)) {
+				message(-1, '该邮箱域名不允许注册，仅支持：' . implode('、', $allowed_list));
+			}
+		}
 
 		$code = rand(100000, 999999);
 		$_SESSION['user_create_email'] = $email;
@@ -722,7 +788,8 @@ if(empty($action)) {
 
 	if($r === TRUE) {
 		xn_email_rate_record($email, $longip);
-		message(0, lang('send_successfully'));
+		$interval = class_exists('SecurityConfigService') ? intval(SecurityConfigService::get('security_email_code_interval', 60)) : 60;
+		message(0, lang('send_successfully'), array('wait' => $interval));
 	} else {
 		xn_log($errstr, 'send_mail_error');
 		message(-1, $errstr);
@@ -746,7 +813,7 @@ if(empty($action)) {
 
 	empty($_SESSION['return_url']) AND $_SESSION['return_url'] = $return_url;
 	if(!$uid) {
-		http_location(url('user-login'));
+		http_location(user_login_url());
 	} else {
 		$return_url = _SESSION('return_url');
 
@@ -797,7 +864,7 @@ if(empty($action)) {
 		$is_followed = empty($exists) ? true : false;
 		header('Content-Type: text/html; charset=utf-8');
 		echo '<button class="btn btn-sm user-follow-btn ' . ($is_followed ? 'btn-outline-secondary' : 'btn-primary') . '"
-			hx-post="' . url('user-follow-'.$follow_uid) . '"
+			hx-post="' . user_follow_url($follow_uid) . '"
 			hx-target="this"
 			hx-swap="outerHTML"
 			hx-optimistic>
@@ -816,7 +883,7 @@ if(empty($action)) {
 	empty($_user) AND error_page(404, lang('user_not_exists'));
 	$_user['is_followed'] = !empty($uid) && $uid != $_uid ? user_follow_read($uid, $_uid) : false;
 	$page = param(3, 1);
-	$pagesize = 20;
+	$pagesize = 10;
 	$followlist = user_follow_find_following($_uid, $page, $pagesize);
 	$userlist = array();
 	if($followlist) {
@@ -833,7 +900,7 @@ if(empty($action)) {
 		}
 	}
 	$totalnum = $_user['follows'];
-	$pagination = pagination(url("user-following-$_uid-{page}"), $totalnum, $page, $pagesize);
+	$pagination = pagination(route_url('user_following_page', array('uid'=>$_uid)), $totalnum, $page, $pagesize);
 	$header['title'] = lang('following');
 
 	if(!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
@@ -843,12 +910,12 @@ if(empty($action)) {
 		<div class="d-flex align-items-center gap-3 p-2 hover-bg-body-secondary rounded">
 			<img class="avatar-md" src="<?php echo $u['avatar_url'];?>" alt="" onerror="this.src='/view/img/avatar.png'">
 			<div class="flex-fill">
-				<a href="<?php echo url("user-$u[uid]");?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['username']);?></a>
+				<a href="<?php echo user_url($u['uid']);?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['display_name'] ?? $u['username']);?></a>
 				<div class="small text-body-secondary"><?php echo $u['groupname'];?></div>
 			</div>
 			<?php if(!empty($uid) && $uid != $u['uid']) { ?>
 			<button class="btn btn-sm user-follow-btn <?php echo $u_is_followed ? 'btn-outline-secondary' : 'btn-primary';?>"
-				hx-post="<?php echo url('user-follow-'.$u['uid']);?>"
+				hx-post="<?php echo user_follow_url($u['uid']);?>"
 				hx-target="this"
 				hx-swap="outerHTML"
 				hx-optimistic>
@@ -874,7 +941,7 @@ if(empty($action)) {
 	empty($_user) AND error_page(404, lang('user_not_exists'));
 	$_user['is_followed'] = !empty($uid) && $uid != $_uid ? user_follow_read($uid, $_uid) : false;
 	$page = param(3, 1);
-	$pagesize = 20;
+	$pagesize = 10;
 	$followlist = user_follow_find_followers($_uid, $page, $pagesize);
 	$userlist = array();
 	if($followlist) {
@@ -891,7 +958,7 @@ if(empty($action)) {
 		}
 	}
 	$totalnum = $_user['followeds'];
-	$pagination = pagination(url("user-followers-$_uid-{page}"), $totalnum, $page, $pagesize);
+	$pagination = pagination(route_url('user_followers_page', array('uid'=>$_uid)), $totalnum, $page, $pagesize);
 	$header['title'] = lang('followers');
 
 	if(!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
@@ -901,12 +968,12 @@ if(empty($action)) {
 		<div class="d-flex align-items-center gap-3 p-2 hover-bg-body-secondary rounded">
 			<img class="avatar-md" src="<?php echo $u['avatar_url'];?>" alt="" onerror="this.src='/view/img/avatar.png'">
 			<div class="flex-fill">
-				<a href="<?php echo url("user-$u[uid]");?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['username']);?></a>
+				<a href="<?php echo user_url($u['uid']);?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['display_name'] ?? $u['username']);?></a>
 				<div class="small text-body-secondary"><?php echo $u['groupname'];?></div>
 			</div>
 			<?php if(!empty($uid) && $uid != $u['uid']) { ?>
 			<button class="btn btn-sm user-follow-btn <?php echo $u_is_followed ? 'btn-outline-secondary' : 'btn-primary';?>"
-				hx-post="<?php echo url('user-follow-'.$u['uid']);?>"
+				hx-post="<?php echo user_follow_url($u['uid']);?>"
 				hx-target="this"
 				hx-swap="outerHTML"
 				hx-optimistic>
@@ -938,16 +1005,40 @@ if(empty($action)) {
 
 	// 设置当前查看用户的关注状态
 	$_user['is_followed'] = !empty($uid) && $uid != $_uid ? user_follow_read($uid, $_uid) : false;
-	$header['title'] = $_user['username'];
-	$header['mobile_title'] = $_user['username'];
+	$header['title'] = $_user['display_name'] ?? $_user['username'];
+	$header['mobile_title'] = $_user['display_name'] ?? $_user['username'];
 
 	$page = param(3, 1);
-	$pagesize = 20;
-	$totalnum = $_user['posts'];
-	$pagination = pagination(url("user-post-$_uid-{page}"), $totalnum, $page, $pagesize);
+	$pagesize = 10;
+	// 非管理员查看他人回帖时，只显示审核通过的回帖（排除待审和驳回）
+	if($gid == 0 || ($gid > 2 && $uid != $_uid)) {
+		$totalnum = post_count(array('uid' => $_uid, 'isfirst' => 0, 'audit_status' => 1));
+	} else {
+		$totalnum = $_user['posts'];
+	}
+	$pagination = pagination(route_url('user_post_page', array('uid'=>$_uid)), $totalnum, $page, $pagesize);
 
-	$postlist = post_find_by_uid($_uid, $page, $pagesize);
+	$is_user_post_list = TRUE; // 标记为用户中心回帖列表，用于截断内容
+
+	if(function_exists('post_find_by_uid')) {
+		$postlist = post_find_by_uid($_uid, $page, $pagesize);
+	} else {
+		$postlist = post_find(array('uid'=>$_uid, 'isfirst'=>0), array('pid'=>-1), $page, $pagesize);
+	}
 	post_list_access_filter($postlist, $gid);
+
+	// 为回帖添加帖子标题信息
+	if($postlist) {
+		// 批量查询帖子标题，消除 N+1 查询
+		$_post_tids = array_unique(array_column($postlist, 'tid'));
+		$_post_threads = empty($_post_tids) ? array() : db_find('thread', array('tid'=>$_post_tids), array(), 1, count($_post_tids), 'tid');
+		foreach($postlist as &$_p) {
+			if(isset($_post_threads[$_p['tid']])) {
+				$_p['thread_subject'] = $_post_threads[$_p['tid']]['subject'];
+			}
+		}
+		unset($_p);
+	}
 
 	// hook user_post_end.php
 
@@ -968,23 +1059,22 @@ if(empty($action)) {
 
 	empty($_user) AND error_page(404, lang('user_not_exists'));
 	$_user['is_followed'] = !empty($uid) && $uid != $_uid ? user_follow_read($uid, $_uid) : false;
-	$header['title'] = $_user['username'];
-	$header['mobile_title'] = $_user['username'];
+	$header['title'] = $_user['display_name'] ?? $_user['username'];
+	$header['mobile_title'] = $_user['display_name'] ?? $_user['username'];
 
 	$page = param(3, 1);
-	$pagesize = 20;
+	$pagesize = 10;
 
 	// hook user_favorite_start.php
 	$favlist = thread_favorite_find_by_uid($_uid, $page, $pagesize);
 	$totalnum = $_user['favorites'];
-	$pagination = pagination(url("user-favorite-$_uid-{page}"), $totalnum, $page, $pagesize);
+	$pagination = pagination(route_url('user_favorite_page', array('uid'=>$_uid)), $totalnum, $page, $pagesize);
 
 	$threadlist = array();
 	if($favlist) {
-		foreach($favlist as $fav) {
-			$t = thread_read($fav['tid']);
-			if(!empty($t)) $threadlist[$fav['tid']] = $t;
-		}
+		// 批量查询帖子，消除 N+1 查询
+		$fav_tids = array_column($favlist, 'tid');
+		$threadlist = thread_find_by_tids($fav_tids);
 	}
 
 	thread_list_access_filter($threadlist, $gid);
@@ -1008,24 +1098,32 @@ if(empty($action)) {
 
 	empty($_user) AND error_page(404, lang('user_not_exists'));
 	$_user['is_followed'] = !empty($uid) && $uid != $_uid ? user_follow_read($uid, $_uid) : false;
-	$header['title'] = $_user['username'];
-	$header['mobile_title'] = $_user['username'];
+	$header['title'] = $_user['display_name'] ?? $_user['username'];
+	$header['mobile_title'] = $_user['display_name'] ?? $_user['username'];
 
 	$page = param(3, 1);
-	$pagesize = 20;
-	$likelist = post_like_find_by_uid($_uid, $page, $pagesize);
-	$totalnum = db_count('post_like', array('uid'=>$_uid));
-	$pagination = pagination(url("user-like-$_uid-{page}"), $totalnum, $page, $pagesize);
+	$pagesize = 10;
 
+	// 按帖子去重查询点赞列表，避免同一帖子多条点赞导致分页不准
+	global $db;
+	$tablepre = $db->tablepre;
+	$offset = ($page - 1) * $pagesize;
+
+	// 按帖子去重查询点赞列表，JOIN thread 表过滤已删除帖子
+	$sql = "SELECT pl.tid, MAX(pl.create_date) AS last_like_time FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$_uid' GROUP BY pl.tid ORDER BY last_like_time DESC LIMIT $offset, $pagesize";
+	$tid_rows = db_sql_find($sql);
 	$threadlist = array();
-	if($likelist) {
-		foreach($likelist as $like) {
-			$t = thread_read($like['tid']);
-			if(!empty($t) && !isset($threadlist[$like['tid']])) {
-				$threadlist[$like['tid']] = $t;
-			}
-		}
+	if($tid_rows) {
+		// 批量查询帖子，消除 N+1 查询
+		$like_tids = array_column($tid_rows, 'tid');
+		$threadlist = thread_find_by_tids($like_tids);
 	}
+
+	// 去重后的总数（仅统计帖子仍存在的）
+	$totalnum = db_sql_find_one("SELECT COUNT(DISTINCT pl.tid) AS cnt FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$_uid'");
+	$totalnum = !empty($totalnum['cnt']) ? intval($totalnum['cnt']) : 0;
+
+	$pagination = pagination(route_url('user_like_page', array('uid'=>$_uid)), $totalnum, $page, $pagesize);
 
 	thread_list_access_filter($threadlist, $gid);
 
@@ -1052,6 +1150,7 @@ if(empty($action)) {
             $users[] = array(
                 'uid' => $u['uid'],
                 'username' => $u['username'],
+                'display_name' => $u['display_name'] ?? $u['username'],
                 'avatar_url' => !empty($u['avatar_url']) ? $u['avatar_url'] : '/view/img/avatar.png',
             );
         }
@@ -1062,58 +1161,8 @@ if(empty($action)) {
 
 } elseif($action == 'ai_setting') {
 
-	!$uid AND message(-1, lang('please_login'));
-
-	$_uid = $uid;
-
-	if($method == 'GET') {
-
-		$_user = user_read($uid);
-		$ai_config = [];
-		if(!empty($_user['ai_config'])) {
-			$ai_config = json_decode($_user['ai_config'], true);
-			if(!is_array($ai_config)) $ai_config = [];
-		}
-
-		$header['title'] = 'AI 设置';
-
-		include _include(APP_PATH.'view/htm/user_ai_setting.htm');
-
-	} else if($method == 'POST') {
-
-		CsrfService::check();
-
-		$ai_provider = param('ai_provider');
-		$ai_apikey = param('ai_apikey');
-		$ai_endpoint = param('ai_endpoint');
-		$ai_model = param('ai_model');
-
-		$ai_config = [];
-		if(!empty($ai_provider) && !empty($ai_apikey)) {
-			$model_config = [
-				'apiKey' => $ai_apikey,
-			];
-			if(!empty($ai_endpoint)) {
-				if ($ai_provider === 'custom') {
-					$model_config['url'] = $ai_endpoint;
-				} else {
-					$model_config['endpoint'] = $ai_endpoint;
-				}
-			}
-			if(!empty($ai_model)) {
-				$model_config['model'] = $ai_model;
-			}
-			$ai_config['models'] = [
-				$ai_provider => $model_config,
-			];
-			$ai_config['bubblePanelEnable'] = true;
-			$ai_config['bubblePanelModel'] = $ai_provider;
-		}
-
-		user_update($uid, ['ai_config' => json_encode($ai_config)]);
-
-		message(0, '保存成功', array('redirect_url' => url('my', array('tab' => 'ai'))));
-	}
+	// 已迁移到 my-ai 路由，重定向
+	http_location(my_ai_url());
 
 } else {
 

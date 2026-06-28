@@ -2,13 +2,13 @@
 // 此模板通过 htmx 加载到 credits_rule.htm 的 #forumRulePanel 中
 // 不包含 header/footer，仅渲染版块规则表单
 ?>
-<form action="<?php echo url('credits_rule-forum-' . $fid);?>" method="post" id="forumForm">
+<form action="<?php echo admin_credits_rule_url('forum', $fid);?>" method="post" id="forumForm">
 	<?php echo CsrfService::input(); ?>
 	<input type="hidden" name="fid" value="<?php echo $fid;?>">
 
 	<h6 class="fw-semibold mb-3">
 		<i class="ti ti-layout-board me-2"></i>
-		<?php echo isset($all_forums[$fid]) ? esc_html($all_forums[$fid]['name']) : 'FID:'.$fid;?>
+		<?php echo isset($all_forums[$fid]) ? esc_html($all_forums[$fid]['name']) : lang('admin_fid_label').$fid;?>
 		<small class="text-body-secondary ms-2"><?php echo lang('admin_credits_rule_forum');?></small>
 	</h6>
 
@@ -16,11 +16,12 @@
 		<table class="table table-hover align-middle mb-0">
 			<thead>
 				<tr>
-					<th style="width:20%;"><?php echo lang('admin_credits_rule_label');?></th>
-					<th style="width:12%;"><?php echo lang('admin_credits_rule_credits_change');?> (<?php echo lang('admin_credits_rule_global_value');?>)</th>
-					<th style="width:12%;"><?php echo lang('admin_credits_rule_golds_change');?> (<?php echo lang('admin_credits_rule_global_value');?>)</th>
-					<th style="width:12%;"><?php echo lang('admin_credits_rule_rmbs_change');?> (<?php echo lang('admin_credits_rule_global_value');?>)</th>
-					<th style="width:12%;"><?php echo lang('admin_credits_rule_override');?></th>
+					<th style="width:18%;"><?php echo lang('admin_credits_rule_label');?></th>
+					<th style="width:10%;"><?php echo lang('admin_credits_rule_credits_change');?> (<?php echo lang('admin_credits_rule_global_value');?>)</th>
+					<th style="width:10%;"><?php echo lang('admin_credits_rule_golds_change');?> (<?php echo lang('admin_credits_rule_global_value');?>)</th>
+					<th style="width:10%;"><?php echo lang('admin_credits_rule_rmbs_change');?> (<?php echo lang('admin_credits_rule_global_value');?>)</th>
+					<th style="width:10%;"><?php echo lang('admin_credits_daily_limit');?></th>
+					<th style="width:10%;"><?php echo lang('admin_credits_rule_override');?></th>
 					<th style="width:32%;"><?php echo lang('admin_credits_rule_override_value');?> (<?php echo lang('admin_credits_rule_override_format');?>)</th>
 				</tr>
 			</thead>
@@ -39,6 +40,8 @@
 					'be_commented'   => lang('admin_credits_event_be_commented'),
 					'favorite'       => lang('admin_credits_event_favorite'),
 					'be_favorited'   => lang('admin_credits_event_be_favorited'),
+					'unlike'         => lang('admin_credits_event_unlike'),
+					'unfavorite'     => lang('admin_credits_event_unfavorite'),
 					'daily_login'    => lang('admin_credits_event_daily_login'),
 				);
 
@@ -53,6 +56,8 @@
 					$_f_credits = isset($_forum['credits_change']) ? intval($_forum['credits_change']) : $_g_credits;
 					$_f_golds = isset($_forum['golds_change']) ? intval($_forum['golds_change']) : $_g_golds;
 					$_f_rmbs = isset($_forum['rmbs_change']) ? intval($_forum['rmbs_change']) : $_g_rmbs;
+					$_g_daily = isset($_global['daily_limit']) ? intval($_global['daily_limit']) : 0;
+					$_f_daily = isset($_forum['daily_limit']) ? intval($_forum['daily_limit']) : $_g_daily;
 				?>
 				<tr>
 					<td>
@@ -70,6 +75,9 @@
 						<span class="text-body-secondary"><?php echo $_g_rmbs >= 0 ? '+' : '';?><?php echo $_g_rmbs;?></span>
 					</td>
 					<td>
+						<span class="text-body-secondary"><?php echo $_g_daily > 0 ? $_g_daily : lang('admin_credits_daily_limit_default');?></span>
+					</td>
+					<td>
 						<div class="form-check form-switch">
 							<input class="form-check-input override-switch" type="checkbox" name="override_<?php echo $event;?>" value="1" id="override_<?php echo $event;?>"<?php echo $_has_override ? ' checked' : '';?>>
 						</div>
@@ -79,6 +87,7 @@
 							<input type="number" name="credits_change_<?php echo $event;?>" value="<?php echo $_f_credits;?>" class="form-control form-control-sm rounded-pill override-input" style="width:70px;" min="-999" max="999"<?php echo $_has_override ? '' : ' disabled';?>>
 							<input type="number" name="golds_change_<?php echo $event;?>" value="<?php echo $_f_golds;?>" class="form-control form-control-sm rounded-pill override-input" style="width:70px;" min="-999" max="999"<?php echo $_has_override ? '' : ' disabled';?>>
 							<input type="number" name="rmbs_change_<?php echo $event;?>" value="<?php echo $_f_rmbs;?>" class="form-control form-control-sm rounded-pill override-input" style="width:70px;" min="-999" max="999"<?php echo $_has_override ? '' : ' disabled';?>>
+							<input type="number" name="daily_limit_<?php echo $event;?>" value="<?php echo $_f_daily;?>" class="form-control form-control-sm rounded-pill override-input" style="width:70px;" min="-1" max="9999" placeholder="<?php echo lang('admin_credits_daily_limit_default');?>"<?php echo $_has_override ? '' : ' disabled';?>>
 						</div>
 						<?php if(!$_has_override):?>
 						<small class="text-body-secondary mt-1 d-block"><i class="ti ti-info-circle me-1"></i><?php echo lang('admin_credits_rule_use_global');?></small>

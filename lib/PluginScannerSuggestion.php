@@ -28,6 +28,34 @@ class PluginScannerSuggestion {
                 return self::bsJsApi($pattern, $line);
             case 'jquery_usage':
                 return self::jquery($pattern, $line);
+            case 'dangerous_functions':
+                return self::dangerousFunctions($pattern, $line);
+            case 'php_comment_close_tag':
+                return $suggestion ?? '移除注释中的 ?> 或改用块注释 /* */';
+            case 'frontend_md5':
+                return '密码必须明文提交，由服务端 password_md5() 处理；移除前端 MD5 哈希代码';
+            case 'md5js_global_load':
+                return 'MD5.js 不得全局加载，前端 MD5 哈希已移除';
+            case 'password_update_api':
+                return '找回密码必须使用 user__update() 而非 user_update()，因为后者会过滤掉 password 字段';
+            case 'db_charset':
+                return '数据库连接字符集必须为 utf8mb4（支持 emoji 等 4 字节字符）';
+            case 'service_undefined_var':
+                return 'Service 类中拼接 SQL 表名必须用 $this->tablepre . \'表名\'，不能使用未定义变量';
+            case 'raw_htmlspecialchars':
+                return '禁止裸写 htmlspecialchars，必须用 esc_html() / esc_attr() / esc_js() 统一转义';
+            case 'heredoc_php_tag':
+                return 'HEREDOC 语法中需使用 {$variable} 语法嵌入 PHP 变量';
+            case 'bs_tab_navigation':
+                return '外层导航（页面跳转）禁止用 Bootstrap Tab，应改为普通 <a> 链接；内层导航才用 tab';
+            case 'hook_htm_header':
+                return '.htm 模板 hook 文件必须以 <?php 开头（不能是 <?php exit;，否则白屏）';
+            case 'db_find_col_string':
+                return 'db_find_one() 第 4 个参数 $col 必须传入数组（如 array(\'fid\', \'uid\')）';
+            case 'app_path_in_url':
+                return 'APP_PATH 是文件系统绝对路径，浏览器无法访问，必须用 $conf[\'view_url\'] 生成资源 URL';
+            case 'install_non_idempotent':
+                return 'install.php 所有建表语句必须用 IF NOT EXISTS 保证幂等';
             default:
                 return $fallback;
         }
@@ -45,6 +73,22 @@ class PluginScannerSuggestion {
             }
         }
         return trim($line);
+    }
+
+    // ===== 危险函数 =====
+
+    private static function dangerousFunctions(string $pattern, string $line): string {
+        $map = [
+            '\beval\(' => 'eval() 代码注入风险，避免使用 eval()，改用闭包或 json_decode 解析数据',
+            '\bsystem\(' => 'system() 命令执行风险，避免直接调用系统命令，必须用 escapeshellarg() + escapeshellcmd() 转义',
+            '(?<![_>])\bexec\(' => 'exec() 命令执行风险，避免直接调用系统命令，必须用 escapeshellarg() + escapeshellcmd() 转义',
+            '\bpassthru\(' => 'passthru() 命令执行风险，避免直接调用系统命令',
+            '\bshell_exec\(' => 'shell_exec() 命令执行风险，避免直接调用系统命令',
+            '\bpopen\(' => 'popen() 进程管理风险，避免使用',
+            '\bproc_open\(' => 'proc_open() 进程管理风险，避免使用',
+            '\bpcntl_exec\(' => 'pcntl_exec() 进程执行风险，避免使用',
+        ];
+        return $map[$pattern] ?? '危险函数调用，请人工检查此项兼容性';
     }
 
     // ===== BS4 类名 =====
@@ -94,17 +138,27 @@ class PluginScannerSuggestion {
     // ===== 图标库 =====
 
     private static function iconLib(string $pattern, string $line): string {
-        $patterns = [
-            ' fa-' => ['fa-', 'Font Awesome'],
-            ' bi-' => ['bi-', 'Bootstrap Icons'],
-            'glyphicon-' => ['glyphicon-', 'Glyphicon'],
-        ];
-        if (isset($patterns[$pattern])) {
-            [$prefix, $name] = $patterns[$pattern];
-            if (preg_match('/\b' . preg_quote($prefix, '/') . '([a-z0-9-]+)/i', $line, $m)) {
-                return "{$prefix}{$m[1]} → ti-{$m[1]}（参考 Tabler Icons 查找对应图标）";
+        // 新模式以 class=" 开头，按正则匹配区分三种图标库
+        if (strpos($pattern, 'fa-[a-z]') !== false) {
+            // Font Awesome：提取 fa-xxx 类名
+            if (preg_match('/\bfa-([a-z0-9-]+)/i', $line, $m)) {
+                return "fa-{$m[1]} → ti-{$m[1]}（参考 Tabler Icons 查找对应图标）";
             }
-            return "{$name} → Tabler Icons ti-*";
+            return 'Font Awesome → Tabler Icons ti-*';
+        }
+        if (strpos($pattern, 'bi-[a-z]') !== false) {
+            // Bootstrap Icons：提取 bi-xxx 类名
+            if (preg_match('/\bbi-([a-z0-9-]+)/i', $line, $m)) {
+                return "bi-{$m[1]} → ti-{$m[1]}（参考 Tabler Icons 查找对应图标）";
+            }
+            return 'Bootstrap Icons → Tabler Icons ti-*';
+        }
+        if (strpos($pattern, 'glyphicon glyphicon-') !== false) {
+            // Glyphicon：提取 glyphicon glyphicon-xxx 类名
+            if (preg_match('/glyphicon\s+glyphicon-([a-z0-9-]+)/i', $line, $m)) {
+                return "glyphicon glyphicon-{$m[1]} → ti-{$m[1]}（参考 Tabler Icons 查找对应图标）";
+            }
+            return 'Glyphicon → Tabler Icons ti-*';
         }
         return '迁移到 Tabler Icons ti-*';
     }
@@ -146,10 +200,10 @@ class PluginScannerSuggestion {
 
         if ($method === 'button') {
             if (preg_match('/\.button\([\'"](\w+)[\'"]\)/', $line, $m)) {
-                if ($m[1] === 'loading') return ".button('loading') → Alpine.js: x-data=\"{loading:false}\" + :disabled=\"loading\" + @click=\"loading=true\"";
-                if ($m[1] === 'reset') return ".button('reset') → Alpine.js: 重置 loading 状态";
+                if ($m[1] === 'loading') return ".button('loading') → 原生 JS: const btn=document.querySelector(...); btn.disabled=true; 或 htmx hx-disabled-elt";
+                if ($m[1] === 'reset') return ".button('reset') → 原生 JS: btn.disabled=false; 重置状态";
             }
-            return ".button() → Alpine.js x-data loading 状态控制";
+            return ".button() → htmx hx-disabled-elt 或原生 JS disabled 属性";
         }
         if ($method === 'modal') {
             if (preg_match('/\.modal\([\'"](\w+)[\'"]\)/', $line, $m)) {
@@ -196,16 +250,16 @@ class PluginScannerSuggestion {
         }
         if ($method === 'each') return '$.each() → Array.forEach() 或 for...of';
         if ($method === 'fn') {
-            if (preg_match('/\$\.fn\.(\w+)/', $line, $m)) return "$.fn.{$m[1]} → Alpine.data('{$m[1]}', () => ({...}))";
-            return '$.fn → Alpine.data() 注册可复用组件';
+            if (preg_match('/\$\.fn\.(\w+)/', $line, $m)) return "$.fn.{$m[1]} → 原生 JS class 或 htmx 组件";
+            return '$.fn → 原生 JS class 或 htmx 组件';
         }
         $simple = [
             'extend' => 'Object.assign()', 'trim' => 'String.prototype.trim()',
             'parseJSON' => 'JSON.parse()', 'isArray' => 'Array.isArray()',
             'isFunction' => 'typeof fn === "function"', 'browser' => '特性检测（如 CSS @supports）',
-            'jQuery' => 'htmx + Alpine.js',
+            'jQuery' => 'htmx 4 属性或原生 JS',
         ];
         if (isset($simple[$method])) return "$.{$method}() → {$simple[$method]}";
-        return "{$pattern} → 迁移到 htmx + Alpine.js";
+        return "{$pattern} → 迁移到 htmx 4 属性或原生 JS";
     }
 }

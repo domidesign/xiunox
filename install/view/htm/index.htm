@@ -5,11 +5,11 @@
 
 <div class="row justify-content-center mt-3">
 	<div class="col-lg-12">
-		<div class="x-card  cardrounded-3">
+		<div class="x-card  card">
 			<div class="card-body">
 				<h3 class="card-title"></h3>
 				<div class="row align-items-center mb-3">
-					<label class="col-sm-5 text-end">Choose Language (选择语言)：</label>
+					<label class="col-sm-5 text-end"><?php echo lang('install_choose_language'); ?>：</label>
 					<div class="col-sm-5">
 						<?php echo $input['lang'];?>
 					</div>
@@ -17,7 +17,7 @@
 			</div>
 		</div>
 		<div class="text-center m-3">
-			<button type="submit" class="btn btn-primary " id="submit" data-loading-text="Loading...">Next (下一步)</button>
+			<button type="submit" class="btn btn-primary " id="submit" data-loading-text="<?php echo lang('install_loading'); ?>"><?php echo lang('install_next_step'); ?></button>
 		</div>
 	</div>
 </div>

@@ -76,17 +76,21 @@ if($action == 'base') {
 
 		// hook admin_setting_ai_get_start.php
 
-		$ai_config = isset($conf['ai']) ? $conf['ai'] : [];
-		$ai_apikey = '';
-		$ai_endpoint = '';
-		$ai_model = '';
-		$ai_prompt_continue = isset($ai_config['promptContinue']) ? $ai_config['promptContinue'] : '';
-		$ai_prompt_improve = isset($ai_config['promptImprove']) ? $ai_config['promptImprove'] : '';
-		if(!empty($ai_config['models'])) {
-			$firstModel = reset($ai_config['models']);
-			$ai_apikey = isset($firstModel['apiKey']) ? $firstModel['apiKey'] : '';
-			$ai_endpoint = isset($firstModel['endpoint']) ? $firstModel['endpoint'] : '';
-			$ai_model = isset($firstModel['model']) ? $firstModel['model'] : '';
+		$ai_config = isset($conf['ai']) ? $conf['ai'] : array();
+
+		// 读取新的 providers 配置；若不存在则尝试从旧版 models 迁移
+		$ai_providers = array();
+		if(!empty($ai_config['providers'])) {
+			$ai_providers = array_values($ai_config['providers']);
+		} elseif(!empty($ai_config['models'])) {
+			foreach($ai_config['models'] as $name => $config) {
+				$url = isset($config['endpoint']) ? $config['endpoint'] : (isset($config['url']) ? $config['url'] : '');
+				if(empty($name) && empty($url)) continue;
+				$ai_providers[] = array(
+					'name' => $name,
+					'url' => $url,
+				);
+			}
 		}
 
 		$header['title'] = 'AI 设置';
@@ -100,26 +104,27 @@ if($action == 'base') {
 
 		CsrfService::check();
 
-		$ai_provider = param('ai_provider');
-		$ai_apikey = param('ai_apikey');
-		$ai_endpoint = param('ai_endpoint');
-		$ai_model = param('ai_model');
-		$ai_prompt_continue = param('ai_prompt_continue', '', false);
-		$ai_prompt_improve = param('ai_prompt_improve', '', false);
+		$ai_provider_name = param('ai_provider_name', array());
+		$ai_provider_url = param('ai_provider_url', array());
 
-		$ai_config = [];
-		if(!empty($ai_provider) && !empty($ai_apikey)) {
-			$model_config = ['apiKey' => $ai_apikey];
-			if(!empty($ai_endpoint)) $model_config['endpoint'] = $ai_endpoint;
-			if(!empty($ai_model)) $model_config['model'] = $ai_model;
-			$ai_config['models'] = [$ai_provider => $model_config];
-			$ai_config['bubblePanelEnable'] = true;
-			$ai_config['bubblePanelModel'] = $ai_provider;
+		$providers = array();
+		for($i = 0; $i < count($ai_provider_name); $i++) {
+			$name = isset($ai_provider_name[$i]) ? trim($ai_provider_name[$i]) : '';
+			$url = isset($ai_provider_url[$i]) ? trim($ai_provider_url[$i]) : '';
+			// 过滤掉名称和 URL 都为空的行
+			if($name === '' && $url === '') continue;
+			$providers[] = array(
+				'name' => $name,
+				'url' => $url,
+			);
 		}
-		if(!empty($ai_prompt_continue)) $ai_config['promptContinue'] = $ai_prompt_continue;
-		if(!empty($ai_prompt_improve)) $ai_config['promptImprove'] = $ai_prompt_improve;
-		$ai_replace = array('ai' => $ai_config);
-		file_replace_var(APP_PATH.'conf/conf.php', $ai_replace);
+
+		$ai_config = isset($conf['ai']) ? $conf['ai'] : array();
+		$ai_config['providers'] = $providers;
+		// 清空旧版 models，避免旧配置干扰
+		$ai_config['models'] = array();
+
+		file_replace_var(APP_PATH.'conf/conf.php', array('ai' => $ai_config));
 
 		// hook admin_setting_ai_post_end.php
 
@@ -354,6 +359,8 @@ if($action == 'base') {
 		$nav_items = isset($conf['nav_items']) ? $conf['nav_items'] : array();
 		$sidebar_nav_items = isset($conf['sidebar_nav_items']) ? $conf['sidebar_nav_items'] : array();
 		$discover_items = isset($conf['discover_items']) ? $conf['discover_items'] : array();
+		$mobile_nav_items = isset($conf['mobile_nav_items']) ? $conf['mobile_nav_items'] : array();
+		$mobile_nav_enable = !empty($conf['mobile_nav_enable']);
 
 		// 按 rank 排序，同 rank 时分类标题排在链接前面
 		$nav_sort = function($a, $b) {
@@ -366,6 +373,7 @@ if($action == 'base') {
 		};
 		usort($nav_items, $nav_sort);
 		usort($sidebar_nav_items, $nav_sort);
+		usort($mobile_nav_items, $nav_sort);
 
 		// 页脚配置数据
 		$footer_config = isset($conf['footer']) ? $conf['footer'] : array();
@@ -394,11 +402,13 @@ if($action == 'base') {
 		$nav_slug = param('nav_slug', array(''));
 		$nav_url = param('nav_url', array(''));
 		$nav_rank = param('nav_rank', array(0));
+		$nav_type = param('nav_type', array('link'));
 
 		$nav_items = array();
-		foreach ($nav_icon as $k=>$v) {
-			if(empty($nav_name[$k]) && empty($nav_url[$k])) continue;
+		foreach ($nav_name as $k=>$v) {
+			if(empty($nav_name[$k])) continue;
 			$nav_items[] = array(
+				'type'=>isset($nav_type[$k]) ? $nav_type[$k] : 'link',
 				'icon'=>$nav_icon[$k],
 				'name'=>$nav_name[$k],
 				'slug'=>$nav_slug[$k],
@@ -450,6 +460,28 @@ if($action == 'base') {
 			);
 		}
 		$replace['discover_items'] = $discover_items;
+
+		// 手机导航列表
+		$mobile_icons = param('mobile_icon', array());
+		$mobile_icons_active = param('mobile_icon_active', array());
+		$mobile_names = param('mobile_name', array());
+		$mobile_urls = param('mobile_url', array());
+		$mobile_ranks = param('mobile_rank', array());
+		$mobile_need_login = param('mobile_need_login', array());
+		$mobile_items = array();
+		for($i = 0; $i < count($mobile_names); $i++) {
+			if(empty($mobile_names[$i])) continue;
+			$mobile_items[] = array(
+				'icon' => $mobile_icons[$i] ?? '',
+				'icon_active' => $mobile_icons_active[$i] ?? '',
+				'name' => $mobile_names[$i] ?? '',
+				'url' => $mobile_urls[$i] ?? '',
+				'rank' => intval($mobile_ranks[$i] ?? 0),
+				'need_login' => !empty($mobile_need_login[$i]) ? 1 : 0,
+			);
+		}
+		$replace['mobile_nav_items'] = $mobile_items;
+		$replace['mobile_nav_enable'] = param('mobile_nav_enable', 0) ? 1 : 0;
 
 		// 页脚设置
 		$footer_icp = param('footer_icp', '');
@@ -561,6 +593,7 @@ if($action == 'base') {
 		// hook admin_setting_permalink_get_start.php
 
 		$url_rewrite_on = isset($conf['url_rewrite_on']) ? intval($conf['url_rewrite_on']) : 0;
+		$url_rewrite_custom = isset($conf['url_rewrite_custom']) ? $conf['url_rewrite_custom'] : '/{controller}-{action}-{id}.html';
 
 		// 生成各风格的示例 URL
 		$example_thread_url = url('thread-123.htm');
@@ -584,6 +617,11 @@ if($action == 'base') {
 				'user' => '/user/1',
 				'forum' => '/forum/7',
 			),
+			4 => array(
+				'thread' => '/thread-123.html',
+				'user' => '/user-1.html',
+				'forum' => '/forum-7.html',
+			),
 		);
 
 		// Nginx rewrite 规则
@@ -592,6 +630,11 @@ if($action == 'base') {
 		$nginx_rules = '# ========== 宝塔面板 / 伪静态配置 ==========
 # 复制以下内容到 宝塔面板→网站→设置→伪静态
 # 注意：不要包含 server 块，只放 location 指令
+
+# 修复自定义 404 页面（必须放在最前面）
+# 宝塔默认 error_page 404 /404.html 会拦截 PHP 返回的 404，
+# 导致 Xiuno 自定义错误页无法显示，此行覆盖宝塔默认配置
+error_page 404 =404 /index.php;
 
 # 后台伪静态（必须放在前台之前）
 location /admin/ {
@@ -693,10 +736,21 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 		CsrfService::check();
 
 		$url_rewrite_on = param('url_rewrite_on', 0);
+		$url_rewrite_custom = param('url_rewrite_custom', '', FALSE);
 		$skip_detect = param('skip_detect', 0);
-		// 只允许 0, 1, 3
-		if(!in_array($url_rewrite_on, array(0, 1, 3))) {
+		// 只允许 0, 1, 3, 4, 5
+		if(!in_array($url_rewrite_on, array(0, 1, 3, 4, 5))) {
 			$url_rewrite_on = 0;
+		}
+		// 自定义格式验证
+		if($url_rewrite_on == 5) {
+			if(empty($url_rewrite_custom) || strpos($url_rewrite_custom, '{controller}') === FALSE) {
+				message(-1, lang('admin_permalink_custom_invalid'));
+			}
+			// 确保以 / 开头
+			if(substr($url_rewrite_custom, 0, 1) !== '/') {
+				$url_rewrite_custom = '/' . $url_rewrite_custom;
+			}
 		}
 
 		// hook admin_setting_permalink_post_start.php
@@ -706,6 +760,9 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 		// 保存新设置
 		$replace = array();
 		$replace['url_rewrite_on'] = $url_rewrite_on;
+		if($url_rewrite_on == 5) {
+			$replace['url_rewrite_custom'] = $url_rewrite_custom;
+		}
 		file_replace_var(APP_PATH.'conf/conf.php', $replace);
 
 		// 如果切换到需要 rewrite 的模式，检测 rewrite 是否生效
@@ -726,6 +783,21 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 				$test_url = $base_url . 'index.htm';
 			} elseif($url_rewrite_on == 3) {
 				$test_url = $base_url . 'index';
+			} elseif($url_rewrite_on == 4) {
+				$test_url = $base_url . 'index.html';
+			} elseif($url_rewrite_on == 5) {
+				// 自定义格式：用 controller=index 生成测试 URL
+				$custom = isset($conf['url_rewrite_custom']) ? $conf['url_rewrite_custom'] : $url_rewrite_custom;
+				$test_url = $base_url . ltrim(str_replace(
+					array('{controller}', '{action}', '{id}', '{page}'),
+					array('index', '', '', ''),
+					$custom
+				), '/');
+				// 清理空标签和多余分隔符
+				$test_url = preg_replace('#\{[\w]+\}#', '', $test_url);
+				$test_url = preg_replace('#--+#', '-', $test_url);
+				$test_url = preg_replace('#-\.#', '.', $test_url);
+				$test_url = preg_replace('#/-#', '/', $test_url);
 			}
 
 			// 发起 HTTP 请求检测（支持 HTTPS）
@@ -844,6 +916,12 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 
 		$status_labels = thread_status_labels();
 
+		// 首页版块过滤
+		$home_forum_ids = isset($conf['home_forum_ids']) ? $conf['home_forum_ids'] : array();
+
+		// 版块列表（用于版块过滤选择）
+		$all_forums = isset($forumlist_show) ? $forumlist_show : array();
+
 		$header['title'] = lang('admin_setting_display');
 		$header['mobile_title'] = lang('admin_setting_display');
 
@@ -864,6 +942,8 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 		$show_texts = param('show_text_val', array());
 		$status_color = param('status_color_text', array('#6c757d'));
 		$status_text_color = param('status_text_color_text', array('#ffffff'));
+		$status_badge_class = param('status_badge_class', array('badge'));
+		$status_badge_font_size = param('status_badge_font_size', array('0.7em'));
 		$status_rank = param('status_rank', array(0));
 
 		$labels = array();
@@ -884,11 +964,21 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 				'show_text' => !empty($show_texts[$k]) ? true : false,
 				'color' => $color,
 				'text_color' => $text_color,
+				'badge_class' => !empty($status_badge_class[$k]) ? $status_badge_class[$k] : 'badge',
+				'badge_font_size' => $status_badge_font_size[$k],
 				'rank' => intval($status_rank[$k]),
 			);
 		}
 
 		kv_set('thread_status_labels', xn_json_encode($labels));
+
+		// 首页版块过滤
+		$home_forum_ids = param('home_forum_ids', array());
+		$home_forum_ids = array_map('intval', $home_forum_ids);
+
+		$display_replace = array();
+		$display_replace['home_forum_ids'] = $home_forum_ids;
+		file_replace_var(APP_PATH.'conf/conf.php', $display_replace);
 
 		// hook admin_setting_display_post_end.php
 

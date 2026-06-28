@@ -15,10 +15,45 @@
 		</nav>
 	</div>
 	<div class="d-flex align-items-center gap-2">
-		<button type="button" class="icon-btn" id="theme-toggle" aria-label="Toggle theme">
-			<i class="ti ti-sun-filled" id="theme-icon-light"></i>
-			<i class="ti ti-moon-filled d-none" id="theme-icon-dark"></i>
-		</button>
+		<div class="dropdown">
+			<button type="button" class="icon-btn" id="theme-toggle" aria-label="Toggle theme" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+				<i class="ti ti-sun-filled" id="theme-icon-light"></i>
+				<i class="ti ti-moon-filled d-none" id="theme-icon-dark"></i>
+				<i class="ti ti-device-laptop d-none" id="theme-icon-auto"></i>
+			</button>
+			<div class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:200px;">
+				<div class="px-3 py-2">
+					<div class="text-body-secondary text-uppercase fw-bold small mb-2"><?php echo lang('admin_theme_appearance'); ?></div>
+					<div class="d-flex gap-2">
+						<button type="button" class="btn btn-outline-secondary flex-fill text-center theme-mode-btn" data-mode="light" title="<?php echo lang('admin_theme_light'); ?>">
+							<i class="ti ti-sun"></i>
+						</button>
+						<button type="button" class="btn btn-outline-secondary flex-fill text-center theme-mode-btn" data-mode="dark" title="<?php echo lang('admin_theme_dark'); ?>">
+							<i class="ti ti-moon"></i>
+						</button>
+						<button type="button" class="btn btn-outline-secondary flex-fill text-center theme-mode-btn" data-mode="auto" title="<?php echo lang('admin_theme_auto'); ?>">
+							<i class="ti ti-device-laptop"></i>
+						</button>
+					</div>
+				</div>
+				<hr class="dropdown-divider">
+				<div class="px-3 py-2">
+					<div class="text-body-secondary text-uppercase fw-bold small mb-2"><?php echo lang('admin_theme_color'); ?></div>
+					<div class="d-flex flex-wrap gap-2 theme-color-list">
+						<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="blue" title="<?php echo lang('admin_color_blue'); ?>" style="width:24px;height:24px;border-radius:50%;background:#2563eb;"></button>
+						<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="green" title="<?php echo lang('admin_color_green'); ?>" style="width:24px;height:24px;border-radius:50%;background:#16a34a;"></button>
+						<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="purple" title="<?php echo lang('admin_color_purple'); ?>" style="width:24px;height:24px;border-radius:50%;background:#9333ea;"></button>
+						<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="red" title="<?php echo lang('admin_color_red'); ?>" style="width:24px;height:24px;border-radius:50%;background:#dc2626;"></button>
+						<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="orange" title="<?php echo lang('admin_color_orange'); ?>" style="width:24px;height:24px;border-radius:50%;background:#ea580c;"></button>
+						<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="pink" title="<?php echo lang('admin_color_pink'); ?>" style="width:24px;height:24px;border-radius:50%;background:#db2777;"></button>
+						<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="teal" title="<?php echo lang('admin_color_teal'); ?>" style="width:24px;height:24px;border-radius:50%;background:#0d9488;"></button>
+						<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="indigo" title="<?php echo lang('admin_color_indigo'); ?>" style="width:24px;height:24px;border-radius:50%;background:#4f46e5;"></button>
+						<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="cyan" title="<?php echo lang('admin_color_cyan'); ?>" style="width:24px;height:24px;border-radius:50%;background:#0891b2;"></button>
+						<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="lime" title="<?php echo lang('admin_color_lime'); ?>" style="width:24px;height:24px;border-radius:50%;background:#65a30d;"></button>
+					</div>
+				</div>
+			</div>
+		</div>
 		<div class="dropdown">
 			<button type="button" class="icon-btn dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="<?php echo lang('switch_language');?>">
 				<i class="ti ti-language"></i>
@@ -47,7 +82,7 @@
 				<?php } ?>
 			</button>
 			<ul class="dropdown-menu dropdown-menu-end shadow rounded-1 p-2" style="min-width:8rem">
-				<li><a class="dropdown-item rounded-2" href="<?php echo url('index-logout');?>"><i class="ti ti-logout me-2"></i><?php echo lang('logout');?></a></li>
+				<li><a class="dropdown-item rounded-2" href="<?php echo admin_logout_url();?>"><i class="ti ti-logout me-2"></i><?php echo lang('logout');?></a></li>
 			</ul>
 		</div>
 	</div>

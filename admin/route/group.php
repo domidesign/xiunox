@@ -76,6 +76,9 @@ if(empty($action) || $action == 'list') {
 	$_gid = param(2, 0);
 	$_group = group_read($_gid);
 	empty($_group) AND message(-1, lang('group_not_exists'));
+
+	// DEBUG: 记录 group-update 请求
+	xn_log('group-update hit, gid=' . $_gid . ' method=' . $method, 'debug_error');
 	
 	// hook admin_group_update_get_post.php
 	
@@ -177,7 +180,7 @@ if(empty($action) || $action == 'list') {
 
 		// hook admin_group_update_post_end.php
 
-		message(0, lang('edit_sucesfully'));
+		message(0, lang('edit_sucessfully'));
 	}
 	
 }

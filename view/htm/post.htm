@@ -2,13 +2,15 @@
 
 <?php
 include_once APP_PATH . 'lib/security/CaptchaService.php';
-$captcha_post_on = CaptchaService::is_enabled('post');
+// 发帖用 'post' 场景，回帖用 'reply' 场景
+$captcha_scene = ($route == 'thread' && $action == 'create') ? 'post' : 'reply';
+$captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 ?>
 
 <?php
 	if($route == 'thread' && $action == 'create') {
 		$form_title = lang('thread_create');
-		$form_action = url("thread-create");
+		$form_action = thread_create_url();
 		$form_submit_txt = lang('thread_create');
 		$form_subject = '';
 		$form_message = '';
@@ -23,23 +25,23 @@ $captcha_post_on = CaptchaService::is_enabled('post');
 		}
 	} elseif($route == 'post' && $action == 'update') {
 		$form_title = lang('post_update');
-		$form_action = url("post-update-$pid");
+		$form_action = post_update_url($pid);
 		$form_submit_txt = lang('post_update');
 		$form_subject = $thread['subject'];
 		$form_message = $post['message'];
 		$form_doctype = $post['doctype'];
 		$isfirst = $post['isfirst'];
 		$quotepid = $post['quotepid'];
-		$location = url("thread-$tid");
+		$location = thread_url($tid);
 	} elseif($route == 'post' && $action == 'create') {
 		$form_title = lang('post_create');
-		$form_action = url("post-create-$tid-0");
+		$form_action = post_create_url($tid, 0);
 		$form_submit_txt = lang('post_create');
 		$form_subject = '';
 		$form_message = '';
 		$form_doctype = 1;
 		$isfirst = 0;
-		$location = url("thread-$tid");
+		$location = thread_url($tid);
 		$filelist = array();
 	}
 
@@ -75,6 +77,8 @@ $captcha_post_on = CaptchaService::is_enabled('post');
 
 	// 读取字数限制安全配置
 	include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+	$sec_subject_min_length = SecurityConfigService::get('security_subject_min_length', 2);
+	$sec_subject_max_length = SecurityConfigService::get('security_subject_max_length', 128);
 	$sec_post_min_length = SecurityConfigService::get('security_post_min_length', 10);
 	$sec_post_max_length = SecurityConfigService::get('security_post_max_length', 50000);
 	$sec_reply_min_length = SecurityConfigService::get('security_reply_min_length', 5);
@@ -85,39 +89,45 @@ $captcha_post_on = CaptchaService::is_enabled('post');
 
 <!--{hook post_start.htm}-->
 
-<div class="d-flex gap-4">
-	<div class="w-100 post-form-wrap mx-auto">
+<div class="row g-3 g-lg-4">
+	<div class="col-12 col-lg post-form-wrap">
 		<div class="x-card card">
 			<div class="card-body">
 				<?php echo $form_title; ?>
 			</div>
 			<div class="card-body">
-				<form hx-post="<?php echo $form_action;?>" hx-target="#post-msg" hx-swap="innerHTML" hx-encoding="multipart/form-data" id="form">
+				<form hx-post="<?php echo $form_action;?>" hx-target="#post-msg" hx-swap="innerHTML" hx-encoding="multipart/form-data" hx-confirm=" " id="form">
 					<?php echo CsrfService::input(); ?>
-					<div id="post-msg"></div>
 					<input type="hidden" name="doctype" value="0" />
 					<input type="hidden" name="quotepid" value="<?php echo $quotepid;?>" />
 
 					<!--{hook post_fid_before.htm}-->
 					<?php if($isfirst) { ?>
+					<?php $forum_count = count($forumlist_allowthread); ?>
 					<div class="mb-3">
 						<!--{hook post_fid_select_before.htm}-->
-						<select class="form-select me-1 w-100 post-fid-select " name="fid">
+						<select class="form-select me-1 w-100 post-fid-select " name="fid"<?php echo $forum_count > 1 ? ' required' : '';?>>
+							<?php if($forum_count > 1): ?>
+							<option value="" disabled selected><?php echo lang('please_select_forum');?></option>
+							<?php endif; ?>
 							<?php foreach ($forumlist_allowthread as $forum) { ?>
-							<option value="<?php echo $forum['fid']; ?>"><?php echo $forum['name']; ?></option>
+							<option value="<?php echo $forum['fid']; ?>"<?php echo $forum_count == 1 ? ' selected' : '';?>><?php echo esc_html($forum['name']); ?></option>
 							<?php } ?>
 						</select>
 						<!--{hook post_fid_select_after.htm}-->
 					</div>
 					<!--{hook post_subject_before.htm}-->
 					<div class="mb-3">
-						<input type="text" class="form-control w-100 post-input " placeholder="<?php echo lang('subject');?>" name="subject" value="<?php echo $form_subject;?>" id="subject">
+						<input type="text" class="form-control w-100 post-input " placeholder="<?php echo lang('subject');?>" name="subject" value="<?php echo $form_subject;?>" id="subject" maxlength="<?php echo $sec_subject_max_length;?>">
+						<div class="form-text text-body-secondary mt-1">
+							<?php echo lang('subject_char_requirement')." {$sec_subject_min_length} ".lang('char_unit').lang('char_max_unit')." {$sec_subject_max_length} ".lang('char_unit'); ?>
+						</div>
 					</div>
 					<!--{hook post_subject_after.htm}-->
 					<?php } ?>
 
 					<div class="mb-3 position-relative" id="message-editor-wrap">
-					<textarea class="form-control w-100 post-input " placeholder="<?php echo lang('message');?>" name="message" id="message" style="height: 300px; min-height: 200px;"><?php echo $form_message;?></textarea>
+					<textarea class="form-control w-100 post-input " placeholder="<?php echo lang('message');?>" name="message" id="message" style="min-height: 300px; height: auto;"><?php echo $form_message;?></textarea>
 					<div class="form-text text-body-secondary mt-1">
 						<?php echo lang('char_requirement')." {$sec_current_min_length} ".lang('char_unit').lang('char_max_unit')." {$sec_current_max_length} ".lang('char_unit'); ?>
 					</div>
@@ -125,17 +135,42 @@ $captcha_post_on = CaptchaService::is_enabled('post');
 
 					<!--{hook post_message_after.htm}-->
 
+				<!-- 手机端：高级功能区块（编辑器下、验证码上） -->
+				<div class="d-lg-none mb-3">
+					<?php if($isfirst && $uid > 0): ?>
+					<div class="x-card card" id="credits-deduct-card-mobile" style="display:none">
+						<div class="card-body  ">
+							<h6 class="mb-1 fw-semibold small"><i class="ti ti-coin me-1"></i><?php echo lang('credits_deduct_title');?></h6>
+							<div id="credits-deduct-info-mobile" class="small"></div>
+						</div>
+					</div>
+					<?php endif; ?>
+
+					<?php if($isfirst): ?>
+					<div class="x-card card">
+						<div class="card-body  ">
+							<h6 class="mb-1 fw-semibold small"><i class="ti ti-link me-1"></i><?php echo lang('ref_thread_title');?></h6>
+							<input type="text" id="ref-search-mobile" class="form-control form-control-sm mb-2" placeholder="<?php echo lang('ref_thread_search_placeholder');?>" autocomplete="off">
+							<div id="ref-search-mobile-results" style="max-height:150px;overflow-y:auto"></div>
+						</div>
+					</div>
+					<?php endif; ?>
+					<!--{hook post_ref_thread_after.htm}-->
+				</div>
+
 				<?php if($captcha_post_on): ?>
-				<div class="mb-3" id="captcha-post" data-captcha-scene="post">
+				<div class="mb-3" id="captcha-<?php echo $captcha_scene;?>" data-captcha-scene="<?php echo $captcha_scene;?>">
 					<!-- <label class="form-label"><?php echo lang('captcha_label');?></label> -->
 					<div class="input-group">
 						<span class="input-group-text"><i class="ti ti-shield-check"></i></span>
-						<input type="text" name="captcha" class="form-control" id="captcha-input-post" hx-on:input="document.getElementById('captcha-error-post').textContent=''" placeholder="<?php echo lang('please_input_captcha');?>" autocomplete="off" required>
-						<img id="captcha-img-post" src="" hx-on:click="captchaRefresh('post')" style="cursor:pointer;height:38px;border-radius:0 20px 20px 0;display:none" title="<?php echo lang('click_to_refresh');?>">
+						<input type="text" name="captcha" class="form-control" id="captcha-input-<?php echo $captcha_scene;?>" hx-on:input="document.getElementById('captcha-error-<?php echo $captcha_scene;?>').textContent=''" placeholder="<?php echo lang('please_input_captcha');?>" autocomplete="off" required>
+						<img id="captcha-img-<?php echo $captcha_scene;?>" src="" hx-on:click="captchaRefresh('<?php echo $captcha_scene;?>')" style="cursor:pointer;height:38px;border-radius:0 20px 20px 0;display:none" title="<?php echo lang('click_to_refresh');?>">
 					</div>
-					<span id="captcha-error-post" class="text-danger small mt-1"></span>
+					<span id="captcha-error-<?php echo $captcha_scene;?>" class="text-danger small mt-1"></span>
 				</div>
 				<?php endif; ?>
+
+				<div id="post-msg"></div>
 
 				<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
 						<div class="attachlist_parent">
@@ -161,16 +196,50 @@ $captcha_post_on = CaptchaService::is_enabled('post');
 			</div>
 		</div>
 	</div>
+
+	<!-- 桌面端：右侧高级功能区块 -->
+	<div class="d-none d-lg-block col-lg-auto" style="width:280px;min-width:240px">
+		<!--{hook post_sidebar_top.htm}-->
+
+		<?php if($isfirst && $uid > 0): ?>
+		<!-- 积分消耗提示 -->
+		<div class="x-card card " id="credits-deduct-card" style="display:none">
+			<div class="card-header bg-transparent border-bottom-0 py-2">
+				<h6 class="mb-0 fw-semibold"><i class="ti ti-coin me-1"></i><?php echo lang('credits_deduct_title');?></h6>
+			</div>
+			<div class="card-body pt-0">
+				<div id="credits-deduct-info" class="small"></div>
+			</div>
+		</div>
+		<?php endif; ?>
+
+		<!-- 引用帖子 -->
+		<?php if($isfirst): ?>
+		<div class="x-card card ">
+			<div class="card-header bg-transparent border-bottom-0 py-2">
+				<h6 class="mb-0 fw-semibold"><i class="ti ti-link me-1"></i><?php echo lang('ref_thread_title');?></h6>
+			</div>
+			<div class="card-body pt-0">
+				<input type="text" id="ref-search-sidebar" class="form-control form-control-sm mb-2" placeholder="<?php echo lang('ref_thread_search_placeholder');?>" autocomplete="off">
+				<div id="ref-search-sidebar-results" style="max-height:200px;overflow-y:auto"></div>
+			</div>
+		</div>
+		<?php endif; ?>
+
+		<!--{hook post_ref_thread_after.htm}-->
+
+		<!--{hook post_sidebar_bottom.htm}-->
+	</div>
 </div>
 
 <!--{hook post_end.htm}-->
 
 <?php foreach($editorAssets['css'] as $cssUrl): ?>
-<link rel="stylesheet" href="<?php echo $cssUrl;?>">
+<link rel="stylesheet" href="<?php echo $cssUrl . $static_version;?>">
 <?php endforeach; ?>
 
 <?php foreach($editorAssets['js'] as $jsUrl): ?>
-<script src="<?php echo $jsUrl;?>"></script>
+<script src="<?php echo $jsUrl . $static_version;?>"></script>
 <?php endforeach; ?>
 
 <?php echo $editorService->renderEditorHtml('message'); ?>
@@ -178,9 +247,34 @@ $captcha_post_on = CaptchaService::is_enabled('post');
 <?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
 
 
-<script src="<?php echo $conf['view_url'];?>js/upload-service.js<?php echo $static_version;?>"></script>
 <script>
 var jform = $('#form');
+
+// 防抖：submit 事件触发瞬间立即禁用按钮，防止快速连点重复提交
+var postSubmitting = false;
+var postSubmitBtn = document.getElementById('submit');
+document.getElementById('form').addEventListener('submit', function(e) {
+	if (postSubmitting) {
+		e.preventDefault();
+		e.stopImmediatePropagation();
+		return false;
+	}
+	postSubmitting = true;
+	if (postSubmitBtn) {
+		postSubmitBtn.disabled = true;
+		postSubmitBtn.setAttribute('data-original-text', postSubmitBtn.textContent.trim());
+		postSubmitBtn.textContent = postSubmitBtn.getAttribute('data-loading-text') || postSubmitBtn.textContent;
+	}
+}, true);
+// 恢复防抖状态（供 htmx:after:request 和积分确认取消时调用）
+window.resetPostSubmit = function() {
+	postSubmitting = false;
+	if (postSubmitBtn) {
+		postSubmitBtn.disabled = false;
+		var orig = postSubmitBtn.getAttribute('data-original-text');
+		if (orig) postSubmitBtn.textContent = orig;
+	}
+};
 
 // htmx 请求前：设置按钮为 loading 状态
 document.getElementById('form').addEventListener('htmx:before:request', function(event) {
@@ -190,9 +284,10 @@ document.getElementById('form').addEventListener('htmx:before:request', function
 // htmx 请求后：恢复按钮 + 刷新验证码 + 处理特殊错误
 document.getElementById('form').addEventListener('htmx:after:request', function(event) {
 	$('#submit').button('reset');
+	window.resetPostSubmit();
 
 	// 每次提交后刷新验证码
-	if(typeof captchaRefresh === 'function') captchaRefresh('post');
+	if(typeof captchaRefresh === 'function') captchaRefresh('<?php echo $captcha_scene;?>');
 
 	var response = event.detail && event.detail.ctx && event.detail.ctx.response;
 	if(!response || !response.ok) return;
@@ -205,7 +300,7 @@ document.getElementById('form').addEventListener('htmx:after:request', function(
 		var errCode = parseInt(errDiv.getAttribute('data-code')) || 0;
 		// 验证码错误 (code -1001)
 		if(errCode === -1001) {
-			var captchaErr = document.getElementById('captcha-error-post');
+			var captchaErr = document.getElementById('captcha-error-<?php echo $captcha_scene;?>');
 			if(captchaErr) captchaErr.textContent = msgEl.textContent || '';
 		}
 		// 频率限制 (code -1002)：禁用提交按钮并倒计时
@@ -309,7 +404,7 @@ function addLocalPreview(dataUrl, file) {
     var previewId = 'local-preview-' + file.name.replace(/[^a-zA-Z0-9]/g, '_') + '-' + file.size;
     if ($('#' + previewId).length) return;
     var html = '<div class="col-4 col-sm-3 col-md-2" id="' + previewId + '">' +
-        '<div class="x-card card rounded-3 upload-preview-card">' +
+        '<div class="x-card card upload-preview-card">' +
             '<img src="' + dataUrl + '" class="card-img-top" style="height:80px;object-fit:cover;" alt="<?php echo lang('preview');?>">' +
             '<div class="card-body p-1 text-center"><small class="text-muted text-truncate d-block"><?php echo lang('uploading');?></small></div>' +
         '</div>' +
@@ -320,7 +415,7 @@ function addLocalPreview(dataUrl, file) {
 // 添加上传完成的图片预览
 function addImagePreview(msg) {
     var html = '<div class="col-4 col-sm-3 col-md-2">' +
-        '<div class="x-card card rounded-3 upload-preview-card" aid="' + msg.aid + '">' +
+        '<div class="x-card card upload-preview-card" aid="' + msg.aid + '">' +
             '<img src="' + (msg.thumb_url || msg.url) + '" class="card-img-top" style="height:80px;object-fit:cover;" alt="' + msg.orgfilename + '">' +
             '<button type="button" class="btn btn-sm btn-danger btn-remove rounded-circle p-0 attach-delete-btn" style="width:22px;height:22px;line-height:22px;" title="<?php echo lang('delete');?>" onclick="deleteAttach(this, '+msg.aid+')"><i class="ti ti-x" style="font-size:12px;"></i></button>' +
             '<div class="card-body p-1 text-center"><small class="text-muted text-truncate d-block">' + msg.orgfilename + '</small></div>' +
@@ -339,7 +434,7 @@ function addAttachmentCard(msg) {
     else if (['zip','rar','7z','gz'].indexOf(msg.filetype) !== -1) iconClass = 'ti-file-zip';
 
     var fileSize = UploadService.formatFileSize(msg.filesize);
-    var html = '<div class="x-card card rounded-3 mb-1" aid="' + msg.aid + '">' +
+    var html = '<div class="x-card card mb-1" aid="' + msg.aid + '">' +
         '<div class="card-body p-2 d-flex align-items-center gap-2">' +
             '<i class="ti ' + iconClass + ' fs-4 text-muted"></i>' +
             '<div class="flex-grow-1 text-truncate">' +
@@ -359,7 +454,171 @@ jform.find('[name="fid"]').val(<?php echo $fid;?>);
 $('li[data-active="fid-<?php echo $fid;?>"]').addClass('active');
 <?php endif; ?>
 
+// 引用帖子搜索（支持桌面端和手机端）
+(function() {
+	var refSearchUrl = '<?php echo search_url();?>';
 
+	// 初始化搜索功能（桌面端 + 手机端共用逻辑）
+	function initRefSearch(inputId, resultsId) {
+		var refInput = document.getElementById(inputId);
+		var refResults = document.getElementById(resultsId);
+		if (!refInput || !refResults) return;
+
+		var refTimer = null;
+
+		refInput.addEventListener('input', function() {
+			clearTimeout(refTimer);
+			var q = refInput.value.trim();
+			if (q.length < 2) { refResults.innerHTML = ''; return; }
+			refTimer = setTimeout(function() {
+				fetch(refSearchUrl + '?keyword=' + encodeURIComponent(q) + '&ref_suggest=1', {
+					headers: {'X-Requested-With': 'XMLHttpRequest'}
+				}).then(function(r) { return r.json(); }).then(function(res) {
+					if (res.code == 0 && res.data && res.data.length > 0) {
+						refResults.innerHTML = res.data.map(function(t) {
+							return '<a href="javascript:void(0)" class="d-block text-decoration-none text-body py-1 px-2 rounded small ref-sidebar-item" data-url="' + t.url + '" data-subject="' + t.subject.replace(/"/g, '&quot;') + '" title="' + t.subject.replace(/"/g, '&quot;') + '"><i class="ti ti-message-2 me-1 text-body-secondary"></i><span class="text-truncate d-inline-block" style="max-width:200px;vertical-align:bottom">' + t.subject + '</span></a>';
+						}).join('');
+					} else {
+						refResults.innerHTML = '<div class="text-center text-body-secondary small py-2"><?php echo lang('ref_no_result');?></div>';
+					}
+				}).catch(function() {
+					refResults.innerHTML = '<div class="text-center text-body-secondary small py-2"><?php echo lang('ref_search_failed');?></div>';
+				});
+			}, 300);
+		});
+
+		// 点击搜索结果插入引用链接
+		refResults.addEventListener('click', function(e) {
+			var item = e.target.closest('.ref-sidebar-item');
+			if (!item) return;
+			var url = item.getAttribute('data-url');
+			var subject = item.getAttribute('data-subject');
+			// 插入到 AIEditor 或普通 textarea
+			var editor = window.aiEditorInstance;
+			if (editor && typeof editor.insert === 'function') {
+				editor.focus();
+				editor.insert('<a href="' + url + '">' + subject + '</a>');
+				var hiddenInput = document.querySelector('input[name="message"]');
+				if (hiddenInput && typeof editor.getHtml === 'function') {
+					hiddenInput.value = editor.getHtml();
+				}
+			} else {
+				var ta = document.getElementById('message');
+				if (ta) {
+					var link = '<a href="' + url + '">' + subject + '</a>';
+					var start = ta.selectionStart;
+					var end = ta.selectionEnd;
+					ta.value = ta.value.substring(0, start) + link + ta.value.substring(end);
+					ta.selectionStart = ta.selectionEnd = start + link.length;
+					ta.focus();
+				}
+			}
+			// 清空所有搜索框和结果
+			['ref-search-sidebar', 'ref-search-mobile'].forEach(function(id) {
+				var el = document.getElementById(id);
+				if (el) el.value = '';
+			});
+			['ref-search-sidebar-results', 'ref-search-mobile-results'].forEach(function(id) {
+				var el = document.getElementById(id);
+				if (el) el.innerHTML = '';
+			});
+			if (typeof XN !== 'undefined' && XN.toast) XN.toast('<?php echo lang('ref_inserted');?>', 'success');
+		});
+	}
+
+	// 桌面端
+	initRefSearch('ref-search-sidebar', 'ref-search-sidebar-results');
+	// 手机端
+	initRefSearch('ref-search-mobile', 'ref-search-mobile-results');
+})();
+</script>
+
+<!-- 积分消耗预检查 -->
+<?php if($uid > 0): ?>
+<script>
+(function() {
+	var submitBtn = document.getElementById('submit');
+	var form = document.getElementById('form');
+	if (!submitBtn || !form) return;
+
+	// 根据是否为主帖选择事件名
+	var creditsEvent = <?php echo $isfirst ? "'thread_post'" : "'reply_post'";?>;
+	var defaultFid = <?php echo intval($fid ?? 0);?>;
+
+	// 桌面端和手机端积分卡片（仅主帖有）
+	var creditsCardDesktop = document.getElementById('credits-deduct-card');
+	var creditsInfoDesktop = document.getElementById('credits-deduct-info');
+	var creditsCardMobile = document.getElementById('credits-deduct-card-mobile');
+	var creditsInfoMobile = document.getElementById('credits-deduct-info-mobile');
+
+	var creditsCheckUrl = '<?php echo my_credits_check_url();?>';
+	var deductDesc = ''; // 缓存扣减描述
+
+	// 更新积分卡片显示（同时更新桌面端和手机端）
+	function updateCreditsCards(html, show) {
+		[creditsInfoDesktop, creditsInfoMobile].forEach(function(el) {
+			if (el) el.innerHTML = html;
+		});
+		if (show) {
+			if (creditsCardDesktop) creditsCardDesktop.style.display = '';
+			if (creditsCardMobile) creditsCardMobile.style.display = '';
+		} else {
+			if (creditsCardDesktop) creditsCardDesktop.style.display = 'none';
+			if (creditsCardMobile) creditsCardMobile.style.display = 'none';
+		}
+	}
+
+	// 版块切换时重新检查积分（仅主帖有版块选择）
+	var fidSelect = document.querySelector('select[name="fid"]');
+	function checkCredits() {
+		var fid = fidSelect ? fidSelect.value : defaultFid;
+		fetch(creditsCheckUrl + '?event=' + creditsEvent + '&fid=' + fid, {
+			headers: {'X-Requested-With': 'XMLHttpRequest'}
+		}).then(function(r) { return r.json(); }).then(function(res) {
+			if (res.code == 0 && res.data && res.data.deduct_desc) {
+				deductDesc = res.data.deduct_desc;
+				updateCreditsCards(
+					'<div class="text-warning mb-1"><i class="ti ti-alert-triangle me-1"></i><?php echo lang('credits_deduct_warn');?></div>' +
+					'<div class="text-body">' + deductDesc + '</div>',
+					true
+				);
+			} else if (res.code != 0 && res.message && res.message.indexOf('<?php echo lang('insufficient_balance');?>') >= 0) {
+				deductDesc = '';
+				updateCreditsCards(
+					'<div class="text-danger"><i class="ti ti-alert-circle me-1"></i>' + res.message + '</div>',
+					true
+				);
+				submitBtn.disabled = true;
+				submitBtn.title = res.message;
+			} else {
+				deductDesc = '';
+				updateCreditsCards('', false);
+				submitBtn.disabled = false;
+				submitBtn.title = '';
+			}
+		}).catch(function() {
+			updateCreditsCards('', false);
+		});
+	}
+
+	if (fidSelect) {
+		fidSelect.addEventListener('change', checkCredits);
+	}
+	// 仅主帖需要预检查卡片显示，回复不需要
+	if (creditsEvent === 'thread_post') {
+		checkCredits();
+	}
+
+	// 发帖/回复表单积分确认（通过 htmx:confirm 事件拦截）
+	form.addEventListener('htmx:confirm', function(e) {
+		e.preventDefault();
+		var fid = fidSelect ? fidSelect.value : defaultFid;
+		XN.confirmCreditsDeduct(creditsEvent, fid, function() {
+			e.detail.issueRequest();
+		}, { onCancel: function() { e.detail.dropRequest(); if (window.resetPostSubmit) window.resetPostSubmit(); } });
+	});
+})();
+<?php endif; ?>
 </script>
 
 <!--{hook post_js.htm}-->

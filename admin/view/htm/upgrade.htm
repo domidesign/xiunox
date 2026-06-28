@@ -22,7 +22,7 @@
 					<code><?php echo $conf['version'] ?? '0.0.0';?></code>
 					<i class="ti ti-arrow-right"></i>
 					<span class="fw-semibold"><?php echo lang('admin_upgrade_target_version');?></span>
-					<code>1.0.1</code>
+					<code>X1.0.1</code>
 				</div>
 			</div>
 
@@ -96,7 +96,7 @@ function runNextStep() {
 	resultEl.innerHTML = '';
 
 	$.ajax({
-		url: '<?php echo url("upgrade-do");?>',
+		url: '<?php echo admin_upgrade_url();?>',
 		type: 'POST',
 		data: { step: step.id },
 		dataType: 'json',

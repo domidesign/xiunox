@@ -6,26 +6,26 @@
 	<?php echo admin_tab_active($menu['user']['tab'], 'group');?>
 </div>
 
-<div class="x-card  cardrounded-3 border">
+<div class="x-card  card">
 	<div class="card-body">
-		<form action="<?php echo url("group-update-$_gid");?>" method="post" id="form">
+		<form action="<?php echo admin_group_update_url($_gid);?>" method="post" id="form">
 			<?php echo CsrfService::input(); ?>
-			<h4 class="card-title mb-4"><?php echo lang('group_edit');?> - <?php echo $_group['name'];?></h4>
+			<h4 class="card-title mb-4"><?php echo lang('group_edit');?> - <?php echo esc_html($_group['name'] ?? '');?></h4>
 			<div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-3">
 				<label class="col-sm-2 fw-medium fs-6"><?php echo lang('group_icon');?>：</label>
 				<div class="col-sm-10 d-flex align-items-center gap-3">
 					<span class="icon-preview p-2 border rounded-3" id="group_icon_preview" style="min-width:48px;min-height:48px;display:flex;align-items:center;justify-content:center;cursor:pointer">
-						<?php echo !empty($_group['icon']) ? '<i class="'.$_group['icon'].'" style="font-size:1.5rem"></i>' : '<i class="ti ti-circle-dot text-body-secondary" style="font-size:1.5rem"></i>'; ?>
+						<?php echo !empty($_group['icon']) ? '<i class="'.esc_attr($_group['icon']).'" style="font-size:1.5rem"></i>' : '<i class="ti ti-circle-dot text-body-secondary" style="font-size:1.5rem"></i>'; ?>
 					</span>
-					<input type="text" class="form-control rounded-pill" name="icon" id="group_icon_input" value="<?php echo isset($_group['icon']) ? $_group['icon'] : '';?>" placeholder="<?php echo lang('admin_click_select_icon')?>" readonly style="cursor:pointer;max-width:200px" />
+					<input type="text" class="form-control rounded-pill" name="icon" id="group_icon_input" value="<?php echo esc_attr($_group['icon'] ?? '');?>" placeholder="<?php echo lang('admin_click_select_icon')?>" readonly style="cursor:pointer;max-width:200px" />
 					<span class="text-body-secondary fs-6"><?php echo lang('admin_click_select_tabler_icon')?></span>
 				</div>
 			</div>
 			<div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-3">
 				<label class="col-sm-2 fw-medium fs-6"><?php echo lang('group_color');?>：</label>
 				<div class="col-sm-10 d-flex align-items-center gap-3">
-					<input type="color" class="form-control form-control-color" name="color" id="group_color_input" value="<?php echo isset($_group['color']) && $_group['color'] ? $_group['color'] : '#6c757d';?>" style="width:48px;height:38px;padding:2px" />
-					<input type="text" class="form-control rounded-pill" id="group_color_text" value="<?php echo isset($_group['color']) ? $_group['color'] : '';?>" placeholder="#dc3545" style="max-width:120px" />
+					<input type="color" class="form-control form-control-color" name="color" id="group_color_input" value="<?php echo esc_attr(isset($_group['color']) && $_group['color'] ? $_group['color'] : '#6c757d');?>" style="width:48px;height:38px;padding:2px" />
+					<input type="text" class="form-control rounded-pill" id="group_color_text" value="<?php echo esc_attr($_group['color'] ?? '');?>" placeholder="#dc3545" style="max-width:120px" />
 					<span class="text-body-secondary fs-6"><?php echo lang('admin_group_color_tip')?></span>
 				</div>
 			</div>
@@ -100,7 +100,7 @@ jform.on('submit', function(){
 	$.xpost(jform.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
 			showToast(message, 'success');
-			jsubmit.text(message).delay(3000).button('reset');
+			setTimeout(function(){ window.location.reload(); }, 1000);
 			return;
 		} else {
 			showToast(message, 'error');

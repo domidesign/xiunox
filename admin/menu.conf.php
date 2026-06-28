@@ -32,17 +32,17 @@ return array(
 			'list'=>array('url'=>url('thread-list'), 'text'=>lang('admin_thread_batch')),
 		)
 	),
+	'audit' => array(
+		'url'=>url('audit'),
+		'text'=>lang('admin_content_audit'),
+		'icon'=>'ti-clipboard-check',
+		'tab'=> array (
+		)
+	),
 	'attach' => array(
 		'url'=>url('attach-list'),
 		'text'=>lang('admin_attach_manage'),
 		'icon'=>'ti-paperclip',
-		'tab'=> array (
-		)
-	),
-	'friendlink' => array(
-		'url'=>url('friendlink-list'),
-		'text'=>lang('friendlink'),
-		'icon'=>'ti-link',
 		'tab'=> array (
 		)
 	),
@@ -57,14 +57,16 @@ return array(
 		)
 	),
 	'security' => array(
-		'url'=>url('security'),
+		'url'=>url('security-post_limit'),
 		'text'=>lang('admin_security_setting_short'),
 		'icon'=>'ti-shield-lock',
 		'tab'=> array (
-			'protection'=>array('url'=>url('security-protection'), 'text'=>lang('admin_protection_setting')),
+			'post_limit'=>array('url'=>url('security-post_limit'), 'text'=>lang('admin_post_limit')),
+			'account'=>array('url'=>url('security-account'), 'text'=>lang('admin_account_security')),
+			'content'=>array('url'=>url('security-content'), 'text'=>lang('admin_content_permission')),
+			'other'=>array('url'=>url('security-other'), 'text'=>lang('admin_other_settings')),
 			'captcha'=>array('url'=>url('security-captcha'), 'text'=>lang('admin_captcha_config')),
 			'words'=>array('url'=>url('security-words'), 'text'=>lang('admin_sensitive_words')),
-			'audit'=>array('url'=>url('security-audit'), 'text'=>lang('admin_content_audit')),
 		)
 	),
 	'log' => array(
@@ -78,6 +80,13 @@ return array(
 			'audit'=>array('url'=>url('log-audit'), 'text'=>lang('admin_log_audit')),
 		)
 	),
+	'health' => array(
+		'url'=>url('health'),
+		'text'=>lang('admin_site_health'),
+		'icon'=>'ti-heart-rate-monitor',
+		'tab'=> array (
+		)
+	),
 	'other' => array(
 		'url'=>url('other'), 
 		'text'=>lang('other'), 
@@ -89,12 +98,12 @@ return array(
 		)
 	),
 	'notice' => array(
-		'url'=>url('notice-list'), 
+		'url'=>url('notice-create'), 
 		'text'=>lang('admin_system_notice'), 
 		'icon'=>'icon-bell',
 		'tab'=> array (
-			'list'=>array('url'=>url('notice-list'), 'text'=>lang('notice_admin_notice_list')),
 			'post'=>array('url'=>url('notice-create'), 'text'=>'发送消息'),
+			'list'=>array('url'=>url('notice-list'), 'text'=>lang('notice_admin_notice_list')),
 		)
 	),
 	'icon_preview' => array(

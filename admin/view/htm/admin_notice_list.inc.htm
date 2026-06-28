@@ -5,21 +5,24 @@
 	if($_notice['type'] == 1) $type_badge = '<span class="badge bg-info me-1">'.lang('admin_notice_type_announcement').'</span>';
 	elseif($_notice['type'] == 3) $type_badge = '<span class="badge bg-danger me-1">'.lang('admin_notice_type_system').'</span>';
 	else $type_badge = '<span class="badge bg-secondary me-1">'.lang('admin_notice_type_other').'</span>';
+	// 获取接收者用户名
+	$_recv_user = !empty($_notice['uid']) ? user_read_cache($_notice['uid']) : array();
+	$_recv_username = $_recv_user ? (!empty($_recv_user['display_name']) ? $_recv_user['display_name'] : $_recv_user['username']) : lang('system');
 ?>
 <li class="list-group-item list-group-item-action p-3 d-flex align-items-start gap-3 <?php echo $is_read_val == 1 ? '' : 'list-group-item-primary';?>">
-	<img class="rounded-circle flex-shrink-0" src="<?php echo $_notice['from_user_avatar_url'];?>" alt="" style="width:2rem;height:2rem" onerror="this.src='/view/img/avatar.png'">
+	<img class="rounded-circle flex-shrink-0" src="<?php echo $_notice['from_avatar_url'] ?? '/view/img/avatar.png';?>" alt="" style="width:2rem;height:2rem" onerror="this.src='/view/img/avatar.png'">
 	<div class="flex-fill" style="min-width:0">
 		<div class="d-flex align-items-center gap-2 mb-1">
 			<?php echo $type_badge;?>
-			<a target="_blank" href="../<?php echo url("user-$_notice[fromuid]");?>" class="fw-semibold text-decoration-none" style="font-size:.85rem"><?php echo $_notice['from_username'];?></a>
+			<a target="_blank" href="<?php echo frontend_user_url($_notice['from_uid']);?>" class="fw-semibold text-decoration-none" style="font-size:.85rem"><?php echo $_notice['from_username'];?></a>
 			<i class="ti ti-arrow-right text-body-tertiary" style="font-size:.65rem"></i>
-			<a target="_blank" href="../<?php echo url("user-$_notice[recvuid]");?>" class="text-decoration-none" style="font-size:.85rem"><?php echo $_notice['recv_username'];?></a>
+			<a target="_blank" href="<?php echo frontend_user_url($_notice['uid']);?>" class="text-decoration-none" style="font-size:.85rem"><?php echo esc_html($_recv_username);?></a>
 			<span class="text-body-tertiary ms-auto" style="font-size:.75rem"><?php echo $_notice['create_date_fmt'];?></span>
 			<span class="badge <?php echo $is_read_val == 1 ? 'bg-success' : 'bg-warning';?> rounded-pill" style="font-size:.65rem"><?php echo $notice_isread;?></span>
 		</div>
 		<div class="text-body-secondary" style="font-size:.85rem;line-height:1.5"><?php echo $_notice['message'];?></div>
 	</div>
-	<button type="button" class="btn btn-sm btn-outline-danger flex-shrink-0 confirm" aria-label="Delete" data-nid="<?php echo $_notice['nid'];?>" data-recvuid="<?php echo $_notice['recvuid'];?>" title="<?php echo lang('delete');?>">
+	<button type="button" class="btn btn-sm btn-outline-danger flex-shrink-0 confirm" aria-label="Delete" data-nid="<?php echo $_notice['nid'];?>" data-recvuid="<?php echo $_notice['uid'];?>" title="<?php echo lang('delete');?>">
 		<i class="ti ti-trash"></i>
 	</button>
 </li>

@@ -2,27 +2,54 @@
 
 <!--{hook message_start.htm}-->
 
-<div class="d-flex justify-content-center py-5">
-	<div class="w-100" style="max-width:32rem">
-		<div class="alert <?php echo $code == 0 ? 'alert-success' : 'alert-danger';?> rounded-1 d-flex align-items-center gap-2" role="alert">
-			<i class="ti ti-<?php echo $code == 0 ? 'circle-check' : 'alert-triangle';?> fs-3 flex-shrink-0"></i>
-			<span class="fs-5 fw-medium">
-				<!--{hook message_message_before.htm}-->
-				<?php echo is_array($message) ? print_r($message, 1) : $message;?>
-				<!--{hook message_message_after.htm}-->
-			</span>
-			<!--{hook message_title_after.htm}-->
-		</div>
-		<div class="text-center mt-3">
-			<a href="javascript:history.back()" class="btn btn-outline-secondary ">
-				<i class="ti ti-arrow-left me-1"></i><?php echo lang('back');?>
-			</a>
-		</div>
+<?php
+// 解析 jump() 生成的跳转 URL（成功消息现在由 message() 函数 303 重定向处理，此处仅处理错误消息）
+$_redirect_url = '';
+$_clean_msg = is_array($message) ? print_r($message, 1) : $message;
+if(is_string($message) && preg_match('/window\.location=[\'"]([^\'"]+)[\'"]/', $message, $m)) {
+	$_redirect_url = $m[1];
+	$_clean_msg = strip_tags($message);
+}
+$_toast_type = ($code == 0) ? 'success' : 'danger';
+// 成功消息已由 message() 函数 303 重定向，此处仅处理错误消息
+$_need_redirect = !empty($_redirect_url);
+$_back_url = !empty($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '/';
+?>
+
+<?php if(!$_need_redirect): ?>
+<!-- 错误提示（无跳转）：显示简洁错误信息，不自动跳转 -->
+<div class="d-flex justify-content-center align-items-center" style="min-height:50vh;">
+	<div class="text-center">
+		<i class="ti ti-alert-circle fs-1 text-danger mb-3"></i>
+		<div class="text-body-secondary"><?php echo htmlspecialchars($_clean_msg, ENT_QUOTES, 'UTF-8');?></div>
+		<button class="btn btn-outline-secondary btn-sm mt-3" onclick="if(window.history.length > 1){history.back();}else{window.location.href='<?php echo htmlspecialchars($_back_url, ENT_QUOTES, 'UTF-8');?>';}"><?php echo lang('back');?></button>
 	</div>
 </div>
+<?php endif; ?>
 
 <!--{hook message_end.htm}-->
 
 <?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+(function() {
+	var msg = <?php echo json_encode($_clean_msg);?>;
+	var type = <?php echo json_encode($_toast_type);?>;
+	var redirect = <?php echo json_encode($_redirect_url);?>;
+	var code = <?php echo json_encode($code);?>;
+
+	if(typeof showToast === 'function') {
+		showToast(msg, type);
+	} else if(typeof XN !== 'undefined' && typeof XN.toast === 'function') {
+		XN.toast(msg, type);
+	}
+
+	// 有跳转 URL → 立即跳转（无需 loading 中间页）
+	// 无跳转（错误）→ 停留显示错误，用户手动返回
+	if(redirect) {
+		window.location.href = redirect;
+	}
+})();
+</script>
 
 <!--{hook message_js.htm}-->

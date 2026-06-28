@@ -42,6 +42,33 @@ interface DatabaseInterface {
     public function findOne(string $table, array $cond = [], array $orderby = [], array $col = []): ?array;
 
     /**
+     * 带 GROUP BY 的聚合查询（多行）
+     * @param string $table 表名（不含前缀）
+     * @param array $cond WHERE 条件
+     * @param array $groupby GROUP BY 字段数组，如 ['uid']
+     * @param array $having HAVING 条件，格式同 $cond，如 ['cnt' => ['>' => 5]]
+     * @param array $orderby 排序，如 ['cnt' => -1]
+     * @param int $page 页码
+     * @param int $pagesize 每页数量
+     * @param string $key 返回数组的 key 字段
+     * @param array $col SELECT 字段，聚合字段必须用别名，如 ['uid', 'COUNT(*) as cnt']
+     * @return array
+     */
+    public function find_group(string $table, array $cond = [], array $groupby = [], array $having = [], array $orderby = [], int $page = 1, int $pagesize = 10, string $key = '', array $col = []): array;
+
+    /**
+     * 带 GROUP BY 的聚合查询（单行）
+     * @param string $table 表名（不含前缀）
+     * @param array $cond WHERE 条件
+     * @param array $groupby GROUP BY 字段数组
+     * @param array $having HAVING 条件
+     * @param array $orderby 排序
+     * @param array $col SELECT 字段（含聚合函数别名）
+     * @return array|null
+     */
+    public function find_one_group(string $table, array $cond = [], array $groupby = [], array $having = [], array $orderby = [], array $col = []): ?array;
+
+    /**
      * 执行 SQL（INSERT/UPDATE/DELETE/CREATE 等）
      * @param string $sql
      * @return int 影响行数或插入ID

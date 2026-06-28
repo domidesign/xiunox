@@ -22,12 +22,12 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 
 				<!-- Logo -->
 				<!--{hook header_nav_logo_before.htm}-->
-				<a class="fs-6 d-flex align-items-center" href="<?php echo url('index');?>">
-					<img src="<?php echo $conf['logo_mobile_url'];?>" class="site-logo"
-						alt="<?php echo $conf['sitename'];?>">
+				<a class="fs-6 d-flex align-items-center" href="/">
+					<img src="<?php echo esc_attr($conf['logo_mobile_url']);?>" class="site-logo"
+						alt="<?php echo esc_attr($conf['sitename']);?>">
 					<?php if($conf['sitename']) { ?>
-					<span class="d-none d-sm-inline ms-2">
-						<?php echo $conf['sitename'];?>
+					<span class="d-inline-block ms-2 site-name text-truncate">
+						<?php echo esc_html($conf['sitename']);?>
 					</span>
 					<?php } ?>
 				</a>
@@ -38,29 +38,86 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 			<div class="d-none d-lg-flex col-lg-7 align-items-center justify-content-between gap-2">
 				<!--{hook header_nav_custom_before.htm}-->
 				<ul class="navbar-nav flex-row   px-1">
-					<?php if(empty($_nav_items)) { ?>
-					<li class="nav-item">
-						<a class="nav-link transition-colors" href="<?php echo url('index');?>"><i class="ti ti-home me-1"></i><?php echo lang('index_page');?></a>
-					</li>
-					<?php } else { ?>
-					<?php usort($_nav_items, function($a, $b) { return intval($a['rank'] ?? 0) - intval($b['rank'] ?? 0); }); ?>
-					<?php foreach($_nav_items as $_ni) { ?>
-					<li class="nav-item" data-active="nav-<?php echo $_ni['slug'];?>"><a
-							class="nav-link transition-colors" href="<?php echo $_ni['url'];?>">
-							<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo $_ni['icon'];?>"></i>
+				<?php if(empty($_nav_items)) { ?>
+				<li class="nav-item">
+					<a class="nav-link transition-colors" href="<?php echo index_url();?>"><i class="ti ti-home me-1"></i><?php echo lang('index_page');?></a>
+				</li>
+				<?php } else { ?>
+				<?php usort($_nav_items, function($a, $b) {
+				$ra = intval($a['rank'] ?? 0);
+				$rb = intval($b['rank'] ?? 0);
+				return $ra - $rb;
+			}); ?>
+			<?php
+			// 分组渲染：title 类型作为分组标题，其后的 link 归入该分组
+			// 如果 title 后面没有 link，则 title 作为一级链接直接展示（使用其 url）
+			$_current_group = null;
+			$_group_links = array();
+			$_flush_group = function() use(&$_current_group, &$_group_links) {
+				if($_current_group === null) return '';
+				if(empty($_group_links)) {
+					// 分类后没有链接：作为一级菜单直接展示
+					$url = !empty($_current_group['url']) ? esc_attr($_current_group['url']) : '#';
+					$html = '<li class="nav-item" data-active="nav-' . esc_attr($_current_group['slug'] ?? '') . '">';
+					$html .= '<a class="nav-link transition-colors" href="' . $url . '">';
+					if(!empty($_current_group['icon'])) $html .= '<i class="' . esc_attr($_current_group['icon']) . ' me-1"></i>';
+					$html .= esc_html($_current_group['name']);
+					$html .= '</a></li>';
+					echo $html;
+				} else {
+					// 分类后有链接：渲染为下拉菜单
+					$html = '<li class="nav-item dropdown">';
+					$html .= '<a class="nav-link transition-colors dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">';
+					if(!empty($_current_group['icon'])) $html .= '<i class="' . esc_attr($_current_group['icon']) . ' me-1"></i>';
+					$html .= esc_html($_current_group['name']);
+					$html .= '</a>';
+					$html .= '<ul class="dropdown-menu shadow border-0">';
+					foreach($_group_links as $_link) {
+						$html .= '<li><a class="dropdown-item py-2" href="' . esc_attr($_link['url']) . '">';
+						if(!empty($_link['icon'])) $html .= '<i class="' . esc_attr($_link['icon']) . ' me-2"></i>';
+						$html .= esc_html($_link['name']);
+						$html .= '</a></li>';
+					}
+					$html .= '</ul></li>';
+					echo $html;
+				}
+				$_current_group = null;
+				$_group_links = array();
+			};
+			?>
+				<?php foreach($_nav_items as $_ni) {
+					$_type = isset($_ni['type']) ? $_ni['type'] : 'link';
+					if ($_type === 'title') {
+						// 先输出上一个分组
+						$_flush_group();
+						$_current_group = $_ni;
+					} else {
+						if ($_current_group !== null) {
+							// 归入当前分组
+							$_group_links[] = $_ni;
+						} else {
+							// 无分组的独立链接
+				?>
+					<li class="nav-item" data-active="nav-<?php echo esc_attr($_ni['slug']);?>"><a
+							class="nav-link transition-colors" href="<?php echo esc_attr($_ni['url']);?>">
+							<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo esc_attr($_ni['icon']);?>"></i>
 							<?php } ?>
-							<?php echo $_ni['name'];?>
+							<?php echo esc_html($_ni['name']);?>
 						</a></li>
-					<?php } ?>
-					<?php } ?>
-				</ul>
+				<?php
+						}
+					}
+				} ?>
+				<?php $_flush_group(); ?>
+				<?php } ?>
+			</ul>
 				<!--{hook header_nav_custom_after.htm}-->
 
 				<!--{hook header_nav_search_before.htm}-->
-				<form id="navSearchForm" class="d-flex align-items-center position-relative"
-					action="<?php echo url('search.htm');?>" method="get"
-					onsubmit="<?php if($_search_disabled): ?>showToast('<?php echo lang('please_login_to_search');?>','warning');return false;<?php else: ?>var kw=this.querySelector('input[name=keyword]');if(!kw.value.trim()){showToast('<?php echo lang('please_input_keyword');?>');return false;}window.location.href='<?php echo url('search.htm');?>?keyword='+encodeURIComponent(kw.value.trim());return false;
-					<?php endif; ?>">
+				<form id="navSearchForm" class="d-flex m-0 align-items-center position-relative"
+				action="<?php echo search_url();?>" method="get"
+				onsubmit="<?php if($_search_disabled): ?>showToast('<?php echo lang('please_login_to_search');?>','warning');return false;<?php else: ?>var kw=this.querySelector('input[name=keyword]');if(!kw.value.trim()){showToast('<?php echo lang('please_input_keyword');?>');return false;}window.location.href='<?php echo search_url();?>?keyword='+encodeURIComponent(kw.value.trim());return false;
+				<?php endif; ?>">
 					<div class="input-group input-group-sm input-group-search" style="width:14rem">
 						<input type="text" name="keyword"
 							placeholder="<?php echo $_search_disabled ? lang('please_login_to_search') : lang('search_placeholder_full');?>"
@@ -69,8 +126,7 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 						<button class="btn btn-sm" type="submit" <?php if($_search_disabled) echo 'disabled' ; ?>><i
 								class="ti ti-search"></i></button>
 					</div>
-					<div id="searchSuggest" class="dropdown-menu shadow rounded-3 p-0"
-						style="width:14rem;max-height:16rem;overflow-y:auto;"></div>
+	
 				</form>
 				<!--{hook header_nav_search_after.htm}-->
 			</div>
@@ -78,18 +134,53 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 			<!-- 右侧：操作图标（与右侧栏 col-lg-3 对齐） -->
 			<div class="col-auto col-lg-3 d-flex align-items-center justify-content-end gap-1 ms-auto ms-lg-0">
 
-				<a href="<?php echo url('search.htm');?>" class="nav-icon-btn d-lg-none"
+				<a href="<?php echo search_url();?>" class="nav-icon-btn d-lg-none"
 					aria-label="<?php echo lang('search');?>" <?php if($_search_disabled): ?>onclick="showToast('
 					<?php echo lang('please_login_to_search');?>','warning');return false;"
 					<?php endif; ?>>
 					<i class="ti ti-search"></i>
 				</a>
 
-				<button type="button" class="nav-icon-btn" id="theme-toggle" title="<?php echo lang('dark_mode');?>"
-					aria-label="<?php echo lang('dark_mode');?>">
-					<i class="ti ti-sun" id="theme-icon-light"></i>
-					<i class="ti ti-moon d-none" id="theme-icon-dark"></i>
-				</button>
+				<div class="dropdown">
+					<button type="button" class="nav-icon-btn" id="theme-toggle" title="<?php echo lang('theme_settings'); ?>"
+						data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+						<i class="ti ti-sun" id="theme-icon-light"></i>
+						<i class="ti ti-moon d-none" id="theme-icon-dark"></i>
+						<i class="ti ti-device-laptop d-none" id="theme-icon-auto"></i>
+					</button>
+					<div class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:200px;">
+					<div class="px-3 py-2">
+						<div class="text-body-secondary text-uppercase fw-bold small mb-2"><?php echo lang('appearance'); ?></div>
+						<div class="d-flex gap-2">
+							<button type="button" class="btn btn-outline-secondary flex-fill text-center theme-mode-btn" data-mode="light" title="<?php echo lang('theme_light'); ?>">
+								<i class="ti ti-sun"></i>
+							</button>
+							<button type="button" class="btn btn-outline-secondary flex-fill text-center theme-mode-btn" data-mode="dark" title="<?php echo lang('theme_dark'); ?>">
+								<i class="ti ti-moon"></i>
+							</button>
+							<button type="button" class="btn btn-outline-secondary flex-fill text-center theme-mode-btn" data-mode="auto" title="<?php echo lang('theme_auto'); ?>">
+								<i class="ti ti-device-laptop"></i>
+							</button>
+						</div>
+					</div>
+					<hr class="dropdown-divider">
+					<div class="px-3 py-2">
+						<div class="text-body-secondary text-uppercase fw-bold small mb-2"><?php echo lang('theme_color'); ?></div>
+						<div class="d-flex flex-wrap gap-2 theme-color-list">
+							<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="blue" title="<?php echo lang('color_blue'); ?>" style="width:24px;height:24px;border-radius:50%;background:#2563eb;"></button>
+							<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="green" title="<?php echo lang('color_green'); ?>" style="width:24px;height:24px;border-radius:50%;background:#16a34a;"></button>
+							<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="purple" title="<?php echo lang('color_purple'); ?>" style="width:24px;height:24px;border-radius:50%;background:#9333ea;"></button>
+							<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="red" title="<?php echo lang('color_red'); ?>" style="width:24px;height:24px;border-radius:50%;background:#dc2626;"></button>
+							<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="orange" title="<?php echo lang('color_orange'); ?>" style="width:24px;height:24px;border-radius:50%;background:#ea580c;"></button>
+							<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="pink" title="<?php echo lang('color_pink'); ?>" style="width:24px;height:24px;border-radius:50%;background:#db2777;"></button>
+							<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="teal" title="<?php echo lang('color_teal'); ?>" style="width:24px;height:24px;border-radius:50%;background:#0d9488;"></button>
+							<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="indigo" title="<?php echo lang('color_indigo'); ?>" style="width:24px;height:24px;border-radius:50%;background:#4f46e5;"></button>
+							<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="cyan" title="<?php echo lang('color_cyan'); ?>" style="width:24px;height:24px;border-radius:50%;background:#0891b2;"></button>
+							<button type="button" class="btn p-0 border-0 theme-color-btn" data-color="lime" title="<?php echo lang('color_lime'); ?>" style="width:24px;height:24px;border-radius:50%;background:#65a30d;"></button>
+						</div>
+					</div>
+				</div>
+				</div>
 
 				<div class="dropdown">
 					<a href="#" class="nav-icon-btn" title="<?php echo lang('switch_language');?>"
@@ -101,7 +192,7 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 						$langs = array('zh-cn'=>lang('lang_zh_cn'), 'zh-tw'=>lang('lang_zh_tw'), 'en-us'=>lang('lang_en_us'), 'ja-jp'=>lang('lang_ja_jp'), 'ko-kr'=>lang('lang_ko_kr'), 'ru-ru'=>lang('lang_ru_ru'), 'th-th'=>lang('lang_th_th'));
 						foreach ($langs as $code => $name) {
 							$active = ($conf['lang'] == $code) ? ' active' : '';
-							echo '<li><a class="dropdown-item'.$active.'" href="'.url('lang-'.$code).'">'.$name.'</a></li>';
+							echo '<li><a class="dropdown-item'.$active.'" href="'.lang_url($code).'">'.$name.'</a></li>';
 						}
 						?>
 					</ul>
@@ -130,7 +221,7 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 									<?php echo lang('mark_all_read');?>
 								</a>
 								<span class="text-body-secondary small" id="notice-dropdown-mark-all-sep" style="display:none;">|</span>
-								<a href="<?php echo url('my-notice');?>" class="text-decoration-none small">
+								<a href="<?php echo my_notify_url();?>" class="text-decoration-none small">
 									<?php echo lang('view_all');?>
 								</a>
 							</div>
@@ -147,7 +238,7 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 				<!--{hook header_nav_user_menu_before.htm}-->
 
 				<?php if(empty($uid)) { ?>
-				<a href="<?php echo url('user-login');?>" class="nav-icon-btn" title="<?php echo lang('login');?>"
+				<a href="<?php echo user_login_url();?>" class="nav-icon-btn" title="<?php echo lang('login');?>"
 					aria-label="<?php echo lang('login');?>">
 					<i class="ti ti-user"></i>
 				</a>
@@ -158,14 +249,14 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 					</button>
 					<ul class="dropdown-menu dropdown-menu-end shadow rounded-1 mt-3" style="width:12rem;">
 						<li class="dropdown-header"><span>
-								<?php echo $user['username'];?>
+								<?php echo esc_html($user['display_name'] ?? $user['username']);?>
 							</span></li>
-						<li><a class="dropdown-item" href="<?php echo url("user-$uid");?>"><i class="ti ti-user"></i>
-								<?php echo lang('my_home_page');?>
-							</a></li>
-						<li><a class="dropdown-item" href="<?php echo url('my');?>"><i class="ti ti-settings"></i>
-								<?php echo lang('edit_profile');?>
-							</a></li>
+						<li><a class="dropdown-item" href="<?php echo user_url($uid);?>"><i class="ti ti-user"></i>
+							<?php echo lang('my_home_page');?>
+						</a></li>
+					<li><a class="dropdown-item" href="<?php echo my_url();?>"><i class="ti ti-settings"></i>
+							<?php echo lang('user_center');?>
+						</a></li>
 					
 
 
@@ -173,12 +264,12 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 						<!--{hook header_nav_admin_page_before.htm}-->
 					 
 						<?php if($gid == 1) { ?>
-						<li><a class="dropdown-item" href="admin/" target="_blank"><i class="ti ti-settings"></i>
+						<li><a class="dropdown-item" href="/admin/" target="_blank"><i class="ti ti-settings"></i>
 								<?php echo lang('admin_page');?>
 							</a></li>
 						<?php } ?>
 						<!--{hook header_nav_admin_page_after.htm}-->
-	<li><a class="dropdown-item" href="<?php echo url('user-logout');?>"><i
+	<li><a class="dropdown-item" href="<?php echo user_logout_url();?>" hx-boost="false"><i
 									class="ti ti-logout"></i>
 								<?php echo lang('logout_action');?>
 							</a></li>

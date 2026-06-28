@@ -1,0 +1,64 @@
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook my_credits_rules_page_start.htm}-->
+
+<?php $active_tab = 'credits_rules'; ?>
+<?php include _include(APP_PATH.'view/htm/my.layout.inc.htm');?>
+
+		<!-- 积分规则内容区 -->
+		<div class="x-card card">
+			<div class="card-body">
+				<!-- 标题 + 返回链接 -->
+				<div class="d-flex align-items-center mb-3">
+					<h6 class="mb-0"><i class="ti ti-list-details me-1"></i><?php echo lang('credits_rules');?></h6>
+					<a href="<?php echo my_credits_url();?>" class="ms-auto btn btn-sm btn-outline-primary">
+						<i class="ti ti-history me-1"></i><?php echo lang('user_credits_log');?>
+					</a>
+				</div>
+
+				<!-- 版块选择器 -->
+				<div class="mb-3">
+					<select class="form-select form-select-sm" id="credits-rule-forum"
+						hx-get="<?php echo my_credits_rules_url();?>"
+						hx-target="#credits-rule-content"
+						hx-swap="innerHTML"
+						hx-trigger="change"
+						hx-vals='js:{fid: this.value}'>
+						<option value="0"><?php echo lang('global_rules');?></option>
+						<?php if(!empty($forumlist)) { foreach($forumlist as $f) { ?>
+						<option value="<?php echo $f['fid'];?>" <?php echo $fid == $f['fid'] ? 'selected' : '';?>><?php echo esc_html($f['name']);?></option>
+						<?php } } ?>
+					</select>
+				</div>
+
+				<!-- 规则表格 -->
+				<div id="credits-rule-content">
+					<?php include _include(APP_PATH.'view/htm/credits_rules_table.inc.htm');?>
+				</div>
+			</div>
+		</div>
+
+	</div><!-- /col-lg-7 -->
+</div><!-- /row -->
+
+<style>
+/* 积分规则表格：修复手机端宽度被压缩的问题 */
+.credits-rules-table {
+	table-layout: fixed;
+	width: 100%;
+}
+.credits-rules-table th,
+.credits-rules-table td {
+	word-break: break-word;
+}
+.credits-rules-table th:first-child,
+.credits-rules-table td:first-child {
+	width: 40%;
+}
+.credits-rules-table th:not(:first-child),
+.credits-rules-table td:not(:first-child) {
+	width: 20%;
+}
+</style>
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>

@@ -57,6 +57,7 @@ elseif($action == 'cache_setting') {
 		$config = CacheService::getConfig();
 		$status = CacheService::getStatus();
 		$drivers = CacheService::getAvailableDrivers();
+		$opcacheStatus = CacheService::getOpcacheStatus();
 		include _include(ADMIN_PATH.'view/htm/other_cache_setting.htm');
 
 	} else {

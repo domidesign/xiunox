@@ -58,6 +58,7 @@ if ($seg1 === 'hot') {
                 $userMap[$u] = [
                     'uid' => $ur['uid'],
                     'username' => $ur['username'],
+                    'display_name' => $ur['display_name'] ?? $ur['username'],
                     'avatar_url' => $ur['avatar_url'] ?? '',
                 ];
             }
@@ -290,7 +291,7 @@ if ($seg1 === 'hot') {
             $searchSql = '';
             if (!empty($keyword)) {
                 $kw = $db->quote('%' . $keyword . '%');
-                $searchSql = "(subject LIKE {$kw} OR message LIKE {$kw})";
+                $searchSql = "(subject LIKE '{$kw}' OR message LIKE '{$kw}')";
             }
 
             $allowedOrderby = ['tid', 'create_date', 'last_date', 'views', 'posts'];

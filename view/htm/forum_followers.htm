@@ -1,0 +1,96 @@
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook forum_followers_start.htm}-->
+
+<div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
+	<div class="d-none d-lg-block col-lg-2">
+		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
+	</div>
+	<div class="col-lg-7 main" style="min-width:0">
+		<div class="x-card card  ">
+			<div class="card-body">
+				<div class="d-flex justify-content-between align-items-center mb-3">
+					<h5 class="mb-0"><i class="ti ti-users me-1"></i><?php echo esc_html($forum['name']);?> - <?php echo lang('members');?>（<?php echo intval($totalnum);?>）</h5>
+					<a href="<?php echo forum_url($fid);?>" class="btn btn-sm btn-outline-secondary"><i class="ti ti-arrow-left me-1"></i><?php echo lang('back_to_forum');?></a>
+				</div>
+
+				<?php if(!empty($_all_members)) { ?>
+				<div class="row g-3">
+					<?php foreach($_all_members as $_m) { ?>
+					<div class="col-6 col-md-4 col-lg-3">
+						<div class="d-flex align-items-center gap-2 p-2 rounded-1" style="background:var(--bs-tertiary-bg)">
+							<a href="<?php echo user_url($_m['uid']);?>" class="flex-shrink-0" tabindex="-1">
+							<img src="<?php echo $_m['avatar_url'];?>" class="rounded-circle" width="40" height="40" alt="<?php echo esc_html($_m['display_name']);?>" onerror="this.src='/view/img/avatar.png'">
+						</a>
+						<div class="flex-fill" style="min-width:0">
+							<a href="<?php echo user_url($_m['uid']);?>" class="text-body text-decoration-none fw-semibold small text-truncate d-block"><?php echo esc_html($_m['display_name']);?></a>
+								<div class="text-body-tertiary" style="font-size:0.7em">
+									<span><i class="ti ti-message"></i> <?php echo $_m['posts'];?></span>
+									<span class="ms-1"><i class="ti ti-file-text"></i> <?php echo $_m['threads'];?></span>
+								</div>
+							</div>
+						</div>
+					</div>
+					<?php } ?>
+				</div>
+				<?php } else { ?>
+				<div class="text-center py-5 text-body-secondary">
+					<i class="ti ti-users fs-1"></i>
+					<p class="mt-2"><?php echo lang('no_followers');?></p>
+				</div>
+				<?php } ?>
+			</div>
+		</div>
+
+		<?php if($pagination) { ?>
+		<nav>
+			<ul class="pagination pagination-boxed my-4 justify-content-center flex-wrap">
+				<?php echo $pagination; ?>
+			</ul>
+		</nav>
+		<?php } ?>
+	</div>
+	<div class="d-none d-lg-block col-lg-3 aside">
+		<div class="x-card card card-forum-info  mb-3">
+			<div class="card-body">
+				<div class="d-flex align-items-center gap-3">
+					<?php if(!empty($forum['icon_url'])): ?>
+					<span class="flex-shrink-0"><img src="<?php echo $forum['icon_url'];?>" class="rounded" width="32" height="32" alt="<?php echo esc_html($forum['name']);?>" /></span>
+					<?php elseif(!empty($forum['icon_class'])): ?>
+					<span class="flex-shrink-0" style="font-size:2rem"><i class="<?php echo $forum['icon_class'];?>"></i></span>
+					<?php else: ?>
+					<span class="flex-shrink-0"><img src="/view/img/forum.png" class="rounded" width="32" height="32" alt="<?php echo esc_html($forum['name']);?>" /></span>
+					<?php endif; ?>
+					<div class="flex-fill" style="min-width:0">
+						<h6 class="fw-bold mb-0"><?php echo esc_html($forum['name']);?></h6>
+					</div>
+				</div>
+			</div>
+			<?php if(!empty($forum['brief'])): ?>
+			<div class="card-body py-2">
+				<div class="bg-body-tertiary rounded-1 p-1 small text-body-secondary">
+					<?php echo esc_html($forum['brief']);?>
+				</div>
+			</div>
+			<?php endif; ?>
+			<div class="card-body p-2">
+				<div class="d-flex small text-center">
+					<div class="flex-fill py-1"><span class="text-body-secondary d-block"><?php echo lang('threads_label');?></span><b><?php echo $forum['threads'];?></b></div>
+					<div class="flex-fill py-1"><span class="text-body-secondary d-block"><?php echo lang('today_replies');?></span><b><?php echo $forum['todayposts'];?></b></div>
+					<div class="flex-fill py-1"><span class="text-body-secondary d-block"><?php echo lang('members');?></span><b><?php echo $forum['follows'];?></b></div>
+				</div>
+			</div>
+			<div class="px-3 pb-3">
+				<a role="button" class="btn btn-primary w-100" href="<?php echo thread_create_url($fid);?>" hx-boost="false"><i class="ti ti-pencil me-1"></i> <?php echo lang('thread_create_new');?></a>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!--{hook forum_followers_end.htm}-->
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+$('li[data-active="fid-<?php echo $fid;?>"]').addClass('active');
+</script>

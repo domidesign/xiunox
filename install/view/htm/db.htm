@@ -5,7 +5,7 @@
 
 <div class="row justify-content-center mt-3">
 	<div class="col-lg-12">
-		<div class="x-card  cardrounded-3">
+		<div class="x-card  card">
 			<div class="card-body">
 				<h3 class="card-title"><?php echo lang('step_2_title');?></h3>
 				<input type="hidden" name="type" value="pdo_mysql">
@@ -75,7 +75,7 @@ jform.addEventListener('submit', function(e) {
 	e.preventDefault();
 	var postdata = new FormData(jform);
 	jsubmit.disabled = true;
-	jsubmit.textContent = jsubmit.dataset.loadingText || 'Installing...';
+	jsubmit.textContent = jsubmit.dataset.loadingText || '<?php echo lang('install_installing'); ?>';
 
 	fetch(jform.action, {
 		method: 'POST',
@@ -98,16 +98,16 @@ jform.addEventListener('submit', function(e) {
 				forceInput.value = '1';
 				jform.appendChild(forceInput);
 				jsubmit.disabled = false;
-				jsubmit.textContent = jsubmit.dataset.originalText || 'Submit';
+				jsubmit.textContent = jsubmit.dataset.originalText || '<?php echo lang('install_submit'); ?>';
 				jform.dispatchEvent(new Event('submit'));
 			} else {
 				jsubmit.disabled = false;
-				jsubmit.textContent = jsubmit.dataset.originalText || 'Submit';
+				jsubmit.textContent = jsubmit.dataset.originalText || '<?php echo lang('install_submit'); ?>';
 			}
 		} else if(data.code < 0) {
 			alert(data.message);
 			jsubmit.disabled = false;
-			jsubmit.textContent = jsubmit.dataset.originalText || 'Submit';
+			jsubmit.textContent = jsubmit.dataset.originalText || '<?php echo lang('install_submit'); ?>';
 		} else {
 			var field = jform.querySelector('[name="'+data.code+'"]');
 			if(field) {
@@ -115,12 +115,12 @@ jform.addEventListener('submit', function(e) {
 				alert(data.message);
 			}
 			jsubmit.disabled = false;
-			jsubmit.textContent = jsubmit.dataset.originalText || 'Submit';
+			jsubmit.textContent = jsubmit.dataset.originalText || '<?php echo lang('install_submit'); ?>';
 		}
 	}).catch(function(err) {
-		alert('Request failed: ' + err.message);
+		alert('<?php echo lang('install_request_failed'); ?>' + err.message);
 		jsubmit.disabled = false;
-		jsubmit.textContent = jsubmit.dataset.originalText || 'Submit';
+		jsubmit.textContent = jsubmit.dataset.originalText || '<?php echo lang('install_submit'); ?>';
 	});
 });
 </script>

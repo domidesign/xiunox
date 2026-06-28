@@ -229,18 +229,12 @@ if(empty($action)) {
 		// 初始化
 		copy(APP_PATH.'conf/conf.default.php', APP_PATH.'conf/conf.php');
 
-		// 管理员密码（直接用 SQL 更新，避免 addslashes 破坏 bcrypt 的 $ 字符）
-		// 注意：登录流程会先 md5(明文) 再传给 password_verify，所以 password_hash 要用 md5 值生成
-		$salt = xn_rand(16);
-		$password = md5(md5($adminpass).$salt);
-		$password_md5 = md5($adminpass); // 登录时前端传来的就是 md5(明文)
-		$password_hash = password_hash($password_md5, PASSWORD_DEFAULT);
+		// 管理员密码（直接用 bcrypt(明文)，不经过 md5 预处理）
+		$password_hash = password_hash($adminpass, PASSWORD_DEFAULT);
 		$safe_username = addslashes($adminuser);
 		$safe_email = addslashes($adminemail);
-		$safe_password = addslashes($password);
 		$safe_password_hash = addslashes($password_hash);
-		$safe_salt = addslashes($salt);
-		db_exec("UPDATE `bbs_user` SET username='$safe_username', email='$safe_email', `password`='$safe_password', `password_hash`='$safe_password_hash', salt='$safe_salt', create_date='$time', create_ip='$longip' WHERE uid=1");
+		db_exec("UPDATE `bbs_user` SET username='$safe_username', email='$safe_email', `password`='', salt='', `password_hash`='$safe_password_hash', create_date='$time', create_ip='$longip' WHERE uid=1");
 
 		$replace = array();
 		$replace['db'] = $conf['db'];

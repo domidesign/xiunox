@@ -2,22 +2,23 @@
 	<slot name="my_body">
 		<div id="avatar-section">
 			<div class="text-center mb-4" id="avatar-area">
-				<img id="avatar_img" class="rounded-circle border" style="width:120px;height:120px;object-fit:cover;" src="<?php echo $user['avatar_url'];?>" alt="" onerror="this.src='/view/img/avatar.png'">
+				<img id="avatar_img" class="rounded-1 border" style="width:120px;height:120px;object-fit:cover;" src="<?php echo $user['avatar_url'];?>" alt="" onerror="this.src='/view/img/avatar.png'">
 			</div>
-			<div class="x-card card mb-4">
+			<div class="x-card card">
 				<div class="card-body">
 					<h6 class="fw-medium mb-3"><?php echo lang('preset_avatar');?></h6>
 					<div class="row g-2" id="preset_avatars">
 						<?php $preset_list = avatar_preset_files(); ?>
 						<?php foreach($preset_list as $idx => $item) { ?>
 						<div class="col-3 col-sm-2">
-							<img class="preset-avatar rounded-circle w-100 border" style="aspect-ratio:1;object-fit:cover;cursor:pointer;" src="<?php echo $item['url'];?>" data-avatar="<?php echo $idx;?>" hx-post="<?php echo url('my-avatar_preset');?>" hx-vals="js:{avatar_index: <?php echo $idx;?>}" hx-target="#avatar-section" hx-swap="outerHTML" onerror="this.style.display='none'">
+							<img class="preset-avatar rounded-1 w-100 border" style="aspect-ratio:1;object-fit:cover;cursor:pointer;" src="<?php echo $item['url'];?>" data-avatar="<?php echo $idx;?>" hx-post="<?php echo my_avatar_preset_url();?>" hx-vals="js:{avatar_index: <?php echo $idx;?>}" hx-target="#avatar-section" hx-swap="outerHTML" onerror="this.style.display='none'">
 						</div>
 						<?php } ?>
 					</div>
 				</div>
 			</div>
 		</div>
+		<?php if($allowattach) { ?>
 		<div class="x-card card">
 			<div class="card-body">
 				<h6 class="fw-medium mb-3"><?php echo lang('custom_upload');?></h6>
@@ -28,12 +29,20 @@
 				<progress class="progress w-100 mt-2" id="avatar_progress" value="0" max="100"><div class="progress-bar" style="width:0%"></div></progress>
 			</div>
 		</div>
+		<?php } else { ?>
+		<div class="x-card card">
+			<div class="card-body">
+				<div class="text-muted"><i class="ti ti-lock"></i> <?php echo lang('avatar_upload_no_permission'); ?></div>
+			</div>
+		</div>
+		<?php } ?>
 	</slot>
 </template>
 
 <script>
 $('a[data-active="my"]').addClass('active');
 
+<?php if($allowattach) { ?>
 var javatar_upload = $('#avatar_upload');
 var jprogress = $('#avatar_progress');
 jprogress.hide();
@@ -58,4 +67,5 @@ javatar_upload.on('change', function(e) {
 		}
 	);
 });
+<?php } ?>
 </script>

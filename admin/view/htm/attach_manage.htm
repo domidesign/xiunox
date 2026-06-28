@@ -5,7 +5,7 @@
 <!-- 统计仪表 -->
 <div class="row g-3 mb-4">
     <div class="col-sm-6 col-lg-3">
-        <div class="x-card  cardrounded-3">
+        <div class="x-card  card">
             <div class="card-body">
                 <div class="d-flex align-items-center">
                     <div class="flex-shrink-0"><span class="avatar avatar-sm rounded-circle bg-primary bg-opacity-10"><i class="ti ti-paperclip text-primary"></i></span></div>
@@ -18,7 +18,7 @@
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="x-card  cardrounded-3">
+        <div class="x-card  card">
             <div class="card-body">
                 <div class="d-flex align-items-center">
                     <div class="flex-shrink-0"><span class="avatar avatar-sm rounded-circle bg-success bg-opacity-10"><i class="ti ti-database text-success"></i></span></div>
@@ -31,7 +31,7 @@
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="x-card  cardrounded-3">
+        <div class="x-card  card">
             <div class="card-body">
                 <div class="d-flex align-items-center">
                     <div class="flex-shrink-0"><span class="avatar avatar-sm rounded-circle bg-danger bg-opacity-10"><i class="ti ti-alert-triangle text-danger"></i></span></div>
@@ -44,7 +44,7 @@
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="x-card  cardrounded-3">
+        <div class="x-card  card">
             <div class="card-body">
                 <div class="d-flex align-items-center">
                     <div class="flex-shrink-0"><span class="avatar avatar-sm rounded-circle bg-info bg-opacity-10"><i class="ti ti-chart-pie text-info"></i></span></div>
@@ -62,7 +62,7 @@
 
 <!-- 类型分布进度条 -->
 <?php if($stats['total'] > 0) { ?>
-<div class="x-card  cardrounded-3 mb-4">
+<div class="x-card  card">
     <div class="card-body py-3">
         <div class="d-flex align-items-center gap-3 flex-wrap">
             <?php
@@ -74,7 +74,7 @@
                 $label = isset($type_labels[$type]) ? $type_labels[$type] : $type;
                 if($count == 0) continue;
             ?>
-            <div class="d-flex align-items-center gap-1" style="min-width:120px;">
+            <div class=" " style="min-width:120px;">
                 <span class="fs-6 text-body-secondary"><?php echo $label;?></span>
                 <div class="progress flex-grow-1" style="height:6px;min-width:40px;">
                     <div class="progress-bar bg-<?php echo $color;?>" style="width:<?php echo $pct;?>%"></div>
@@ -88,7 +88,7 @@
 <?php } ?>
 
 <!-- 筛选表单 + 清理按钮 -->
-<div class="x-card  cardrounded-3">
+<div class="x-card  card">
     <div class="card-body">
         <form id="searchForm" class="mb-3" onsubmit="return handleSearch(event)">
             <div class="row g-3 align-items-end">
@@ -170,13 +170,13 @@
                             if($is_orphan) {
                                 $ref_html = '<span class="text-body-secondary">'.lang('admin_attach_deleted').'</span>';
                             } else {
-                                $ref_html = '<a href="'.url('../thread-'.$ref_tid).'" target="_blank">'.lang('admin_attach_reply').' #'.$attach['pid'].'</a>';
+                                $ref_html = '<a href="'.frontend_thread_url($ref_tid).'" target="_blank">'.lang('admin_attach_reply').' #'.$attach['pid'].'</a>';
                             }
                         } elseif($attach['tid'] > 0) {
                             if($is_orphan) {
                                 $ref_html = '<span class="text-body-secondary">'.lang('admin_attach_deleted').'</span>';
                             } else {
-                                $ref_html = '<a href="'.url('../thread-'.$attach['tid']).'" target="_blank">'.lang('admin_attach_thread').' #'.$attach['tid'].'</a>';
+                                $ref_html = '<a href="'.frontend_thread_url($attach['tid']).'" target="_blank">'.lang('admin_attach_thread').' #'.$attach['tid'].'</a>';
                             }
                         } else {
                             $ref_html = '<span class="text-body-secondary">'.lang('admin_attach_no_ref').'</span>';
@@ -217,10 +217,10 @@
                         <td><?php echo format_filesize($attach['filesize']);?></td>
                         <td>
                             <?php if(isset($users[$attach['uid']])) { ?>
-                            <a href="<?php echo url('../user-'.$attach['uid']);?>" target="_blank"><?php echo esc_html($users[$attach['uid']]);?></a>
+                            <a href="<?php echo frontend_user_url($attach['uid']);?>" target="_blank"><?php echo esc_html($users[$attach['uid']]);?></a>
                             <span class="text-body-secondary fs-6">(<?php echo $attach['uid'];?>)</span>
                             <?php } else { ?>
-                            <span class="text-body-secondary">UID:<?php echo $attach['uid'];?></span>
+                            <span class="text-body-secondary"><?php echo lang('admin_uid_label'); ?><?php echo $attach['uid'];?></span>
                             <?php } ?>
                         </td>
                         <td class="fs-6"><?php echo date('Y-m-d H:i', $attach['create_date']);?></td>
@@ -232,7 +232,7 @@
                             <span class="badge bg-success"><?php echo lang('admin_attach_normal');?></span>
                             <?php } ?>
                         </td>
-                        <td class="d-flex align-items-center gap-1">
+                        <td class=" ">
                             <?php if($is_previewable) { ?>
                             <a href="<?php echo $attach_url;?>" target="_blank" class="btn btn-sm p-0 border-0 text-primary" title="<?php echo lang('admin_attach_view');?>"><i class="ti ti-eye"></i></a>
                             <?php } ?>
@@ -255,13 +255,23 @@
                 <?php
                 $total_pages = ceil($count / $pagesize);
                 $query_params = http_build_query(array_filter(array('type_category'=>$filter_type, 'orphan'=>$filter_orphan, 'keyword'=>$filter_keyword, 'sort'=>$sort, 'pagesize'=>$pagesize)));
+                if($page > 1) {
+                    $prev_url = admin_attach_list_url() . ($query_params ? '&'.$query_params : '') . '&page='.($page-1);
+                ?>
+                <li class="page-item"><a class="page-link" href="<?php echo $prev_url;?>"><i class="ti ti-chevron-left"></i></a></li>
+                <?php }
                 for($i = 1; $i <= min($total_pages, 20); $i++) {
-                    $url = url('attach-list') . ($query_params ? '&'.$query_params : '') . '&page='.$i;
+                    $url = admin_attach_list_url() . ($query_params ? '&'.$query_params : '') . '&page='.$i;
                 ?>
                 <li class="page-item <?php echo $page == $i ? 'active' : '';?>"><a class="page-link" href="<?php echo $url;?>"><?php echo $i;?></a></li>
                 <?php } ?>
                 <?php if($total_pages > 20) { ?>
                 <li class="page-item disabled"><span class="page-link">...</span></li>
+                <?php }
+                if($page < $total_pages) {
+                    $next_url = admin_attach_list_url() . ($query_params ? '&'.$query_params : '') . '&page='.($page+1);
+                ?>
+                <li class="page-item"><a class="page-link" href="<?php echo $next_url;?>"><i class="ti ti-chevron-right"></i></a></li>
                 <?php } ?>
             </ul>
         </nav>
@@ -296,11 +306,27 @@ function handleSearch(e) {
     e.preventDefault();
     var form = document.getElementById('searchForm');
     var params = new URLSearchParams(new FormData(form));
-    window.location.href = '<?php echo url('attach-list');?>&' + params.toString();
+    window.location.href = '<?php echo admin_attach_list_url();?>&' + params.toString();
     return false;
 }
 </script>
 
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+// 注入语言变量和 URL 到 JS（在 footer 的 bbs.js 加载后执行，避免被覆盖）
+var lang = window.lang || {};
+lang.admin_attach_delete = '<?php echo lang('admin_attach_delete');?>';
+lang.admin_attach_delete_confirm = '<?php echo lang('admin_attach_delete_confirm');?>';
+lang.admin_attach_force_delete = '<?php echo lang('admin_attach_force_delete');?>';
+lang.admin_attach_force_delete_confirm = '<?php echo lang('admin_attach_force_delete_confirm');?>';
+lang.admin_attach_clean_orphan = '<?php echo lang('admin_attach_clean_orphan');?>';
+lang.admin_attach_clean_orphan_confirm = '<?php echo lang('admin_attach_clean_orphan_confirm');?>';
+lang.admin_attach_no_orphan = '<?php echo lang('admin_attach_no_orphan');?>';
+lang.admin_attach_delete_success = '<?php echo lang('admin_attach_delete_success');?>';
+// admin 后台 URL 需用 PHP url() 生成，XN.url() 不支持 admin 上下文
+var attach_delete_url = <?php echo json_encode(admin_attach_delete_url());?>;
+var attach_batch_delete_url = <?php echo json_encode(admin_attach_batch_delete_url());?>;
+</script>
 
 <script src="../view/js/attach_manage.js<?php echo $static_version;?>"></script>

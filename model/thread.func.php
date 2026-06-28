@@ -9,7 +9,9 @@ function credits_event_name($event) {
     if(preg_match('/[\x{4e00}-\x{9fa5}]/u', $event)) {
         return $event;
     }
-    $key = 'credits_event_' . $event;
+    // 去掉 source 后缀（如 be_liked:90 → be_liked），用于查找语言包
+    $baseEvent = strpos($event, ':') !== false ? substr($event, 0, strpos($event, ':')) : $event;
+    $key = 'credits_event_' . $baseEvent;
     $name = lang($key);
     // lang() 找不到时返回 key 本身，此时回退到原始值
     return ($name !== $key) ? $name : $event;
@@ -46,6 +48,9 @@ function thread_status_label_html($type, $labels) {
 	$text = isset($label['text']) ? trim($label['text']) : '';
 	$color = isset($label['color']) ? $label['color'] : '#6c757d';
 	$text_color = isset($label['text_color']) ? $label['text_color'] : '#ffffff';
+	$badge_class = isset($label['badge_class']) ? trim($label['badge_class']) : 'badge';
+	if(empty($badge_class)) $badge_class = 'badge';
+	$badge_font_size = isset($label['badge_font_size']) ? trim($label['badge_font_size']) : '0.7em';
 	$show_icon = isset($label['show_icon']) ? $label['show_icon'] : true;
 	$show_text = isset($label['show_text']) ? $label['show_text'] : true;
 
@@ -56,7 +61,13 @@ function thread_status_label_html($type, $labels) {
 	// 图标和文字都为空时不显示
 	if(empty($icon) && empty($text)) return '';
 
-	$html = '<span class="badge" style="background-color:' . $color . ';color:' . $text_color . ';font-size:0.7em">';
+	// 构建 style（font-size 为空时不输出）
+	$style = 'background-color:' . $color . ';color:' . $text_color;
+	if($badge_font_size !== '') {
+		$style .= ';font-size:' . $badge_font_size;
+	}
+
+	$html = '<span class="' . $badge_class . '" style="' . $style . '">';
 	if($icon) $html .= '<i class="' . $icon . '"></i>';
 	if($icon && $text) $html .= ' ';
 	if($text) $html .= $text;
@@ -96,13 +107,11 @@ function thread__delete($tid) {
 
 function thread__find($cond = array(), $orderby = array(), $page = 1, $pagesize = 20) {
 	// hook model_thread__find_start.php
-	
-	$arrlist = db_find('thread', $cond, $orderby, $page, $pagesize, 'tid', array('tid'));
-	if(empty($arrlist)) return array();
-	
-	$tidarr = arrlist_values($arrlist, 'tid');
-	$threadlist = db_find('thread', array('tid'=>$tidarr), $orderby, 1, $pagesize, 'tid');
-	
+
+	// 合并原两次查询：原逻辑先查 tid 列表再按 tid IN 查完整数据
+	// 由于两次查询同表、同条件、同排序、同分页，直接一次查询获取全部字段
+	$threadlist = db_find('thread', $cond, $orderby, $page, $pagesize, 'tid');
+
 	// hook model_thread__find_end.php
 	return $threadlist;
 }
@@ -156,30 +165,34 @@ function thread_create($arr, &$pid) {
 	}
 	// 板块总数+1, 用户发帖+1
 	
-	// 更新统计数据
-	$uid AND user__update($uid, array('threads+'=>1));
-	forum__update($fid, array('threads+'=>1, 'todaythreads+'=>1));
-	
+	// 更新统计数据（待审帖子不计入，审核通过后由 AuditService::approve 补加）
+	$audit_status = isset($arr['audit_status']) ? intval($arr['audit_status']) : 1;
+	if($audit_status == 1) {
+		$uid AND user__update($uid, array('threads+'=>1));
+		forum__update($fid, array('threads+'=>1, 'todaythreads+'=>1));
+		runtime_set('threads+', 1);
+		runtime_set('todaythreads+', 1);
+	}
+
 	// 关联
 	post__update($pid, array('tid'=>$tid), $tid);
 
 	// 我参与的发帖
 	$uid AND mythread_create($uid, $tid);
-	
+
 	// 关联附件
 	attach_assoc_post($pid);
-	
-	// 全站发帖数
-	runtime_set('threads+', 1);
-	runtime_set('todaythreads+', 1);
 	
 	// 更新板块信息。
 	forum_list_cache_delete();
 
-	$follow_uids = user_follow_find_following_uids_reverse($uid);
-	if(!empty($follow_uids)) {
-		foreach($follow_uids as $fuid) {
-			notify_create($fuid, $uid, 'thread', $tid, 0, $subject);
+	// 仅审核通过的帖子才通知关注者（待审帖子审核通过后在 AuditService::approve 中补发）
+	if($audit_status == 1) {
+		$follow_uids = user_follow_find_following_uids_reverse($uid);
+		if(!empty($follow_uids)) {
+			foreach($follow_uids as $fuid) {
+				notify_create($fuid, $uid, 'thread', $tid, 0, $subject);
+			}
 		}
 	}
 
@@ -267,22 +280,103 @@ function thread_delete($tid) {
 	$r = thread__delete($tid);
 	if($r === FALSE) return FALSE;
 	
-	// 更新统计
-	forum__update($fid, array('threads-'=>1));
-	user__update($uid, array('threads-'=>1));
-	
-	// 全站统计
-	runtime_set('threads-', 1);
-	
+	// 更新统计（待审帖子创建时未计入 threads，删除时也不应减少）
+	$audit_status = isset($thread['audit_status']) ? intval($thread['audit_status']) : 1;
+	if($audit_status == 1) {
+		forum__update($fid, array('threads-'=>1));
+		user__update($uid, array('threads-'=>1));
+		runtime_set('threads-', 1);
+	}
+
 	// hook model_thread_delete_end.php
-	
+
 	return $r;
+}
+
+// 批量删除多个主题，合并查询消除 N+1 DELETE/UPDATE
+// 保持与 thread_delete 相同的数据一致性：post/attach/mythread/favorite/thread 全部清理，
+// forum.threads / user.threads / runtime.threads 按 fid/uid 分组汇总后批量更新
+function thread_delete_batch($tids) {
+	// hook model_thread_delete_batch_start.php
+
+	if(empty($tids) || !is_array($tids)) return 0;
+
+	$tids = array_map('intval', $tids);
+	$tids = array_unique($tids);
+	$tids = array_filter($tids);
+	if(empty($tids)) return 0;
+
+	// 1. 批量读取所有 thread（一次查询）
+	$threadlist = db_find('thread', array('tid'=>$tids), array(), 1, count($tids), 'tid');
+	if(empty($threadlist)) return 0;
+
+	$valid_tids = arrlist_values($threadlist, 'tid');
+
+	// 2. 批量删除所有回帖及附件（合并 post_delete_by_tid 逻辑，一次 find / 一次 delete）
+	post_delete_by_tids_batch($valid_tids);
+
+	// 3. 批量删除 mythread（一次 DELETE，按 tid）
+	db_delete('mythread', array('tid'=>$valid_tids));
+
+	// 4. 批量删除 thread_favorite（合并 thread_favorite_delete_by_tid 逻辑）
+	thread_favorite_delete_by_tids_batch($valid_tids);
+
+	// 5. 清除相关缓存
+	forum_list_cache_delete();
+
+	// 6. 批量删除 thread（一次 DELETE）
+	$r = db_delete('thread', array('tid'=>$valid_tids));
+	if($r === FALSE) return FALSE;
+
+	// 7. 汇总 forum 统计：按 fid 分组累计 threads 减量（待审帖子不计入）
+	$forum_threads_dec = array();
+	$approved_count = 0;
+	foreach($threadlist as $thread) {
+		$_audit = isset($thread['audit_status']) ? intval($thread['audit_status']) : 1;
+		if($_audit != 1) continue; // 待审帖子创建时未计入，删除时也不减少
+		$approved_count++;
+		$fid = intval($thread['fid']);
+		if($fid == 0) continue;
+		if(!isset($forum_threads_dec[$fid])) $forum_threads_dec[$fid] = 0;
+		$forum_threads_dec[$fid]++;
+	}
+	foreach($forum_threads_dec as $fid => $dec) {
+		forum__update($fid, array('threads-'=>$dec));
+	}
+
+	// 8. 汇总 user 统计：按 uid 分组累计 threads 减量（待审帖子不计入）
+	$user_threads_dec = array();
+	foreach($threadlist as $thread) {
+		$_audit = isset($thread['audit_status']) ? intval($thread['audit_status']) : 1;
+		if($_audit != 1) continue;
+		$u = intval($thread['uid']);
+		if($u == 0) continue;
+		if(!isset($user_threads_dec[$u])) $user_threads_dec[$u] = 0;
+		$user_threads_dec[$u]++;
+	}
+	foreach($user_threads_dec as $u => $dec) {
+		user__update($u, array('threads-'=>$dec));
+	}
+
+	// 9. 全站统计（仅计审核通过的）
+	runtime_set('threads-', $approved_count);
+
+	// hook model_thread_delete_batch_end.php
+
+	return count($valid_tids);
 }
 
 function thread_find($cond = array(), $orderby = array(), $page = 1, $pagesize = 20) {
 	// hook model_thread_find_start.php
 	$threadlist = thread__find($cond, $orderby, $page, $pagesize);
-	if($threadlist) foreach ($threadlist as &$thread) thread_format($thread);
+	if($threadlist) {
+		// 批量预加载用户数据，消除 N+1 查询
+		$uids = arrlist_values($threadlist, 'uid');
+		$lastuids = arrlist_values($threadlist, 'lastuid');
+		user_preload(array_merge($uids, $lastuids));
+
+		foreach ($threadlist as &$thread) thread_format($thread);
+	}
 	// hook model_thread_find_end.php
 	return $threadlist;
 }
@@ -290,14 +384,25 @@ function thread_find($cond = array(), $orderby = array(), $page = 1, $pagesize =
 // $order: tid/lastpid
 // 按照: 发帖时间/最后回复时间 倒序，不包含置顶帖
 function thread__find_by_fid($fid, $page = 1, $pagesize = 20, $order = 'lastpid') {
-	global $conf, $forumlist, $runtime;
+	global $conf, $forumlist, $runtime, $gid;
+
+	// 排序字段白名单验证，防止 SQL 注入
+	$allow_orders = array('tid', 'lastpid', 'create_date', 'last_date');
+	if(!in_array($order, $allow_orders)) {
+		$order = 'lastpid';
+	}
+
 	$forum = $fid ? $forumlist[$fid] : array();
 	$threads = empty($forum) ? $runtime['threads'] : $forum['threads'];
-	
+
 	// hook model__thread_find_by_fid_start.php
-	
+
 	$cond = array();
 	$fid AND $cond['fid'] = $fid;
+	// 非管理员查询时排除待审帖子，避免获取后过滤导致每页数量不足
+	if($gid == 0 || $gid > 2) {
+		$cond['audit_status'] = array('!=' => 0);
+	}
 	
 	$desc = TRUE;
 	$limitpage = 50000; // 如果需要防止 CC 攻击，可以调整为 5000
@@ -329,6 +434,12 @@ function thread__find_by_fid($fid, $page = 1, $pagesize = 20, $order = 'lastpid'
 function thread_find_by_fid($fid, $page = 1, $pagesize = 20, $order = 'lastpid') {
 	global $conf, $forumlist, $runtime;
 
+	// 排序字段白名单验证，防止 SQL 注入
+	$allow_orders = array('tid', 'lastpid', 'create_date', 'last_date');
+	if(!in_array($order, $allow_orders)) {
+		$order = 'lastpid';
+	}
+
 	// hook model_thread_find_by_fid_start.php
 
 	$threadlist = thread__find_by_fid($fid, $page, $pagesize, $order);
@@ -348,13 +459,46 @@ function thread_find_by_fid($fid, $page = 1, $pagesize = 20, $order = 'lastpid')
 
 // 从多个版块获取列表数据
 function thread_find_by_fids($fids, $page = 1, $pagesize = 20, $order = 'lastpid', $threads = FALSE) {
-	
+
+	global $gid, $runtime;
+
+	// 排序字段白名单验证，防止 SQL 注入
+	$allow_orders = array('tid', 'lastpid', 'create_date', 'last_date', 'views');
+	if(!in_array($order, $allow_orders)) {
+		$order = 'lastpid';
+	}
+
 	// hook model_thread_find_by_fids_start.php
-	
-	$threadlist = thread_find(array('fid'=>$fids), array($order=>-1), $page, $pagesize);
-	
+
+	$cond = array('fid'=>$fids);
+	// 非管理员查询时排除待审帖子，避免获取后过滤导致每页数量不足
+	if($gid == 0 || $gid > 2) {
+		$cond['audit_status'] = array('!=' => 0);
+	}
+
+	// 深分页优化：参照 thread__find_by_fid，当 page > 100 时从尾部反向查询
+	$desc = TRUE;
+	$limitpage = 50000;
+	$total_threads = $runtime['threads'];
+	if($page > 100 && $total_threads > 0) {
+		$totalpage = ceil($total_threads / $pagesize);
+		$halfpage = ceil($totalpage / 2);
+		if($halfpage > $limitpage && $page < ($totalpage - $limitpage)) {
+			$page = $limitpage;
+		}
+		if($page > $halfpage) {
+			$page = max(1, $totalpage - $page + 1);
+			$threadlist = thread_find($cond, array($order=>1), $page, $pagesize);
+			$threadlist = array_reverse($threadlist, TRUE);
+			$desc = FALSE;
+		}
+	}
+	if($desc) {
+		$threadlist = thread_find($cond, array($order=>-1), $page, $pagesize);
+	}
+
 	// hook model_thread_find_by_fids_end.php
-	
+
 	return $threadlist;
 }
 
@@ -364,6 +508,11 @@ function thread_find_by_keyword($keyword) {
 	$threadlist = db_find('thread', array('subject'=>array('LIKE'=>$keyword)), array(), 1, 60);
 	$threadlist = arrlist_multisort($threadlist, 'tid', FALSE); // 用 PHP 排序，mysql 排序消耗太大。
 	if($threadlist) {
+		// 批量预加载用户数据，消除 N+1 查询
+		$uids = arrlist_values($threadlist, 'uid');
+		$lastuids = arrlist_values($threadlist, 'lastuid');
+		user_preload(array_merge($uids, $lastuids));
+
 		foreach ($threadlist as &$thread) {
 			thread_format($thread);
 			$thread['subject'] = post_highlight_keyword($thread['subject'], $keyword);
@@ -385,10 +534,11 @@ function thread_format(&$thread) {
 	$thread['last_date_fmt'] = humandate($thread['last_date']);
 	
 	$user = user_read_cache($thread['uid']);
-	$thread['username'] = isset($user['username']) ? $user['username'] : lang('guest');
+	$thread['username'] = isset($user['display_name']) ? $user['display_name'] : (isset($user['username']) ? $user['username'] : lang('guest'));
 	$thread['user_avatar_url'] = !empty($user['avatar_url']) ? $user['avatar_url'] : '/view/img/avatar.png';
 	$thread['group_icon_class'] = isset($user['group_icon_class']) ? $user['group_icon_class'] : '';
 	$thread['group_color'] = isset($user['group_color']) ? $user['group_color'] : '';
+	$thread['group_name'] = isset($user['groupname']) ? $user['groupname'] : '';
 	$thread['gid'] = isset($user['gid']) ? $user['gid'] : 0;
 	$thread['user'] = $user;
 	
@@ -402,11 +552,11 @@ function thread_format(&$thread) {
 		$thread['lastusername'] = '';
 	} else {
 		$lastuser = $thread['lastuid'] ? user_read_cache($thread['lastuid']) : array();
-		$thread['lastusername'] = $thread['lastuid'] ? (isset($lastuser['username']) ? $lastuser['username'] : lang('guest')) : lang('guest');
+		$thread['lastusername'] = $thread['lastuid'] ? (isset($lastuser['display_name']) ? $lastuser['display_name'] : (isset($lastuser['username']) ? $lastuser['username'] : lang('guest'))) : lang('guest');
 	}
 	
-	$thread['url'] = "thread-$thread[tid].htm";
-	$thread['user_url'] = "user-$thread[uid]".($thread['uid'] ? '' : "-$thread[firstpid]").".htm";
+	$thread['url'] = url("thread-$thread[tid]");
+	$thread['user_url'] = url("user-$thread[uid]".($thread['uid'] ? '' : "-$thread[firstpid]"));
 	
 	$thread['top_class'] = $thread['top'] ? 'top_'.$thread['top'] : '';
 
@@ -415,6 +565,16 @@ function thread_format(&$thread) {
 	// is_liked 和 is_favorited 不在列表页查询，改为详情页单独查询
 	$thread['is_liked'] = 0;
 	$thread['is_favorited'] = 0;
+
+	// XSS 防护：转义用户可控的文本字段
+	$thread['subject'] = esc_html($thread['subject']);
+	$thread['username'] = esc_html($thread['username']);
+	$thread['forumname'] = esc_html($thread['forumname']);
+	$thread['lastusername'] = esc_html($thread['lastusername'] ?? '');
+	$thread['group_name'] = esc_html($thread['group_name'] ?? '');
+	$thread['top_class'] = esc_attr($thread['top_class'] ?? '');
+	$thread['group_icon_class'] = esc_attr($thread['group_icon_class'] ?? '');
+	$thread['user_avatar_url'] = esc_attr($thread['user_avatar_url'] ?? '');
 
 	// hook model_thread_format_end.php
 }
@@ -479,11 +639,14 @@ function thread_list_access_filter(&$threadlist, $gid) {
 		}
 	}
 
-	// 待审内容过滤：非管理员(gid!=1,2)不可见 audit_status=0 的帖子，但作者自己可见
+	// 待审/驳回内容过滤：非管理员(gid!=1,2)不可见 audit_status!=1 的他人帖子，作者自己可见待审和驳回帖子
 	if($gid == 0 || $gid > 2) {
 		foreach($threadlist as $tid=>$thread) {
-			if(isset($thread['audit_status']) && $thread['audit_status'] == 0 && $thread['uid'] != $uid) {
-				unset($threadlist[$tid]);
+			if(isset($thread['audit_status']) && $thread['audit_status'] != 1) {
+				// 待审/驳回帖子仅作者可见
+				if($thread['uid'] != $uid) {
+					unset($threadlist[$tid]);
+				}
 			}
 		}
 	}
@@ -497,7 +660,14 @@ function thread_find_by_tids($tids, $order = array()) {
 	//$tids = array_slice($tids, $start, $pagesize);
 	if(!$tids) return array();
 	$threadlist = db_find('thread', array('tid'=>$tids), $order, 1, 1000, 'tid');
-	if($threadlist) foreach($threadlist as &$thread) thread_format($thread);
+	if($threadlist) {
+		// 批量预加载用户数据，消除 N+1 查询
+		$uids = arrlist_values($threadlist, 'uid');
+		$lastuids = arrlist_values($threadlist, 'lastuid');
+		user_preload(array_merge($uids, $lastuids));
+
+		foreach($threadlist as &$thread) thread_format($thread);
+	}
 	// hook model_thread_find_by_tids_end.php
 	return $threadlist;
 }
@@ -523,80 +693,5 @@ function thread_update_last($tid) {
 }
 
 // hook model_thread_end.php
-
-// 为朋友圈/瀑布流视图批量加载首帖内容预览和缩略图
-function thread_list_enrich($threadlist) {
-	if(empty($threadlist)) return $threadlist;
-
-	// hook model_thread_list_enrich_start.php
-
-	$pids = array();
-	foreach($threadlist as $thread) {
-		if(!empty($thread['firstpid'])) $pids[] = $thread['firstpid'];
-	}
-	if(empty($pids)) return $threadlist;
-
-	// 批量查询首帖 message 字段
-	$postlist = db_find('post', array('pid' => $pids), array(), 1, count($pids) + 1, 'pid');
-	if(empty($postlist)) $postlist = array();
-
-	// 批量查询首帖图片附件
-	$attachlist = attach_find(array('pid' => $pids, 'isimage' => 1), array(), 1, 200);
-
-	// 按 pid 分组附件
-	$attach_by_pid = array();
-	if($attachlist) {
-		foreach($attachlist as $attach) {
-			$attach_by_pid[$attach['pid']][] = $attach;
-		}
-	}
-
-	// 批量查询当前用户关注状态
-	global $uid;
-	$followed_uids = array();
-	if(!empty($uid)) {
-		$follow_uids = arrlist_values($threadlist, 'uid');
-		$follow_uids = array_unique($follow_uids);
-		if(!empty($follow_uids)) {
-			$followlist = db_find('user_follow', array('uid'=>$uid, 'follow_uid'=>$follow_uids), array(), 1, count($follow_uids));
-			if(!empty($followlist)) {
-				foreach($followlist as $f) {
-					$followed_uids[$f['follow_uid']] = 1;
-				}
-			}
-		}
-	}
-
-	// 附加到每个 thread
-	foreach($threadlist as &$thread) {
-		$pid = $thread['firstpid'];
-		// 内容预览：取首帖 message 字段，去 HTML 标签，截取 200 字
-		$msg = isset($postlist[$pid]) ? $postlist[$pid]['message'] : '';
-		$thread['message_preview'] = mb_substr(strip_tags($msg), 0, 200);
-		// 缩略图：最多 9 张
-		$thread['thumbnails'] = array();
-		if(isset($attach_by_pid[$pid])) {
-			$count = 0;
-			foreach($attach_by_pid[$pid] as $att) {
-				if($count >= 9) break;
-				$thread['thumbnails'][] = $att['url'];
-				$count++;
-			}
-			$thread['image_count'] = count($attach_by_pid[$pid]);
-		} else {
-			$thread['image_count'] = 0;
-		}
-		// 点赞数
-		$thread['likes'] = isset($thread['likes']) ? intval($thread['likes']) : 0;
-		// 收藏数
-		$thread['favorites'] = isset($thread['favorites']) ? intval($thread['favorites']) : 0;
-		// 是否关注了帖子作者
-		$thread['is_followed'] = !empty($uid) && isset($followed_uids[$thread['uid']]);
-	}
-
-	// hook model_thread_list_enrich_end.php
-
-	return $threadlist;
-}
 
 ?>

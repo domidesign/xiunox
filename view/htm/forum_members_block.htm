@@ -1,0 +1,32 @@
+<?php
+/**
+ * 版块成员区块（AJAX 刷新）
+ */
+?>
+<!-- 版块成员 -->
+<div class="x-card card   mb-3" id="forum-members-block" hx-get="<?php echo forum_members_block_url($fid);?>" hx-trigger="refreshMembers from:body" hx-target="this" hx-select="#forum-members-block" hx-swap="outerHTML">
+	<div class="card-body">
+		<h3 class="card-title small"><i class="ti me-1 ti-users"></i><?php echo lang('members');?>（<span id="forum-members-count"><?php echo intval($forum['follows']);?></span>）</h3>
+		<?php if(!empty($_forum_members)) { ?>
+		<div class="d-flex flex-wrap gap-2">
+			<?php foreach($_forum_members as $_member) { ?>
+			<div class="text-center">
+				<a href="<?php echo user_url($_member['uid']);?>">
+				<img src="<?php echo $_member['avatar_url'];?>" class="rounded-circle" width="32" height="32" alt="<?php echo esc_html($_member['display_name']);?>" onerror="this.src='/view/img/avatar.png'">
+			</a><br>
+			<a href="<?php echo user_url($_member['uid']);?>" class="small text-body-secondary text-nowrap text-decoration-none"><?php echo esc_html($_member['display_name']);?></a>
+			</div>
+			<?php } ?>
+		</div>
+		<?php if(intval($forum['follows']) > 12) { ?>
+		<div class="text-center mt-2">
+			<a href="<?php echo forum_followers_url($fid);?>" class="small text-decoration-none"><?php echo lang('view_all_members');?>（<?php echo intval($forum['follows']);?>）</a>
+		</div>
+		<?php } ?>
+		<?php } else { ?>
+		<div class="text-center py-3 text-body-secondary small">
+			<?php echo lang('no_followers');?>
+		</div>
+		<?php } ?>
+	</div>
+</div>

@@ -4,7 +4,7 @@
 
 <?php echo admin_tab_active($menu['user']['tab'], 'list');?>
 
-<div class="x-card  cardrounded-3 border">
+<div class="x-card  card">
 	<div class="card-body">
 		<div class="d-flex flex-wrap gap-2 mb-4">
 			<div>
@@ -12,6 +12,7 @@
 				<option value=""><?php echo lang('search_type');?></option>
 				<option value="uid"><?php echo lang('uid');?>：</option>
 				<option value="username" selected><?php echo lang('username');?>：</option>
+				<option value="nickname"><?php echo lang('nickname');?>：</option>
 				<option value="email"><?php echo lang('email');?>：</option>
 				<option value="gid"><?php echo lang('user_group');?>：</option>
 				<option value="create_ip"><?php echo lang('create_ip');?>：</option>
@@ -33,7 +34,7 @@
 					<th style="width:40px"><input type="checkbox" class="form-check-input" id="checkAll" /></th>
 					<th>UID</th>
 					<th><?php echo lang('email');?></th>
-					<th><?php echo lang('username');?></th>
+					<th><?php echo lang('username');?> / <?php echo lang('nickname');?></th>
 					<th><?php echo lang('user_group');?></th>
 					<th style="min-width:120px"><?php echo lang('create_date');?></th>
 					<th style="min-width:100px">IP</th>
@@ -47,8 +48,11 @@
 					<td class="text-body-secondary"><?php echo $_user['uid']; ?></td>
 					<!--{hook admin_user_list_id_td_after.htm}-->
 					<td class="text-truncate" style="max-width:200px"><?php echo $_user['email']; ?></td>
-					<td class="text-truncate" style="max-width:150px"><?php echo $_user['username']; ?></td>
-					<td>
+					<td class="text-truncate" style="max-width:200px">
+					<div class="fw-medium"><?php echo esc_html($_user['display_name'] ?? $_user['username']); ?></div>
+					<div class="text-body-secondary small"><?php echo esc_html($_user['username']); ?></div>
+				</td>
+				<td>
 						<?php
 						$group_color = isset($_user['group_color']) && $_user['group_color'] ? $_user['group_color'] : '#6c757d';
 						$group_icon = isset($_user['group_icon_class']) && $_user['group_icon_class'] ? $_user['group_icon_class'] : '';
@@ -60,7 +64,7 @@
 					</td>
 					<td class="text-body-secondary text-sm"><?php echo date('Y-n-j H:i', $_user['create_date']); ?></td>
 					<td><a href="https://bbs.xiuno.com/ip.htm?ip=<?php echo $_user['create_ip_fmt']; ?>" target="_blank" class="text-body-secondary text-sm"><?php echo $_user['create_ip_fmt']; ?></a></td>
-					<td><a href="<?php echo url("user-update-$_user[uid]"); ?>" class="row-action" title="<?php echo lang('edit');?>"><i class="ti ti-pencil"></i></a></td>
+					<td><a href="<?php echo admin_user_update_url($_user['uid']); ?>" class="row-action" title="<?php echo lang('edit');?>"><i class="ti ti-pencil"></i></a></td>
 				</tr>
 			<?php } ?>
 			</tbody>

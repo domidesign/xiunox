@@ -1,0 +1,56 @@
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<?php include _include(APP_PATH.'view/htm/my.layout.inc.htm');?>
+
+	<!-- 我关注的 -->
+	<div class="x-card card">
+		<div class="card-body">
+			<div class="d-flex flex-column gap-2">
+				<?php if(!empty($userlist)) { foreach($userlist as $u) { ?>
+				<div class="d-flex align-items-center gap-3 p-2 hover-bg-body-secondary rounded">
+					<?php echo avatar_component_from_data($u['avatar_url'], 'md', isset($u['group_icon_class']) ? $u['group_icon_class'] : '', isset($u['group_color']) ? $u['group_color'] : '', isset($u['gid']) ? $u['gid'] : 0);?>
+					<div class="flex-fill">
+						<a href="<?php echo user_url($u['uid']);?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['display_name'] ?? $u['username']);?></a>
+						<div class="small"><span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:0.6em"><?php echo $u['groupname'];?></span></div>
+					</div>
+					<?php if(!empty($uid) && $uid != $u['uid']) {
+						$_u_is_followed = !empty($u['is_followed']);
+					?>
+					<?php if($_u_is_followed) { ?>
+					<button class="btn btn-sm btn-outline-secondary user-follow-btn"
+						hx-post="<?php echo user_follow_url($u['uid']);?>"
+						hx-target="this"
+						hx-swap="outerHTML"
+						hx-optimistic>
+						<i class="ti ti-user-minus"></i>
+						<span><?php echo lang('unfollow');?></span>
+					</button>
+					<?php } else { ?>
+					<button class="btn btn-sm btn-primary user-follow-btn"
+						hx-post="<?php echo user_follow_url($u['uid']);?>"
+						hx-target="this"
+						hx-swap="outerHTML"
+						hx-optimistic>
+						<i class="ti ti-user-plus"></i>
+						<span><?php echo lang('follow');?></span>
+					</button>
+					<?php } ?>
+					<?php } ?>
+				</div>
+				<?php } } else { ?>
+				<div class="text-center text-secondary py-8"><?php echo lang('no_following');?></div>
+				<?php } ?>
+			</div>
+			<?php if($pagination) { ?>
+			<nav><ul class="pagination pagination-boxed my-4 justify-content-center flex-wrap"><?php echo $pagination;?></ul></nav>
+			<?php } ?>
+		</div>
+	</div>
+
+</div>
+
+<!-- 右侧空栏 -->
+<div class="d-none d-lg-block col-lg-3"></div>
+</div>
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>

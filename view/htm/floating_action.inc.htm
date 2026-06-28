@@ -1,0 +1,253 @@
+<?php
+// 全局右侧悬浮操作栏
+// 按钮显示规则：
+// - 回到顶部：所有页面，滚动超过 300px 后显示（JS控制）
+// - 回到底部：所有页面，未到底部时显示（JS控制）
+// - 返回：非首页显示
+// - 发帖：已登录 + 首页/版块页/帖子详情页显示
+// - 回复：已登录 + 帖子详情页 + 帖子未关闭显示
+
+$_fa_action = param(1);
+$_fa_is_index = ($route == 'index' || empty($route));
+$_fa_is_forum = ($route == 'forum');
+$_fa_is_thread = ($route == 'thread' && !empty($tid));
+$_fa_is_thread_create = ($route == 'thread' && $_fa_action == 'create');
+$_fa_is_user_auth = ($route == 'user' && in_array($_fa_action, array('login', 'create')));
+
+// 是否显示返回按钮（非首页、非登录注册页都显示返回）
+$_fa_show_back = !$_fa_is_index && !$_fa_is_user_auth;
+
+// 是否显示发帖按钮（已登录 + 首页/版块页/帖子详情页，排除发帖页本身）
+$_fa_show_post = !empty($uid) && ($_fa_is_index || $_fa_is_forum || $_fa_is_thread) && !$_fa_is_thread_create;
+
+// 是否显示回复按钮（已登录 + 帖子详情页 + 帖子未关闭）
+$_fa_show_reply = false;
+$_fa_reply_url = '';
+if($_fa_is_thread && !empty($uid)) {
+    // 帖子详情页，检查帖子是否关闭（$thread 在 route/thread.php 中定义，include 链中可用）
+    if(isset($thread) && !empty($thread)) {
+        $thread_closed = !empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] != 1);
+        // 管理员(gid<=5)可以回复已关闭的帖子
+        if(!$thread_closed || ($gid > 0 && $gid <= 5)) {
+            $_fa_show_reply = true;
+            $_fa_reply_url = post_create_url($tid);
+        }
+    }
+}
+
+// 发帖链接
+$_fa_post_url = !empty($fid) ? thread_create_url($fid) : thread_create_url();
+
+// 是否已登录（传给 JS）
+$_fa_logged_in = !empty($uid) ? 'true' : 'false';
+$_fa_user_gid = intval($gid);
+?>
+<div class="floating-actions" id="floatingActions">
+    <!-- 回到顶部 -->
+    <button type="button" class="fab-btn" id="fabScrollTop" hidden title="<?php echo lang('back_to_top');?>">
+        <i class="ti ti-arrow-up"></i>
+        <span class="fab-label"><?php echo lang('back_to_top');?></span>
+    </button>
+
+    <!-- 回到底部 -->
+    <button type="button" class="fab-btn" id="fabScrollBottom" title="<?php echo lang('scroll_to_bottom');?>">
+        <i class="ti ti-arrow-down"></i>
+        <span class="fab-label"><?php echo lang('scroll_to_bottom');?></span>
+    </button>
+
+    <!-- 返回 -->
+    <button type="button" class="fab-btn" id="fabBack" title="<?php echo lang('floating_back');?>"<?php echo $_fa_show_back ? '' : ' hidden';?>>
+        <i class="ti ti-arrow-left"></i>
+        <span class="fab-label"><?php echo lang('floating_back');?></span>
+    </button>
+
+    <!-- 发帖 -->
+    <a href="<?php echo $_fa_post_url;?>" class="fab-btn fab-primary" id="fabPost" title="<?php echo lang('floating_post');?>"<?php echo $_fa_show_post ? '' : ' hidden';?> hx-boost="false">
+        <i class="ti ti-pencil"></i>
+        <span class="fab-label"><?php echo lang('floating_post');?></span>
+    </a>
+
+    <!-- 回复 -->
+    <a href="<?php echo $_fa_reply_url;?>" class="fab-btn fab-primary" id="fabReply" title="<?php echo lang('floating_reply');?>"<?php echo $_fa_show_reply ? '' : ' hidden';?> hx-boost="false">
+        <i class="ti ti-message-2"></i>
+        <span class="fab-label"><?php echo lang('floating_reply');?></span>
+    </a>
+</div>
+
+<script>
+(function() {
+    var fabContainer = document.getElementById('floatingActions');
+    var fabTop = document.getElementById('fabScrollTop');
+    var fabBottom = document.getElementById('fabScrollBottom');
+    var fabBack = document.getElementById('fabBack');
+    var fabPost = document.getElementById('fabPost');
+    var fabReply = document.getElementById('fabReply');
+    if(!fabContainer || !fabTop || !fabBottom) return;
+
+    var isLoggedIn = <?php echo $_fa_logged_in;?>;
+    var userGid = <?php echo $_fa_user_gid;?>;
+    var homeUrl = '<?php echo index_url();?>';
+    var threadCreateBaseUrl = '<?php echo thread_create_url();?>';
+    var replyBaseUrl = '<?php echo url("post-create");?>';
+    var langPost = '<?php echo lang('floating_post');?>';
+    var langReply = '<?php echo lang('floating_reply');?>';
+
+    // 从 URL 解析当前页面类型
+    function getPageInfo() {
+        var path = window.location.pathname + window.location.search;
+        var info = { type: 'index', fid: 0, tid: 0 };
+
+        // 发帖页
+        if(/thread-create/i.test(path)) {
+            info.type = 'thread_create';
+            return info;
+        }
+        // 回复/编辑页
+        if(/post-create|post-update/i.test(path)) {
+            info.type = 'post_page';
+            return info;
+        }
+        // 帖子详情页
+        var threadMatch = path.match(/thread-(\d+)/i);
+        if(threadMatch) {
+            info.type = 'thread';
+            info.tid = parseInt(threadMatch[1], 10);
+            return info;
+        }
+        // 版块页
+        var forumMatch = path.match(/forum-(\d+)/i);
+        if(forumMatch) {
+            info.type = 'forum';
+            info.fid = parseInt(forumMatch[1], 10);
+            return info;
+        }
+        // 登录/注册页
+        if(/user-login|user-create/i.test(path)) {
+            info.type = 'auth';
+            return info;
+        }
+        return info;
+    }
+
+    // 根据页面类型更新发帖/回复/返回按钮
+    function updateActionButtons() {
+        var info = getPageInfo();
+
+        // 返回按钮：非首页、非登录注册页显示
+        if(fabBack) {
+            if(info.type === 'index' || info.type === 'auth') {
+                fabBack.setAttribute('hidden', '');
+            } else {
+                fabBack.removeAttribute('hidden');
+            }
+        }
+
+        // 发帖按钮：已登录 + 首页/版块页/帖子详情页显示
+        if(fabPost) {
+            if(isLoggedIn && (info.type === 'index' || info.type === 'forum' || info.type === 'thread')) {
+                fabPost.removeAttribute('hidden');
+                // url() 已添加 .htm 后缀，需在 .htm 前插入 -fid
+                var postUrl = info.fid > 0
+                    ? threadCreateBaseUrl.replace(/\.htm$/, '-' + info.fid + '.htm')
+                    : threadCreateBaseUrl;
+                fabPost.setAttribute('href', postUrl);
+            } else {
+                fabPost.setAttribute('hidden', '');
+            }
+        }
+
+        // 回复按钮：已登录 + 帖子详情页显示
+        // 注意：帖子关闭状态由 PHP 初始渲染决定，htmx 导航后无法精确判断
+        if(fabReply) {
+            if(isLoggedIn && info.type === 'thread' && info.tid > 0) {
+                fabReply.removeAttribute('hidden');
+                // url() 已添加 .htm 后缀，需在 .htm 前插入 -tid
+                fabReply.setAttribute('href', replyBaseUrl.replace(/\.htm$/, '-' + info.tid + '.htm'));
+            } else {
+                fabReply.setAttribute('hidden', '');
+            }
+        }
+    }
+
+    // 滚动监听（节流）
+    var ticking = false;
+    function updateScrollState() {
+        var scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        var scrollHeight = document.documentElement.scrollHeight;
+        var clientHeight = document.documentElement.clientHeight;
+        var distanceToBottom = scrollHeight - scrollTop - clientHeight;
+
+        // 回到顶部：滚动超过 300px 显示
+        if(scrollTop > 300) {
+            fabTop.removeAttribute('hidden');
+        } else {
+            fabTop.setAttribute('hidden', '');
+        }
+
+        // 回到底部：未到底部时显示（距离底部超过 100px）
+        if(distanceToBottom > 100) {
+            fabBottom.removeAttribute('hidden');
+        } else {
+            fabBottom.setAttribute('hidden', '');
+        }
+        ticking = false;
+    }
+
+    window.addEventListener('scroll', function() {
+        if(!ticking) {
+            window.requestAnimationFrame(updateScrollState);
+            ticking = true;
+        }
+    }, { passive: true });
+
+    // 回到顶部
+    fabTop.addEventListener('click', function(e) {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // 回到底部
+    fabBottom.addEventListener('click', function(e) {
+        e.preventDefault();
+        var scrollHeight = document.documentElement.scrollHeight;
+        window.scrollTo({ top: scrollHeight, behavior: 'smooth' });
+    });
+
+    // 返回
+    if(fabBack) {
+        fabBack.addEventListener('click', function(e) {
+            e.preventDefault();
+            if(window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.href = homeUrl;
+            }
+        });
+    }
+
+    // 回复按钮：如果有快速回复框，优先滚动到回复框
+    if(fabReply) {
+        fabReply.addEventListener('click', function(e) {
+            var quickReplyForm = document.getElementById('quick_reply_form');
+            if(quickReplyForm) {
+                e.preventDefault();
+                quickReplyForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(function() {
+                    var textarea = quickReplyForm.querySelector('textarea');
+                    if(textarea) textarea.focus();
+                }, 500);
+            }
+        });
+    }
+
+    // 初始化
+    updateScrollState();
+    updateActionButtons();
+
+    // htmx boost 导航后更新按钮状态
+    document.body.addEventListener('htmx:afterSettle', function() {
+        updateActionButtons();
+        updateScrollState();
+    });
+})();
+</script>

@@ -78,6 +78,55 @@ function image_get_dir($id) {
 	return "$s1/$s2";
 }
 
+// 读取图片为 GD 资源，依次尝试：GD 格式函数 → imagecreatefromstring → Imagick 兜底
+function image_read_gd($sourcefile) {
+	$imginfo = @getimagesize($sourcefile);
+	if(!$imginfo) return false;
+
+	$img = false;
+	switch($imginfo['mime']) {
+		case 'image/jpeg': $img = @imagecreatefromjpeg($sourcefile); break;
+		case 'image/png':  $img = @imagecreatefrompng($sourcefile);  break;
+		case 'image/gif':  $img = @imagecreatefromgif($sourcefile);  break;
+		case 'image/bmp':  if(function_exists('imagecreatefrombmp')) $img = @imagecreatefrombmp($sourcefile); break;
+		case 'image/webp':
+			if(function_exists('imagecreatefromwebp')) $img = @imagecreatefromwebp($sourcefile);
+			// 部分 WebP 编码 GD 无法识别，尝试用字符串方式兜底读取
+			if(!$img) {
+				$imgdata = @file_get_contents($sourcefile);
+				if($imgdata !== false) $img = @imagecreatefromstring($imgdata);
+			}
+			break;
+		default:
+			// 非标准 MIME，尝试通用读取
+			$data = @file_get_contents($sourcefile);
+			if($data !== false) $img = @imagecreatefromstring($data);
+			break;
+	}
+
+	// 验证 GD 资源有效（宽高 > 0）
+	if($img && imagesx($img) > 0 && imagesy($img) > 0) return $img;
+
+	// Imagick 兜底：GD 无法读取时尝试用 Imagick 转换
+	if(class_exists('Imagick')) {
+		try {
+			$imagick = new Imagick($sourcefile);
+			$imagick->setImageFormat('png');
+			$blob = $imagick->getImageBlob();
+			$imagick->clear();
+			$imagick->destroy();
+			if(!empty($blob)) {
+				$img = @imagecreatefromstring($blob);
+				if($img && imagesx($img) > 0 && imagesy($img) > 0) return $img;
+			}
+		} catch(Exception $e) {
+			// Imagick 也无法处理
+		}
+	}
+
+	return false;
+}
+
 /*
 	实例：
  	image_thumb('xxx.jpg', 'xxx_thumb.jpg', 200, 200);
@@ -88,7 +137,7 @@ function image_get_dir($id) {
 function image_thumb($sourcefile, $destfile, $forcedwidth = 80, $forcedheight = 80) {
 	$return = array('filesize'=>0, 'width'=>0, 'height'=>0);
 	$destext = image_ext($destfile);
-	if(!in_array($destext, array('gif', 'jpg', 'bmp', 'png'))) {
+	if(!in_array($destext, array('gif', 'jpg', 'bmp', 'png', 'webp'))) {
 		return $return;
 	}
 
@@ -121,31 +170,8 @@ function image_thumb($sourcefile, $destfile, $forcedwidth = 80, $forcedheight = 
 		$des_width = ($des_width >= $forcedwidth) ? $forcedwidth : $des_width;
 	}
 
-	switch ($imginfo['mime']) {
-		case 'image/jpeg':
-			$img_src = imagecreatefromjpeg($sourcefile);
-			!$img_src && $img_src = imagecreatefromgif($sourcefile);
-			break;
-		case 'image/gif':
-			$img_src = imagecreatefromgif($sourcefile);
-			!$img_src && $img_src = imagecreatefromjpeg($sourcefile);
-			break;
-		case 'image/png':
-			$img_src = imagecreatefrompng($sourcefile);
-			break;
-		case 'image/webp':
-			if(function_exists('imagecreatefromwebp')) $img_src = imagecreatefromwebp($sourcefile);
-			break;
-		case 'image/bmp':
-			if(function_exists('imagecreatefrombmp')) $img_src = imagecreatefrombmp($sourcefile);
-			break;
-		case 'image/wbmp':
-			$img_src = imagecreatefromwbmp($sourcefile);
-			break;
-		default :
-			return $return;
-	}
-
+	// 使用统一的读取函数（自动支持 Imagick 兜底）
+	$img_src = image_read_gd($sourcefile);
 	if(!$img_src) return $return;
 
 	$img_dst = imagecreatetruecolor($des_width, $des_height);
@@ -161,6 +187,7 @@ function image_thumb($sourcefile, $destfile, $forcedwidth = 80, $forcedheight = 
 		case 'jpg': imagejpeg($img_dst, $tmpfile, 90); break;
 		case 'gif': imagegif($img_dst, $tmpfile); break;
 		case 'png': imagepng($img_dst, $tmpfile); break;
+		case 'webp': imagewebp($img_dst, $tmpfile, 90); break;
 	}
 	$r = array('filesize'=>filesize($tmpfile), 'width'=>$des_width, 'height'=>$des_height);;
 	copy($tmpfile, $destfile);
@@ -197,25 +224,7 @@ function image_clip($sourcefile, $destfile, $clipx, $clipy, $clipwidth, $cliphei
 		copy($sourcefile, $destfile);
 		return filesize($destfile);
 	}
-	$imgcolor = null;
-	switch($getimgsize[2]) {
-		case 1 :
-			$imgcolor = imagecreatefromgif($sourcefile);
-			break;
-		case 2 :
-			$imgcolor = imagecreatefromjpeg($sourcefile);
-			break;
-		case 3 :
-			$imgcolor = imagecreatefrompng($sourcefile);
-			break;
-		case 6 :
-			if(function_exists('imagecreatefrombmp')) $imgcolor = imagecreatefrombmp($sourcefile);
-			break;
-		case 18 :
-			if(function_exists('imagecreatefromwebp')) $imgcolor = imagecreatefromwebp($sourcefile);
-			break;
-	}
-
+	$imgcolor = image_read_gd($sourcefile);
 	if(!$imgcolor) return 0;
 
 	$img_dst = imagecreatetruecolor($clipwidth, $clipheight);

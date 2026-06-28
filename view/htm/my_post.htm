@@ -1,0 +1,24 @@
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<?php include _include(APP_PATH.'view/htm/my.layout.inc.htm');?>
+
+	<!-- 我的回复 -->
+	<div class="x-card card">
+		<div class="card-body">
+			<ul class="list-unstyled postlist mb-0">
+				<?php include _include(APP_PATH.'view/htm/post_list.inc.htm');?>
+			</ul>
+
+			<?php if($pagination) { ?>
+			<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap mt-3"><?php echo $pagination;?></ul></nav>
+			<?php } ?>
+		</div>
+	</div>
+
+</div>
+
+<!-- 右侧空栏 -->
+<div class="d-none d-lg-block col-lg-3"></div>
+</div>
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>

@@ -21,8 +21,7 @@ function admin_token_check() {
 	} else {
 		$s = xn_decrypt($admin_token, $key);
 		if(empty($s)) {
-			$cookie_secure = isset($conf['cookie_secure']) ? $conf['cookie_secure'] : false;
-			setcookie('bbs_admin_token', '', array('expires' => 0, 'path' => '', 'domain' => '', 'secure' => $cookie_secure, 'httponly' => true, 'samesite' => 'Lax'));
+			setcookie('bbs_admin_token', '', admin_cookie_options(0));
 			//message(-1, lang('admin_token_error'));
 			message(-1, lang('admin_token_expiry'));
 		}
@@ -32,8 +31,7 @@ function admin_token_check() {
 		// Background / more than 3600 automatic withdrawal.
 		//if($_ip != $longip || $time - $_time > 3600) {
 		if((XN_ADMIN_BIND_IP && $_ip != $longip || !XN_ADMIN_BIND_IP) && $time - $_time > 3600) {
-			$cookie_secure = isset($conf['cookie_secure']) ? $conf['cookie_secure'] : false;
-			setcookie('bbs_admin_token', '', array('expires' => 0, 'path' => '', 'domain' => '', 'secure' => $cookie_secure, 'httponly' => true, 'samesite' => 'Lax'));
+			setcookie('bbs_admin_token', '', admin_cookie_options(0));
 			message(-1, lang('admin_token_expiry'));
 		}
 		
@@ -44,6 +42,43 @@ function admin_token_check() {
 		}
 	}
 	// hook admin_token_check_end.php
+}
+
+// 获取后台 Cookie 安全选项
+function admin_cookie_options($expires = 0) {
+	global $conf;
+	$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+
+	// Cookie Secure
+	if(isset($conf['security_cookie_secure']) && intval($conf['security_cookie_secure']) > 0) {
+		$cookie_secure = true;
+	} elseif(isset($conf['cookie_secure'])) {
+		$cookie_secure = intval($conf['cookie_secure']) > 0;
+	} else {
+		$cookie_secure = $is_https;
+	}
+
+	// Cookie HttpOnly
+	$cookie_httponly = true;
+	if(isset($conf['security_cookie_httponly'])) {
+		$cookie_httponly = intval($conf['security_cookie_httponly']) > 0;
+	}
+
+	// Cookie SameSite
+	if(isset($conf['security_cookie_samesite']) && in_array($conf['security_cookie_samesite'], array('Lax', 'Strict', 'None'), true)) {
+		$samesite = $conf['security_cookie_samesite'];
+	} else {
+		$samesite = 'Lax';
+	}
+
+	return array(
+		'expires' => $expires,
+		'path' => '',
+		'domain' => '',
+		'secure' => $cookie_secure,
+		'httponly' => $cookie_httponly,
+		'samesite' => $samesite,
+	);
 }
 
 function admin_token_set() {
@@ -58,32 +93,14 @@ function admin_token_set() {
 	$s = "$longip	$time";
 	
 	$admin_token = xn_encrypt($s, $key);
-	$cookie_secure = isset($conf['cookie_secure']) ? $conf['cookie_secure'] : false;
-	$cookie_options = array(
-		'expires' => $time + 3600,
-		'path' => '',
-		'domain' => '',
-		'secure' => $cookie_secure,
-		'httponly' => true,
-		'samesite' => 'Lax',
-	);
-	setcookie('bbs_admin_token', $admin_token, $cookie_options);
+	setcookie('bbs_admin_token', $admin_token, admin_cookie_options($time + 3600));
 
 	// hook admin_token_set_end.php
 }
 
 function admin_token_clean() {
-	global $time, $conf;
-	$cookie_secure = isset($conf['cookie_secure']) ? $conf['cookie_secure'] : false;
-	$cookie_options = array(
-		'expires' => $time - 86400,
-		'path' => '',
-		'domain' => '',
-		'secure' => $cookie_secure,
-		'httponly' => true,
-		'samesite' => 'Lax',
-	);
-	setcookie('bbs_admin_token', '', $cookie_options);
+	global $time;
+	setcookie('bbs_admin_token', '', admin_cookie_options($time - 86400));
 
 	// hook admin_token_clean_start.php
 }

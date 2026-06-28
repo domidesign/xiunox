@@ -61,14 +61,19 @@ function post_create($arr, $fid, $gid) {
 
 	// 回帖
 	if($tid > 0) {
-		
-		// todo: 如果是老帖，不更新 lastpid
-		thread__update($tid, array('posts+'=>1, 'lastpid'=>$pid, 'lastuid'=>$uid, 'last_date'=>$time));
-		$uid AND user__update($uid, array('posts+'=>1));
-	
-		runtime_set('posts+', 1);
-		runtime_set('todayposts+', 1);
-		forum__update($fid, array('todayposts+'=>1));
+		// 待审评论不计入帖子和用户的 posts 计数，审核通过后由 AuditService::approve 补加
+		$audit_status = isset($arr['audit_status']) ? intval($arr['audit_status']) : 1;
+		if($audit_status == 1) {
+			// todo: 如果是老帖，不更新 lastpid
+			thread__update($tid, array('posts+'=>1, 'lastpid'=>$pid, 'lastuid'=>$uid, 'last_date'=>$time));
+			$uid AND user__update($uid, array('posts+'=>1));
+			runtime_set('posts+', 1);
+			runtime_set('todayposts+', 1);
+			forum__update($fid, array('todayposts+'=>1));
+		} else {
+			// 待审评论仅更新 lastpid，不增加 posts 计数
+			thread__update($tid, array('lastpid'=>$pid, 'lastuid'=>$uid, 'last_date'=>$time));
+		}
 	}
 	
 	//post_list_cache_delete($tid);
@@ -145,9 +150,13 @@ function post_delete($pid) {
 	// hook model_post_delete_start.php
 	
 	if(!$post['isfirst']) {
-		thread__update($tid, array('posts-'=>1));
-		$uid AND user__update($uid, array('posts-'=>1));
-		runtime_set('posts-', 1);
+		// 待审评论创建时未计入 posts，删除时也不应减少
+		$audit_status = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
+		if($audit_status == 1) {
+			thread__update($tid, array('posts-'=>1));
+			$uid AND user__update($uid, array('posts-'=>1));
+			runtime_set('posts-', 1);
+		}
 	} else {
 		//post_list_cache_delete($tid);
 	}
@@ -168,12 +177,129 @@ function post_delete($pid) {
 // 此处有可能会超时
 function post_delete_by_tid($tid) {
 	// hook model_post_delete_by_tid_start.php
-	$postlist = post_find_by_tid($tid);
+	// 使用 post__find 避免触发 post_format 的 N+1 查询，获取所有回帖
+	$postlist = post__find(array('tid'=>$tid), array('pid'=>1), 1, 1000000);
+	if(empty($postlist)) return 0;
+
+	// 批量收集需要删除附件的 pid
+	$pids_with_attach = array();
 	foreach($postlist as $post) {
-		post_delete($post['pid']);
+		if(($post['images'] || $post['files']) && $post['pid']) {
+			$pids_with_attach[] = $post['pid'];
+		}
 	}
+
+	// 批量删除附件（物理文件 + 数据库记录）
+	if(!empty($pids_with_attach)) {
+		global $conf;
+		$attachlist = db_find('attach', array('pid'=>$pids_with_attach), array(), 1, count($pids_with_attach) * 100);
+		if($attachlist) {
+			foreach($attachlist as $attach) {
+				$path = $conf['upload_path'].'attach/'.$attach['filename'];
+				file_exists($path) AND unlink($path);
+				$thumb_path = attach_thumb_path($attach['filename']);
+				if($thumb_path) {
+					$full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
+					file_exists($full_thumb_path) AND unlink($full_thumb_path);
+				}
+			}
+			db_delete('attach', array('pid'=>$pids_with_attach));
+		}
+	}
+
+	// 批量删除回帖
+	$n = db_delete('post', array('tid'=>$tid));
+
+	// 更新用户 posts 统计（仅审核通过的非首帖，待审评论创建时未计入）
+	$user_post_count = array();
+	$non_first_count = 0;
+	foreach($postlist as $post) {
+		if($post['isfirst']) continue;
+		$_audit = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
+		if($_audit != 1) continue; // 待审评论不计入
+		$non_first_count++;
+		if($post['uid']) {
+			if(!isset($user_post_count[$post['uid']])) $user_post_count[$post['uid']] = 0;
+			$user_post_count[$post['uid']]++;
+		}
+	}
+	foreach($user_post_count as $_uid => $cnt) {
+		user__update($_uid, array('posts-'=>$cnt));
+	}
+
+	// 更新全站统计
+	$non_first_count AND runtime_set('posts-', $non_first_count);
+
 	// hook model_post_delete_by_tid_end.php
-	return count($postlist);
+	return $n;
+}
+
+// 批量删除多个主题的所有回帖，合并查询消除 N+1（用于 thread_delete_batch）
+// 内部逻辑与 post_delete_by_tid 一致，但将 find attach / delete post / 统计更新全部合并为单次查询
+function post_delete_by_tids_batch($tids) {
+	// hook model_post_delete_by_tids_batch_start.php
+	if(empty($tids) || !is_array($tids)) return 0;
+
+	$tids = array_map('intval', $tids);
+	$tids = array_unique($tids);
+	$tids = array_filter($tids);
+	if(empty($tids)) return 0;
+
+	// 一次查询获取所有回帖
+	$postlist = db_find('post', array('tid'=>$tids), array(), 1, 1000000, 'pid');
+	if(empty($postlist)) return 0;
+
+	// 批量收集需要删除附件的 pid
+	$pids_with_attach = array();
+	foreach($postlist as $post) {
+		if(($post['images'] || $post['files']) && $post['pid']) {
+			$pids_with_attach[] = $post['pid'];
+		}
+	}
+
+	// 批量删除附件（物理文件 + 数据库记录，一次查询）
+	if(!empty($pids_with_attach)) {
+		global $conf;
+		$attachlist = db_find('attach', array('pid'=>$pids_with_attach), array(), 1, count($pids_with_attach) * 100);
+		if($attachlist) {
+			foreach($attachlist as $attach) {
+				$path = $conf['upload_path'].'attach/'.$attach['filename'];
+				file_exists($path) AND unlink($path);
+				$thumb_path = attach_thumb_path($attach['filename']);
+				if($thumb_path) {
+					$full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
+					file_exists($full_thumb_path) AND unlink($full_thumb_path);
+				}
+			}
+			db_delete('attach', array('pid'=>$pids_with_attach));
+		}
+	}
+
+	// 批量删除所有回帖（一次 DELETE）
+	$n = db_delete('post', array('tid'=>$tids));
+
+	// 汇总用户 posts 统计（仅审核通过的非首帖，待审评论创建时未计入）
+	$user_post_count = array();
+	$non_first_count = 0;
+	foreach($postlist as $post) {
+		if($post['isfirst']) continue;
+		$_audit = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
+		if($_audit != 1) continue; // 待审评论不计入
+		$non_first_count++;
+		if($post['uid']) {
+			if(!isset($user_post_count[$post['uid']])) $user_post_count[$post['uid']] = 0;
+			$user_post_count[$post['uid']]++;
+		}
+	}
+	foreach($user_post_count as $_uid => $cnt) {
+		user__update($_uid, array('posts-'=>$cnt));
+	}
+
+	// 更新全站统计
+	$non_first_count AND runtime_set('posts-', $non_first_count);
+
+	// hook model_post_delete_by_tids_batch_end.php
+	return $n;
 }
 
 // 此处有可能会超时，并且导致统计不准确，需要重建统计数
@@ -185,33 +311,68 @@ function post_delete_by_uid($uid) {
 }
 
 function post_find($cond = array(), $orderby = array(), $page = 1, $pagesize = 20) {
+	global $uid, $g_preloaded_post_likes;
 	// hook model_post_find_start.php
 	$postlist = post__find($cond, $orderby, $page, $pagesize);
 	$floor = 1;
-	if($postlist) foreach($postlist as &$post) {
-		$post['floor'] = $floor++;
-		post_format($post);
+	if($postlist) {
+		// 批量预加载用户数据，消除 N+1 查询
+		$uids = arrlist_values($postlist, 'uid');
+		user_preload($uids);
+
+		// 批量预加载 thread 数据，消除 post_format 中 thread_read_cache 的隐藏查询
+		// 参考 post_find_by_tid 的做法：调用 thread_read_cache 预填充 static 缓存
+		// 去重后每个 tid 只查询一次，后续 post_format 内的 thread_read_cache 命中缓存
+		$tids = arrlist_values($postlist, 'tid');
+		$tids = array_unique($tids);
+		foreach($tids as $tid) {
+			thread_read_cache($tid);
+		}
+
+		// 批量预加载点赞状态
+		if(!empty($uid) && !isset($g_preloaded_post_likes)) {
+			$pids = arrlist_values($postlist, 'pid');
+			$g_preloaded_post_likes = post_like_read_batch($uid, $pids);
+		}
+
+		foreach($postlist as &$post) {
+			$post['floor'] = $floor++;
+			post_format($post);
+		}
 	}
 	// hook model_post_find_end.php
 	return $postlist;
 }
 
 // 此处有缓存，是否有必要？
-function post_find_by_tid($tid, $page = 1, $pagesize = 50) {
-	global $conf;
-	
+function post_find_by_tid($tid, $page = 1, $pagesize = 50, $orderby = array('pid'=>1)) {
+	global $conf, $uid, $g_preloaded_post_likes;
+
 	// hook model_post_find_by_tid_start.php
-	
-	$postlist = post__find(array('tid'=>$tid), array('pid'=>1), $page, $pagesize);
-	
+
+	$postlist = post__find(array('tid'=>$tid), $orderby, $page, $pagesize);
+
 	if($postlist) {
+		// 批量预加载用户数据，消除 N+1 查询
+		$uids = arrlist_values($postlist, 'uid');
+		user_preload($uids);
+
+		// 预加载 thread 数据（同一 tid 所有回帖共享一个 thread）
+		$thread = thread_read_cache($tid);
+
+		// 批量预加载点赞状态
+		if(!empty($uid) && !isset($g_preloaded_post_likes)) {
+			$pids = arrlist_values($postlist, 'pid');
+			$g_preloaded_post_likes = post_like_read_batch($uid, $pids);
+		}
+
 		$floor = ($page - 1)* $pagesize + 1;
 		foreach($postlist as &$post) {
 			$post['floor'] = $floor++;
 			post_format($post);
 		}
 	}
-	
+
 	// hook model_post_find_by_tid_end.php
 	return $postlist;
 }
@@ -266,12 +427,70 @@ function post_safe_info($post) {
 }
 
 function post_find_by_pids($pids, $order = array('pid'=>-1)) {
+	global $uid, $g_preloaded_post_likes;
 	// hook model_post_find_by_pids_start.php
 	if(!$pids) return array();
 	$postlist = db_find('post', array('pid'=>$pids), $order, 1, 1000, 'pid');
-	if($postlist) foreach($postlist as &$post) post_format($post);
+	if($postlist) {
+		// 批量预加载用户数据，消除 N+1 查询
+		$uids = arrlist_values($postlist, 'uid');
+		user_preload($uids);
+
+		// 批量预加载点赞状态
+		if(!empty($uid) && !isset($g_preloaded_post_likes)) {
+			$pidlist = arrlist_values($postlist, 'pid');
+			$g_preloaded_post_likes = post_like_read_batch($uid, $pidlist);
+		}
+
+		foreach($postlist as &$post) post_format($post);
+	}
 	// hook model_post_find_by_pids_end.php
 	return $postlist;
+}
+
+/**
+ * 批量查找引用链
+ * 沿着 quotepid 向上查找，返回引用链上的 post 数组
+ * 使用 static 缓存避免同一请求内重复查询同一 pid（如循环引用或多次调用），并防止循环引用导致的死循环
+ *
+ * @param int $quotepid 起始引用的 pid
+ * @param int $max_depth 最大深度，默认 10
+ * @return array 引用链上的 post 数组（以 pid 为 key，按沿链向上顺序：从直接引用 $quotepid 到最上层）
+ */
+function post_find_quote_chain($quotepid, $max_depth = 10) {
+	// hook model_post_find_quote_chain_start.php
+	$chain = array();
+	if(empty($quotepid)) return $chain;
+
+	// static 缓存：避免同一请求内重复查询同一 pid（循环引用时也会命中缓存）
+	static $cache = array();
+
+	$_current_pid = intval($quotepid);
+	$_depth = 0;
+	$visited = array(); // 已访问的 pid，防止循环引用
+
+	while($_depth < $max_depth && $_current_pid > 0) {
+		// 防止循环引用：遇到已访问的 pid 立即停止
+		if(isset($visited[$_current_pid])) break;
+		$visited[$_current_pid] = true;
+
+		// 走 static 缓存，避免重复查询
+		if(!isset($cache[$_current_pid])) {
+			$cache[$_current_pid] = post__read($_current_pid);
+		}
+		$post = $cache[$_current_pid];
+
+		if(empty($post)) break;
+		$chain[$_current_pid] = $post;
+
+		// 没有更上层引用，结束
+		if(empty($post['quotepid'])) break;
+		$_current_pid = intval($post['quotepid']);
+		$_depth++;
+	}
+
+	// hook model_post_find_quote_chain_end.php
+	return $chain;
 }
 
 
@@ -284,54 +503,23 @@ function post_highlight_keyword($str, $k) {
 
 // 公用的附件模板，采用函数，效率比 include 高。
 function post_file_list_html($filelist, $include_delete = FALSE, $imagelist = array(), $videolist = array()) {
-    if(empty($filelist) && empty($imagelist) && empty($videolist)) return '';
+    // 图片和视频已插入到 message 中内联显示，此处不再重复渲染 imagelist/videolist
+    // 仅渲染普通附件（filelist）的下载卡片
+    if(empty($filelist)) return '';
 
-    // hook model_post_file_list_html_start.php
+    global $conf, $time;
+
+    // hook model_post_file_list_html_start
 
     $s = '';
 
-    // 图片附件：响应式缩略图网格
-    if(!empty($imagelist)) {
-        $s .= '<div class="attach-imagelist mb-3">'."\r\n";
-        $s .= '    <div class="row g-2">'."\r\n";
-        foreach($imagelist as $attach) {
-            $s .= '        <div class="col-4 col-sm-3 col-md-2">'."\r\n";
-            $s .= '            <div class="position-relative rounded-3 overflow-hidden" style="aspect-ratio:1; background:var(--bs-tertiary-bg);">'."\r\n";
-            $s .= '                <a href="'.$attach['url'].'" data-lightbox="attach-image" title="'.esc_html($attach['orgfilename']).'">'."\r\n";
-            $s .= '                    <img src="'.$attach['url'].'" class="w-100 h-100 object-fit-cover" alt="'.esc_html($attach['orgfilename']).'" loading="lazy">'."\r\n";
-            $s .= '                </a>'."\r\n";
-            if($include_delete) {
-                $s .= '                <a href="javascript:void(0)" class="attach-delete attach-delete-btn position-absolute top-0 end-0 m-1 btn btn-sm btn-danger px-1 py-0" aid="'.$attach['aid'].'" onclick="deleteAttach(this, '.$attach['aid'].')"><i class="ti ti-x" style="font-size:0.7rem;"></i></a>'."\r\n";
-            }
-            $s .= '            </div>'."\r\n";
-            $s .= '        </div>'."\r\n";
-        }
-        $s .= '    </div>'."\r\n";
-        $s .= '</div>'."\r\n";
-    }
-
-    // 视频附件：HTML5 视频播放器
-    if(!empty($videolist)) {
-        $s .= '<div class="attach-videolist mb-3">'."\r\n";
-        foreach($videolist as $attach) {
-            $s .= '    <div class="mb-2" aid="'.$attach['aid'].'">'."\r\n";
-            $s .= '        <video controls preload="metadata" class="w-100 rounded-3" style="max-height:400px;">'."\r\n";
-            $s .= '            <source src="'.$attach['url'].'" type="video/'.pathinfo($attach['orgfilename'], PATHINFO_EXTENSION).'">'."\r\n";
-            $s .= '        </video>'."\r\n";
-            if($include_delete) {
-            $s .= '        <div class="d-flex align-items-center justify-content-between mt-1 small">'."\r\n";
-            $s .= '            <a href="javascript:void(0)" class="attach-delete attach-delete-btn text-danger text-decoration-none" aid="'.$attach['aid'].'" onclick="deleteAttach(this, '.$attach['aid'].')"><i class="ti ti-trash"></i> '.lang('delete').'</a>'."\r\n";
-            $s .= '        </div>'."\r\n";
-            }
-            $s .= '    </div>'."\r\n";
-        }
-        $s .= '</div>'."\r\n";
-    }
-
-    // 文件附件：卡片列表
+    // 文件附件：卡片列表（不暴露真实下载 URL，通过 JS AJAX 下载）
     if(!empty($filelist)) {
-        global $conf;
         $types = include APP_PATH.'conf/attach.conf.php';
+        $sign_key = array_value($conf, 'attach_sign_key', '');
+        // token 有效期 1 小时
+        $expires = $time + 3600;
+
         $s .= '<div class="attach-filelist mb-3">'."\r\n";
         foreach($filelist as $attach) {
             $filetype = attach_type($attach['orgfilename'], $types);
@@ -356,14 +544,21 @@ function post_file_list_html($filelist, $include_delete = FALSE, $imagelist = ar
             } else {
                 $size_fmt = $filesize.'B';
             }
-            $s .= '    <div class="border rounded-3 p-2 mb-1 d-flex align-items-center" aid="'.$attach['aid'].'">'."\r\n";
+            $aid = $attach['aid'];
+            $orgfilename = esc_html($attach['orgfilename']);
+            // 生成签名 token（与 attach-fetch 路由验证逻辑一致）
+            $token = md5($aid . $expires . $sign_key);
+            $fetch_url = url("attach-fetch-{$aid}-{$token}-{$expires}");
+            $s .= '    <div class="border rounded-3 p-2 mb-1 d-flex align-items-center" aid="'.$aid.'">'."\r\n";
             $s .= '        <i class="ti '.$icon.' text-body-secondary me-2" style="font-size:1.25rem;"></i>'."\r\n";
             $s .= '        <div class="flex-fill" style="min-width:0">'."\r\n";
-            $s .= '            <a href="'.url("attach-download-$attach[aid]").'" class="text-body text-decoration-none text-truncate d-block small" title="'.esc_html($attach['orgfilename']).'">'.esc_html($attach['orgfilename']).'</a>'."\r\n";
+            $s .= '            <span class="text-body text-truncate d-block small" title="'.$orgfilename.'">'.$orgfilename.'</span>'."\r\n";
             $s .= '            <span class="text-body-secondary" style="font-size:0.75rem;">'.$size_fmt.'</span>'."\r\n";
             $s .= '        </div>'."\r\n";
+            // 下载按钮：通过 JS AJAX 下载，URL 存在 data-url，JS 读取后 fetch 并清空
+            $s .= '        <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 ms-2 flex-shrink-0 attach-fetch-btn" data-url="'.htmlspecialchars($fetch_url).'" data-name="'.htmlspecialchars($attach['orgfilename']).'" title="'.lang('download').'"><i class="ti ti-download"></i></button>'."\r\n";
             if($include_delete) {
-                $s .= '        <a href="javascript:void(0)" class="attach-delete attach-delete-btn text-danger text-decoration-none ms-2" aid="'.$attach['aid'].'" onclick="deleteAttach(this, '.$attach['aid'].')"><i class="ti ti-trash"></i></a>'."\r\n";
+                $s .= '        <a href="javascript:void(0)" class="attach-delete attach-delete-btn text-danger text-decoration-none ms-2" aid="'.$aid.'" onclick="deleteAttach(this, '.$aid.')"><i class="ti ti-trash"></i></a>'."\r\n";
             }
             $s .= '    </div>'."\r\n";
         }
@@ -384,10 +579,11 @@ function post_format(&$post) {
 	
 	// hook model_post_format_start.php
 	
-	$post['username'] = array_value($user, 'username');
+	$post['username'] = array_value($user, 'display_name') ? array_value($user, 'display_name') : array_value($user, 'username');
 	$post['user_avatar_url'] = array_value($user, 'avatar_url');
 	$post['group_icon_class'] = array_value($user, 'group_icon_class', '');
 	$post['group_color'] = array_value($user, 'group_color', '');
+	$post['group_name'] = array_value($user, 'groupname', '');
 	$post['gid'] = array_value($user, 'gid', 0);
 	$post['user'] = $user ? $user : user_guest();
 	!isset($post['floor']) AND  $post['floor'] = '';
@@ -401,7 +597,12 @@ function post_format(&$post) {
 	$post['user_url'] = url("user-$post[uid]".($post['uid'] ? '' : "-$post[pid]"));
 	
 	if($post['files'] > 0) {
-		list($attachlist, $imagelist, $filelist) = attach_find_by_pid($post['pid']);
+		// 静态缓存附件数据，避免同一 pid 重复查询
+		static $attach_cache = array();
+		if(!isset($attach_cache[$post['pid']])) {
+			$attach_cache[$post['pid']] = attach_find_by_pid($post['pid']);
+		}
+		list($attachlist, $imagelist, $filelist) = $attach_cache[$post['pid']];
 		// 分离视频附件：视频不作为附件显示，单独在播放器中展示
 		$post['videolist'] = array();
 		$post['filelist'] = array();
@@ -423,9 +624,21 @@ function post_format(&$post) {
 
 	$post['is_liked'] = 0;
 	if(!empty($uid)) {
-		$is_liked = post_like_read($uid, $post['pid']);
-		$post['is_liked'] = !empty($is_liked) ? 1 : 0;
+		// 优先从批量预加载的点赞状态缓存读取，避免 N+1 查询
+		global $g_preloaded_post_likes;
+		if(isset($g_preloaded_post_likes[$post['pid']])) {
+			$post['is_liked'] = $g_preloaded_post_likes[$post['pid']];
+		} else {
+			$is_liked = post_like_read($uid, $post['pid']);
+			$post['is_liked'] = !empty($is_liked) ? 1 : 0;
+		}
 	}
+
+	// XSS 防护：转义用户可控的文本字段
+	$post['username'] = esc_html($post['username'] ?? '');
+	$post['group_name'] = esc_html($post['group_name'] ?? '');
+	$post['group_icon_class'] = esc_attr($post['group_icon_class'] ?? '');
+	$post['user_avatar_url'] = esc_attr($post['user_avatar_url'] ?? '');
 
 	// hook model_post_format_end.php
 
@@ -435,6 +648,9 @@ function post_format(&$post) {
 function post_message_fmt(&$arr, $gid) {
 
 	// hook post_message_fmt_start.php
+
+	// 如果没有 message 字段（如仅更新 is_top 等元数据），跳过格式化
+	if(!isset($arr['message'])) return;
 
 	// 超长内容截取
 	$arr['message'] = xn_substr($arr['message'], 0, 2028000);
@@ -494,7 +710,7 @@ function post_quote($quotepid) {
 	$r = '<blockquote class="blockquote">
 		<a href="'.$userhref.'" class="d-inline-flex align-items-center gap-1 text-body-secondary small user">
 			<img class="avatar-sm rounded-circle" src="'.$user['avatar_url'].'" onerror="this.onerror=null;this.src=\'/view/img/avatar.png\'">
-			'.$user['username'].'
+			'.$user['display_name'].'
 		</a>
 		'.$s.'
 		</blockquote>';
@@ -507,11 +723,19 @@ function post_quote($quotepid) {
 function post_list_access_filter(&$postlist, $gid) {
 	global $conf, $forumlist, $uid;
 	if(empty($postlist)) return;
-	
+
 	// hook model_post_list_access_filter_start.php
-	
+
+	// 批量收集 tids 并查询 thread，消除 N+1 查询
+	$tids = array();
+	foreach($postlist as $post) {
+		$tids[] = $post['tid'];
+	}
+	$tids = array_unique($tids);
+	$threads = empty($tids) ? array() : db_find('thread', array('tid'=>$tids), array(), 1, count($tids), 'tid');
+
 	foreach($postlist as $pid=>$post) {
-		$thread = thread__read($post['tid']);
+		$thread = isset($threads[$post['tid']]) ? $threads[$post['tid']] : array();
 		$fid = $thread['fid'];
 		if(empty($forumlist[$fid]['accesson'])) continue;
 		if($thread['top'] > 0) continue;
@@ -520,11 +744,14 @@ function post_list_access_filter(&$postlist, $gid) {
 		}
 	}
 
-	// 待审内容过滤：非管理员(gid!=1,2)不可见 audit_status=0 的回帖，但作者自己可见
+	// 待审/驳回内容过滤：非管理员(gid!=1,2)不可见 audit_status!=1 的他人回帖，作者自己可见待审和驳回回帖
 	if($gid == 0 || $gid > 2) {
 		foreach($postlist as $pid=>$post) {
-			if(isset($post['audit_status']) && $post['audit_status'] == 0 && $post['uid'] != $uid) {
-				unset($postlist[$pid]);
+			if(isset($post['audit_status']) && $post['audit_status'] != 1) {
+				// 待审/驳回回帖仅作者可见
+				if($post['uid'] != $uid) {
+					unset($postlist[$pid]);
+				}
 			}
 		}
 	}

@@ -85,6 +85,6 @@ function selectTheme(theme) {
 		}
 	}
 
-	$.xpost('<?php echo url("theme");?>', {theme: theme}, function(code, msg) {});
+	$.xpost('<?php echo theme_url();?>', {theme: theme}, function(code, msg) {});
 }
 </script>

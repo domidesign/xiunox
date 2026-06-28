@@ -1,5 +1,11 @@
 <?php $conf = G('conf');?>
 <?php $header = G('header');?>
+<?php
+// XSS 防护：转义 header 数据
+$header['title'] = esc_html($header['title'] ?? '');
+$header['keywords'] = esc_attr($header['keywords'] ?? '');
+$header['description'] = esc_attr($header['description'] ?? '');
+?>
 <?php $user = G('user');?>
 <?php $uid = G('uid');?>
 <?php $gid = G('gid');?>
@@ -22,10 +28,10 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	
 	<?php if(!empty($header['keywords'])) { ?>
-	<meta name="keywords" content="<?php echo strip_tags($header['keywords']);?>" />
+	<meta name="keywords" content="<?php echo $header['keywords'];?>" />
 	<?php } ?>
 
-	<meta name="description" content="<?php echo strip_tags($header['description'] ?? '');?>" />
+	<meta name="description" content="<?php echo $header['description'];?>" />
 	<meta name="renderer" content="webkit">
 	<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1" >
 	<meta http-equiv="Cache-Control" content="no-transform"/>
@@ -66,18 +72,23 @@
 			evt.detail.shouldSwap = true;
 		}
 	});
+	// 积分预检查 API 地址（全局可用）
+	var creditsCheckUrl = <?php echo json_encode(my_credits_check_url());?>;
 	</script>
 	<script>
 	(function(){
+		// 后台设置的默认主题和主题色
+		var defaultTheme = <?php echo json_encode($conf['default_theme'] ?? 'light');?>;
+		var defaultBrand = <?php echo json_encode($conf['theme_brand'] ?? 'blue');?>;
 		try {
-			var theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+			var theme = localStorage.getItem('theme') || defaultTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 		} catch(e) {
-			var theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+			var theme = defaultTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 		}
 		try {
-			var themeColor = localStorage.getItem('theme-color') || 'blue';
+			var themeColor = localStorage.getItem('theme-color') || defaultBrand || 'blue';
 		} catch(e) {
-			var themeColor = 'blue';
+			var themeColor = defaultBrand || 'blue';
 		}
 		document.documentElement.setAttribute('data-bs-theme', theme);
 		document.documentElement.setAttribute('data-theme', themeColor);

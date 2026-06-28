@@ -27,9 +27,6 @@ switch ($action) {
             $user = $db->find_one('user', ['username' => $email]);
         }
 
-        // password_md5 将明文转为 md5(明文)，与网站登录逻辑一致
-        password_md5($password);
-
         if (empty($user) || !user_login_verify($password, $user)) {
             ApiResponse::error(401, 'Invalid credentials');
         }
@@ -75,18 +72,14 @@ switch ($action) {
             ApiResponse::error(409, 'Username already exists');
         }
 
-        $salt = md5(uniqid(mt_rand(), true));
-        // Xiuno 密码格式：password = md5(md5(明文) + salt)
-        $passwordMd5 = md5($password);
-        $hashedPassword = md5($passwordMd5 . $salt);
-        // 同时存 bcrypt 格式到 password_hash，便于后续验证升级
-        $passwordHash = password_hash($passwordMd5, PASSWORD_DEFAULT);
+        // 直接使用 bcrypt(明文) 存入 password_hash
+        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
         $uid = $db->insert('user', [
             'email' => $email,
             'username' => $username,
-            'password' => $hashedPassword,
-            'salt' => $salt,
+            'password' => '',
+            'salt' => '',
             'password_hash' => $passwordHash,
             'gid' => 101,
             'create_ip' => $ip,

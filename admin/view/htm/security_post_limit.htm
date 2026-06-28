@@ -1,0 +1,132 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<div class=""><?php echo admin_tab_active($menu['security']['tab'], 'post_limit');?></div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo admin_security_url('post_limit');?>" method="post" id="post-limit-form">
+			<?php echo CsrfService::input(); ?>
+
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_post_min_interval')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_post_thread_interval" value="<?php echo $security_config['security_post_thread_interval'];?>" min="0">
+						<span class="input-group-text"><?php echo lang('unit_second')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_zero_no_limit')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_reply_min_interval')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_post_reply_interval" value="<?php echo $security_config['security_post_reply_interval'];?>" min="0">
+						<span class="input-group-text"><?php echo lang('unit_second')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_zero_no_limit')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_subject_min_chars')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_subject_min_length" value="<?php echo $security_config['security_subject_min_length'];?>" min="0">
+						<span class="input-group-text"><?php echo lang('unit_char')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_zero_no_limit')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_subject_max_chars')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_subject_max_length" value="<?php echo $security_config['security_subject_max_length'];?>" min="1">
+						<span class="input-group-text"><?php echo lang('unit_char')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_prevent_too_long')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_post_min_chars')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_post_min_length" value="<?php echo $security_config['security_post_min_length'];?>" min="0">
+						<span class="input-group-text"><?php echo lang('unit_char')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_zero_no_limit')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_reply_min_chars')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_reply_min_length" value="<?php echo $security_config['security_reply_min_length'];?>" min="0">
+						<span class="input-group-text"><?php echo lang('unit_char');?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_zero_no_limit')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_post_max_chars')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_post_max_length" value="<?php echo $security_config['security_post_max_length'];?>" min="1">
+						<span class="input-group-text"><?php echo lang('unit_char')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_prevent_too_long')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_same_thread_reply_interval')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_same_thread_reply_interval" value="<?php echo $security_config['security_same_thread_reply_interval'];?>" min="0">
+						<span class="input-group-text"><?php echo lang('unit_second')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_prevent_flooding')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_new_user_audit_count')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_new_user_audit_count" value="<?php echo $security_config['security_new_user_audit_count'];?>" min="0">
+						<span class="input-group-text"><?php echo lang('unit_post')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_new_user_audit')?></small></div>
+			</div>
+
+			<div class="mt-4">
+				<button type="submit" class="btn btn-primary rounded-pill">
+					<i class="ti ti-device-floppy me-1"></i><?php echo lang('admin_save_settings')?>
+				</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+var jform = $('#post-limit-form');
+var jsubmit = jform.find('button[type="submit"]');
+jform.on('submit', function() {
+	jsubmit.button('loading');
+	var postdata = jform.serialize();
+	$.xpost(jform.attr('action'), postdata, function(code, message) {
+		if(code == 0) {
+			showToast(message, 'success');
+			setTimeout(function(){ window.location.reload(); }, 500);
+		} else if(xn.is_number(code)) {
+			showToast(message, 'error');
+			jsubmit.button('reset');
+		} else {
+			jform.find('[name="'+code+'"]').alert(message).focus();
+			jsubmit.button('reset');
+		}
+	});
+	return false;
+});
+</script>

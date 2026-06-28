@@ -7,17 +7,17 @@
 </div>
 
 <div class="x-card card">
-    <div class="card-header">
+    <!-- <div class="card-header">
         <i class="ti ti-trash me-1"></i> <?php echo lang('admin_other_cache');?>
-    </div>
+    </div> -->
     <div class="card-body">
         <div id="cache-clear-msg"></div>
-        <form id="cache-clear-form" action="<?php echo url('other-cache');?>" method="post">
+        <form id="cache-clear-form" action="<?php echo admin_cache_url();?>" method="post">
             <?php echo CsrfService::input();?>
 
             <div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-2">
                 <label class="col-sm-6 fw-medium fs-6"><?php echo lang('admin_clear_cache');?>：</label>
-                <div class="col-sm-6">
+                <div class="col-sm-6 d-flex align-items-center">
                     <?php echo $input['clear_cache'];?>
                     <span class="text-secondary small ms-1"><?php echo lang('admin_clear_cache_tip');?></span>
                 </div>
@@ -25,7 +25,7 @@
 
             <div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-2">
                 <label class="col-sm-6 fw-medium fs-6"><?php echo lang('admin_clear_tmp');?>：</label>
-                <div class="col-sm-6">
+                <div class="col-sm-6 d-flex align-items-center">
                     <?php echo $input['clear_tmp'];?>
                     <span class="text-secondary small ms-1"><?php echo lang('admin_clear_tmp_tip');?></span>
                 </div>
@@ -33,7 +33,7 @@
 
             <div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-2">
                 <label class="col-sm-6 fw-medium fs-6"><?php echo lang('admin_clear_opcache');?>：</label>
-                <div class="col-sm-6">
+                <div class="col-sm-6 d-flex align-items-center">
                     <?php echo $input['clear_opcache'];?>
                     <?php if(!function_exists('opcache_reset')) { ?>
                     <span class="text-secondary small ms-1"><?php echo lang('admin_opcache_not_enabled');?></span>

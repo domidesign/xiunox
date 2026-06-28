@@ -1,104 +1,296 @@
-<template include="./view/htm/my_notify.template.htm">
-	<slot name="my_body">
-		<?php
-		$notify_tabs = array('reply', 'like', 'favorite', 'follow', 'system');
-		$notify_groups = array();
-		foreach($notify_tabs as $t) $notify_groups[$t] = array();
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
 
-		if(!empty($notifylist)) {
-			foreach($notifylist as $notify) {
-				$ntype = isset($notify['type']) ? $notify['type'] : 'system';
-				if(!in_array($ntype, $notify_tabs)) $ntype = 'system';
-				$notify_groups[$ntype][] = $notify;
-			}
-		}
+<!--{hook my_common_start.htm}-->
+
+<?php $active_tab = 'notice'; ?>
+<?php include _include(APP_PATH.'view/htm/my.layout.inc.htm');?>
+
+		<!-- 通知内容区 -->
+		<div class="x-card card">
+<?php
+// 通知系统已合并，仅查询 notify 表
+$_total_unread = notify_count_unread($uid);
+
+// 初始化通知类型注册中心（幂等，重复调用安全）
+include_once APP_PATH . 'lib/NotifyTypeRegistry.php';
+NotifyTypeRegistry::init();
+
+// 动态获取操作描述（根据 notify 数据细化场景，如点赞区分帖子/评论、提及区分帖子/评论/回复）
+function _notice_action_text($type, $notify) {
+	return NotifyTypeRegistry::get_action_text($type, $notify);
+}
+?>
+
+<div class="d-flex justify-content-between align-items-center p-3 pb-0">
+	<h5 class="fw-bold mb-0"><?php echo lang('notice');?></h5>
+	<?php if($_total_unread > 0) { ?>
+	<a href="javascript:void(0);" class="btn btn-sm btn-outline-primary rounded-pill" id="notice-mark-all-read">
+		<i class="ti ti-checks me-1"></i><?php echo lang('mark_all_read');?>
+	</a>
+	<?php } ?>
+</div>
+
+<ul class="nav nav-tabs flex-nowrap  mb-3" id="noticeTab" role="tablist" style="gap:0.25rem">
+	<!--{hook my_nav_notice_before.htm}-->
+	<?php
+	$_type_str = (string)$type;
+	foreach ($notice_menu as $k=>$v) {
+		$_k_str = (string)$k;
+		$_is_active = ($_type_str === $_k_str);
+		if(($_type_str === '' || $_type_str === '0') && $_k_str === '0') $_is_active = true;
+	?>
+	<li class="nav-item" role="presentation">
+		<a class="nav-link rounded-pill px-3 <?php echo $_is_active ? 'active' : '';?>" href="<?php echo $v['url'];?>" data-notice-type="<?php echo htmlspecialchars($_k_str);?>">
+			<?php echo $v['name'];?>
+		</a>
+	</li>
+	<?php } ?>
+	<!--{hook my_nav_notice_after.htm}-->
+</ul>
+
+<div class="tab-content px-3 pb-3">
+	<?php if(!empty($noticelist)) { ?>
+	<div class="d-flex flex-column gap-2">
+		<?php foreach($noticelist as $_notice) {
+			$_is_unread = empty($_notice['is_read']);
+			$_is_reply = ($_notice['type'] === 'reply');
+			$_action_text = _notice_action_text($_notice['type'], $_notice);
+			$_from_uid = isset($_notice['from_uid']) ? intval($_notice['from_uid']) : 0;
+			$_from_gid = isset($_notice['from_gid']) ? intval($_notice['from_gid']) : 0;
+			$_is_audit = in_array($_notice['type'], array('audit_pending', 'audit_approve', 'audit_reject'));
+			$_is_report = in_array($_notice['type'], array('report_auto_audit', 'report_result', 'report_penalty'));
+			$_is_thread_like = in_array($_notice['type'], array('thread', 'thread_forum', 'forum_post'));
+			$_is_simple_action = in_array($_notice['type'], array('like', 'favorite', 'comment', 'reply', 'mention', 'follow'));
 		?>
-
-		<div class="tab-pane fade show active" id="notify-all" role="tabpanel">
-			<?php if(!empty($notifylist)) { ?>
-			<div class="d-flex flex-column gap-2">
-				<?php foreach($notifylist as $notify) { ?>
-				<div class="notice-item card-0 rounded-1 overflow-hidden <?php echo empty($notify['is_read']) ? 'notice-unread' : '';?>" data-nid="<?php echo $notify['nid'];?>" data-type="<?php echo $notify['type'];?>">
-					<div class="card-body p-3 d-flex align-items-start gap-3">
-					<?php echo avatar_component_from_data($notify['from_avatar_url'], 'sm', '', '', isset($notify['from_gid']) ? $notify['from_gid'] : 0);?>
-						<div class="flex-fill" style="min-width:0">
-							<div class="d-flex align-items-start justify-content-between gap-2">
-								<div class="small <?php echo empty($notify['is_read']) ? 'fw-semibold' : 'text-body-secondary';?>">
-									<?php if(!empty($notify['url'])) { ?>
-									<a href="<?php echo $notify['url'];?>" class="text-decoration-none notify-page-link" data-nid="<?php echo $notify['nid'];?>"><?php echo $notify['message'];?></a>
-									<?php } else { ?>
-									<?php echo $notify['message'];?>
-									<?php } ?>
-								</div>
-								<?php if(empty($notify['is_read'])) { ?>
-								<button type="button" class="btn btn-sm btn-link text-decoration-none p-0 notice-mark-read flex-shrink-0" data-nid="<?php echo $notify['nid'];?>" data-source="notify" title="<?php echo lang('mark_as_read');?>" hx-post="<?php echo url('my-notify_read-'.$notify['nid']);?>" hx-target="closest .notice-item" hx-swap="outerHTML">
-									<i class="ti ti-check"></i>
-								</button>
-								<?php } ?>
-							</div>
-							<div class="d-flex align-items-center gap-2 mt-1">
-								<span class="text-body-secondary" style="font-size:0.75rem"><?php echo $notify['create_date_fmt'];?></span>
-								<?php if(empty($notify['is_read'])) { ?>
-								<span class="badge bg-primary rounded-pill" style="font-size:0.6rem"><?php echo lang('unread');?></span>
-								<?php } ?>
-							</div>
+		<div class="notice-card p-1 py-2 <?php echo $_is_unread ? 'notice-unread' : '';?>" id="notice-nid-<?php echo $_notice['nid'];?>" data-nid="<?php echo $_notice['nid'];?>" data-source="notify">
+			<div class="d-flex gap-2">
+				<!-- 左侧头像 -->
+				<div class="flex-shrink-0">
+					<?php if($_is_audit) { ?>
+					<span class="avatar avatar-md rounded-circle bg-info bg-opacity-10 d-flex align-items-center justify-content-center"><i class="ti ti-shield-check text-info"></i></span>
+					<?php } elseif($_is_report) { ?>
+					<span class="avatar avatar-md rounded-circle bg-warning bg-opacity-10 d-flex align-items-center justify-content-center"><i class="ti ti-flag text-warning"></i></span>
+					<?php } else { ?>
+					<?php echo avatar_component_from_data($_notice['from_user_avatar_url'], 'md', '', '', $_from_gid);?>
+					<?php } ?>
+				</div>
+				<!-- 右侧内容区 -->
+				<div class="flex-fill" style="min-width:0">
+					<!-- 第一行：用户名+时间 | 已读+查看 -->
+					<div class="d-flex align-items-center justify-content-between gap-1 mb-1">
+						<div class="d-flex align-items-center gap-1">
+							<?php if($_is_audit) { ?>
+							<span class="fw-semibold"><?php echo lang('notify_audit_label'); ?></span>
+							<?php } elseif($_is_report) { ?>
+							<span class="fw-semibold"><?php echo lang('notify_report_label'); ?></span>
+							<?php } elseif($_from_uid > 0) { ?>
+							<a href="<?php echo user_url($_from_uid);?>" class="fw-semibold text-decoration-none"><?php echo esc_html($_notice['from_username']);?></a>
+							<?php } else { ?>
+							<span class="fw-semibold"><?php echo esc_html($_notice['from_username']);?></span>
+							<?php } ?>
+							<span class="text-body-secondary small"><?php echo $_notice['create_date_fmt'];?></span>
+						</div>
+						<div class="d-flex align-items-center gap-1 flex-shrink-0">
+							<?php if($_is_unread) { ?>
+							<button type="button" class="btn btn-sm btn-link text-decoration-none p-0 notice-card-mark-read" data-nid="<?php echo $_notice['nid'];?>" title="<?php echo lang('mark_as_read');?>">
+								<i class="ti ti-check"></i>
+							</button>
+							<?php } ?>
+							<?php if(!empty($_notice['url'])) { ?>
+							<a href="<?php echo $_notice['url'];?>" class="btn btn-sm btn-link text-decoration-none p-0 notice-card-view" data-nid="<?php echo $_notice['nid'];?>" title="<?php echo lang('view');?>">
+								<i class="ti ti-external-link"></i>
+							</a>
+							<?php } ?>
 						</div>
 					</div>
+					<!-- 审核通知：直接显示消息内容 -->
+				<?php if($_is_audit || $_is_report) { ?>
+				<div class="small mb-1">
+					<span class="<?php echo $_is_unread ? 'fw-medium' : 'text-body-secondary';?>"><?php echo strip_tags($_notice['message'] ? $_notice['message'] : $_notice['content'], '<a>');?></span>
+				</div>
+				<?php } elseif($_notice['type'] === 'announcement' || $_notice['type'] === 'system' || $_notice['type'] === 'pm' || $_notice['type'] === 'other') { ?>
+				<!-- 公告/系统/私信：直接显示 message -->
+				<?php $_msg = !empty($_notice['message']) ? $_notice['message'] : $_notice['content'];?>
+				<?php if($_msg) { ?>
+				<div class="small mb-1 <?php echo $_is_unread ? 'fw-medium' : 'text-body-secondary';?>">
+					<?php echo strip_tags($_msg, '<a>');?>
 				</div>
 				<?php } ?>
-			</div>
-			<?php if($pagination) { ?>
-			<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap mt-3"><?php echo $pagination; ?></ul></nav>
-			<?php } ?>
-			<?php } else { ?>
-			<div class="text-center text-body-secondary py-5">
-				<i class="ti ti-bell-off fs-1 d-block mb-2 opacity-50"></i>
-				<?php echo lang('no_notify');?>
-			</div>
-			<?php } ?>
-		</div>
-
-		<?php foreach($notify_tabs as $tab_type) { ?>
-		<div class="tab-pane fade" id="notify-<?php echo $tab_type;?>" role="tabpanel">
-			<?php if(!empty($notify_groups[$tab_type])) { ?>
-			<div class="d-flex flex-column gap-2">
-				<?php foreach($notify_groups[$tab_type] as $notify) { ?>
-				<div class="notice-item card-0 rounded-1 overflow-hidden <?php echo empty($notify['is_read']) ? 'notice-unread' : '';?>" data-nid="<?php echo $notify['nid'];?>" data-type="<?php echo $notify['type'];?>">
-					<div class="card-body p-3 d-flex align-items-start gap-3">
-					<?php echo avatar_component_from_data($notify['from_avatar_url'], 'sm', '', '', isset($notify['from_gid']) ? $notify['from_gid'] : 0);?>
-						<div class="flex-fill" style="min-width:0">
-							<div class="d-flex align-items-start justify-content-between gap-2">
-								<div class="small <?php echo empty($notify['is_read']) ? 'fw-semibold' : 'text-body-secondary';?>">
-									<?php if(!empty($notify['url'])) { ?>
-									<a href="<?php echo $notify['url'];?>" class="text-decoration-none notify-page-link" data-nid="<?php echo $notify['nid'];?>"><?php echo $notify['message'];?></a>
-									<?php } else { ?>
-									<?php echo $notify['message'];?>
-									<?php } ?>
-								</div>
-								<?php if(empty($notify['is_read'])) { ?>
-								<button type="button" class="btn btn-sm btn-link text-decoration-none p-0 notice-mark-read flex-shrink-0" data-nid="<?php echo $notify['nid'];?>" data-source="notify" title="<?php echo lang('mark_as_read');?>" hx-post="<?php echo url('my-notify_read-'.$notify['nid']);?>" hx-target="closest .notice-item" hx-swap="outerHTML">
-									<i class="ti ti-check"></i>
-								</button>
-								<?php } ?>
-							</div>
-							<div class="d-flex align-items-center gap-2 mt-1">
-								<span class="text-body-secondary" style="font-size:0.75rem"><?php echo $notify['create_date_fmt'];?></span>
-								<?php if(empty($notify['is_read'])) { ?>
-								<span class="badge bg-primary rounded-pill" style="font-size:0.6rem"><?php echo lang('unread');?></span>
-								<?php } ?>
-							</div>
-						</div>
-					</div>
+				<?php } else { ?>
+				<!-- 第二行：操作描述 + 帖子链接 + 来源（关注类不显示帖子链接） -->
+				<div class="small mb-1">
+					<span class="<?php echo $_is_unread ? 'fw-medium' : 'text-body-secondary';?>"><?php echo esc_html($_action_text);?></span>
+					<?php if($_notice['type'] === 'reply' && !empty($_notice['quote_content'])) { ?>
+					<!-- 回复：显示被回复的评论内容（quote_content） -->
+					<span class="text-body-secondary ms-1">「<?php echo esc_html($_notice['quote_content']);?>」</span>
+					<?php if(!empty($_notice['thread_subject'])) { ?>
+					<span class="text-body-secondary ms-1"><?php echo lang('notify_from_thread');?></span>
+					<a href="<?php echo !empty($_notice['url']) ? $_notice['url'] : '#';?>" class="text-decoration-none ms-1 notice-card-thread-link" data-nid="<?php echo $_notice['nid'];?>">「<?php echo esc_html(mb_strlen($_notice['thread_subject']) > 30 ? mb_substr($_notice['thread_subject'], 0, 30).'...' : $_notice['thread_subject']);?>」</a>
+					<?php } ?>
+					<?php } elseif(!empty($_notice['thread_subject']) && $_notice['type'] !== 'follow') { ?>
+					<!-- 帖子/点赞/收藏/评论/提及：显示帖子标题链接 -->
+					<a href="<?php echo !empty($_notice['url']) ? $_notice['url'] : '#';?>" class="text-decoration-none ms-1 notice-card-thread-link" data-nid="<?php echo $_notice['nid'];?>">「<?php echo esc_html(mb_strlen($_notice['thread_subject']) > 30 ? mb_substr($_notice['thread_subject'], 0, 30).'...' : $_notice['thread_subject']);?>」</a>
+					<?php } ?>
+					<!-- 来源标识（thread 类） -->
+					<?php if($_notice['type'] === 'thread') { ?>
+					<span class="text-body-secondary ms-1"><?php echo lang('notify_from_followed_user');?></span>
+					<?php } elseif($_notice['type'] === 'thread_forum') { ?>
+					<span class="text-body-secondary ms-1"><?php echo lang('notify_from_followed_user_and_forum');?><?php if(!empty($_notice['forum_name'])) { echo ' ' . esc_html($_notice['forum_name']); } ?></span>
+					<?php } elseif($_notice['type'] === 'forum_post') { ?>
+					<span class="text-body-secondary ms-1"><?php echo lang('notify_from_followed_forum');?><?php if(!empty($_notice['forum_name'])) { echo ' ' . esc_html($_notice['forum_name']); } ?></span>
+					<?php } ?>
+				</div>
+				<!-- 引用内容块：comment 显示评论内容、reply 显示回复内容、mention 显示提及上下文 -->
+				<?php if(in_array($_notice['type'], array('comment', 'reply')) && !empty($_notice['content'])) { ?>
+				<div class="small bg-primary bg-opacity-10 rounded px-2 py-1 mt-1" style="font-size:0.8rem">
+					<?php echo esc_html(mb_strlen(strip_tags($_notice['content'])) > 80 ? mb_substr(strip_tags($_notice['content']), 0, 80).'...' : strip_tags($_notice['content']));?>
+				</div>
+				<?php } elseif($_notice['type'] === 'mention' && !empty($_notice['content'])) { ?>
+				<div class="small text-body-secondary mt-1" style="font-size:0.8rem">
+					<?php echo esc_html(mb_strlen(strip_tags($_notice['content'])) > 80 ? mb_substr(strip_tags($_notice['content']), 0, 80).'...' : strip_tags($_notice['content']));?>
 				</div>
 				<?php } ?>
+				<?php } ?>
+				</div>
 			</div>
-			<?php } else { ?>
-			<div class="text-center text-body-secondary py-5">
-				<i class="ti ti-bell-off fs-1 d-block mb-2 opacity-50"></i>
-				<?php echo lang('no_notify');?>
-			</div>
-			<?php } ?>
 		</div>
 		<?php } ?>
-	</slot>
-</template>
+	</div>
+	<?php if($pagination) { ?>
+	<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap mt-3"><?php echo $pagination; ?></ul></nav>
+	<?php } ?>
+	<?php } else { ?>
+	<div class="text-center text-body-secondary py-5">
+		<i class="ti ti-bell-off fs-1 d-block mb-2 opacity-50"></i>
+		<?php echo lang('notice_my_nomessage');?>
+	</div>
+	<?php } ?>
+</div>
+
+		</div>
+	</div>
+
+	<!-- 右侧空栏 -->
+	<div class="d-none d-lg-block col-lg-3"></div>
+</div>
+
+<!--{hook my_common_end.htm}-->
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<!--{hook my_notify_js.htm}-->
+
+<script>
+// 兜底：根据当前 URL 确保正确的 tab 处于 active 状态
+(function() {
+	var tab = document.getElementById('noticeTab');
+	if(!tab) return;
+	var links = tab.querySelectorAll('a[data-notice-type]');
+	var currentPath = window.location.pathname + window.location.search;
+	var currentClean = currentPath.replace(/\.htm$/, '');
+	var currentLast = currentClean.split('/').pop();
+	var matched = null;
+	links.forEach(function(a) {
+		var hrefClean = a.getAttribute('href').replace(/\.htm$/, '');
+		var hrefLast = hrefClean.split('/').pop();
+		if(currentLast === hrefLast && hrefClean.indexOf('my-notify') !== -1) {
+			matched = a;
+		}
+	});
+	if(matched) {
+		links.forEach(function(a) { a.classList.remove('active'); });
+		matched.classList.add('active');
+	}
+})();
+
+// 标已读辅助（通知系统已合并，仅操作 notify 表）
+(function() {
+	var csrfToken = document.querySelector('meta[name="csrf-token"]');
+	var token = csrfToken ? csrfToken.getAttribute('content') : '';
+
+	function markRead(nid, card, onDone) {
+		// 统一使用 my-notify_read 接口
+		// 使用 URL 模板，兼容所有 url_rewrite_on 格式（包括 .html 后缀）
+		var markUrl = '<?php echo str_replace('read', 'read-__NID__', my_notify_read_url());?>'.replace('__NID__', nid);
+		var data = 'csrf_token=' + encodeURIComponent(token);
+		fetch(markUrl, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+			body: data
+		}).then(function(r) { return r.json(); }).then(function(json) {
+			if(parseInt(json.code) === 0 && card) {
+				card.classList.remove('notice-unread');
+				var markBtn = card.querySelector('.notice-card-mark-read');
+				if(markBtn) markBtn.remove();
+				var badge = document.getElementById('notice-badge');
+				if(badge && json.unread_count !== undefined && parseInt(json.unread_count) === 0) {
+					badge.innerHTML = '';
+				}
+			}
+			if(typeof onDone === 'function') onDone();
+		}).catch(function(e) {
+			console.error('markRead error', e);
+			if(typeof onDone === 'function') onDone();
+		});
+	}
+
+	// 统一处理：点击卡片内任何元素都自动标已读
+	document.addEventListener('click', function(e) {
+		var card = e.target.closest('.notice-card');
+		if(!card || !card.classList.contains('notice-unread')) return;
+		var nid = card.getAttribute('data-nid');
+		if(!nid) return;
+
+		// 检测点击的是否是链接（帖子链接、查看按钮、用户名链接等任意 <a>）
+		var link = e.target.closest('a');
+		var href = link ? link.getAttribute('href') : null;
+		var shouldJump = href && href !== '#' && href !== 'javascript:;' && !link.classList.contains('notice-card-mark-read');
+
+		if(shouldJump) {
+			// 链接跳转：阻止默认行为，等标记已读完成后再跳转
+			e.preventDefault();
+			markRead(nid, card, function() {
+				window.location.href = href;
+			});
+		} else {
+			// 非链接（标为已读按钮、文字区域等）：只标记已读，不跳转
+			e.preventDefault();
+			markRead(nid, card);
+		}
+	});
+
+	// 全部标为已读
+	document.addEventListener('click', function(e) {
+		var btn = e.target.closest('#notice-mark-all-read');
+		if(!btn) return;
+		e.preventDefault();
+		var data = 'csrf_token=' + encodeURIComponent(token) + '&act=readall&uid=<?php echo intval($uid);?>';
+		var xhr = new XMLHttpRequest();
+		xhr.open('POST', '<?php echo my_notify_url();?>', true);
+		xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+		xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+		xhr.onreadystatechange = function() {
+			if(xhr.readyState !== 4) return;
+			try {
+				var json = JSON.parse(xhr.responseText);
+				if(parseInt(json.code) === 0) {
+					document.querySelectorAll('.notice-card.notice-unread').forEach(function(el) {
+						el.classList.remove('notice-unread');
+						var markBtn = el.querySelector('.notice-card-mark-read');
+						if(markBtn) markBtn.remove();
+					});
+					btn.remove();
+					var badge = document.getElementById('notice-badge');
+					if(badge) badge.innerHTML = '';
+					if(typeof showToast === 'function') showToast('<?php echo lang('all_marked_as_read');?>', 'success');
+				} else {
+					if(typeof showToast === 'function') showToast(json.message || '<?php echo lang('operation_failed');?>', 'danger');
+				}
+			} catch(e) {
+				console.error('markAllRead parse error', e, xhr.responseText);
+			}
+		};
+		xhr.send(data);
+	});
+})();
+</script>

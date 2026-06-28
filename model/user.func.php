@@ -9,6 +9,65 @@ define('USER_UPDATE_PROTECTED_FIELDS', array('password', 'password_hash', 'salt'
 
 // hook model_user_start.php
 
+// ------------> 批量预加载用户数据，消除 N+1 查询
+
+/**
+ * 批量预加载用户数据到 $g_static_users，避免后续 user_read_cache() 逐条查库
+ * 可选批量预加载当前用户对这些用户的关注状态
+ * @param array $uids 需要预加载的用户 uid 列表
+ * @param bool $preload_follow 是否预加载关注状态（默认false，仅关注列表等需要时才开启）
+ */
+function user_preload($uids, $preload_follow = false) {
+    global $g_static_users, $uid, $g_preloaded_follows;
+    if(empty($uids)) return;
+
+    // 过滤已缓存的 uid
+    $missing = array();
+    foreach($uids as $uid_val) {
+        $uid_val = intval($uid_val);
+        if($uid_val > 0 && !isset($g_static_users[$uid_val])) {
+            $missing[$uid_val] = $uid_val;
+        }
+    }
+
+    // 仅在明确需要时才预加载关注状态（如关注列表页、用户主页等）
+    if($preload_follow && !empty($uid) && !isset($g_preloaded_follows)) {
+        $g_preloaded_follows = array();
+        $target_uids = array();
+        foreach($uids as $uid_val) {
+            $uid_val = intval($uid_val);
+            if($uid_val > 0 && $uid_val != $uid) {
+                $target_uids[] = $uid_val;
+            }
+        }
+        if(!empty($target_uids)) {
+            $target_uids = array_unique($target_uids);
+            $follows = user_follow_read_batch($uid, $target_uids);
+            foreach($target_uids as $tid) {
+                $g_preloaded_follows[$tid] = !empty($follows[$tid]) ? 1 : 0;
+            }
+        }
+    }
+
+    // 批量查询并格式化
+    if(!empty($missing)) {
+        $users = db_find('user', array('uid'=>array_values($missing)), array(), 1, count($missing), 'uid');
+        if($users) {
+            foreach($users as $user) {
+                user_format($user);
+                $g_static_users[$user['uid']] = $user;
+            }
+        }
+
+        // 未查到的 uid 标记为游客，避免反复查库
+        foreach($missing as $uid_val) {
+            if(!isset($g_static_users[$uid_val])) {
+                $g_static_users[$uid_val] = user_guest();
+            }
+        }
+    }
+}
+
 // ------------> 最原生的 CURD，无关联其他数据。
 
 function user__create($arr) {
@@ -73,13 +132,19 @@ function user_update($uid, $arr) {
 }
 
 function user_login_verify($password, $user) {
+	// 优先使用 bcrypt 验证（新格式）
 	if(!empty($user['password_hash'])) {
 		return password_verify($password, $user['password_hash']);
 	}
-	if(!empty($user['password'])) {
-		if(md5($password.$user['salt']) == $user['password']) {
+	// 旧格式：md5(md5(明文)+salt)，兼容 4.0.4 升级用户
+	if(!empty($user['password']) && !empty($user['salt'])) {
+		if(md5(md5($password).$user['salt']) == $user['password']) {
+			// 自动升级：清空旧字段，写入 bcrypt(明文) 到 password_hash
 			if(db_check_column_exists('user', 'password_hash')) {
-				user__update($user['uid'], array('password_hash' => password_hash($password, PASSWORD_DEFAULT)));
+				user__update($user['uid'], array(
+					'password' => '',
+					'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+				));
 			}
 			return TRUE;
 		}
@@ -130,16 +195,23 @@ function user_read_cache($uid) {
 function user_delete($uid) {
 	global $conf, $g_static_users;
 	// hook model_user_delete_start.php
-	
+
 	$user = user_read($uid);
 	if(empty($user)) return NULL;
-	
-	// 清理主题帖
-	$threadlist = mythread_find_by_uid($uid, 1, 1000);
-	foreach($threadlist as $thread) {
-		thread_delete($thread['tid']);
+
+	// 分批清理主题帖，避免一次查询过多数据
+	$batch_size = 1000;
+	$page = 1;
+	while(true) {
+		$threadlist = mythread_find_by_uid($uid, $page, $batch_size);
+		if(empty($threadlist)) break;
+		foreach($threadlist as $thread) {
+			thread_delete($thread['tid']);
+		}
+		if(count($threadlist) < $batch_size) break;
+		$page++;
 	}
-	
+
 	// 清理回帖
 	post_delete_by_uid($uid);
 	
@@ -198,6 +270,32 @@ function user_read_by_username($username) {
 	return $user;
 }
 
+/**
+ * 批量根据用户名查询用户，消除 N+1 查询
+ * 单次 SQL：SELECT * FROM user WHERE username IN ('a','b','c')
+ * @param array $usernames 用户名数组
+ * @return array 以 username 为 key 的 user 数组（含 user_format 处理后的字段），查不到返回空数组
+ */
+function user_find_by_usernames($usernames) {
+	global $g_static_users;
+	// hook model_user_find_by_usernames_start.php
+	if(empty($usernames) || !is_array($usernames)) return array();
+	// 去重、去空
+	$usernames = array_unique(array_filter($usernames));
+	if(empty($usernames)) return array();
+
+	// 单次 SQL 查询（db_find 的数组条件会自动转 IN）
+	$userlist = db_find('user', array('username'=>array_values($usernames)), array(), 1, count($usernames), 'username');
+	if($userlist) {
+		foreach($userlist as &$user) {
+			$g_static_users[$user['uid']] = $user;
+			user_format($user);
+		}
+	}
+	// hook model_user_find_by_usernames_end.php
+	return $userlist ? $userlist : array();
+}
+
 function user_count($cond = array()) {
 	// hook model_user_count_start.php
 	$n = db_count('user', $cond);
@@ -217,7 +315,7 @@ function avatar_preset_files() {
 	if($cache !== null) return $cache;
 	$dir = APP_PATH.'view/img/avatars/';
 	if(!is_dir($dir)) { $cache = array(); return $cache; }
-	$files = glob($dir.'*.{png,jpg,jpeg,gif,svg,webp,bmp}', GLOB_BRACE);
+	$files = glob($dir.'*.{png,jpg,jpeg,gif,svg,webp,bmp,avif}', GLOB_BRACE);
 	if(!$files) { $cache = array(); return $cache; }
 	sort($files, SORT_NATURAL);
 	$result = array();
@@ -237,7 +335,10 @@ function user_format(&$user) {
 	if(empty($user)) return;
 
 	// hook model_user_format_start.php
-	
+
+	// 昵称显示名：nickname 优先，为空时 fallback 到 username
+	$user['display_name'] = !empty($user['nickname']) ? $user['nickname'] : $user['username'];
+
 	$user['create_ip_fmt']   = long2ip(intval($user['create_ip']));
 	$user['create_date_fmt'] = empty($user['create_date']) ? '0000-00-00' : date('Y-m-d', $user['create_date']);
 	$user['login_ip_fmt']    = long2ip(intval($user['login_ip']));
@@ -257,8 +358,29 @@ function user_format(&$user) {
 		}
 		$user['avatar_path'] = '';
 	} elseif($user['avatar'] > 0) {
-		$user['avatar_url'] = $conf['upload_url']."avatar/$dir/$user[uid].png?".$user['avatar'];
-		$user['avatar_path'] = $conf['upload_path']."avatar/$dir/$user[uid].png?".$user['avatar'];
+		// 按优先级查找头像文件：jpg > png > webp（兼容旧格式）
+		$_avatar_ext = 'jpg';
+		$_avatar_path = $conf['upload_path']."avatar/$dir/$user[uid].jpg";
+		if(!is_file($_avatar_path)) {
+			$_avatar_path = $conf['upload_path']."avatar/$dir/$user[uid].png";
+			if(is_file($_avatar_path)) {
+				$_avatar_ext = 'png';
+			} else {
+				$_avatar_path = $conf['upload_path']."avatar/$dir/$user[uid].webp";
+				if(is_file($_avatar_path)) {
+					$_avatar_ext = 'webp';
+				} else {
+					$_avatar_path = '';
+				}
+			}
+		}
+		if(!empty($_avatar_path)) {
+			$user['avatar_url'] = $conf['upload_url']."avatar/$dir/$user[uid].$_avatar_ext?".$user['avatar'];
+			$user['avatar_path'] = $_avatar_path;
+		} else {
+			$user['avatar_url'] = '/view/img/avatar.png';
+			$user['avatar_path'] = '';
+		}
 	} else {
 		$user['avatar_url'] = '/view/img/avatar.png';
 		$user['avatar_path'] = '';
@@ -275,8 +397,12 @@ function user_format(&$user) {
 	$user['online_status'] = 1;
 	$user['is_followed'] = 0;
 	if(!empty($uid) && $uid != $user['uid']) {
-		$is_followed = user_follow_read($uid, $user['uid']);
-		$user['is_followed'] = !empty($is_followed) ? 1 : 0;
+		// 仅在页面显式预加载了关注状态时才读取，避免列表页不必要的 follow 查询
+		global $g_preloaded_follows;
+		if(isset($g_preloaded_follows) && isset($g_preloaded_follows[$user['uid']])) {
+			$user['is_followed'] = $g_preloaded_follows[$user['uid']];
+		}
+		// 未预加载时不查库，is_followed 保持 0（关注状态通过 htmx 按需加载）
 	}
 	// hook model_user_format_end.php
 }
@@ -318,11 +444,16 @@ function user_update_group($uid) {
 	// 遍历 credits 范围，调整用户组
 	foreach($grouplist as $group) {
 		if($group['gid'] < 100) continue;
-		$n = $user['posts'] + $user['threads']; // 根据发帖数
+		$n = $user['credits']; // 根据积分
 		// hook model_user_update_group_policy_start.php
-		if($n > $group['creditsfrom'] && $n < $group['creditsto']) {
+		if($n >= $group['creditsfrom'] && $n < $group['creditsto']) {
 			if($user['gid'] != $group['gid']) {
-				user_update($uid, array('gid'=>$group['gid']));
+				// 修复：使用 user__update 原始层绕过 USER_UPDATE_PROTECTED_FIELDS 过滤（原代码 gid 会被静默移除）
+				user__update($uid, array('gid' => $group['gid']));
+				// 修复：手动清理用户缓存（原代码绕过 user_update，缓存未清会导致后续读到旧 gid）
+				global $g_static_users;
+				!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
+				isset($g_static_users[$uid]) AND $g_static_users[$uid]['gid'] = $group['gid'];
 				return TRUE;
 			}
 		}
@@ -476,11 +607,11 @@ function user_http_referer() {
 	
 	if(
 		!preg_match('#^(http|https)://[\w\-=/\.]+/[\w\-=.%\#?]*$#is', $referer) 
-		|| strpos($referer, 'user-login.htm') !== FALSE 
-		|| strpos($referer, 'user-logout.htm') !== FALSE 
-		|| strpos($referer, 'user-create.htm') !== FALSE 
-		|| strpos($referer, 'user-setpw.htm') !== FALSE 
-		|| strpos($referer, 'user-resetpw_complete.htm') !== FALSE
+		|| strpos($referer, 'user-login') !== FALSE 
+		|| strpos($referer, 'user-logout') !== FALSE 
+		|| strpos($referer, 'user-create') !== FALSE 
+		|| strpos($referer, 'user-setpw') !== FALSE 
+		|| strpos($referer, 'user-resetpw_complete') !== FALSE
 	) {
 		$referer = './';
 	}
@@ -507,8 +638,8 @@ function user_auth_check($token) {
 
 // 安全修改密码（替代直接 user_update 修改 password 字段）
 // $uid: 目标用户 UID
-// $new_password: 新密码（已通过 password_md5 处理的）
-// $old_password: 旧密码（已通过 password_md5 处理的），管理员模式可留空
+// $new_password: 新密码（明文）
+// $old_password: 旧密码（明文），管理员模式可留空
 // $is_admin: 是否管理员模式，管理员模式跳过旧密码验证
 function user_change_password($uid, $new_password, $old_password = '', $is_admin = FALSE) {
 	global $conf, $g_static_users;
@@ -532,14 +663,12 @@ function user_change_password($uid, $new_password, $old_password = '', $is_admin
 		}
 	}
 
-	// 生成新 salt 并更新密码
-	$salt = xn_rand(16);
+	// 直接写 bcrypt(明文) 到 password_hash，清空旧字段
 	$update = array(
-		'password' => md5($new_password . $salt),
-		'salt' => $salt,
+		'password' => '',
+		'salt' => '',
 	);
 
-	// 同时更新 password_hash（bcrypt）
 	if(db_check_column_exists('user', 'password_hash')) {
 		$update['password_hash'] = password_hash($new_password, PASSWORD_DEFAULT);
 	}

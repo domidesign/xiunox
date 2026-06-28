@@ -23,23 +23,23 @@ foreach($forumlist as $_fid=>$_forum) {
 }
 ?>
 
-<div class="x-card  cardrounded-3">
+<div class=" ">
 	<!-- 卡片头部：标题 + 添加按钮 -->
 	<div class="card-header bg-transparent d-flex align-items-center justify-content-between">
 		<h5 class="card-title mb-0 fs-6"><?php echo lang('admin_forum_manage');?></h5>
-		<a href="<?php echo url('forum-create');?>" class="btn btn-primary btn-sm rounded-pill">
+		<a href="<?php echo admin_forum_create_url();?>" class="btn btn-primary btn-sm rounded-pill">
 			<i class="ti ti-plus"></i> <?php echo lang('admin_add_forum')?>
 		</a>
 	</div>
 
-	<div class="card-body">
+	<div class=" ">
 
 		<?php if(empty($categories) && empty($orphans)): ?>
 		<!-- 空状态 -->
 		<div class="text-center py-5">
 			<i class="ti ti-messages text-body-tertiary" style="font-size:3rem"></i>
 			<p class="mt-3 text-body-secondary"><?php echo lang('admin_no_sub_forums');?></p>
-			<a href="<?php echo url('forum-create');?>" class="btn btn-primary btn-sm rounded-pill">
+			<a href="<?php echo admin_forum_create_url();?>" class="btn btn-primary btn-sm rounded-pill">
 				<i class="ti ti-plus"></i> <?php echo lang('admin_add_forum')?>
 			</a>
 		</div>
@@ -47,25 +47,25 @@ foreach($forumlist as $_fid=>$_forum) {
 
 		<?php foreach($categories as $_fid=>$_forum) { ?>
 		<!-- 分区卡片 -->
-		<div class="admin-card mb-3" rowid="<?php echo $_fid;?>">
-			<div class="card-header d-flex align-items-center gap-2">
+		<div class="x-card  card   " rowid="<?php echo $_fid;?>">
+			<div class="card-header border-0 d-flex align-items-center gap-2">
 				<!-- 分区图标 -->
-				<?php if(!empty($_forum['icon_url']) && (strpos($_forum['icon_url'], '.') !== false || strpos($_forum['icon_url'], '/') !== false)): ?>
+				<!-- <?php if(!empty($_forum['icon_url']) && (strpos($_forum['icon_url'], '.') !== false || strpos($_forum['icon_url'], '/') !== false)): ?>
 					<img src="<?php echo $_forum['icon_url'];?>" width="24" height="24" class="rounded-1">
 				<?php else: ?>
 					<i class="ti ti-category text-primary"></i>
-				<?php endif; ?>
+				<?php endif; ?> -->
 				<!-- 分区名称 -->
 				<span class="fw-semibold"><?php echo esc_html($_forum['name']);?></span>
 				<!-- 类型标签 -->
-				<span class="badge bg-primary bg-opacity-10 text-primary ms-1"><?php echo lang('admin_category');?></span>
+				<span class="badge bg-primary bg-opacity-10 text-primary "><?php echo lang('admin_category');?></span>
 				<!-- 排序 -->
 				<span class="badge bg-secondary bg-opacity-10 text-secondary"><?php echo lang('forum_rank');?>：<?php echo $_forum['rank'];?></span>
 				<!-- 操作按钮 -->
 				<div class="ms-auto d-flex gap-1">
-					<a class="row-action row_edit" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
-					<a class="row-action row_delete" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
-				</div>
+				<a class="row-action" href="<?php echo admin_forum_update_url($_fid);?>" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
+				<a class="row-action row_delete" href="javascript:void(0)" data-fid="<?php echo $_fid;?>" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
+			</div>
 			</div>
 
 			<?php
@@ -73,17 +73,19 @@ foreach($forumlist as $_fid=>$_forum) {
 			if(!empty($sub_forums)) { ?>
 			<ul class="list-group list-group-flush">
 				<?php foreach($sub_forums as $sfid=>$sf) { ?>
-				<li class="list-group-item d-flex align-items-center gap-2 px-3 py-2 forum-row" rowid="<?php echo $sfid;?>">
-					<?php if(!empty($sf['icon_url']) && (strpos($sf['icon_url'], '.') !== false || strpos($sf['icon_url'], '/') !== false)): ?>
+				<li class="list-group-item border-0 d-flex align-items-center gap-2 p-3 forum-row" rowid="<?php echo $sfid;?>">
+					<?php if(!empty($sf['icon_url'])): ?>
 						<img src="<?php echo $sf['icon_url'];?>" width="28" height="28" class="rounded-1 flex-shrink-0">
+					<?php elseif(!empty($sf['icon_class'])): ?>
+						<i class="<?php echo $sf['icon_class'];?> text-body-secondary flex-shrink-0"></i>
 					<?php else: ?>
-						<i class="ti ti-message-circle text-body-secondary flex-shrink-0"></i>
+						<img src="/view/img/forum.png" width="28" height="28" class="rounded-1 flex-shrink-0">
 					<?php endif; ?>
 					<span class="fw-medium flex-grow-1"><?php echo esc_html($sf['name']);?></span>
 					<span class="badge bg-secondary bg-opacity-10 text-secondary"><?php echo lang('forum_rank');?>：<?php echo $sf['rank'];?></span>
 					<div class="ms-1 d-flex gap-1">
-						<a class="row-action row_edit" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
-						<a class="row-action row_delete" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
+						<a class="row-action" href="<?php echo admin_forum_update_url($sfid);?>" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
+						<a class="row-action row_delete" href="javascript:void(0)" data-fid="<?php echo $sfid;?>" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
 					</div>
 				</li>
 				<?php } ?>
@@ -96,8 +98,8 @@ foreach($forumlist as $_fid=>$_forum) {
 
 		<?php if(!empty($orphans)) { ?>
 		<!-- 孤儿版块（无父分区的版块） -->
-		<div class="admin-card mb-3">
-			<div class="card-header d-flex align-items-center gap-2" style="background:var(--bs-warning-bg-subtle)">
+		<div class="x-card  card ">
+			<div class="card-header border-0 d-flex align-items-center gap-2" style="background:var(--bs-warning-bg-subtle)">
 				<i class="ti ti-alert-triangle text-warning"></i>
 				<span class="fw-semibold"><?php echo lang('admin_uncategorized_forums')?></span>
 			</div>
@@ -105,17 +107,19 @@ foreach($forumlist as $_fid=>$_forum) {
 				<?php foreach($orphans as $_fid=>$_forum) {
 					if(!empty($_forum['type']) && $_forum['type'] == 1) continue;
 				?>
-				<li class="list-group-item d-flex align-items-center gap-2 px-3 py-2 forum-row" rowid="<?php echo $_fid;?>">
-					<?php if(!empty($_forum['icon_url']) && (strpos($_forum['icon_url'], '.') !== false || strpos($_forum['icon_url'], '/') !== false)): ?>
+				<li class="list-group-item border-0 d-flex align-items-center gap-2 p-3 forum-row" rowid="<?php echo $_fid;?>">
+					<?php if(!empty($_forum['icon_url'])): ?>
 						<img src="<?php echo $_forum['icon_url'];?>" width="28" height="28" class="rounded-1 flex-shrink-0">
+					<?php elseif(!empty($_forum['icon_class'])): ?>
+						<i class="<?php echo $_forum['icon_class'];?> text-body-secondary flex-shrink-0"></i>
 					<?php else: ?>
-						<i class="ti ti-message-circle text-body-secondary flex-shrink-0"></i>
+						<img src="/view/img/forum.png" width="28" height="28" class="rounded-1 flex-shrink-0">
 					<?php endif; ?>
 					<span class="fw-medium flex-grow-1"><?php echo esc_html($_forum['name']);?></span>
 					<span class="badge bg-secondary bg-opacity-10 text-secondary"><?php echo lang('forum_rank');?>：<?php echo $_forum['rank'];?></span>
 					<div class="ms-1 d-flex gap-1">
-						<a class="row-action row_edit" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
-						<a class="row-action row_delete" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
+						<a class="row-action" href="<?php echo admin_forum_update_url($_fid);?>" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
+						<a class="row-action row_delete" href="javascript:void(0)" data-fid="<?php echo $_fid;?>" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
 					</div>
 				</li>
 				<?php } ?>
@@ -161,33 +165,32 @@ foreach($forumlist as $_fid=>$_forum) {
 
 <script>
 (function() {
+	console.log('[forum_list] script start');
+	console.log('[forum_list] bootstrap:', typeof bootstrap);
+	console.log('[forum_list] xn:', typeof xn);
+	console.log('[forum_list] showToast:', typeof showToast);
+
 	// CSRF 令牌
 	var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
+	console.log('[forum_list] csrfToken:', csrfToken ? 'found' : 'NOT found');
 
 	// 删除弹窗实例
 	var deleteModalEl = document.getElementById('deleteModal');
-	var deleteModal = new bootstrap.Modal(deleteModalEl);
+	console.log('[forum_list] deleteModalEl:', deleteModalEl);
+	var deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
+	console.log('[forum_list] deleteModal:', deleteModal);
 	var deleteFidInput = null;
-
-	// 编辑按钮：跳转到编辑页面
-	document.addEventListener('click', function(e) {
-		var editBtn = e.target.closest('.row_edit');
-		if (editBtn) {
-			var row = editBtn.closest('[rowid]');
-			if (!row) return;
-			var fid = row.getAttribute('rowid');
-			window.location = xn.url('forum-update-' + fid);
-		}
-	});
 
 	// 删除按钮：弹出确认弹窗
 	document.addEventListener('click', function(e) {
 		var deleteBtn = e.target.closest('.row_delete');
 		if (deleteBtn) {
+			console.log('[forum_list] delete button clicked');
 			e.preventDefault();
 			var row = deleteBtn.closest('[rowid]');
 			if (!row) return;
 			var fid = row.getAttribute('rowid');
+			console.log('[forum_list] deleting fid:', fid);
 
 			// 系统保留版块不可删除
 			if (fid == '1') {
@@ -197,28 +200,46 @@ foreach($forumlist as $_fid=>$_forum) {
 
 			// 记录待删除的 fid，显示弹窗
 			deleteFidInput = fid;
-			deleteModal.show();
+			if (deleteModal) deleteModal.show();
+			else console.log('[forum_list] deleteModal is null!');
 		}
 	});
 
-	// 确认删除：AJAX 请求
-	document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
-		if (!deleteFidInput) return;
-		var fid = deleteFidInput;
-		var url = xn.url('forum-delete-' + fid);
-		var postdata = 'csrf_token=' + encodeURIComponent(csrfToken);
+	// 确认删除：原生 fetch 请求
+	var confirmBtn = document.getElementById('confirmDeleteBtn');
+	console.log('[forum_list] confirmBtn:', confirmBtn);
+	if (confirmBtn) {
+		confirmBtn.addEventListener('click', function() {
+			if (!deleteFidInput) return;
+			var fid = deleteFidInput;
+			var url = xn.url('forum-delete-' + fid);
+			console.log('[forum_list] confirm delete, url:', url);
+			var postdata = new FormData();
+			postdata.append('csrf_token', csrfToken);
 
-		$.xpost(url, postdata, function(code, message) {
-			if (code == 0) {
-				deleteModal.hide();
-				// 刷新页面
-				window.location.reload();
-			} else {
-				showToast(message, 'error');
-			}
+			fetch(url, {
+				method: 'POST',
+				body: postdata,
+				headers: { 'X-Requested-With': 'XMLHttpRequest' }
+			})
+			.then(function(r) { console.log('[forum_list] fetch response status:', r.status); return r.text(); })
+			.then(function(text) {
+				console.log('[forum_list] fetch response:', text.substring(0, 200));
+				var res;
+				try { res = JSON.parse(text); } catch(e) { console.log('[forum_list] JSON parse error'); return; }
+				if (parseInt(res.code) == 0) {
+					if (deleteModal) deleteModal.hide();
+					window.location.href = window.location.href;
+				} else {
+					showToast(res.message || '<?php echo lang('admin_delete_failed'); ?>', 'error');
+				}
+			})
+			.catch(function(err) {
+				console.log('[forum_list] fetch error:', err);
+				showToast('<?php echo lang('admin_request_failed'); ?>', 'error');
+			});
 		});
-	});
+	}
+	console.log('[forum_list] script end');
 })();
 </script>
-
-<!--{hook admin_forum_list_js.htm}-->

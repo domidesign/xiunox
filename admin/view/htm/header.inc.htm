@@ -2,6 +2,12 @@
 <html lang="<?php echo $conf['lang'];?>">
 <head>
 	<?php $header = G('header');?>
+	<?php
+	// XSS 防护：转义 header 数据
+	$header['title'] = esc_html($header['title'] ?? '');
+	$header['keywords'] = esc_attr($header['keywords'] ?? '');
+	$header['description'] = esc_attr($header['description'] ?? '');
+	?>
 	<?php $user = G('user');?>
 	<?php $menu = G('menu');?>
 	<?php $forumlist_show = G('forumlist_show');?>
@@ -14,8 +20,8 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="author" content="XiunoBBS 4.0" />
-	<meta name="keywords" content="<?php echo strip_tags($header['keywords']);?>" />
-	<meta name="description" content="<?php echo strip_tags($header['description']);?>" />
+	<meta name="keywords" content="<?php echo $header['keywords'];?>" />
+	<meta name="description" content="<?php echo $header['description'];?>" />
 	<meta name="renderer" content="webkit" />
 	<meta name="csrf-token" content="<?php echo $header['csrf_token']; ?>">
 	<title><?php echo $header['title'];?></title>
@@ -42,8 +48,11 @@
 
 	<script>
 	(function(){
-		var theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-		var themeColor = localStorage.getItem('theme-color') || 'blue';
+		// 后台设置的默认主题和主题色
+		var defaultTheme = <?php echo json_encode($conf['default_theme'] ?? 'light');?>;
+		var defaultBrand = <?php echo json_encode($conf['theme_brand'] ?? 'blue');?>;
+		var theme = localStorage.getItem('theme') || defaultTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+		var themeColor = localStorage.getItem('theme-color') || defaultBrand || 'blue';
 		document.documentElement.setAttribute('data-bs-theme', theme);
 		document.documentElement.setAttribute('data-theme', themeColor);
 	})();

@@ -69,27 +69,46 @@ function sess_read($sid) {
 
 function sess_new($sid) {
 	global $time, $longip, $conf, $g_session, $g_session_invalid;
-	
+
 	$agent = _SERVER('HTTP_USER_AGENT');
-	
+
 	// 干掉同 ip 的 sid，仅仅在遭受攻击的时候
 	//db_delete('session', array('ip'=>$longip));
-	
+
+	// 判断是否 HTTPS，用于设置 cookie 安全属性
+	$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+	$samesite = $is_https ? 'None' : 'Lax';
+	$cookie_options = array(
+		'expires' => 0,
+		'path' => '/',
+		'domain' => '',
+		'secure' => $is_https,
+		'httponly' => true,
+		'samesite' => $samesite,
+	);
+
 	$cookie_test = _COOKIE('cookie_test');
 	if($cookie_test) {
 		$cookie_test_decode = xn_decrypt($cookie_test, $conf['auth_key']);
 		$g_session_invalid = ($cookie_test_decode != md5($agent.$longip));
-		setcookie('cookie_test', '', $time - 86400, '');
+		// 删除 cookie_test，使用与 session cookie 一致的安全属性
+		$del_options = $cookie_options;
+		$del_options['expires'] = $time - 86400;
+		setcookie('cookie_test', '', $del_options);
 	} else {
 		$cookie_test = xn_encrypt(md5($agent.$longip), $conf['auth_key']);
-		setcookie('cookie_test', $cookie_test, $time + 86400, '');
+		// 设置 cookie_test，使用与 session cookie 一致的安全属性
+		$set_options = $cookie_options;
+		$set_options['expires'] = $time + 86400;
+		setcookie('cookie_test', $cookie_test, $set_options);
 		$g_session_invalid = FALSE;
-		return;
+		// 不再提前返回，始终创建 session 记录
+		// 否则首次访问时 CSRF token 等会话数据无法持久化到数据库
 	}
-	
+
 	// 可能会暴涨
 	$url = _SERVER('REQUEST_URI_NO_PATH');
-	
+
 	$arr = array(
 		'sid'=>$sid,
 		'uid'=>0,
@@ -102,7 +121,8 @@ function sess_new($sid) {
 		'bigdata'=> 0,
 	);
 	$g_session = $arr;
-	db_insert('session', $arr);
+	// 使用 replace into 避免 SID 重复时插入失败
+	db_replace('session', $arr);
 }
 
 // 重新启动 session，降低并发写入数据的问题，这回抛弃前面的 _SESSION 数据
@@ -121,6 +141,16 @@ function sess_save() {
 // 模拟加锁，如果发现写入的时候数据已经发生改变，则读取后，合并数据，重新写入（合并总比删除安全一点）。
 function sess_write($sid, $data) {
 	global $g_session, $time, $longip, $g_session_invalid, $conf;
+	
+	// 静态资源请求跳过 session 更新，避免不必要的数据库写入
+	// 包括：.css .js .map .png .jpg .gif .svg .ico .woff .ttf .eot 等
+	$request_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
+	if($request_uri) {
+		$static_ext_pattern = '/\.(css|js|map|png|jpe?g|gif|svg|ico|woff2?|ttf|eot|webp|avif)(\?|$)/i';
+		if(preg_match($static_ext_pattern, $request_uri)) {
+			return TRUE;
+		}
+	}
 	
 	//echo "sess_write($sid, $data)";
 	//if($g_session_invalid) return TRUE;
@@ -208,18 +238,37 @@ function sess_start() {
 	ini_set('session.use_only_cookies', 'On');
 
 	// 设置 session cookie 安全属性
-	$cookie_secure = isset($conf['cookie_secure']) ? $conf['cookie_secure'] : false;
-	// SameSite=Lax 会阻止跨站 POST 的 cookie 携带，但对同源 fetch POST 应该允许
-	// 如果站点通过 HTTPS 访问，使用 SameSite=None; Secure
-	// 如果站点通过 HTTP 访问，使用 SameSite=Lax（None 需要 Secure）
-	$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $_SERVER['SERVER_PORT'] == 443;
-	$samesite = $is_https ? 'None' : 'Lax';
+	// 优先读取安全配置中的 Cookie 设置，未配置则自动检测
+	$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+
+	// Cookie Secure：配置了 security_cookie_secure 则使用配置值，否则自动检测 HTTPS
+	if(isset($conf['security_cookie_secure']) && intval($conf['security_cookie_secure']) > 0) {
+		$cookie_secure = true;
+	} elseif(isset($conf['cookie_secure'])) {
+		$cookie_secure = intval($conf['cookie_secure']) > 0;
+	} else {
+		$cookie_secure = $is_https;
+	}
+
+	// Cookie HttpOnly：默认开启
+	$cookie_httponly = true;
+	if(isset($conf['security_cookie_httponly'])) {
+		$cookie_httponly = intval($conf['security_cookie_httponly']) > 0;
+	}
+
+	// Cookie SameSite：优先使用安全配置，否则自动检测
+	if(isset($conf['security_cookie_samesite']) && in_array($conf['security_cookie_samesite'], array('Lax', 'Strict', 'None'), true)) {
+		$samesite = $conf['security_cookie_samesite'];
+	} else {
+		$samesite = $is_https ? 'None' : 'Lax';
+	}
+
 	session_set_cookie_params(array(
 		'lifetime' => 8640000,
 		'path' => '/',
 		'domain' => '',
-		'secure' => $is_https,
-		'httponly' => true,
+		'secure' => $cookie_secure,
+		'httponly' => $cookie_httponly,
 		'samesite' => $samesite,
 	));
 	
@@ -251,7 +300,9 @@ function online_count() {
 }
 
 function online_find_cache() {
-	return db_find('session');
+	// 增加 WHERE 和 LIMIT 限制，避免全表扫描
+	$time = time();
+	return db_find('session', array('last_date'=>array('>'=>$time - 3600)), array(), 1, 1000, '', array('uid', 'ip', 'last_date'));
 }
 
 function online_list_cache() {
@@ -260,7 +311,7 @@ function online_list_cache() {
 		$onlinelist = db_find('session', array('uid'=>array('>'=>0)), array('last_date'=>-1), 1, 500);
 		foreach($onlinelist as &$online) {
 			$user = user_read_cache($online['uid']);
-			$online['username'] = $user['username'];
+			$online['username'] = isset($user['display_name']) ? $user['display_name'] : $user['username'];
 			$online['gid'] = $user['gid'];
 			$online['ip_fmt'] = long2ip($online['ip']);
 			$online['last_date_fmt'] = date('Y-n-j H:i', $online['last_date']);

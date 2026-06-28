@@ -40,8 +40,8 @@ if($action == 'list') {
 
     // 获取总数用于分页
     if(!empty($filter_type) || $filter_orphan !== '' || !empty($filter_keyword)) {
-        // 有筛选条件时，使用筛选后的总数
-        $count = db_count('attach'); // 简化，实际应带筛选条件
+        // 有筛选条件时，使用筛选后的总数（修复全表 count bug）
+        $count = attach_admin_count($filter);
     } else {
         $count = $stats['total'];
     }
@@ -52,12 +52,17 @@ if($action == 'list') {
         foreach($attachlist as $attach) {
             $uids[] = $attach['uid'];
         }
-        $uids = array_unique($uids);
+        $uids = array_unique(array_filter($uids));
     }
     $users = array();
-    foreach($uids as $uid) {
-        $_u = user_read_cache($uid);
-        if(!empty($_u)) $users[$uid] = $_u['username'];
+    if(!empty($uids)) {
+        // 批量查询用户，避免 N+1
+        $userlist = db_find('user', array('uid'=>$uids), array(), 1, count($uids), 'uid');
+        if($userlist) {
+            foreach($userlist as $_uid => $_u) {
+                $users[$_uid] = $_u['username'];
+            }
+        }
     }
 
     // 批量获取关联帖子信息（用于 pid>0 时查 tid）
@@ -71,10 +76,11 @@ if($action == 'list') {
         }
         if(!empty($pids)) {
             $pids = array_unique($pids);
-            foreach($pids as $pid) {
-                $post = db_find_one('post', array('pid'=>$pid));
-                if(!empty($post)) {
-                    $tid_from_pid[$pid] = $post['tid'];
+            // 批量查询 post，避免 N+1
+            $postlist = db_find('post', array('pid'=>$pids), array(), 1, count($pids), 'pid');
+            if($postlist) {
+                foreach($postlist as $_pid => $_post) {
+                    $tid_from_pid[$_pid] = $_post['tid'];
                 }
             }
         }

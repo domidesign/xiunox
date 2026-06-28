@@ -4,7 +4,7 @@
 
 <div class="x-card card">
 	<div class="card-body">
-		<form action="<?php echo url('security-protection');?>" method="post" id="protection-form">
+		<form action="<?php echo admin_security_url('protection');?>" method="post" id="protection-form">
 			<?php echo CsrfService::input(); ?>
 
 			<!-- 子Tab导航 -->
@@ -71,7 +71,7 @@
 						<div class="col-sm-6">
 							<div class="input-group">
 								<input type="number" class="form-control rounded-pill" name="security_reply_min_length" value="<?php echo $security_config['security_reply_min_length'];?>" min="0">
-								<span class="input-group-text">字</span>
+								<span class="input-group-text"><?php echo lang('unit_char');?></span>
 							</div>
 						</div>
 						<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_zero_no_limit')?></small></div>
@@ -266,7 +266,7 @@
 						<div class="col-sm-6">
 							<div class="input-group">
 								<input type="number" class="form-control rounded-pill" name="security_avatar_max_size" value="<?php echo $security_config['security_avatar_max_size'];?>" min="1">
-								<span class="input-group-text">KB</span>
+								<span class="input-group-text"><?php echo lang('admin_unit_kb'); ?></span>
 							</div>
 						</div>
 						<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_limit_upload_size')?></small></div>

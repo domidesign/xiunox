@@ -72,9 +72,8 @@ function is_password($password, &$err = '') {
 }
 
 function password_md5(&$password) {
-	if(strlen($password) != 32 || !preg_match('#^[0-9a-f]{32}$#', $password)) {
-		$password = md5($password);
-	}
+	// 已废弃：不再预处理密码，明文直接用于 bcrypt
+	// 保留函数签名避免第三方插件 fatal error
 }
 
 // hook model_check_end.php

@@ -1,13 +1,7 @@
 <?php if(!empty($pagination)) { ?>
 <?php
-$_mode = isset($view_mode) ? $view_mode : 'list';
-$_target_map = array(
-    'list' => array('.threadlist', '.threadlist > li:not(.thread-list-divider)'),
-    'timeline' => array('.timeline-feed', '.timeline-feed > .timeline-card'),
-    'waterfall' => array('.masonry-container', '.masonry-container > .masonry-item'),
-);
-$_hx_target = isset($_target_map[$_mode]) ? $_target_map[$_mode][0] : '.threadlist';
-$_hx_select = isset($_target_map[$_mode]) ? $_target_map[$_mode][1] : '.threadlist > li';
+$_hx_target = '.threadlist';
+$_hx_select = '.threadlist > li:not(.thread-list-divider)';
 ?>
 <!--{hook pagination_infinite_before.htm}-->
 <div class="pagination-infinite" id="paginationInfinite"
@@ -110,12 +104,6 @@ $_hx_select = isset($_target_map[$_mode]) ? $_target_map[$_mode][1] : '.threadli
                 el.innerHTML = '<div class="text-center py-3 text-body-secondary small"><?php echo lang('no_more_data_tip');?></div>';
             }
             return;
-        }
-
-        // masonry 布局需要触发 CSS columns 重排
-        var masonryContainer = document.querySelector('.masonry-container');
-        if(masonryContainer) {
-            void masonryContainer.offsetHeight;
         }
 
         // 触发帖子列表淡入动画

@@ -17,7 +17,7 @@
 
 <div class="row g-4">
 	<div class="col-lg-3">
-		<div class="x-card  cardmb-4 rounded-1">
+		<div class="x-card  card">
 			<div class="card-body">
 				<div class="d-flex justify-content-between align-items-center">
 					<h6 class="fw-semibold"><i class="ti ti-clock"></i> <?php echo lang('api_debug_request_history');?></h6>
@@ -62,11 +62,11 @@
 	</div>
 
 	<div class="col-lg-9">
-		<div class="x-card  cardmb-4 rounded-1">
+		<div class="x-card  card">
 			<div class="card-body">
 				<div class="d-flex justify-content-between align-items-center mb-4">
 					<h5 class="fw-bold"><i class="ti ti-terminal-2"></i> <?php echo lang('api_debug_tool');?></h5>
-					<a href="<?php echo url('api-doc');?>" class="admin-quick-link"><i class="ti ti-book"></i> <?php echo lang('api_debug_api_doc');?></a>
+					<a href="<?php echo admin_api_doc_url();?>" class="admin-quick-link"><i class="ti ti-book"></i> <?php echo lang('api_debug_api_doc');?></a>
 				</div>
 				<form id="apiTestForm" onsubmit="return false;">
 					<div class="d-flex flex-wrap gap-2 mb-3">
@@ -90,7 +90,7 @@
 					</div>
 
 					<div class="mb-3">
-						<label class="fs-6 text-secondary mb-1 d-block">Authorization Token</label>
+						<label class="fs-6 text-secondary mb-1 d-block"><?php echo lang('admin_api_auth_token'); ?></label>
 						<div class="d-flex gap-1">
 							<input type="text" class="form-control form-control-sm flex-fill" id="apiToken" placeholder="<?php echo lang('api_debug_token_placeholder');?>">
 							<button type="button" class="btn btn-sm btn-ghost" onclick="fillOrGenerateToken()" id="fillTokenBtn"><i class="ti ti-key"></i><?php echo lang('api_debug_fill_token');?></button>
@@ -99,7 +99,7 @@
 					</div>
 
 					<div class="mb-3" id="apiBodyGroup">
-						<label class="fs-6 text-secondary mb-1 d-block">Request Body (JSON)</label>
+						<label class="fs-6 text-secondary mb-1 d-block"><?php echo lang('admin_api_request_body'); ?></label>
 						<div class="position-relative">
 							<textarea class="form-control form-control-sm w-100" id="apiBody" rows="4" placeholder='<?php echo lang("api_debug_body_placeholder");?>'></textarea>
 							<button type="button" class="btn btn-sm btn-ghost position-absolute" style="top:0.25rem;right:0.25rem" onclick="formatBody()" title="<?php echo lang('api_debug_format');?>"><i class="ti ti-code"></i></button>
@@ -184,7 +184,7 @@ function fillOrGenerateToken() {
 	var btn = document.getElementById('fillTokenBtn');
 	btn.disabled = true;
 	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('api_debug_generating');?>';
-	$.xpost('<?php echo url("api-debug");?>', {op: 'generate_token', uid: 1, csrf_token: csrfToken}, function(code, message) {
+	$.xpost('<?php echo admin_api_debug_url();?>', {op: 'generate_token', uid: 1, csrf_token: csrfToken}, function(code, message) {
 		if(code == 0) {
 			document.getElementById('apiToken').value = message.token;
 			latestTokens.unshift(message);

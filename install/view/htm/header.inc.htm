@@ -4,7 +4,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="author" content="XiunoBBS 4.0" />
+	<meta name="author" content="<?php echo lang('install_meta_author'); ?>" />
 	<meta name="keywords" content="" />
 	<meta name="description" content="" />
 	<meta name="renderer" content="webkit" />
@@ -41,7 +41,7 @@ $steps = array(
     4 => lang('step_config') ?? '数据库配置',
 );
 ?>
-<div class="x-card  cardrounded-3 mb-3">
+<div class="x-card  card">
     <div class="card-body py-2">
         <div class="d-flex justify-content-between align-items-center">
             <?php foreach($steps as $n => $label) { ?>

@@ -1,1 +1,33 @@
-<?php include _include(APP_PATH.'view/htm/user.common.template.htm');?>
+<template include="./view/htm/user.common.template.htm">
+	
+	<slot name="user_nav">
+		<ul class="nav nav-tabs">
+			<!--{hook user_nav_profile_before.htm}-->
+			<li class="nav-item"><a class="nav-link active" href="<?php echo user_thread_url($_uid);?>" data-active="user-thread"><?php echo lang('thread');?></a></li>
+			<!--{hook user_nav_profile_after.htm}-->
+			<li class="nav-item"><a class="nav-link" href="<?php echo user_post_url($_uid);?>" data-active="user-post"><?php echo lang('reply');?></a></li>
+			<li class="nav-item"><a class="nav-link" href="<?php echo user_following_url($_uid);?>" data-active="user-following"><?php echo lang('following');?></a></li>
+			<li class="nav-item"><a class="nav-link" href="<?php echo user_followers_url($_uid);?>" data-active="user-followers"><?php echo lang('followers');?></a></li>
+			<?php if(!empty($uid) && $uid == $_uid) { ?>
+			<li class="nav-item"><a class="nav-link" href="<?php echo user_favorite_url($_uid);?>" data-active="user-favorite"><?php echo lang('my_favorite');?></a></li>
+			<li class="nav-item"><a class="nav-link" href="<?php echo user_like_url($_uid);?>" data-active="user-like"><?php echo lang('my_like');?></a></li>
+			<?php } ?>
+			<!--{hook user_nav_end.htm}-->
+		</ul>
+	</slot>
+
+	<slot name="user_body">
+		<ul class="list-unstyled threadlist">
+			<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm');?>
+		</ul>
+
+		<?php include _include(APP_PATH.'view/htm/thread_list_mod.inc.htm'); ?>
+
+		<?php if($pagination) { ?>
+		<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap"><?php echo $pagination; ?></ul></nav>
+		<?php } ?>
+	</slot>
+</template>
+
+<script>
+</script>

@@ -20,6 +20,11 @@ switch ($method) {
         if (!$authUser) {
             ApiResponse::unauthorized();
         }
+        // 检查上传附件权限
+        include_once APP_PATH . 'lib/security/PermissionService.php';
+        if (!PermissionService::check('allowattach')) {
+            ApiResponse::forbidden('您无权上传附件');
+        }
         if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
             ApiResponse::validationError('File is required (multipart/form-data, field name: file)');
         }

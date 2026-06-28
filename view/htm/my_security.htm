@@ -1,0 +1,100 @@
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<?php include _include(APP_PATH.'view/htm/my.layout.inc.htm');?>
+
+		<!-- 安全设置 -->
+		<div class="x-card card">
+			<div class="card-body">
+				<h6 class="fw-medium mb-3"><i class="ti ti-mail"></i> <?php echo lang('modify_email');?></h6>
+				<form hx-post="<?php echo my_email_url();?>" hx-target="#email-msg" hx-swap="innerHTML" id="email_form">
+					<?php echo CsrfService::input(); ?>
+					<div id="email-msg"></div>
+					<div class="mb-3">
+						<label class="form-label text-body-secondary"><?php echo lang('current_email');?></label>
+						<input type="text" class="form-control" value="<?php echo esc_html($user['email']);?>" disabled>
+					</div>
+					<div class="mb-3">
+						<label class="form-label"><?php echo lang('new_email');?></label>
+						<input type="email" class="form-control" name="email_new" id="email_new" placeholder="<?php echo lang('please_input_new_email');?>" required>
+						<div class="invalid-feedback"></div>
+					</div>
+					<div class="mb-3">
+						<label class="form-label"><?php echo lang('verify_code');?></label>
+						<div class="input-group">
+							<input type="text" class="form-control" name="email_code" id="email_code" placeholder="<?php echo lang('please_input_verify_code');?>" required>
+							<button type="button" class="btn btn-outline-primary" id="send_code_btn"><?php echo lang('send_verify_code');?></button>
+						</div>
+						<div class="invalid-feedback"></div>
+					</div>
+					<div>
+						<button type="submit" class="btn btn-primary" id="email_submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('confirm_modify');?></button>
+					</div>
+				</form>
+			</div>
+		</div>
+
+		<div class="x-card card">
+			<div class="card-body">
+				<h6 class="fw-medium mb-3"><i class="ti ti-lock"></i> <?php echo lang('update_password');?></h6>
+				<form hx-post="<?php echo my_password_url();?>" hx-target="#password-msg" hx-swap="innerHTML" id="password_form">
+					<?php echo CsrfService::input(); ?>
+					<div id="password-msg"></div>
+					<div class="mb-3">
+						<input type="password" class="form-control" name="password_old" placeholder="<?php echo lang('password_old');?>" required>
+						<div class="invalid-feedback"></div>
+					</div>
+					<div class="mb-3">
+						<input type="password" class="form-control" name="password_new" placeholder="<?php echo lang('password_new');?>" required>
+						<div class="invalid-feedback"></div>
+					</div>
+					<div class="mb-3">
+						<input type="password" class="form-control" name="password_new_repeat" placeholder="<?php echo lang('password_new_repeat');?>" required>
+						<div class="invalid-feedback"></div>
+					</div>
+					<div>
+						<button type="submit" class="btn btn-primary" id="password_submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('update_password');?></button>
+					</div>
+				</form>
+			</div>
+		</div>
+
+	</div>
+
+	<!-- 右侧空栏 -->
+	<div class="d-none d-lg-block col-lg-3"></div>
+</div>
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+var jsend_code_btn = $('#send_code_btn');
+var send_code_timer = 0;
+jsend_code_btn.on('click', function() {
+	var email = $('#email_new').val();
+	if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+		$('#email_new').focus();
+		return;
+	}
+	jsend_code_btn.prop('disabled', true);
+	XN.post('<?php echo my_send_email_code_url();?>', {email: email}, function(code, msg) {
+		if(code == 0) {
+			if(typeof XN.toast === 'function') XN.toast(msg, 'success');
+			send_code_timer = (this && this.wait) ? parseInt(this.wait) : 60;
+			if(isNaN(send_code_timer) || send_code_timer < 1) send_code_timer = 60;
+			jsend_code_btn.text(send_code_timer + 's');
+			var interval = setInterval(function() {
+				send_code_timer--;
+				if(send_code_timer <= 0) {
+					clearInterval(interval);
+					jsend_code_btn.text('<?php echo lang('send_verify_code');?>').prop('disabled', false);
+				} else {
+					jsend_code_btn.text(send_code_timer + 's');
+				}
+			}, 1000);
+		} else {
+			if(typeof XN.toast === 'function') XN.toast(msg || '<?php echo lang('error_label'); ?>', 'danger');
+			jsend_code_btn.prop('disabled', false);
+		}
+	});
+});
+</script>

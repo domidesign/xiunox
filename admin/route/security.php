@@ -2,48 +2,131 @@
 
 !defined('DEBUG') AND exit('Access Denied.');
 
-$action = param(1, 'protection');
+$action = param(1, 'post_limit');
 $method = G('method');
 
-// ===== 防护设置 =====
-if($action == '' || $action == 'protection') {
+// 兼容旧URL：security-protection 重定向到 security-post_limit
+if($action == 'protection') {
+    header('Location: '.admin_security_url('post_limit'));
+    exit;
+}
+
+// ===== 发帖限制 =====
+if($action == '' || $action == 'post_limit') {
     include_once APP_PATH . 'lib/security/SecurityConfigService.php';
 
     if($method == 'GET') {
         $security_config = SecurityConfigService::get_config();
-        $header['title'] = '防护设置';
-        $header['mobile_title'] = '防护设置';
-        include _include(ADMIN_PATH.'view/htm/security_protection.htm');
+        $header['title'] = lang('admin_post_limit');
+        $header['mobile_title'] = lang('admin_post_limit');
+        include _include(ADMIN_PATH.'view/htm/security_post_limit.htm');
     } else {
         CsrfService::check();
         $data = array();
         $data['security_post_thread_interval'] = param('security_post_thread_interval', 60);
         $data['security_post_reply_interval'] = param('security_post_reply_interval', 30);
+        $data['security_subject_min_length'] = param('security_subject_min_length', 2);
+        $data['security_subject_max_length'] = param('security_subject_max_length', 128);
         $data['security_post_min_length'] = param('security_post_min_length', 10);
         $data['security_reply_min_length'] = param('security_reply_min_length', 5);
         $data['security_post_max_length'] = param('security_post_max_length', 50000);
         $data['security_same_thread_reply_interval'] = param('security_same_thread_reply_interval', 0);
         $data['security_new_user_audit_count'] = param('security_new_user_audit_count', 0);
+
+        $r = SecurityConfigService::save_config($data);
+        if($r) {
+            admin_log_create('security_protection', 'security', '', '修改发帖限制设置');
+            message(0, lang('modify_successfully'));
+        } else {
+            message(-1, '保存失败');
+        }
+    }
+
+// ===== 账号安全 =====
+} elseif($action == 'account') {
+    include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+
+    if($method == 'GET') {
+        $security_config = SecurityConfigService::get_config();
+        $header['title'] = lang('admin_account_security');
+        $header['mobile_title'] = lang('admin_account_security');
+        include _include(ADMIN_PATH.'view/htm/security_account.htm');
+    } else {
+        CsrfService::check();
+        $data = array();
         $data['security_ip_register_interval'] = param('security_ip_register_interval', 24);
         $data['security_password_max_retries'] = param('security_password_max_retries', 5);
         $data['security_lockout_duration'] = param('security_lockout_duration', 15);
         $data['security_password_min_length'] = param('security_password_min_length', 6);
         $data['security_password_complexity'] = param('security_password_complexity', 'none');
+        $data['security_allowed_email_domains'] = param('security_allowed_email_domains', '', FALSE);
+        $data['security_email_code_interval'] = param('security_email_code_interval', 60);
+        $data['security_email_code_daily_limit'] = param('security_email_code_daily_limit', 5);
+        $data['security_email_code_ip_hourly_limit'] = param('security_email_code_ip_hourly_limit', 10);
+
+        $r = SecurityConfigService::save_config($data);
+        if($r) {
+            admin_log_create('security_protection', 'security', '', '修改账号安全设置');
+            message(0, lang('modify_successfully'));
+        } else {
+            message(-1, '保存失败');
+        }
+    }
+
+// ===== 内容权限 =====
+} elseif($action == 'content') {
+    include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+
+    if($method == 'GET') {
+        $security_config = SecurityConfigService::get_config();
+        $header['title'] = lang('admin_content_permission');
+        $header['mobile_title'] = lang('admin_content_permission');
+        include _include(ADMIN_PATH.'view/htm/security_content.htm');
+    } else {
+        CsrfService::check();
+        $data = array();
         $data['security_allow_edit'] = param('security_allow_edit', 0);
         $data['security_edit_time_limit'] = param('security_edit_time_limit', 60);
         $data['security_allow_delete'] = param('security_allow_delete', 0);
         $data['security_delete_time_limit'] = param('security_delete_time_limit', 0);
         $data['security_soft_delete'] = param('security_soft_delete', 0);
         $data['security_allow_delete_reply'] = param('security_allow_delete_reply', 0);
-        $data['security_avatar_upload_limit'] = param('security_avatar_upload_limit', 3);
-        $data['security_avatar_max_size'] = param('security_avatar_max_size', 512);
-        $data['security_search_interval'] = param('security_search_interval', 10);
-        $data['security_search_require_login'] = param('security_search_require_login', 0);
-        $data['security_allowed_email_domains'] = param('security_allowed_email_domains', '', FALSE);
 
         $r = SecurityConfigService::save_config($data);
         if($r) {
-            admin_log_create('security_protection', 'security', '', '修改防护设置');
+            admin_log_create('security_protection', 'security', '', '修改内容权限设置');
+            message(0, lang('modify_successfully'));
+        } else {
+            message(-1, '保存失败');
+        }
+    }
+
+// ===== 其他设置 =====
+} elseif($action == 'other') {
+    include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+
+    if($method == 'GET') {
+        $security_config = SecurityConfigService::get_config();
+        $header['title'] = lang('admin_other_settings');
+        $header['mobile_title'] = lang('admin_other_settings');
+        include _include(ADMIN_PATH.'view/htm/security_other.htm');
+    } else {
+        CsrfService::check();
+        $data = array();
+        $data['security_avatar_upload_limit'] = param('security_avatar_upload_limit', 3);
+        $data['security_avatar_max_size'] = param('security_avatar_max_size', 512);
+        $data['security_nickname_change_limit'] = param('security_nickname_change_limit', 1);
+        $data['security_signature_change_limit'] = param('security_signature_change_limit', 3);
+        $data['security_iframe_whitelist'] = param('security_iframe_whitelist', '', FALSE);
+        $data['security_search_interval'] = param('security_search_interval', 10);
+        $data['security_search_require_login'] = param('security_search_require_login', 0);
+        $data['security_cookie_secure'] = param('security_cookie_secure', 0);
+        $data['security_cookie_httponly'] = param('security_cookie_httponly', 1);
+        $data['security_cookie_samesite'] = param('security_cookie_samesite', 'Lax');
+
+        $r = SecurityConfigService::save_config($data);
+        if($r) {
+            admin_log_create('security_protection', 'security', '', '修改其他安全设置');
             message(0, lang('modify_successfully'));
         } else {
             message(-1, '保存失败');
@@ -61,12 +144,31 @@ if($action == '' || $action == 'protection') {
         include _include(ADMIN_PATH.'view/htm/security_captcha.htm');
     } else {
         CsrfService::check();
-        $data = array();
+        $data = array(
+            'types' => array(),
+            'gids' => array(),
+        );
+        // 各场景开关和类型（一维数组，param() 可正常处理）
+        $captcha_on = param('captcha_on', array());
+        $captcha_type = param('captcha_type', array());
+        // 二维数组（captcha_gids[post][]），param() 会破坏嵌套结构，直接从 $_POST 获取
+        $captcha_gids_input = isset($_POST['captcha_gids']) ? $_POST['captcha_gids'] : array();
         foreach(CaptchaService::SCENES as $scene) {
-            $data[$scene] = array(
-                'enabled' => param('captcha_' . $scene . '_enabled', 0),
-                'type' => param('captcha_' . $scene . '_type', 'gd_image'),
-            );
+            $is_on = !empty($captcha_on[$scene]);
+            $type = isset($captcha_type[$scene]) ? $captcha_type[$scene] : 'gd_image';
+            $data['types'][$scene] = in_array($type, ['gd_image', 'gd_math']) ? $type : 'gd_image';
+            if (in_array($scene, CaptchaService::PRE_AUTH_SCENES)) {
+                // 登录/注册/找回密码：开关决定只有游客(0)是否需要验证码
+                $data['gids'][$scene] = $is_on ? [0] : [];
+            } else {
+                // 发帖/回帖：开关打开，或用户组有勾选，都保存用户组配置
+                $scene_gids = isset($captcha_gids_input[$scene]) ? $captcha_gids_input[$scene] : array();
+                if ($is_on || !empty($scene_gids)) {
+                    $data['gids'][$scene] = array_map('intval', (array)$scene_gids);
+                } else {
+                    $data['gids'][$scene] = [];
+                }
+            }
         }
         $r = CaptchaService::save_config($data);
         if($r === FALSE) {
@@ -139,74 +241,6 @@ if($action == '' || $action == 'protection') {
             } else {
                 message(-1, '清空失败');
             }
-        } else {
-            message(-1, '未知操作');
-        }
-    }
-
-// ===== 内容审核 =====
-} elseif($action == 'audit') {
-    include_once APP_PATH . 'lib/security/AuditService.php';
-
-    if($method == 'GET') {
-        $pending_threads = AuditService::get_pending_list('thread', 1, 20);
-        $pending_posts = AuditService::get_pending_list('post', 1, 20);
-        $pending_thread_count = AuditService::get_pending_count('thread');
-        $pending_post_count = AuditService::get_pending_count('post');
-        $pending_profiles = AuditService::get_pending_profile_list(1, 20);
-        $pending_profile_count = AuditService::get_pending_profile_count();
-        $audit_logs = AuditService::get_audit_logs(1, 20);
-        $header['title'] = '内容审核';
-        $header['mobile_title'] = '内容审核';
-        include _include(ADMIN_PATH.'view/htm/security_audit.htm');
-    } else {
-        CsrfService::check();
-        $audit_action = param('audit_action', '');
-        global $user;
-        $operator_uid = intval($user['uid'] ?? 0);
-
-        if($audit_action == 'approve') {
-            $target_type = param('target_type', '', FALSE);
-            $target_id = param('target_id', 0);
-            if(empty($target_type) || empty($target_id)) message(-1, '参数错误');
-            $r = AuditService::approve($target_type, $target_id, $operator_uid);
-            $r ? message(0, '审核通过') : message(-1, '操作失败');
-        } elseif($audit_action == 'reject') {
-            $target_type = param('target_type', '', FALSE);
-            $target_id = param('target_id', 0);
-            $reason = param('reason', '', FALSE);
-            if(empty($target_type) || empty($target_id)) message(-1, '参数错误');
-            $r = AuditService::reject($target_type, $target_id, $operator_uid, $reason);
-            $r ? message(0, '已驳回') : message(-1, '操作失败');
-        } elseif($audit_action == 'batch_approve') {
-            $target_type = param('target_type', '', FALSE);
-            $ids = param('ids', array());
-            if(empty($target_type) || empty($ids)) message(-1, '参数错误');
-            $count = AuditService::batch_approve($target_type, $ids, $operator_uid);
-            $count > 0 ? message(0, '成功通过 ' . $count . ' 项') : message(-1, '操作失败');
-        } elseif($audit_action == 'batch_reject') {
-            $target_type = param('target_type', '', FALSE);
-            $ids = param('ids', array());
-            $reason = param('reason', '', FALSE);
-            if(empty($target_type) || empty($ids)) message(-1, '参数错误');
-            $count = AuditService::batch_reject($target_type, $ids, $operator_uid, $reason);
-            $count > 0 ? message(0, '成功驳回 ' . $count . ' 项') : message(-1, '操作失败');
-        } elseif($audit_action == 'profile_approve') {
-            $audit_id = param('audit_id', 0);
-            if(empty($audit_id)) message(-1, '参数错误');
-            $r = AuditService::approve_profile($audit_id, $operator_uid);
-            $r ? message(0, '审核通过') : message(-1, '操作失败');
-        } elseif($audit_action == 'profile_reject') {
-            $audit_id = param('audit_id', 0);
-            $reason = param('reason', '', FALSE);
-            if(empty($audit_id)) message(-1, '参数错误');
-            $r = AuditService::reject_profile($audit_id, $operator_uid, $reason);
-            $r ? message(0, '已驳回') : message(-1, '操作失败');
-        } elseif($audit_action == 'profile_batch_approve') {
-            $ids = param('ids', array());
-            if(empty($ids)) message(-1, '参数错误');
-            $r = AuditService::batch_approve_profiles($ids, $operator_uid);
-            $r ? message(0, '批量通过成功') : message(-1, '操作失败');
         } else {
             message(-1, '未知操作');
         }

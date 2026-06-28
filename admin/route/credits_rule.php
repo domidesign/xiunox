@@ -23,6 +23,7 @@ if($action == 'global') {
                 'golds_change' => param('golds_change_' . $event, 0),
                 'rmbs_change' => param('rmbs_change_' . $event, 0),
                 'enabled' => param('enabled_' . $event, 0),
+                'daily_limit' => param('daily_limit_' . $event, 0),
             );
         }
 
@@ -80,6 +81,7 @@ if($action == 'global') {
                     'golds_change' => param('golds_change_' . $event, 0),
                     'rmbs_change' => param('rmbs_change_' . $event, 0),
                     'enabled' => param('enabled_' . $event, 0),
+                    'daily_limit' => param('daily_limit_' . $event, 0),
                 );
             } else {
                 // 删除版块覆盖，回退到全局规则

@@ -18,7 +18,7 @@ return array (
 				'password' => 'root',
 				'name' => 'test',
 				'tablepre' => 'bbs_',
-				'charset' => 'utf8',
+				'charset' => 'utf8mb4',
 				'engine' => 'innodb',
 			),
 			'slaves' => array (),
@@ -30,7 +30,7 @@ return array (
 				'password' => 'root',
 				'name' => 'test',
 				'tablepre' => 'bbs_',
-				'charset' => 'utf8',
+				'charset' => 'utf8mb4',
 				'engine' => 'innodb',
 			),
 			'slaves' => array (),
@@ -65,7 +65,7 @@ return array (
 	
 	'cookie_domain' => '',
 	'cookie_path' => '',
-	'auth_key' => 'change_this_to_your_own_random_string',
+	'auth_key' => 'efdkjfjiiiwurjdmclsldow753jsdj438',
 	
 	'pagesize' => 20,
 	'postlist_pagesize' => 100,
@@ -91,12 +91,24 @@ return array (
 	'cdn_on' => 0,
 	
 	/* 支持多种 URL 格式：
-		0: ?thread-create-1.htm
-		1: thread-create-1.htm
-		2: ?/thread/create/1  不支持
-		3: /thread/create/1   不支持
+		0: ?thread-create-1.htm        默认兼容模式
+		1: thread-create-1.htm          伪静态模式
+		2: ?/thread/create/1            不支持
+		3: /thread/create/1             路径风格
+		4: thread-create-1.html         .html 后缀风格
+		5: 自定义格式（需配合 url_rewrite_custom 配置）
 	*/
 	'url_rewrite_on' => 0,
+
+	// 自定义伪静态格式（仅 url_rewrite_on=5 时生效）
+	// 可用标签：{controller} {action} {id} {page}
+	// 示例：
+	//   /{controller}-{action}-{id}.html  →  /thread-create-1.html
+	//   /{controller}/{action}/{id}.html  →  /thread/create/1.html
+	//   /{controller}/{id}.html           →  /thread/1.html
+	//   /{controller}-{id}.html           →  /thread-1.html
+	//   /archives/{id}.html               →  /archives/1.html
+	'url_rewrite_custom' => '/{controller}-{action}-{id}.html',
 	
 	// 禁止插件
 	'disabled_plugin' => 0, 
@@ -132,9 +144,18 @@ return array (
 	'security_password_max_retries' => 5,    // 密码最大重试次数
 	'security_lockout_duration' => 900,      // 锁定时长（秒）
 	'security_search_require_login' => 0,    // 搜索是否需要登录
+	'security_email_code_interval' => 60,    // 发送验证码间隔（秒）
+	'security_email_code_daily_limit' => 5,  // 同一邮箱每日发送上限
+	'security_email_code_ip_hourly_limit' => 10, // 同一IP每小时发送上限
 
-	'version' => '1.0.1',
+	'version' => 'X1.0.1',
 	'static_version' => '?1.0',
 	'installed' => 0,
+
+	// 显示设置
+	'home_forum_ids' => array(),         // 首页版块过滤（空=显示全部）
+	'default_lang' => '',                // 默认语言（空=跟随浏览器）
+	'mobile_nav_items' => array(),       // 手机底部导航（空=使用默认）
+	'mobile_nav_enable' => 0,            // 手机底部导航开关
 );
 ?>

@@ -7,7 +7,7 @@
 </div>
 
 <!-- 缓存状态 -->
-<div class="x-card  card mb-3">
+<div class="x-card  card ">
     <div class="card-header">
         <i class="ti ti-dashboard me-1"></i> <?php echo lang('admin_cache_status');?>
     </div>
@@ -57,6 +57,55 @@
     </div>
 </div>
 
+<!-- OPcache 状态 -->
+<div class="x-card card">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <span><i class="ti ti-cpu me-1"></i> OPcache</span>
+        <?php if($opcacheStatus['available'] && $opcacheStatus['enabled']): ?>
+        <span class="badge bg-success"><?php echo lang('admin_opcache_enabled'); ?></span>
+        <?php elseif($opcacheStatus['available']): ?>
+        <span class="badge bg-warning text-dark"><?php echo lang('admin_opcache_installed_not_enabled'); ?></span>
+        <?php else: ?>
+        <span class="badge bg-secondary"><?php echo lang('admin_opcache_not_installed'); ?></span>
+        <?php endif; ?>
+    </div>
+    <div class="card-body">
+        <?php if(!$opcacheStatus['available']): ?>
+        <div class="text-body-secondary"><?php echo lang('admin_opcache_not_installed_tip'); ?></div>
+        <?php elseif(!$opcacheStatus['enabled']): ?>
+        <div class="text-body-secondary"><?php echo lang('admin_opcache_not_enabled_tip'); ?></div>
+        <?php else: ?>
+        <div class="row g-3">
+            <?php foreach($opcacheStatus['stats'] as $label => $value): ?>
+            <div class="col-sm-6 col-md-3">
+                <div class="text-secondary small">
+                    <?php
+                    $labelMap = array(
+                        'memory_used' => lang('admin_opcache_memory_used'),
+                        'memory_free' => lang('admin_opcache_memory_free'),
+                        'memory_total' => lang('admin_opcache_memory_total'),
+                        'memory_usage_pct' => lang('admin_opcache_memory_usage_pct'),
+                        'wasted_memory' => lang('admin_opcache_wasted_memory'),
+                        'cached_scripts' => lang('admin_opcache_cached_scripts'),
+                        'cached_keys' => lang('admin_opcache_cached_keys'),
+                        'hit_rate' => lang('admin_opcache_hit_rate'),
+                        'hits' => lang('admin_opcache_hits'),
+                        'misses' => lang('admin_opcache_misses'),
+                        'opcache_enable' => 'opcache.enable',
+                        'opcache_validate_timestamps' => lang('admin_opcache_validate_timestamps'),
+                        'opcache_revalidate_freq' => lang('admin_opcache_revalidate_freq'),
+                    );
+                    echo isset($labelMap[$label]) ? $labelMap[$label] : $label;
+                    ?>
+                </div>
+                <div class="fs-6 fw-medium"><?php echo $value;?></div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+
 <!-- 缓存设置 -->
 <div class="x-card card">
     <div class="card-header">
@@ -64,7 +113,7 @@
     </div>
     <div class="card-body">
         <div id="cache-msg"></div>
-        <form id="cache-setting-form" action="<?php echo url('other-cache_setting');?>" method="post">
+        <form id="cache-setting-form" action="<?php echo admin_cache_setting_url();?>" method="post">
             <?php echo CsrfService::input();?>
 
             <!-- 启用缓存 -->
@@ -101,13 +150,13 @@
                     <div class="card-body">
                         <h6 class="mb-3"><i class="ti ti-database me-1"></i> Redis <?php echo lang('admin_cache_config');?></h6>
                         <div class="mb-3 row">
-                            <label class="col-sm-3 col-form-label">Host</label>
+                            <label class="col-sm-3 col-form-label"><?php echo lang('admin_cache_host'); ?></label>
                             <div class="col-sm-9">
                                 <input type="text" class="form-control" name="redis_host" value="<?php echo isset($config['redis']['host']) ? $config['redis']['host'] : '127.0.0.1';?>">
                             </div>
                         </div>
                         <div class="mb-3 row">
-                            <label class="col-sm-3 col-form-label">Port</label>
+                            <label class="col-sm-3 col-form-label"><?php echo lang('admin_cache_port'); ?></label>
                             <div class="col-sm-9">
                                 <input type="number" class="form-control" name="redis_port" value="<?php echo isset($config['redis']['port']) ? $config['redis']['port'] : 6379;?>">
                             </div>
@@ -119,7 +168,7 @@
                             </div>
                         </div>
                         <div class="mb-3 row">
-                            <label class="col-sm-3 col-form-label">Database</label>
+                            <label class="col-sm-3 col-form-label"><?php echo lang('admin_cache_database'); ?></label>
                             <div class="col-sm-9">
                                 <input type="number" class="form-control" name="redis_database" value="<?php echo isset($config['redis']['database']) ? $config['redis']['database'] : 0;?>" min="0" max="15">
                             </div>
@@ -134,13 +183,13 @@
                     <div class="card-body">
                         <h6 class="mb-3"><i class="ti ti-database me-1"></i> Memcached <?php echo lang('admin_cache_config');?></h6>
                         <div class="mb-3 row">
-                            <label class="col-sm-3 col-form-label">Host</label>
+                            <label class="col-sm-3 col-form-label"><?php echo lang('admin_cache_host'); ?></label>
                             <div class="col-sm-9">
                                 <input type="text" class="form-control" name="memcached_host" value="<?php echo isset($config['memcached']['host']) ? $config['memcached']['host'] : '127.0.0.1';?>">
                             </div>
                         </div>
                         <div class="mb-3 row">
-                            <label class="col-sm-3 col-form-label">Port</label>
+                            <label class="col-sm-3 col-form-label"><?php echo lang('admin_cache_port'); ?></label>
                             <div class="col-sm-9">
                                 <input type="number" class="form-control" name="memcached_port" value="<?php echo isset($config['memcached']['port']) ? $config['memcached']['port'] : 11211;?>">
                             </div>

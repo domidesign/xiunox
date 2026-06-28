@@ -78,6 +78,27 @@ XIUNOX 采用 MIT 协议发布，您可以自由修改、派生版本、商用�
 
 	'db_already_exists_confirm' => '数据库中已存在 Xiuno BBS 的表，继续安装将清空所有数据！点击确定继续，取消返回修改。',
 
+	// ========== 安装界面扩展 ==========
+	'install_choose_language' => '选择语言',
+	'install_next_step' => '下一步',
+	'install_loading' => '加载中...',
+	'install_installing' => '安装中...',
+	'install_submit' => '提交',
+	'install_request_failed' => '请求失败：',
+	'install_license_not_found' => 'LICENSE 文件未找到。',
+	'install_meta_author' => 'XiunoBBS 4.0',
+
+	// ========== 安装成功安全提示 ==========
+	'install_security_tips' => '安全提示',
+	'install_tip_delete_install_dir' => '删除安装目录',
+	'install_tip_delete_install_dir_desc' => '系统已自动锁定安装程序，但仍建议手动删除',
+	'install_tip_change_admin_pw' => '修改管理员密码',
+	'install_tip_change_admin_pw_desc' => '登录后请及时修改管理员密码为强密码',
+	'install_tip_configure_https' => '配置 HTTPS',
+	'install_tip_configure_https_desc' => '建议为站点配置 SSL 证书，启用 HTTPS',
+	'install_tip_change_db_pw' => '修改数据库密码',
+	'install_tip_change_db_pw_desc' => '如果使用了默认数据库密码，请及时修改',
+
 );
 
 ?>

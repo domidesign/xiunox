@@ -30,15 +30,12 @@ switch ($route) {
 	case 'index':		include _include(ADMIN_PATH.'route/index.php'); 	break;
 	case 'setting': 	include _include(ADMIN_PATH.'route/setting.php'); 	break;
 	case 'forum': 		include _include(ADMIN_PATH.'route/forum.php'); 	break;
-	case 'friendlink': 	include _include(ADMIN_PATH.'route/friendlink.php'); 	break;
 	case 'group': 		include _include(ADMIN_PATH.'route/group.php'); 	break;
 	case 'other':		include _include(ADMIN_PATH.'route/other.php'); 	break;
 	case 'user':		include _include(ADMIN_PATH.'route/user.php'); 		break;
 	case 'thread':		include _include(ADMIN_PATH.'route/thread.php'); 		break;
 	case 'plugin':		include _include(ADMIN_PATH.'route/plugin.php'); 	break;
 	case 'theme':		include _include(ADMIN_PATH.'route/theme.php'); 	break;
-	case 'upgrade_phase1':	include _include(ADMIN_PATH.'route/upgrade_phase1.php'); 	break;
-	case 'upgrade_phase1_do':	include _include(ADMIN_PATH.'route/upgrade_phase1_do.php'); 	break;
 	case 'api':		include _include(ADMIN_PATH.'route/api.php'); 	break;
 	case 'log':		include _include(ADMIN_PATH.'route/log.php'); 	break;
 	case 'upgrade':		include _include(ADMIN_PATH.'route/upgrade.php'); 	break;

@@ -2,6 +2,10 @@
 
 !defined('DEBUG') AND exit('Access Denied.');
 
+// 通知类型注册中心（集中管理 type -> tab/icon/label 映射，插件可通过 hook 扩展）
+include_once APP_PATH . 'lib/NotifyTypeRegistry.php';
+NotifyTypeRegistry::init();
+
 $action = param(1);
 
 // ---- 标记已读 ----
@@ -33,7 +37,8 @@ if($action == 'mark_read') {
 	$notice_id = param('notice_id', 0);
 
 	if($all) {
-		$r = notice_update_by_recvuid($uid);
+		// 全部已读：操作 notify 表
+		$r = notify_mark_all_read($uid);
 		if($r === FALSE) {
 			if(is_htmx_request()) {
 				header('HTTP/1.1 500 Internal Server Error');
@@ -44,7 +49,7 @@ if($action == 'mark_read') {
 			exit;
 		}
 
-		$unread_count = notice_count_unread($uid);
+		$unread_count = notify_count_unread($uid);
 		if(is_htmx_request()) {
 			// htmx: 返回 HX-Trigger 事件，前端监听后刷新通知列表
 			header('HX-Trigger: {"noticeMarkAllRead": {"unread_count": ' . intval($unread_count) . '}}');
@@ -56,8 +61,9 @@ if($action == 'mark_read') {
 		exit;
 
 	} elseif($notice_id) {
-		$notice = notice__read($notice_id);
-		if(empty($notice)) {
+		// 单条已读：操作 notify 表
+		$notify = notify__read($notice_id);
+		if(empty($notify)) {
 			if(is_htmx_request()) {
 				header('HTTP/1.1 404 Not Found');
 				exit;
@@ -66,7 +72,7 @@ if($action == 'mark_read') {
 			echo xn_json_encode(array('code' => '-1', 'message' => lang('not_exists')));
 			exit;
 		}
-		if($notice['recvuid'] != $uid) {
+		if($notify['uid'] != $uid) {
 			if(is_htmx_request()) {
 				header('HTTP/1.1 403 Forbidden');
 				exit;
@@ -76,34 +82,25 @@ if($action == 'mark_read') {
 			exit;
 		}
 
-		$is_read = isset($notice['is_read']) ? $notice['is_read'] : $notice['isread'];
+		$is_read = isset($notify['is_read']) ? $notify['is_read'] : 0;
 		if($is_read == 1) {
-			$unread_count = notice_count_unread($uid);
+			$unread_count = notify_count_unread($uid);
 			if(is_htmx_request()) {
 				// 已读状态，返回已读卡片 HTML（OOB 替换）
-				$icon_map = array(1=>'speakerphone', 2=>'message', 3=>'file-text');
-				$icon_name = isset($icon_map[$notice['type']]) ? $icon_map[$notice['type']] : 'bell';
-				$notice_menu = array(
-					0 => array('name'=>'其他'),
-					1 => array('name'=>'公告'),
-					2 => array('name'=>'评论'),
-					3 => array('name'=>'系统'),
-					99 => array('name'=>'其他'),
-				);
-				$notice_label_map = array(1=>lang('notify_type_label_notice_announcement'), 3=>lang('notify_type_label_notice_system'));
-				$type_label = isset($notice_label_map[$notice['type']]) ? $notice_label_map[$notice['type']] : lang('notify_type_label_notice_other');
-				$type_name = isset($notice_menu[$notice['type']]) ? $notice_menu[$notice['type']]['name'] : lang('notify_summary_notice');
+				notify_format($notify);
+				$icon_name = NotifyTypeRegistry::get_icon($notify['type']);
+				$type_label = isset($notify['type_label']) ? $notify['type_label'] : lang('notify_type_label_notice_other');
 
 				header('Content-Type: text/html; charset=utf-8');
-				echo '<div class="notice-card p-3" id="notice-nid-' . $notice_id . '" data-nid="' . $notice_id . '" data-source="notice" hx-swap-oob="true">';
+				echo '<div class="notice-card p-3" id="notice-nid-' . $notice_id . '" data-nid="' . $notice_id . '" data-source="notify" hx-swap-oob="true">';
 				echo '  <div class="notice-row-top mb-1">';
 				echo '    <span class="notice-type-badge">';
 				echo '      <i class="ti ti-' . $icon_name . '"></i> ' . htmlspecialchars($type_label);
 				echo '    </span>';
-				echo '    <span class="notice-time">' . $notice['create_date_fmt'] . '</span>';
+				echo '    <span class="notice-time">' . $notify['create_date_fmt'] . '</span>';
 				echo '  </div>';
 				echo '  <div class="d-flex justify-content-between align-items-start gap-3">';
-				echo '    <div class="notice-detail flex-fill" style="min-width:0">' . htmlspecialchars($notice['message']) . '</div>';
+				echo '    <div class="notice-detail flex-fill" style="min-width:0">' . htmlspecialchars($notify['message']) . '</div>';
 				echo '    <div class="notice-actions"></div>';
 				echo '  </div>';
 				echo '</div>';
@@ -114,7 +111,7 @@ if($action == 'mark_read') {
 			exit;
 		}
 
-		$r = notice_update($notice_id);
+		$r = notify_mark_read($notice_id);
 		if($r === FALSE) {
 			if(is_htmx_request()) {
 				header('HTTP/1.1 500 Internal Server Error');
@@ -125,32 +122,24 @@ if($action == 'mark_read') {
 			exit;
 		}
 
-		$unread_count = notice_count_unread($uid);
+		$unread_count = notify_count_unread($uid);
 		if(is_htmx_request()) {
-			// htmx: 返回已读状态的 notice 卡片 HTML（OOB 替换）
-			$icon_map = array(1=>'speakerphone', 2=>'message', 3=>'file-text');
-			$icon_name = isset($icon_map[$notice['type']]) ? $icon_map[$notice['type']] : 'bell';
-			$notice_menu = array(
-				0 => array('name'=>'其他'),
-				1 => array('name'=>'公告'),
-				2 => array('name'=>'评论'),
-				3 => array('name'=>'系统'),
-				99 => array('name'=>'其他'),
-			);
-			$notice_label_map = array(1=>lang('notify_type_label_notice_announcement'), 3=>lang('notify_type_label_notice_system'));
-			$type_label = isset($notice_label_map[$notice['type']]) ? $notice_label_map[$notice['type']] : lang('notify_type_label_notice_other');
-			$type_name = isset($notice_menu[$notice['type']]) ? $notice_menu[$notice['type']]['name'] : lang('notify_summary_notice');
+			// htmx: 返回已读状态的 notify 卡片 HTML（OOB 替换）
+			notify_format($notify);
+			$notify['is_read'] = 1;
+			$icon_name = NotifyTypeRegistry::get_icon($notify['type']);
+			$type_label = isset($notify['type_label']) ? $notify['type_label'] : lang('notify_type_label_notice_other');
 
 			header('Content-Type: text/html; charset=utf-8');
-			echo '<div class="notice-card p-3" id="notice-nid-' . $notice_id . '" data-nid="' . $notice_id . '" data-source="notice" hx-swap-oob="true">';
+			echo '<div class="notice-card p-3" id="notice-nid-' . $notice_id . '" data-nid="' . $notice_id . '" data-source="notify" hx-swap-oob="true">';
 			echo '  <div class="notice-row-top mb-1">';
 			echo '    <span class="notice-type-badge">';
 			echo '      <i class="ti ti-' . $icon_name . '"></i> ' . htmlspecialchars($type_label);
 			echo '    </span>';
-			echo '    <span class="notice-time">' . $notice['create_date_fmt'] . '</span>';
+			echo '    <span class="notice-time">' . $notify['create_date_fmt'] . '</span>';
 			echo '  </div>';
 			echo '  <div class="d-flex justify-content-between align-items-start gap-3">';
-			echo '    <div class="notice-detail flex-fill" style="min-width:0">' . htmlspecialchars($notice['message']) . '</div>';
+			echo '    <div class="notice-detail flex-fill" style="min-width:0">' . htmlspecialchars($notify['message']) . '</div>';
 			echo '    <div class="notice-actions"></div>';
 			echo '  </div>';
 			echo '</div>';
@@ -173,7 +162,8 @@ if($action == 'mark_read') {
 } elseif($action == 'unread_count') {
 
 	!$uid AND exit('0');
-	$count = notice_count_unread($uid);
+	// 通知系统已合并，仅查询 notify 表
+	$count = notify_count_unread($uid);
 	echo $count;
 	exit;
 
@@ -182,36 +172,42 @@ if($action == 'mark_read') {
 
 	!$uid AND exit('');
 
-	$notice_menu = array(
-		0 => array('name'=>'其他', 'class'=>'info', 'icon'=>''),
-		1 => array('name'=>'公告', 'class'=>'info', 'icon'=>''),
-		2 => array('name'=>'评论', 'class'=>'primary', 'icon'=>''),
-		3 => array('name'=>'系统', 'class'=>'danger', 'icon'=>''),
-		99 => array('name'=>'其他', 'class'=>'success', 'icon'=>'bell'),
-	);
-
-	$notifylist = notice_find_latest_by_recvuid($uid, 5);
+	// 通知系统已合并，仅查询 notify 表
+	$notifylist = notify_find_latest($uid, 5);
 	if(empty($notifylist)) {
 		echo '<div class="text-center text-body-secondary small py-4"><i class="ti ti-bell-off fs-4 d-block mb-1 opacity-50"></i>暂无消息</div>';
 		exit;
 	}
+
 	$html = '';
 	foreach($notifylist as $item) {
-		$typeLabel = '通知';
-		if($item['type'] == 1) $typeLabel = '发布了公告';
-		elseif($item['type'] == 2) $typeLabel = '评论了';
-		elseif($item['type'] == 3) $typeLabel = '系统通知';
-
 		$unreadClass = empty($item['is_read']) ? ' notice-unread' : '';
 		$unreadDot = empty($item['is_read']) ? ' <span class="badge bg-primary rounded-pill flex-shrink-0" style="font-size:0.5rem;padding:2px 5px;">新</span>' : '';
-		$avatar_url = isset($item['from_user_avatar_url']) ? $item['from_user_avatar_url'] : '/view/img/avatar.png';
+		$avatar_url = isset($item['from_avatar_url']) ? $item['from_avatar_url'] : '/view/img/avatar.png';
 		$username = isset($item['from_username']) ? $item['from_username'] : '系统';
+		$href = !empty($item['url']) ? $item['url'] : my_notify_url();
 
-		$html .= '<a href="' . url("my-notice") . '" class="dropdown-item d-flex align-items-center gap-2 px-3 py-2 notice-dropdown-item' . $unreadClass . '" data-nid="' . $item['nid'] . '" data-source="notice">';
+		// 提取具体内容摘要：优先用 message（去除 HTML 标签和用户名前缀），其次用 summary，兜底用 typeLabel
+		$_msg_text = strip_tags($item['message']);
+		// message 中可能包含 "用户名 操作描述" 前缀，下拉列表已单独显示用户名，去掉重复
+		$_username_prefix = $username . ' ';
+		if(mb_strpos($_msg_text, $_username_prefix) === 0) {
+			$_msg_text = mb_substr($_msg_text, mb_strlen($_username_prefix));
+		}
+		$_msg_text = trim($_msg_text);
+		if(empty($_msg_text)) {
+			$_msg_text = isset($item['summary']) ? $item['summary'] : NotifyTypeRegistry::get_label($item['type']);
+		}
+		// 截断过长内容
+		if(mb_strlen($_msg_text) > 50) {
+			$_msg_text = mb_substr($_msg_text, 0, 50) . '...';
+		}
+
+		$html .= '<a href="' . htmlspecialchars($href) . '" class="dropdown-item d-flex align-items-center gap-2 px-3 py-2 notice-dropdown-item' . $unreadClass . '" data-nid="' . $item['nid'] . '" data-source="notify" hx-boost="false">';
 		$html .= '<img class="rounded-circle flex-shrink-0" src="' . htmlspecialchars($avatar_url) . '" alt="" style="width:24px;height:24px;object-fit:cover;" onerror="this.src=\'/view/img/avatar.png\'">';
 		$html .= '<span class="fw-semibold" style="font-size:0.8rem;">' . htmlspecialchars($username) . '</span>';
 		$html .= '<span class="text-body-secondary flex-shrink-0" style="font-size:0.75rem;">' . $item['create_date_fmt'] . '</span>';
-		$html .= '<span class="text-truncate" style="font-size:0.8rem;min-width:0;">' . htmlspecialchars($typeLabel) . '</span>';
+		$html .= '<span class="text-truncate" style="font-size:0.8rem;min-width:0;">' . htmlspecialchars($_msg_text) . '</span>';
 		$html .= $unreadDot;
 		$html .= '</a>';
 	}
@@ -221,7 +217,7 @@ if($action == 'mark_read') {
 // ---- 管理后台路由 ----
 } elseif($action == 'create') {
 
-	// 管理后台发送通知
+	// 管理后台发送通知（单用户）
 	if($gid != 1) message(-1, lang('insufficient_privilege'));
 
 	if($method == 'GET') {
@@ -245,9 +241,9 @@ if($action == 'mark_read') {
 		// 不能给自己发通知
 		$uid == $recvuid AND message('recvuid', lang('notice_admin_send_notice_self'));
 
-		$nid = notice_send($uid, $recvuid, $message_text, 1);
+		// 通知系统已合并，使用 notify_create 写入 notify 表
+		$nid = notify_create($recvuid, $uid, 'system', 0, 0, '', array('message' => $message_text));
 		if($nid === FALSE) {
-			// 更具体的错误信息
 			if(empty($uid)) {
 				message(-1, lang('please_login'));
 			}
@@ -258,24 +254,28 @@ if($action == 'mark_read') {
 
 } elseif($action == 'list') {
 
+	// 管理后台通知列表（查询 notify 表）
 	if($gid != 1) message(-1, lang('insufficient_privilege'));
 
 	$page = param(2, 1);
 	$pagesize = 20;
 	$active = 'default';
-	$notices = notice_count();
 
 	$notice_menu = array(
-		0 => array('url'=>url('notice-list'), 'name'=>'全部', 'class'=>'info', 'icon'=>''),
-		1 => array('url'=>url('notice-list-1'), 'name'=>'公告', 'class'=>'info', 'icon'=>''),
-		2 => array('url'=>url('notice-list-2'), 'name'=>'评论', 'class'=>'primary', 'icon'=>''),
-		3 => array('url'=>url('notice-list-3'), 'name'=>'系统', 'class'=>'danger', 'icon'=>''),
-		99 => array('url'=>url('notice-list-99'), 'name'=>'其他', 'class'=>'success', 'icon'=>'bell'),
+		0 => array('url'=>notice_list_url(), 'name'=>'全部', 'class'=>'info', 'icon'=>''),
+		'announcement' => array('url'=>notice_list_url('announcement'), 'name'=>'公告', 'class'=>'info', 'icon'=>'speakerphone'),
+		'system' => array('url'=>notice_list_url('system'), 'name'=>'系统', 'class'=>'danger', 'icon'=>'file-text'),
+		'like' => array('url'=>notice_list_url('like'), 'name'=>'点赞', 'class'=>'danger', 'icon'=>'heart'),
+		'reply' => array('url'=>notice_list_url('reply'), 'name'=>'评论', 'class'=>'primary', 'icon'=>'message'),
+		'favorite' => array('url'=>notice_list_url('favorite'), 'name'=>'收藏', 'class'=>'warning', 'icon'=>'star'),
+		'follow' => array('url'=>notice_list_url('follow'), 'name'=>'关注', 'class'=>'success', 'icon'=>'user-plus'),
 	);
 
 	$cond = array();
-	$noticelist = notice_find($cond, $page, $pagesize);
-	$pagination = pagination(url("notice-list-{page}"), $notices, $page, $pagesize);
+	$noticelist = db_find('notify', $cond, array('nid'=>-1), $page, $pagesize, 'nid');
+	if($noticelist) foreach($noticelist as &$n) notify_format($n);
+	$notices = db_count('notify', $cond);
+	$pagination = pagination(route_url('notice_list_page'), $notices, $page, $pagesize);
 
 	$header['title'] = lang('notice_admin_notice_list');
 	$header['mobile_title'] = lang('notice_admin_notice_list');
@@ -283,7 +283,7 @@ if($action == 'mark_read') {
 
 } elseif($action == 'publish') {
 
-	// 管理后台发布公告（全局公告）
+	// 管理后台发布公告（全局公告，uid=0）
 	if($gid != 1) message(-1, lang('insufficient_privilege'));
 
 	if($method == 'POST') {
@@ -295,48 +295,54 @@ if($action == 'mark_read') {
 
 		empty($message_text) AND message(-1, '公告内容不能为空');
 
-		// 确保 icon 和 url 列存在
-		if(!db_check_column_exists('notice', 'icon')) {
-			db_exec("ALTER TABLE ".$db->tablepre."notice ADD COLUMN icon varchar(64) NOT NULL DEFAULT '' AFTER is_read");
-		}
-		if(!db_check_column_exists('notice', 'url')) {
-			db_exec("ALTER TABLE ".$db->tablepre."notice ADD COLUMN url varchar(255) NOT NULL DEFAULT '' AFTER icon");
-		}
-
-		$arr = array(
-			'fromuid' => $uid,
-			'recvuid' => 0, // 0 = 全局公告
-			'create_date' => $time,
-			'isread' => 0,
-			'is_read' => 0,
-			'type' => 1, // 公告类型
+		// 通知系统已合并，使用 notify_create 写入全局公告（uid=0）
+		// from_uid 使用管理员 uid，type='announcement'
+		$nid = notify_create(0, $uid, 'announcement', 0, 0, '', array(
 			'message' => $message_text,
 			'icon' => $icon,
 			'url' => $url,
-		);
+		));
+		// notify_create 对 uid==from_uid 会跳过，但 uid=0 != from_uid，所以正常写入
+		// 但 notify_create 内部对 uid==0 的情况需要特殊处理：全局公告需要给所有用户可见
+		// 这里直接写入 notify__create，绕过 notify_create 的 uid==from_uid 检查
+		if($nid === FALSE) {
+			// 降级：直接写入
+			global $time;
+			$arr = array(
+				'uid' => 0,
+				'from_uid' => $uid,
+				'type' => 'announcement',
+				'tid' => 0,
+				'pid' => 0,
+				'content' => '',
+				'message' => $message_text,
+				'icon' => $icon,
+				'url' => $url,
+				'reply_to_uid' => 0,
+				'parent_pid' => 0,
+				'create_date' => $time,
+				'is_read' => 0,
+			);
+			$nid = notify__create($arr);
+		}
 
-		$r = notice__create($arr);
-		$r === FALSE AND message(-1, '发布失败');
+		$nid === FALSE AND message(-1, '发布失败');
 
 		message(0, '公告发布成功');
 	}
 
 } elseif($action == 'announcements') {
 
-	// 前台获取最新公告（全局 recvuid=0 的公告）
-	// 确保 icon 和 url 列存在
-	$has_icon = db_check_column_exists('notice', 'icon');
-	$has_url = db_check_column_exists('notice', 'url');
-
-	$announcements = db_find('notice', array('type'=>1, 'recvuid'=>0), array('nid'=>-1), 1, 3, 'nid');
+	// 前台获取最新公告（全局 uid=0 的 announcement 类型）
+	$announcements = db_find('notify', array('uid'=>0, 'type'=>'announcement'), array('nid'=>-1), 1, 3, 'nid');
 	$list = array();
 	if($announcements) {
 		foreach($announcements as $a) {
 			$list[] = array(
 				'nid' => $a['nid'],
 				'message' => $a['message'],
-				'url' => $has_url ? $a['url'] : '',
-				'icon' => $has_icon ? $a['icon'] : 'ti-speakerphone',
+				'url' => isset($a['url']) ? $a['url'] : '',
+				'icon' => isset($a['icon']) && $a['icon'] ? $a['icon'] : 'ti-speakerphone',
 				'create_date' => $a['create_date'],
 			);
 		}
@@ -348,16 +354,13 @@ if($action == 'mark_read') {
 	// 管理后台获取全局公告列表（HTML 片段，供 AJAX 加载）
 	if($gid != 1) message(-1, lang('insufficient_privilege'));
 
-	$has_icon = db_check_column_exists('notice', 'icon');
-	$has_url = db_check_column_exists('notice', 'url');
-
-	$announcements = db_find('notice', array('type'=>1, 'recvuid'=>0), array('nid'=>-1), 1, 50, 'nid');
+	$announcements = db_find('notify', array('uid'=>0, 'type'=>'announcement'), array('nid'=>-1), 1, 50, 'nid');
 
 	header('Content-Type: text/html; charset=utf-8');
 	if($announcements) {
 		foreach($announcements as $a) {
-			$icon_class = $has_icon && $a['icon'] ? $a['icon'] : 'ti-speakerphone';
-			$url_link = $has_url && $a['url'] ? $a['url'] : '';
+			$icon_class = !empty($a['icon']) ? $a['icon'] : 'ti-speakerphone';
+			$url_link = !empty($a['url']) ? $a['url'] : '';
 			echo '<div class="d-flex align-items-start gap-3 p-3 border-bottom" id="announcement-item-'.$a['nid'].'">';
 			echo '<div class="flex-shrink-0"><i class="ti '.$icon_class.' fs-4 text-primary"></i></div>';
 			echo '<div class="flex-fill" style="min-width:0">';
@@ -377,10 +380,11 @@ if($action == 'mark_read') {
 
 } elseif($action == 'delete') {
 
+	// 删除通知（操作 notify 表）
 	if($gid != 1) message(-1, lang('insufficient_privilege'));
 
 	$nid = param('nid');
-	$r = notice_delete($nid);
+	$r = notify__delete($nid);
 	$r === FALSE AND message(-1, lang('notice_delete_notice_failed'));
 	message(0, lang('notice_delete_notice_sucessfully'));
 }

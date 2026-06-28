@@ -31,7 +31,7 @@
 									<?php } ?>
 								</div>
 								<?php if(empty($notify['is_read'])) { ?>
-								<button type="button" class="btn btn-sm btn-link text-decoration-none p-0 notice-mark-read flex-shrink-0" data-nid="<?php echo $notify['nid'];?>" data-source="notify" title="<?php echo lang('mark_as_read');?>" hx-post="<?php echo url('my-notify_read-'.$notify['nid']);?>" hx-target="closest .notice-item" hx-swap="outerHTML">
+								<button type="button" class="btn btn-sm btn-link text-decoration-none p-0 notice-mark-read flex-shrink-0" data-nid="<?php echo $notify['nid'];?>" data-source="notify" title="<?php echo lang('mark_as_read');?>" hx-post="<?php echo my_notify_read_url($notify['nid']);?>" hx-target="closest .notice-item" hx-swap="outerHTML">
 									<i class="ti ti-check"></i>
 								</button>
 								<?php } ?>
@@ -76,7 +76,7 @@
 									<?php } ?>
 								</div>
 								<?php if(empty($notify['is_read'])) { ?>
-								<button type="button" class="btn btn-sm btn-link text-decoration-none p-0 notice-mark-read flex-shrink-0" data-nid="<?php echo $notify['nid'];?>" data-source="notify" title="<?php echo lang('mark_as_read');?>" hx-post="<?php echo url('my-notify_read-'.$notify['nid']);?>" hx-target="closest .notice-item" hx-swap="outerHTML">
+								<button type="button" class="btn btn-sm btn-link text-decoration-none p-0 notice-mark-read flex-shrink-0" data-nid="<?php echo $notify['nid'];?>" data-source="notify" title="<?php echo lang('mark_as_read');?>" hx-post="<?php echo my_notify_read_url($notify['nid']);?>" hx-target="closest .notice-item" hx-swap="outerHTML">
 									<i class="ti ti-check"></i>
 								</button>
 								<?php } ?>

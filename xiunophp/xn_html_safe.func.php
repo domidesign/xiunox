@@ -1758,7 +1758,51 @@ echo xn_html_safe($s);
 
 */
 
+/**
+ * 从后台安全设置读取 iframe 白名单，构建 HTMLPurifier 的 URI.SafeIframeRegexp 正则
+ * 白名单格式：每行一个域名，支持通配符 *.example.com
+ * @return string 正则表达式字符串
+ */
+function xn_build_iframe_safe_regexp() {
+    $whitelist = '';
+    // 尝试从后台安全设置读取
+    if (class_exists('SecurityConfigService', false)) {
+        $whitelist = SecurityConfigService::get('security_iframe_whitelist', '');
+    } else {
+        $cached = kv_get('security_config');
+        if (!empty($cached['security_iframe_whitelist'])) {
+            $whitelist = $cached['security_iframe_whitelist'];
+        }
+    }
+    if (empty($whitelist)) {
+        // 默认白名单
+        $whitelist = "player.bilibili.com\nwww.youtube.com\nwww.youtube-nocookie.com\nplayer.youku.com\nv.qq.com\nplayer.tudou.com\nplayer.vimeo.com";
+    }
+    // 解析每行域名，构建正则
+    $lines = preg_split('/\r?\n/', $whitelist);
+    $domains = array();
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || $line[0] === '#') continue;
+        // 通配符 *.example.com 转为正则 ([a-z0-9.-]+\.)*example\.com
+        if (strpos($line, '*') !== false) {
+            // 将 *.example.com 转为 ([a-z0-9.-]+\.)*example\.com
+            $escaped = preg_quote($line, '%');
+            $escaped = str_replace('\*', '[a-z0-9.-]+', $escaped);
+            $domains[] = $escaped;
+        } else {
+            $domains[] = preg_quote($line, '%');
+        }
+    }
+    if (empty($domains)) return '%^$%'; // 无白名单时拒绝所有 iframe
+    $pattern = '%^(https?:)?//(' . implode('|', $domains) . ')%i';
+    return $pattern;
+}
+
 function xn_html_purify($html, $config = array()) {
+    // 修正 HTML5 布尔属性写法：AIEditor 生成 controls="true"，HTMLPurifier 只接受 controls 或 controls="controls"
+    $html = preg_replace('/\s(controls|autoplay|loop|muted|default)\s*=\s*["\'](?:true|1)["\']/i', ' $1', $html);
+
     $html = preg_replace_callback('/\s*style\s*=\s*["\']([^"\']*)["\']/i', function($matches) {
         $style = $matches[1];
         $props = array_map('trim', explode(';', $style));
@@ -1780,23 +1824,29 @@ function xn_html_purify($html, $config = array()) {
             include_once $purifierFile;
         }
     }
-    if (class_exists('HTMLPurifier', false)) {
-        $purifierConfig = HTMLPurifier_Config::createDefault();
-        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title],img[src|alt|width|height],ul,ol,li,blockquote,pre,code,span[class|style|data-type|data-id|data-label],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,ins,mark,dl,dt,dd');
+    // 使用 HTML5 扩展配置（支持 video/audio/source 等 HTML5 元素）
+    // class_exists 默认会触发 autoloader 自动加载 HTML5Config 类
+    if (class_exists('HTMLPurifier_HTML5Config')) {
+        // 使用 HTML5 配置，支持 video/audio/source 等 HTML5 元素
+        $purifierConfig = HTMLPurifier_HTML5Config::createDefault();
+        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,ins,mark,dl,dt,dd,video[controls|preload|class|style|width|height],source[src|type],audio[controls|preload|class|style],figure,figcaption,iframe[src|width|height|frameborder|class|style]');
+        $purifierConfig->set('Attr.AllowedFrameTargets', array('_blank', '_self', '_parent', '_top'));
+        $purifierConfig->set('Attr.AllowedRel', array('noopener', 'noreferrer', 'nofollow'));
         $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,height,border');
         $purifierConfig->set('URI.AllowedSchemes', array('http' => true, 'https' => true, 'mailto' => true));
         $purifierConfig->set('AutoFormat.RemoveEmpty', false);
-        $purifierConfig->set('HTML.SafeIframe', false);
-        $purifierConfig->set('URI.SafeIframeRegexp', '');
+        // 允许 iframe，从后台安全设置读取白名单构建正则
+        $purifierConfig->set('HTML.SafeIframe', true);
+        $iframeRegexp = xn_build_iframe_safe_regexp();
+        $purifierConfig->set('URI.SafeIframeRegexp', $iframeRegexp);
         $purifierConfig->set('Cache.SerializerPath', $GLOBALS['conf']['tmp_path'] ?? sys_get_temp_dir());
-        // 允许 span 的 data-* 属性（@提及功能）
-        $purifierConfig->set('HTML.DefinitionID', 'xiuno-html-safe');
-        $purifierConfig->set('HTML.DefinitionRev', 1);
+        // 允许 span 的 data-* 属性（@提及功能）和 iframe 的 allowfullscreen 属性
         $purifierConfig->set('Attr.EnableID', false);
         if ($def = $purifierConfig->maybeGetRawHTMLDefinition()) {
             $def->addAttribute('span', 'data-type', 'Text');
             $def->addAttribute('span', 'data-id', 'Text');
             $def->addAttribute('span', 'data-label', 'Text');
+            $def->addAttribute('iframe', 'allowfullscreen', 'Bool');
         }
         if (!empty($config)) {
             foreach ($config as $key => $value) {
@@ -1807,6 +1857,47 @@ function xn_html_purify($html, $config = array()) {
         $result = $purifier->purify($html);
         // 清理 HTML 中残留的字面量换行符（非 <pre>/<code> 内的 \n）
         // 富文本编辑器生成的 HTML 应由 <p>/<br> 分隔段落，\n 不应出现在渲染结果中
+        $preBlocks = array();
+        $result = preg_replace_callback('#<(pre|code)\b[^>]*>.*?</\1>#si', function($m) use (&$preBlocks) {
+            $key = md5($m[0]);
+            $preBlocks[$key] = $m[0];
+            return "\x00PRE\x00" . $key . "\x00/PRE\x00";
+        }, $result);
+        $result = str_replace("\n", ' ', $result);
+        $result = preg_replace_callback('#\x00PRE\x00([a-f0-9]+)\x00/PRE\x00#', function($m) use (&$preBlocks) {
+            return isset($preBlocks[$m[1]]) ? $preBlocks[$m[1]] : '';
+        }, $result);
+        return $result;
+    }
+    if (class_exists('HTMLPurifier', false)) {
+        $purifierConfig = HTMLPurifier_Config::createDefault();
+        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,ins,mark,dl,dt,dd,iframe[src|width|height|frameborder|class|style]');
+        $purifierConfig->set('Attr.AllowedFrameTargets', array('_blank', '_self', '_parent', '_top'));
+        $purifierConfig->set('Attr.AllowedRel', array('noopener', 'noreferrer', 'nofollow'));
+        $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,height,border');
+        $purifierConfig->set('URI.AllowedSchemes', array('http' => true, 'https' => true, 'mailto' => true));
+        $purifierConfig->set('AutoFormat.RemoveEmpty', false);
+        // 允许 iframe，从后台安全设置读取白名单构建正则
+        $purifierConfig->set('HTML.SafeIframe', true);
+        $iframeRegexp = xn_build_iframe_safe_regexp();
+        $purifierConfig->set('URI.SafeIframeRegexp', $iframeRegexp);
+        $purifierConfig->set('Cache.SerializerPath', $GLOBALS['conf']['tmp_path'] ?? sys_get_temp_dir());
+        $purifierConfig->set('HTML.DefinitionID', 'xiuno-html-safe');
+        $purifierConfig->set('HTML.DefinitionRev', 1);
+        $purifierConfig->set('Attr.EnableID', false);
+        if ($def = $purifierConfig->maybeGetRawHTMLDefinition()) {
+            $def->addAttribute('span', 'data-type', 'Text');
+            $def->addAttribute('span', 'data-id', 'Text');
+            $def->addAttribute('span', 'data-label', 'Text');
+            $def->addAttribute('iframe', 'allowfullscreen', 'Bool');
+        }
+        if (!empty($config)) {
+            foreach ($config as $key => $value) {
+                $purifierConfig->set($key, $value);
+            }
+        }
+        $purifier = new HTMLPurifier($purifierConfig);
+        $result = $purifier->purify($html);
         $preBlocks = array();
         $result = preg_replace_callback('#<(pre|code)\b[^>]*>.*?</\1>#si', function($m) use (&$preBlocks) {
             $key = md5($m[0]);

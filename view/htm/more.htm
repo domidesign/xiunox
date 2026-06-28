@@ -24,11 +24,14 @@
 						</a>
 					</div>
 					<?php } ?>
-				</div>
-				<?php } else { ?>
-				<div class="text-center text-body-secondary py-5">
+
+				<!--{hook more_discover_items_after.htm}-->
+
+			</div>
+			<?php } else { ?>
+			<div class="text-center text-body-secondary py-5">
 					<i class="ti ti-compass-off fs-1 d-block mb-2"></i>
-					暂无内容，请在后台导航设置中添加发现导航项
+					<?php echo lang('no_discover_content');?>
 				</div>
 				<?php } ?>
 			</div>

@@ -8,53 +8,30 @@
 
 <div class="x-card card">
 	<div class="card-body">
-		<form action="<?php echo url('setting-ai');?>" method="post" id="form">
+		<form action="<?php echo admin_setting_url('ai');?>" method="post" id="aiForm">
 			<?php echo CsrfService::input(); ?>
 
-			<div class="mb-4">
-				<label class="form-label fw-medium"><?php echo lang('admin_ai_provider');?></label>
-				<select name="ai_provider" id="ai_provider" class="form-select ">
-					<option value=""><?php echo lang('admin_ai_please_select');?></option>
-					<option value="openai" <?php echo (!empty($ai_config['models']) && isset($ai_config['models']['openai'])) ? 'selected' : '';?>>OpenAI</option>
-					<option value="deepseek" <?php echo (!empty($ai_config['models']) && isset($ai_config['models']['deepseek'])) ? 'selected' : '';?>>DeepSeek</option>
-					<option value="gitee" <?php echo (!empty($ai_config['models']) && isset($ai_config['models']['gitee'])) ? 'selected' : '';?>>Gitee AI</option>
-					<option value="spark" <?php echo (!empty($ai_config['models']) && isset($ai_config['models']['spark'])) ? 'selected' : '';?>><?php echo lang('admin_ai_spark');?></option>
-					<option value="wenxin" <?php echo (!empty($ai_config['models']) && isset($ai_config['models']['wenxin'])) ? 'selected' : '';?>><?php echo lang('admin_ai_wenxin');?></option>
-					<option value="custom" <?php echo (!empty($ai_config['models']) && isset($ai_config['models']['custom'])) ? 'selected' : '';?>><?php echo lang('admin_ai_custom');?></option>
-				</select>
-			</div>
+			<p class="text-body-secondary small mb-3"><?php echo lang('admin_ai_provider_desc'); ?></p>
 
-			<div class="mb-4">
-				<label class="form-label fw-medium">API Key</label>
-				<input type="password" name="ai_apikey" id="ai_apikey" class="form-control " value="<?php echo $ai_apikey;?>" placeholder="sk-...">
+			<div class="table-responsive">
+				<table class="table table-hover align-middle">
+					<thead>
+						<tr>
+							<th style="width:200px"><?php echo lang('admin_ai_provider_name'); ?></th>
+						<th><?php echo lang('admin_ai_api_url'); ?></th>
+							<th style="width:50px"></th>
+						</tr>
+					</thead>
+					<tbody id="aiProvidersBody"></tbody>
+				</table>
 			</div>
+			<a role="button" class="text-primary text-decoration-none" id="addProvider">
+				<i class="ti ti-plus"></i> <?php echo lang('admin_ai_add_provider'); ?>
+			</a>
 
-			<div class="mb-4">
-				<label class="form-label fw-medium">API URL</label>
-				<input type="text" name="ai_endpoint" id="ai_endpoint" class="form-control " value="<?php echo $ai_endpoint;?>" placeholder="https://api.openai.com">
+			<div class="mt-4">
+				<button type="submit" class="btn btn-primary rounded-pill" id="submitBtn"><?php echo lang('confirm');?></button>
 			</div>
-
-			<div class="mb-4">
-				<label class="form-label fw-medium"><?php echo lang('admin_ai_model_name');?></label>
-				<input type="text" name="ai_model" id="ai_model" class="form-control " value="<?php echo $ai_model;?>" placeholder="gpt-4o-mini">
-			</div>
-
-			<div class="mb-4">
-				<label class="form-label fw-medium"><?php echo lang('admin_ai_continue_prompt')?></label>
-				<textarea name="ai_prompt_continue" id="ai_prompt_continue" class="form-control " rows="3" placeholder="<?php echo lang('admin_ai_continue_placeholder')?>"><?php echo isset($ai_prompt_continue) ? $ai_prompt_continue : '';?></textarea>
-				<small class="text-body-secondary"><?php echo lang('admin_ai_continue_tip')?></small>
-			</div>
-
-			<div class="mb-4">
-				<label class="form-label fw-medium"><?php echo lang('admin_ai_optimize_prompt')?></label>
-				<textarea name="ai_prompt_improve" id="ai_prompt_improve" class="form-control " rows="3" placeholder="<?php echo lang('admin_ai_optimize_placeholder')?>"><?php echo isset($ai_prompt_improve) ? $ai_prompt_improve : '';?></textarea>
-				<small class="text-body-secondary"><?php echo lang('admin_ai_optimize_tip')?></small>
-			</div>
-
-			<div class="mb-4">
-				<button type="submit" class="btn btn-primary  w-100" id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('confirm');?></button>
-			</div>
-
 		</form>
 	</div>
 </div>
@@ -64,41 +41,93 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-var jform = $('#form');
-var jsubmit = $('#submit');
-var aiPresets = {
-    openai: {endpoint:'https://api.openai.com', model:'gpt-4o-mini'},
-    deepseek: {endpoint:'https://api.deepseek.com', model:'deepseek-chat'},
-    gitee: {endpoint:'https://ai.gitee.com/v1', model:'DeepSeek-V3'},
-    spark: {endpoint:'https://spark-api-open.xf-yun.com/v1', model:'generalv3.5'},
-    wenxin: {endpoint:'https://qianfan.baidubce.com/v2', model:'ernie-4.0-8k'},
-    custom: {endpoint:'', model:''}
-};
-$('#ai_provider').on('change', function(){
-    var p = aiPresets[$(this).val()];
-    if(p) {
-        $('#ai_endpoint').val(p.endpoint);
-        $('#ai_model').val(p.model);
-    }
-});
-jform.on('submit', function() {
-	jform.reset();
-	jsubmit.button('loading');
-	var postdata = jform.serialize();
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
-		if(code == 0) {
-			showToast(message, 'success');
-			jsubmit.text(message).delay(1000).button('reset');
-		} else if(xn.is_number(code)) {
-			showToast(message, 'error');
-			jsubmit.button('reset');
-		} else {
-			jform.find('[name="'+code+'"]').alert(message).focus();
-			jsubmit.button('reset');
-		}
+(function() {
+	// AI 提供商数据
+	var providers = <?php echo xn_json_encode($ai_providers);?>;
+
+	function escapeAttr(s) {
+		return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	}
+
+	function createProviderRow(item) {
+		var tr = document.createElement('tr');
+		var nameVal = item.name || '';
+		var urlVal = item.url || '';
+
+		tr.innerHTML =
+			'<td><input type="text" class="form-control form-control-sm" name="ai_provider_name[]" value="' + escapeAttr(nameVal) + '" placeholder="<?php echo lang('admin_ai_provider_placeholder'); ?>"></td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="ai_provider_url[]" value="' + escapeAttr(urlVal) + '" placeholder="https://api.openai.com"></td>' +
+			'<td class="text-center"><a role="button" class="text-danger delete-provider" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>';
+
+		// 删除
+		var deleteBtn = tr.querySelector('.delete-provider');
+		deleteBtn.addEventListener('click', function(e) {
+			e.preventDefault();
+			tr.remove();
+		});
+
+		return tr;
+	}
+
+	function renderProviders(items) {
+		var tbody = document.getElementById('aiProvidersBody');
+		tbody.innerHTML = '';
+		items.forEach(function(item) {
+			tbody.appendChild(createProviderRow(item));
+		});
+	}
+
+	renderProviders(providers);
+
+	document.getElementById('addProvider').addEventListener('click', function(e) {
+		e.preventDefault();
+		document.getElementById('aiProvidersBody').appendChild(createProviderRow({}));
 	});
-	return false;
-});
+
+	// 表单提交
+	var form = document.getElementById('aiForm');
+	var submitBtn = document.getElementById('submitBtn');
+	form.addEventListener('submit', function(e) {
+		e.preventDefault();
+
+		submitBtn.disabled = true;
+		submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('submiting');?>...';
+
+		var formData = new FormData(form);
+
+		fetch(form.action, {
+			method: 'POST',
+			body: formData,
+			headers: {
+				'X-Requested-With': 'XMLHttpRequest'
+			}
+		})
+		.then(function(res) { return res.json(); })
+		.then(function(data) {
+			if (parseInt(data.code) === 0) {
+				showToast(data.message, 'success');
+				submitBtn.innerHTML = '<i class="ti ti-check me-1"></i>' + data.message;
+				submitBtn.classList.remove('btn-primary');
+				submitBtn.classList.add('btn-success');
+				setTimeout(function() {
+					submitBtn.disabled = false;
+					submitBtn.innerHTML = '<?php echo lang('confirm');?>';
+					submitBtn.classList.remove('btn-success');
+					submitBtn.classList.add('btn-primary');
+				}, 1500);
+			} else {
+				showToast(data.message, 'error');
+				submitBtn.disabled = false;
+				submitBtn.innerHTML = '<?php echo lang('confirm');?>';
+			}
+		})
+		.catch(function(err) {
+			showToast('<?php echo lang('admin_request_failed_retry')?>', 'error');
+			submitBtn.disabled = false;
+			submitBtn.innerHTML = '<?php echo lang('confirm');?>';
+		});
+	});
+})();
 </script>
 
 <!--{hook admin_setting_ai_js.htm}-->

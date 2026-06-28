@@ -7,14 +7,14 @@
 function mythread_create($uid, $tid) {
 	// hook model_mythread_create_start.php
 	if($uid == 0) return TRUE; // 匿名发帖
-	$thread = mythread_read($uid, $tid);
-	if(empty($thread)) {
-		$r = db_create('mythread', array('uid'=>$uid, 'tid'=>$tid));
-		return $r;
-	} else {
-		return TRUE;
-	}
+	global $db;
+	$tablepre = $db->tablepre;
+	// 使用 INSERT IGNORE，无需先 SELECT 检查，避免主键冲突
+	$sql = "INSERT IGNORE INTO {$tablepre}mythread (uid, tid) VALUES ('".intval($uid)."', '".intval($tid)."')";
+	$r = db_exec($sql);
+	// INSERT IGNORE：1=新增，0=已存在；二者均表示记录已存在，视为成功
 	// hook model_mythread_create_end.php
+	return $r === FALSE ? FALSE : TRUE;
 }
 
 function mythread_read($uid, $tid) {
@@ -63,10 +63,9 @@ function mythread_find_by_uid($uid, $page = 1, $pagesize = 20) {
 	// hook model_mythread_find_by_uid_start.php
 	$mythreadlist = mythread_find(array('uid'=>$uid), array('tid'=>-1), $page, $pagesize);
 	if(empty($mythreadlist)) return array();
-	$threadlist = array();
-	foreach ($mythreadlist as &$mythread) {
-		$threadlist[$mythread['tid']] = thread_read($mythread['tid']);
-	}
+	// 批量查询 thread（替代逐个 thread_read 的 N+1 查询）
+	$tids = arrlist_values($mythreadlist, 'tid');
+	$threadlist = empty($tids) ? array() : thread_find_by_tids($tids);
 	// hook model_mythread_find_by_uid_end.php
 	return $threadlist;
 }

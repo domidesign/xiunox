@@ -8,13 +8,18 @@
 						include_once APP_PATH . 'lib/security/SecurityConfigService.php';
 						$sec_allow_delete_reply = SecurityConfigService::get('security_allow_delete_reply', 0);
 					}
+					// 编辑安全配置（循环外预设，避免 foreach 内重复函数调用）
+					if(!isset($sec_allow_edit)) {
+						include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+						$sec_allow_edit = SecurityConfigService::get('security_allow_edit', 1);
+					}
 				?>
 				<!--{hook post_list_inc_start.htm}-->
 
 				<?php if($postlist) { foreach($postlist as $_post) { ?>
 					<li class="d-flex <?php echo $_post['classname'];?>" data-pid="<?php echo $_post['pid'];?>" data-uid="<?php echo $_post['uid'];?>">
 						<div class="me-3 flex-shrink-0">
-							<a href="<?php echo url("user-$_post[uid]");?>" tabindex="-1">
+							<a href="<?php echo user_url($_post['uid']);?>" tabindex="-1">
 								<?php echo avatar_component_from_data($_post['user_avatar_url'], 'md', isset($_post['group_icon_class']) ? $_post['group_icon_class'] : '', isset($_post['group_color']) ? $_post['group_color'] : '', isset($_post['gid']) ? $_post['gid'] : 0);?>
 							</a>
 						</div>
@@ -23,24 +28,74 @@
 							<div class="small text-body-secondary">
 								<!--{hook post_list_inc_username_before.htm}-->
 								<span class="username">
-									<a href="<?php echo url("user-$_post[uid]");?>" class="text-body-secondary fw-semibold"><?php echo $_post['username'];?></a>
-								</span>
-								<?php if(isset($_post['audit_status']) && $_post['audit_status'] == 0): ?>
+								<a href="<?php echo user_url($_post['uid']);?>" class="text-body-secondary fw-semibold"><?php echo $_post['username'];?></a>
+								<!-- <span class="text-body-tertiary ms-1" style="font-size:0.85em">#<?php echo $_post['uid'];?></span> -->
+							</span>
+							<!--{hook post_list_inc_username_after.htm}-->
+								<?php if(!empty($_post['group_name'])): ?>
+							<span class="badge bg-primary bg-opacity-10 text-primary "  ><?php echo $_post['group_name'];?></span>
+							<?php endif; ?>
+                            
+							<?php if(!empty($thread) && $_post['uid'] == $thread['uid']): ?>
+							<span class="badge bg-primary ms-1" style="font-size:0.6em"><?php echo lang('post_author_label'); ?></span>
+							<?php endif; ?>
+							<?php if(!empty($_post['is_top'])): ?>
+								<span class="badge bg-success bg-opacity-10 text-success ms-1" style="font-size:0.6em"><i class="ti ti-pin"></i> <?php echo lang('post_top_label');?></span>
+								<?php endif; ?>
+								<?php if(isset($_post['audit_status']) && $_post['audit_status'] != 1): ?>
 								<span class="badge bg-warning text-dark ms-1" style="font-size:0.65em"><?php echo lang('pending_audit');?></span>
 								<?php endif; ?>
-								<!--{hook post_list_inc_username_after.htm}-->
+								  
 							</div>
 
 							<div class="message mt-1 break-all">
 
 								<!--{hook post_list_inc_subject_before.htm}-->
 								<?php if(!empty($_post['subject'])) { ?>
-									<h6><a href="<?php echo url("thread-$_post[tid]");?>" target="_blank"><?php echo $_post['subject'];?></a></h6>
+									<h6><a href="<?php echo thread_url($_post['tid']);?>" target="_blank"><?php echo $_post['subject'];?></a></h6>
 								<?php } ?>
 								<!--{hook post_list_inc_subject_after.htm}-->
 
+								<!-- 用户中心回帖列表：显示帖子标题链接 -->
+								<?php if(!empty($is_user_post_list) && !empty($_post['thread_subject'])) { ?>
+								<div class="mb-1">
+									<a href="<?php echo thread_url($_post['tid']);?>" class="text-decoration-none small">
+										<i class="ti ti-message-2 text-body-secondary"></i>
+										<span class="text-primary"><?php echo $_post['thread_subject'];?></span>
+									</a>
+								</div>
+								<?php } ?>
+
 								<!--{hook post_list_inc_message_before.htm}-->
-								<?php echo $_post['message_fmt'];?>
+							<?php if(isset($_post['audit_status']) && $_post['audit_status'] == 2 && !empty($uid) && $uid == $_post['uid']): ?>
+							<div class="alert alert-danger py-2 px-3 mb-2 small">
+								<i class="ti ti-circle-x me-1"></i>
+								<strong><?php echo lang('thread_rejected');?></strong>
+								<?php if(!empty($_post['reject_reason'])): ?>
+								— <?php echo esc_html($_post['reject_reason']);?>
+								<?php endif; ?>
+								<?php
+									$_p_max = 5;
+									$_p_count = intval($_post['resubmit_count'] ?? 0);
+									$_p_remaining = $_p_max - $_p_count;
+								?>
+								<?php if($_p_remaining > 0): ?>
+								<span class="badge bg-danger-subtle text-danger ms-2"><?php echo lang('thread_resubmit_remaining', array('n'=>$_p_remaining));?></span>
+								<?php else: ?>
+								<span class="badge bg-danger ms-2"><?php echo lang('thread_resubmit_locked');?></span>
+								<?php endif; ?>
+							</div>
+							<?php endif; ?>
+							<?php
+							// 用户中心回帖列表：截断长内容，移除引用块
+							$_msg = $_post['message_fmt'];
+								if(!empty($is_user_post_list)) {
+									$_msg = preg_replace('#<blockquote\s+class="blockquote">.*?</blockquote>#is', '', $_msg);
+									$_msg = xn_substr(trim(strip_tags($_msg, '<br><p><a><strong><em><code><span>')), 0, 200);
+									if(xn_strlen($_msg) >= 200) $_msg .= '...';
+								}
+								echo $_msg;
+								?>
 								<!--{hook post_list_inc_message_after.htm}-->
 
 								<!--{hook post_list_inc_filelist_before.htm}-->
@@ -54,15 +109,15 @@
 									<!--{hook post_list_inc_create_date_before.htm}-->
 									<span class="date text-body-secondary"><?php echo $_post['create_date_fmt'];?></span>
 									<!--{hook post_list_inc_create_date_after.htm}-->
-									<?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] == 0)) && (empty($uid) || $gid > 5)) { ?>
-									<!-- 关闭/审核中帖子：隐藏点赞按钮 -->
+									<?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] != 1)) && (empty($uid) || $gid > 5)) { ?>
+									<!-- 关闭/审核中/驳回帖子：隐藏点赞按钮 -->
 									<?php } elseif(empty($uid)) { ?>
-									<a href="<?php echo url('user-login');?>" class="post-like-btn text-body-secondary ms-3 text-decoration-none">
+									<a href="<?php echo user_login_url();?>" class="post-like-btn text-body-secondary ms-3 text-decoration-none">
 										<i class="ti ti-heart"></i>
 										<span class="like-count"><?php echo intval($_post['likes']);?></span>
 									</a>
 									<?php } else { ?>
-									<span class="post-like-btn cursor-pointer text-body-secondary ms-3" hx-post="<?php echo url('thread-like-'.$tid.'-'.$_post['pid']);?>" hx-vals='{"_ctx":"post"}' hx-target="this" hx-swap="outerHTML" hx-ext="hx-optimistic" hx-optimistic>
+									<span class="post-like-btn cursor-pointer text-body-secondary ms-3" hx-post="<?php echo !empty($_post['is_liked']) ? thread_unlike_url($_post['tid'], $_post['pid']) : thread_like_url($_post['tid'], $_post['pid']);?>" hx-vals='{"_ctx":"post"}' hx-target="this" hx-swap="outerHTML" hx-disable="this" hx-confirm=" ">
 										<i class="ti <?php echo !empty($_post['is_liked']) ? 'ti-heart-filled text-danger' : 'ti-heart';?>"></i>
 										<span class="like-count"><?php echo intval($_post['likes']);?></span>
 									</span>
@@ -70,24 +125,44 @@
 								</div>
 								<div class="d-flex align-items-center gap-2">
 									<!--{hook post_list_inc_quote_before.htm}-->
-									<?php if($allowpost && (empty($thread['closed']) || $gid <= 5) && (empty($thread['audit_status']) || $thread['audit_status'] != 0 || $gid <= 5)) { ?>
-									<a href="javascript:void(0)" data-tid="<?php echo $_post['tid'];?>" data-pid="<?php echo $_post['pid'];?>" data-username="<?php echo $_post['username'];?>" class="text-body-secondary post_reply"><i class="ti ti-message-2"></i> <?php echo lang('reply');?></a>
-									<?php } ?>
-									<!--{hook post_list_inc_quote_after.htm}-->
+								<?php if($allowpost && (empty($thread['closed']) || $gid <= 5) && (empty($thread['audit_status']) || $thread['audit_status'] == 1 || $gid <= 5)) { ?>
+								<?php $_reply_quote_content = trim(strip_tags(preg_replace('#<blockquote\s+class="blockquote">.*?</blockquote>#is', '', $_post['message_fmt']))); ?>
+								<a href="javascript:void(0)" data-tid="<?php echo $_post['tid'];?>" data-pid="<?php echo $_post['pid'];?>" data-username="<?php echo $_post['username'];?>" data-content="<?php echo esc_html(mb_substr($_reply_quote_content, 0, 80));?>" class="text-body-secondary post_reply"><i class="ti ti-message-2"></i> <?php echo lang('reply');?></a>
+								<?php } ?>
+								<!--{hook post_list_inc_quote_after.htm}-->
 
 									<!--{hook post_list_inc_update_before.htm}-->
-									<?php if($allowupdate || $_post['allowupdate']) { ?>
-									<a href="<?php echo url("post-update-$_post[pid]");?>" class="text-body-secondary post_update" hx-boost="false"><i class="ti ti-pencil"></i></a>
-									<?php } ?>
-									<!--{hook post_list_inc_update_after.htm}-->
+								<?php
+								// 编辑权限：版主不受限；普通用户需满足安全配置（编辑开关+时限）
+								// 被驳回回帖：作者可编辑（不受时限限制），但需检查重提次数
+								$_is_post_rejected = isset($_post['audit_status']) && $_post['audit_status'] == 2;
+								if($_is_post_rejected && $_post['uid'] == $uid && !empty($uid)) {
+									$_can_edit = (intval($_post['resubmit_count'] ?? 0) < 5);
+								} else {
+									$_can_edit = $allowupdate ? TRUE : ($_post['allowupdate'] && $sec_allow_edit && ($sec_edit_time_limit ?? 0) == 0 || ($time - $_post['create_date']) < ($sec_edit_time_limit ?? 0) * 60);
+								}
+								?>
+								<?php if($_can_edit) { ?>
+								<a href="<?php echo post_update_url($_post['pid']);?>" class="text-body-secondary post_update" hx-boost="false"><i class="ti ti-pencil"></i></a>
+								<?php } ?>
+								<!--{hook post_list_inc_update_after.htm}-->
 
 									<!--{hook post_list_inc_delete_before.htm}-->
 									<?php if($allowdelete || ($_post['allowdelete'] && $sec_allow_delete_reply)) { ?>
-									<a data-href="<?php echo url("post-delete-$_post[pid]");?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm"><i class="ti ti-trash"></i></a>
+									<a data-href="<?php echo post_delete_url($_post['pid']);?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm"><i class="ti ti-trash"></i></a>
 									<?php } ?>
 									<!--{hook post_list_inc_delete_after.htm}-->
 
-									<!--{hook post_list_inc_floor_before.htm}-->
+								<?php if(($allowdelete || (!empty($thread) && $uid == $thread['uid'])) && empty($_post['isfirst'])): ?>
+								<a href="javascript:void(0);" class="text-body-secondary post_top_btn" data-pid="<?php echo $_post['pid'];?>" data-tid="<?php echo $_post['tid'];?>" data-is-top="<?php echo intval($_post['is_top']);?>" data-mod-url="<?php echo mod_top_post_url();?>"><i class="ti ti-pin"></i> <?php echo !empty($_post['is_top']) ? lang('untop') : lang('post_top_label');?></a>
+								<?php endif; ?>
+
+								<?php if($gid > 0 && $gid < 5 && isset($_post['audit_status']) && $_post['audit_status'] != 1): ?>
+								<a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_post['pid'];?>" data-audit-status="1" data-mod-url="<?php echo mod_audit_post_url();?>"><i class="ti ti-check"></i> <?php echo lang('audit_approve');?></a>
+								<a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_post['pid'];?>" data-audit-status="2" data-mod-url="<?php echo mod_audit_post_url();?>"><i class="ti ti-x"></i> <?php echo lang('audit_reject');?></a>
+								<?php endif; ?>
+
+								<!--{hook post_list_inc_floor_before.htm}-->
 									<?php if($_post['floor']) { ?>
 									<!-- <span class="floor-parent">
 										<span class="floor me-0 badge bg-body-secondary text-body "><?php echo $_post['floor'];?></span><?php echo lang('floor');?>
@@ -98,51 +173,80 @@
 							</div>
 
 							<!-- Level-2 回复列表 -->
-							<?php if(!empty($reply_map[$_post['pid']])) { ?>
-							<div class="replies-container mt-2 ps-3 border-start border-2">
-								<?php foreach($reply_map[$_post['pid']] as $_reply) { ?>
+							<?php if(!empty($reply_map[$_post['pid']])) {
+								$_replies = $reply_map[$_post['pid']];
+								$_reply_count = count($_replies);
+								$_reply_collapse_threshold = 3; // 超过3条折叠
+								$_need_collapse = $_reply_count > $_reply_collapse_threshold;
+							?>
+							<div class="replies-container mt-2 ps-3 border-start border-2" data-pid="<?php echo $_post['pid'];?>">
+								<?php
+								$_reply_idx = 0;
+								foreach($_replies as $_reply) {
+									$_reply_idx++;
+								?>
+								<?php if($_need_collapse && $_reply_idx === $_reply_collapse_threshold + 1): ?>
+								<div class="reply-extra d-none" data-pid="<?php echo $_post['pid'];?>">
+								<?php endif; ?>
 								<div class="d-flex mb-2 <?php echo $_reply['classname'];?>" data-pid="<?php echo $_reply['pid'];?>" data-uid="<?php echo $_reply['uid'];?>">
 									<div class="me-2 flex-shrink-0">
-										<a href="<?php echo url("user-$_reply[uid]");?>" tabindex="-1">
+										<a href="<?php echo user_url($_reply['uid']);?>" tabindex="-1">
 											<?php echo avatar_component_from_data($_reply['user_avatar_url'], 'sm', isset($_reply['group_icon_class']) ? $_reply['group_icon_class'] : '', isset($_reply['group_color']) ? $_reply['group_color'] : '', isset($_reply['gid']) ? $_reply['gid'] : 0);?>
 										</a>
 									</div>
 									<div class="flex-fill" style="min-width:0">
 										<div class="small text-body-secondary">
 											<span class="username">
-												<a href="<?php echo url("user-$_reply[uid]");?>" class="text-body-secondary fw-semibold small"><?php echo $_reply['username'];?></a>
-											</span>
-											<?php if(isset($_reply['audit_status']) && $_reply['audit_status'] == 0): ?>
+											<a href="<?php echo user_url($_reply['uid']);?>" class="text-body-secondary fw-semibold small"><?php echo $_reply['username'];?></a>
+											<!-- <span class="text-body-tertiary ms-1" style="font-size:0.85em">#<?php echo $_reply['uid'];?></span> -->
+										</span>
+										<?php if(!empty($_reply['group_name'])): ?>
+									<span class="badge bg-primary bg-opacity-10 text-primary "  ><?php echo $_reply['group_name'];?></span>
+									<?php endif; ?>
+									<?php if(!empty($thread) && $_reply['uid'] == $thread['uid']): ?>
+									<span class="badge bg-primary ms-1" style="font-size:0.6em"><?php echo lang('post_author_label'); ?></span>
+									<?php endif; ?>
+										<?php if(isset($_reply['audit_status']) && $_reply['audit_status'] != 1): ?>
 											<span class="badge bg-warning text-dark ms-1" style="font-size:0.6em"><?php echo lang('pending_audit');?></span>
 											<?php endif; ?>
 											<?php if(!empty($_reply['reply_to_username'])) { ?>
-											<span class="text-body-secondary small"> <?php echo lang('reply_at');?><a href="<?php echo url("user-" . intval($_reply['reply_to_uid']));?>" class="text-primary"><?php echo esc_html($_reply['reply_to_username']);?></a>：</span>
+											<span class="text-body-secondary small"> <?php echo lang('reply_at');?><a href="<?php echo user_url(intval($_reply['reply_to_uid']));?>" class="text-primary"><?php echo $_reply['reply_to_username'];?></a><?php echo lang('colon_separator'); ?></span>
 											<?php } else { ?>
-											<span class="text-body-secondary small">：</span>
+											<span class="text-body-secondary small"><?php echo lang('colon_separator'); ?></span>
 											<?php } ?>
 										</div>
 										<div class="small"><?php echo preg_replace('#<blockquote\s+class="blockquote">.*?</blockquote>#is', '', $_reply['message_fmt']);?></div>
 										<div class="d-flex justify-content-between align-items-center mt-1">
 											<span class="date text-body-secondary" style="font-size:0.75em"><?php echo $_reply['create_date_fmt'];?></span>
 											<div class="d-flex align-items-center gap-2">
-												<?php if($allowpost && (empty($thread['closed']) || $gid <= 5) && (empty($thread['audit_status']) || $thread['audit_status'] != 0 || $gid <= 5)) { ?>
-												<a href="javascript:void(0)" data-tid="<?php echo $_reply['tid'];?>" data-pid="<?php echo $_reply['pid'];?>" data-username="<?php echo $_reply['username'];?>" class="text-body-secondary post_reply" style="font-size:0.8em"><i class="ti ti-message-2"></i> <?php echo lang('reply');?></a>
-												<?php } ?>
-												<?php if($allowupdate || $_reply['allowupdate']) { ?>
-												<a href="<?php echo url("post-update-$_reply[pid]");?>" class="text-body-secondary post_update" hx-boost="false" style="font-size:0.8em"><i class="ti ti-pencil"></i></a>
+												<?php if($allowpost && (empty($thread['closed']) || $gid <= 5) && (empty($thread['audit_status']) || $thread['audit_status'] == 1 || $gid <= 5)) { ?>
+											<?php $_reply_quote_content2 = trim(strip_tags(preg_replace('#<blockquote\s+class="blockquote">.*?</blockquote>#is', '', $_reply['message_fmt']))); ?>
+											<a href="javascript:void(0)" data-tid="<?php echo $_reply['tid'];?>" data-pid="<?php echo $_reply['pid'];?>" data-username="<?php echo $_reply['username'];?>" data-content="<?php echo esc_html(mb_substr($_reply_quote_content2, 0, 80));?>" class="text-body-secondary post_reply" style="font-size:0.8em"><i class="ti ti-message-2"></i> <?php echo lang('reply');?></a>
+											<?php } ?>
+												<?php
+												// 编辑权限：版主不受限；普通用户需满足安全配置（编辑开关+时限）
+												$_can_edit_reply = $allowupdate ? TRUE : ($_reply['allowupdate'] && $sec_allow_edit && (($sec_edit_time_limit ?? 0) == 0 || ($time - $_reply['create_date']) < ($sec_edit_time_limit ?? 0) * 60));
+												?>
+												<?php if($_can_edit_reply) { ?>
+												<a href="<?php echo post_update_url($_reply['pid']);?>" class="text-body-secondary post_update" hx-boost="false" style="font-size:0.8em"><i class="ti ti-pencil"></i></a>
 												<?php } ?>
 												<?php if($allowdelete || ($_reply['allowdelete'] && $sec_allow_delete_reply)) { ?>
-												<a data-href="<?php echo url("post-delete-$_reply[pid]");?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm" style="font-size:0.8em"><i class="ti ti-trash"></i></a>
-												<?php } ?>
-												<?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] == 0)) && (empty($uid) || $gid > 5)) { ?>
-												<!-- 关闭/审核中帖子：隐藏点赞按钮 -->
+											<a data-href="<?php echo post_delete_url($_reply['pid']);?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm" style="font-size:0.8em"><i class="ti ti-trash"></i></a>
+											<?php } ?>
+											<!--{hook post_list_inc_reply_delete_after.htm}-->
+											<?php if($gid > 0 && $gid < 5 && isset($_reply['audit_status']) && $_reply['audit_status'] != 1): ?>
+												<a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_reply['pid'];?>" data-audit-status="1" data-mod-url="<?php echo mod_audit_post_url();?>" style="font-size:0.8em"><i class="ti ti-check"></i> <?php echo lang('audit_approve');?></a>
+												<a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_reply['pid'];?>" data-audit-status="2" data-mod-url="<?php echo mod_audit_post_url();?>" style="font-size:0.8em"><i class="ti ti-x"></i> <?php echo lang('audit_reject');?></a>
+												<?php endif; ?>
+												<?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] != 1)) && (empty($uid) || $gid > 5)) { ?>
+												<!-- 关闭/审核中/驳回帖子：隐藏点赞按钮 -->
 												<?php } elseif(empty($uid)) { ?>
-												<a href="<?php echo url('user-login');?>" class="post-like-btn text-body-secondary text-decoration-none" style="font-size:0.8em">
+												<a href="<?php echo user_login_url();?>" class="post-like-btn text-body-secondary text-decoration-none" style="font-size:0.8em">
 													<i class="ti ti-heart"></i>
 													<span class="like-count"><?php echo intval($_reply['likes']);?></span>
 												</a>
 												<?php } else { ?>
-												<span class="post-like-btn cursor-pointer text-body-secondary" hx-post="<?php echo url('thread-like-'.$tid.'-'.$_reply['pid']);?>" hx-vals='{"_ctx":"reply"}' hx-target="this" hx-swap="outerHTML" hx-ext="hx-optimistic" hx-optimistic style="font-size:0.8em">
+												<span class="post-like-btn cursor-pointer text-body-secondary" hx-post="<?php echo !empty($_reply['is_liked']) ? thread_unlike_url($_post['tid'], $_reply['pid']) : thread_like_url($_post['tid'], $_reply['pid']);?>" hx-vals='{"_ctx":"reply"}' hx-target="this" hx-swap="outerHTML" hx-disable="this" hx-confirm=" " style="font-size:0.8em">
 													<i class="ti <?php echo !empty($_reply['is_liked']) ? 'ti-heart-filled text-danger' : 'ti-heart';?>"></i>
 													<span class="like-count"><?php echo intval($_reply['likes']);?></span>
 												</span>
@@ -152,7 +256,13 @@
 									</div>
 								</div>
 								<?php } ?>
-							</div>
+								<?php if($_need_collapse): ?>
+								</div><!-- .reply-extra -->
+								<a href="javascript:void(0)" class="reply-toggle-btn d-inline-block mt-1 small text-decoration-none" data-pid="<?php echo $_post['pid'];?>" data-collapsed="1">
+									<i class="ti ti-chevron-down"></i> <?php echo lang('expand_replies');?>（<?php echo $_reply_count - $_reply_collapse_threshold;?>/<?php echo $_reply_count;?>）
+								</a>
+								<?php endif; ?>
+							</div><!-- .replies-container -->
 							<?php } ?>
 						</div>
 					</li>

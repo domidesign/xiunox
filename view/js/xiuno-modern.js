@@ -424,10 +424,11 @@
     };
 
     // XN.confirm(message, okCallback, options) — 替代原生 confirm()
-    // options: { title, type, size, okText, cancelText, body }
+    // options: { title, type, size, okText, cancelText, body, cancelCallback }
     //   type: 'info' | 'warning' | 'danger'（默认 'warning'）
     //   okText / cancelText: 按钮文字
     //   body: 额外 HTML 内容（插入到 message 下方）
+    //   cancelCallback: 取消时的回调
     // 返回 Bootstrap Modal 实例
     XN.confirm = function (message, okCallback, options) {
         options = options || {};
@@ -436,6 +437,7 @@
         var okText = options.okText || ((typeof lang !== 'undefined' && lang.confirm) || '确定');
         var cancelText = options.cancelText || ((typeof lang !== 'undefined' && lang.close) || '关闭');
         var body = options.body || '';
+        var cancelCallback = options.cancelCallback;
 
         var iconMap = {
             info: 'ti-help-circle text-primary',
@@ -459,21 +461,121 @@
             '</div>' +
             '<div class="modal-footer border-0 pt-0">' +
             '<button type="button" class="btn btn-primary px-4 xn-confirm-ok">' + XN.escapeHtml(okText) + '</button>' +
-            '<button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">' + XN.escapeHtml(cancelText) + '</button>' +
+            '<button type="button" class="btn btn-outline-secondary px-4 xn-confirm-cancel" data-bs-dismiss="modal">' + XN.escapeHtml(cancelText) + '</button>' +
             '</div></div></div></div>';
 
         document.body.insertAdjacentHTML('beforeend', html);
         var el = document.getElementById(id);
         var modal = new bootstrap.Modal(el);
         modal.show();
-        el.addEventListener('hidden.bs.modal', function () { el.remove(); });
+
+        // okCallback 标志：避免 hidden.bs.modal 重复触发回调
+        // true = 用户点了确定；false = 用户取消或关闭
+        var okCallbackFired = false;
+        el.addEventListener('hidden.bs.modal', function () {
+            el.remove();
+            // 只有用户点了确定按钮才执行 okCallback
+            if (okCallbackFired && okCallback) {
+                okCallback();
+            }
+        });
 
         el.querySelector('.xn-confirm-ok').addEventListener('click', function () {
+            // 先让按钮失焦，避免在 aria-hidden 容器内被聚焦（WAI-ARIA 规范）
+            if(document.activeElement && document.activeElement.blur) {
+                document.activeElement.blur();
+            }
+            okCallbackFired = true;
             modal.hide();
-            if (okCallback) okCallback();
+        });
+
+        // 取消按钮和关闭按钮：标记为取消并触发 cancelCallback
+        el.querySelector('.xn-confirm-cancel').addEventListener('click', function () {
+            if(document.activeElement && document.activeElement.blur) {
+                document.activeElement.blur();
+            }
+            if (cancelCallback) cancelCallback();
+        });
+        el.querySelector('.btn-close').addEventListener('click', function () {
+            if(document.activeElement && document.activeElement.blur) {
+                document.activeElement.blur();
+            }
+            if (cancelCallback) cancelCallback();
         });
 
         return modal;
+    };
+
+    // ========== 积分扣除确认 ==========
+
+    // 调用后端预检查 API，有扣减则弹 Modal 确认，确认后才执行 callback
+    // options: { onCancel: 取消时的回调 }
+    XN.confirmCreditsDeduct = function (event, fid, callback, options) {
+        options = options || {};
+        var url = (typeof creditsCheckUrl !== 'undefined') ? creditsCheckUrl : XN.url('my-credits_check');
+        var sep = url.indexOf('?') >= 0 ? '&' : '?';
+        url += sep + 'event=' + encodeURIComponent(event) + '&fid=' + encodeURIComponent(fid || 0);
+
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) {
+            return r.text();
+        })
+        .then(function (text) {
+            var res;
+            try { res = JSON.parse(text); }
+            catch (e) {
+                // JSON 解析失败（可能是 PHP 错误输出），放行
+                callback();
+                return;
+            }
+            var data = res.data || {};
+
+            // 每日上限达到 → 直接放行，不弹窗（操作继续，但不扣减/奖励积分）
+            if (res.code === 0 && data.daily_limit_reached) {
+                callback();
+                return;
+            }
+
+            // 无扣减 → 直接放行
+            if (res.code === 0 && !data.deduct_desc) {
+                callback();
+                return;
+            }
+
+            // 失败（余额不足/超限等）→ toast 提示并阻止
+            if (res.code !== 0) {
+                var msg = res.message || '操作失败';
+                XN.toast(msg, 'danger');
+                if (options.onCancel) options.onCancel();
+                return;
+            }
+
+            // 有扣减 → 弹 Bootstrap Modal 确认
+            var deductDesc = data.deduct_desc || '';
+            var balances = data.balances || {};
+            var body = '<div class="mb-2"><i class="ti ti-minus text-warning me-1"></i>' + XN.escapeHtml(deductDesc) + '</div>';
+
+            if (balances.credits !== undefined) {
+                body += '<div class="small text-body-secondary border-top pt-2 mt-2">';
+                body += '<div class="d-flex justify-content-between"><span>积分余额</span><span class="fw-semibold">' + balances.credits + '</span></div>';
+                if (balances.golds !== undefined) body += '<div class="d-flex justify-content-between"><span>金币余额</span><span class="fw-semibold">' + balances.golds + '</span></div>';
+                if (balances.rmbs !== undefined) body += '<div class="d-flex justify-content-between"><span>人民币余额</span><span class="fw-semibold">' + balances.rmbs + '</span></div>';
+                body += '</div>';
+            }
+
+            XN.confirm('本次操作将扣除积分，是否继续？', callback, {
+                title: '积分确认',
+                type: 'warning',
+                okText: '确认',
+                cancelText: '取消',
+                body: body,
+                cancelCallback: options.onCancel
+            });
+        })
+        .catch(function (err) {
+            // 网络错误 → 放行
+            callback();
+        });
     };
 
     // ========== 工具函数 ==========
@@ -510,6 +612,7 @@
 
     XN.url = function (u) {
         var on = window.url_rewrite_on || 0;
+        var result;
         if (u.indexOf('/') !== -1) {
             var pos = u.lastIndexOf('/');
             var path = u.substring(0, pos + 1);
@@ -526,6 +629,11 @@
             result = path + '?' + query.replace(/-/g, '/');
         } else if (on === 3) {
             result = path + query.replace(/-/g, '/');
+        } else if (on === 4) {
+            result = path + query + '.html';
+        } else if (on === 5) {
+            // 自定义规则 fallback
+            result = path + query + '.htm';
         } else {
             result = path + query;
         }
@@ -560,10 +668,15 @@
 
     XN.captchaRefresh = function (scene) {
         var url;
-        if (typeof url_rewrite_on !== 'undefined' && url_rewrite_on == 1) {
+        // 优先使用 PHP url() 函数生成的 URL 模板，兼容所有伪静态格式
+        if (typeof bbs_captcha_url_template !== 'undefined' && bbs_captcha_url_template) {
+            url = bbs_captcha_url_template.replace('__SCENE__', scene);
+        } else if (typeof url_rewrite_on !== 'undefined' && url_rewrite_on == 1) {
             url = 'captcha-generate-' + scene + '.htm';
         } else if (typeof url_rewrite_on !== 'undefined' && url_rewrite_on == 3) {
             url = 'captcha/generate/' + scene;
+        } else if (typeof url_rewrite_on !== 'undefined' && url_rewrite_on == 4) {
+            url = 'captcha-generate-' + scene + '.html';
         } else {
             url = '?captcha-generate-' + scene + '.htm';
         }
@@ -584,7 +697,7 @@
                         }
                     }
                 } catch (e) {
-                    console.warn('[captchaRefresh] JSON parse error for scene:', scene);
+                    console.warn('[captchaRefresh] JSON parse error for scene:', scene, 'response:', text.substring(0, 300));
                 }
             })
             .catch(function (err) {

@@ -43,12 +43,15 @@ if(empty($action) || $action == 'list') {
 		foreach($fidarr as $k=>$v) {
 			$type_val = array_value($typearr, $k, 0);
 			$fup_val = $type_val == 1 ? 0 : array_value($fuparr, $k, 0);
+			// icon - 存储 Tabler Icon 类名，合并到主更新数组，避免二次更新
+			$icon_val = array_value($iconarr, $k, '');
 			$arr = array(
 				'fid'=>$k,
 				'name'=>array_value($namearr, $k),
 				'rank'=>array_value($rankarr, $k),
 				'type'=>$type_val,
 				'fup'=>$fup_val,
+				'icon'=>$icon_val,
 			);
 			
 			if(!isset($forumlist[$k])) {
@@ -58,9 +61,6 @@ if(empty($action) || $action == 'list') {
 				// hook admin_forum_list_update_before.php
 				forum_update($k, $arr);
 			}
-			// icon - 存储 Tabler Icon 类名
-			$icon_val = array_value($iconarr, $k, '');
-			forum_update($k, array('icon'=>$icon_val));
 			
 			// hook admin_forum_list_post_loop_end.php
 		}
@@ -199,6 +199,9 @@ if(empty($action) || $action == 'list') {
 	$_forum = forum_read($_fid);
 	empty($_forum) AND message(-1, lang('forum_not_exists'));
 	
+	// DEBUG: 记录 forum-update 请求
+	xn_log('forum-update hit, fid=' . $_fid . ' method=' . $method . ' UA=' . ($_SERVER['HTTP_USER_AGENT'] ?? '') . ' XHR=' . ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? 'none'), 'debug_error');
+	
 	// hook admin_forum_update_get_post.php
 	
 	if($method == 'GET') {
@@ -260,12 +263,11 @@ if(empty($action) || $action == 'list') {
 		$moduids = user_names_to_ids($modnames);
 		$type = param('type', 0);
 		$fup = param('fup', 0);
-		$icon = param('icon', '');
-		
+
 		if($type == 1) $fup = 0;
-		
+
 		// hook admin_forum_update_post_start.php
-		
+
 		$arr = array (
 			'name' => $name,
 			'rank' => $rank,
@@ -275,10 +277,9 @@ if(empty($action) || $action == 'list') {
 			'accesson' => $accesson,
 			'type' => $type,
 			'fup' => $fup,
-			'icon' => $icon,
 		);
 
-		// 处理图标上传
+		// 处理图标上传：仅在成功上传时才更新 icon 字段，避免空字符串覆盖已有图标
 		if(isset($_FILES['icon']) && $_FILES['icon']['error'] == 0) {
 			$icon_file = $_FILES['icon'];
 			$allowed_exts = array('jpg', 'jpeg', 'png', 'gif', 'webp');
@@ -309,7 +310,7 @@ if(empty($action) || $action == 'list') {
 		
 		forum_update($_fid, $arr);
 		
-		// 权限默认开启，始终保存权限设置
+		// 权限默认开启，始终保存权限设置 - 批量替换，避免 N+1
 		$allowread = param('allowread', array(0));
 		$allowthread = param('allowthread', array(0));
 		$allowpost = param('allowpost', array(0));
@@ -317,17 +318,33 @@ if(empty($action) || $action == 'list') {
 		$allowdown = param('allowdown', array(0));
 		$allowthreadaudit = param('allowthreadaudit', array(0));
 		$allowpostaudit = param('allowpostaudit', array(0));
+		$values = array();
 		foreach($grouplist as $_gid=>$v) {
-			$access = array (
-				'allowread'=>array_value($allowread, $_gid, 0),
-				'allowthread'=>array_value($allowthread, $_gid, 0),
-				'allowpost'=>array_value($allowpost, $_gid, 0),
-				'allowattach'=>array_value($allowattach, $_gid, 0),
-				'allowdown'=>array_value($allowdown, $_gid, 0),
-				'allowthreadaudit'=>array_value($allowthreadaudit, $_gid, 0),
-				'allowpostaudit'=>array_value($allowpostaudit, $_gid, 0),
-			);
-			forum_access_replace($_fid, $_gid, $access);
+			$values[] = "("
+				. intval($_fid) . "," . intval($_gid) . ","
+				. intval(array_value($allowread, $_gid, 0)) . ","
+				. intval(array_value($allowthread, $_gid, 0)) . ","
+				. intval(array_value($allowpost, $_gid, 0)) . ","
+				. intval(array_value($allowattach, $_gid, 0)) . ","
+				. intval(array_value($allowdown, $_gid, 0)) . ","
+				. intval(array_value($allowthreadaudit, $_gid, 0)) . ","
+				. intval(array_value($allowpostaudit, $_gid, 0))
+				. ")";
+		}
+		if(!empty($values)) {
+			global $db;
+			$sql = "INSERT INTO {$db->tablepre}forum_access
+				(fid, gid, allowread, allowthread, allowpost, allowattach, allowdown, allowthreadaudit, allowpostaudit)
+				VALUES " . implode(',', $values) . "
+				ON DUPLICATE KEY UPDATE
+				allowread = VALUES(allowread),
+				allowthread = VALUES(allowthread),
+				allowpost = VALUES(allowpost),
+				allowattach = VALUES(allowattach),
+				allowdown = VALUES(allowdown),
+				allowthreadaudit = VALUES(allowthreadaudit),
+				allowpostaudit = VALUES(allowpostaudit)";
+			db_exec($sql);
 		}
 		
 		
@@ -343,29 +360,41 @@ if(empty($action) || $action == 'list') {
 
 // 废弃
 } elseif($action == 'getname') {
-	
+
 	$uids = xn_urldecode(param(2));
 	$arr = explode(',', $uids);
 	$names = array();
 	$err = '';
-	
+
 	// hook admin_forum_getname_start.php
-	
+
+	// 批量查询用户，避免 N+1
+	$uid_list = array();
 	foreach($arr as $_uid) {
 		$_uid = intval($_uid);
 		if(empty($_uid)) continue;
-		$_user = user_read($_uid);
+		$uid_list[] = $_uid;
+	}
+	$users = array();
+	if(!empty($uid_list)) {
+		$userlist = db_find('user', array('uid'=>$uid_list), array(), 1, count($uid_list), 'uid');
+		if($userlist) {
+			$users = $userlist;
+		}
+	}
+	foreach($uid_list as $_uid) {
+		$_user = $users[$_uid] ?? array();
 		if(empty($_user)) { $err .= lang('item_not_exists', array('item'=>$_uid)); continue; }
 		if($_user['gid'] > 4) { $err .= lang('item_not_moderator', array('item'=>$_uid));  continue; }
 		$names[] = $_user['username'];
 	}
 	$s = implode(',', $names);
 	$err AND message(-1, $err);
-	
+
 	// hook admin_forum_getname_end.php
-	
+
 	message(0, $s);
-	
+
 } elseif($action == 'delete') {
 	
 	$_fid = param(2, 0);
@@ -390,23 +419,29 @@ if(empty($action) || $action == 'list') {
 }
 
 function user_names_to_ids($names, $sep = ',') {
-	$namearr = explode($sep, $names);
+	$namearr = array_filter(array_map('trim', explode($sep, $names)));
+	if(empty($namearr)) return '';
+	// 批量查询用户，避免 N+1
+	$userlist = db_find('user', array('username'=>$namearr), array(), 1, count($namearr), 'username');
 	$r = array();
 	foreach($namearr as $name) {
-		$user = user_read_by_username($name);
-		if(empty($user)) continue;
-		$r[] = $user ? $user['uid'] : 0;
+		if(isset($userlist[$name])) {
+			$r[] = $userlist[$name]['uid'];
+		}
 	}
 	return implode($sep, $r);
 }
 
 function user_ids_to_names($ids, $sep = ',') {
-	$idarr = explode($sep, $ids);
+	$idarr = array_filter(array_map('intval', explode($sep, $ids)));
+	if(empty($idarr)) return '';
+	// 批量查询用户，避免 N+1
+	$userlist = db_find('user', array('uid'=>$idarr), array(), 1, count($idarr), 'uid');
 	$r = array();
 	foreach($idarr as $id) {
-		$user = user_read($id);
-		if(empty($user)) continue;
-		$r[] = $user ? $user['username'] : '';
+		if(isset($userlist[$id])) {
+			$r[] = $userlist[$id]['username'];
+		}
 	}
 	return implode($sep, $r);
 }

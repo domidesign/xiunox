@@ -9,25 +9,32 @@ function kv__get($k) {
 	return $arr ? xn_json_decode($arr['v']) : NULL;
 }
 function kv_get($k) {
-	static $static = array();
+	global $g_kv_cache;
+	if(!isset($g_kv_cache)) $g_kv_cache = array();
 	strlen($k) > 32 AND $k = md5($k);
-	if(!isset($static[$k])) {
-		$static[$k] = kv__get($k);
+	if(!isset($g_kv_cache[$k])) {
+		$g_kv_cache[$k] = kv__get($k);
 	}
-	return $static[$k];
+	return $g_kv_cache[$k];
 }
 function kv_set($k, $v, $life = 0) {
+	global $g_kv_cache;
 	strlen($k) > 32 AND $k = md5($k);
 	$arr = array(
 		'k'=>$k,
 		'v'=>xn_json_encode($v),
 	);
 	$r = db_replace('kv', $arr);
+	// 同步更新内存缓存，避免同请求内读取到旧值
+	$g_kv_cache[$k] = $v;
 	return $r;
 }
 function kv_delete($k) {
+	global $g_kv_cache;
 	strlen($k) > 32 AND $k = md5($k);
 	$r = db_delete('kv', array('k'=>$k));
+	// 同步清除内存缓存
+	unset($g_kv_cache[$k]);
 	return $r;
 }
 
@@ -36,14 +43,19 @@ function kv_delete($k) {
 // --------------------> kv + cache
 function kv_cache_get($k) {
 	$r = cache_get($k);
-	if($r === NULL) {
+	// cache_get 返回 NULL（未找到）或 FALSE（出错/未初始化）时，都应回退到数据库
+	if($r === NULL || $r === FALSE) {
 		$r = kv_get($k);
 	}
 	return $r;
 }
 function kv_cache_set($k, $v, $life = 0) {
-	cache_set($k, $v, $life);
+	// 先写数据库，确保数据持久化
 	$r = kv_set($k, $v);
+	// 再更新缓存；若缓存写入失败，删除旧缓存避免下次读到过期值
+	if(!cache_set($k, $v, $life)) {
+		cache_delete($k);
+	}
 	return $r;
 }
 function kv_cache_delete($k) {

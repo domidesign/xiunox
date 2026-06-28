@@ -2,7 +2,7 @@
 
 <?php
 include_once APP_PATH . 'lib/security/CaptchaService.php';
-$captcha_login_on = CaptchaService::is_enabled('login');
+$captcha_login_on = CaptchaService::is_enabled('login', $gid);
 ?>
 
 <!--{hook user_login_start.htm}-->
@@ -18,7 +18,7 @@ $captcha_login_on = CaptchaService::is_enabled('login');
 			<!--{hook user_login_title_after.htm}-->
 		</div>
 		<div class="card-body ajax_modal_body">
-			<form hx-post="<?php echo url('user-login');?>" hx-target="#login-msg" hx-swap="innerHTML" id="form">
+			<form hx-post="<?php echo user_login_url();?>" hx-target="#login-msg" hx-swap="innerHTML" id="form">
 				<?php echo CsrfService::input(); ?>
 				<input type="hidden" name="next" value="<?php echo htmlspecialchars($referer);?>">
 				<div id="login-msg"></div>
@@ -57,13 +57,13 @@ $captcha_login_on = CaptchaService::is_enabled('login');
 				<!--{hook user_login_submit_after.htm}-->
 				<div class="d-flex justify-content-between align-items-center">
 					<?php if(!empty($conf['user_resetpw_on'])) { ?>
-					<a href="<?php echo url('user-resetpw');?>" class="text-body-secondary text-decoration-none" hx-boost="false"><span class="small"><?php echo lang('forgot_pw');?></span></a>
+					<a href="<?php echo user_resetpw_url();?>" class="text-body-secondary text-decoration-none" hx-boost="false"><span class="small"><?php echo lang('forgot_pw');?></span></a>
 					<?php } else { ?>
 					<div></div>
 					<?php } ?>
 					<div>
 						<!--{hook user_login_form_footer_right_start.htm}-->
-						<a href="<?php echo url('user-create');?>" class="text-primary text-decoration-none fw-medium" hx-boost="false"><span class="small"><?php echo lang('user_create');?></span></a>
+						<a href="<?php echo user_create_url();?>" class="text-primary text-decoration-none fw-medium" hx-boost="false"><span class="small"><?php echo lang('user_create');?></span></a>
 						<!--{hook user_login_form_footer_right_end.htm}-->
 					</div>
 				</div>

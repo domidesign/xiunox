@@ -1,0 +1,138 @@
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<?php include _include(APP_PATH.'view/htm/my.layout.inc.htm');?>
+
+		<!-- 基本资料 -->
+		<div class="x-card card">
+			<div class="card-body">
+				<!--{hook my_profile_start.htm}-->
+				<?php
+				// 待审字段提示
+				$pending_nickname = !empty($pending_profile_fields) && in_array('nickname', $pending_profile_fields);
+				$pending_signature = !empty($pending_profile_fields) && in_array('signature', $pending_profile_fields);
+				?>
+				<?php if($pending_nickname || $pending_signature): ?>
+				<div class="alert alert-info d-flex align-items-center mb-3" role="alert">
+					<i class="ti ti-clock-hour-4 me-2"></i>
+					<div>
+						<?php
+						$pending_labels = array();
+						if($pending_nickname) $pending_labels[] = lang('nickname');
+						if($pending_signature) $pending_labels[] = lang('signature');
+						echo lang('profile_audit_pending_tip', array('fields' => implode('、', $pending_labels)));
+						?>
+					</div>
+				</div>
+				<?php endif; ?>
+				<form hx-post="<?php echo my_profile_url();?>" hx-target="#profile-msg" hx-swap="innerHTML" id="profile_form">
+					<?php echo CsrfService::input(); ?>
+					<div id="profile-msg"></div>
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('username');?></label>
+						<input type="text" class="form-control" value="<?php echo esc_html($user['username']);?>" disabled>
+						<div class="form-text text-body-secondary"><?php echo lang('username_cannot_modify');?></div>
+					</div>
+					<div class="mb-3">
+					<label class="form-label fw-medium"><?php echo lang('nickname');?></label>
+					<input type="text" class="form-control" name="nickname" value="<?php echo esc_html($user['nickname'] ?? $user['username']);?>" required<?php echo $pending_nickname ? ' disabled' : '';?>>
+					<?php if($pending_nickname): ?><div class="form-text text-warning"><i class="ti ti-clock-hour-4 me-1"></i><?php echo lang('field_audit_pending');?></div><?php endif; ?>
+					<?php if(!$pending_nickname && $nickname_change_limit > 0): ?>
+					<div class="form-text text-body-secondary"><i class="ti ti-info-circle me-1"></i><?php echo lang('nickname_remaining_tip', array('remaining'=>$nickname_remaining, 'limit'=>$nickname_change_limit));?></div>
+					<?php endif; ?>
+					<div class="invalid-feedback"></div>
+				</div>
+				<div class="mb-3">
+					<label class="form-label fw-medium"><?php echo lang('signature');?></label>
+					<textarea class="form-control rounded-1" name="signature" rows="3" placeholder="<?php echo lang('signature_placeholder');?>"<?php echo $pending_signature ? ' disabled' : '';?>><?php echo esc_html($user['signature'] ?? '');?></textarea>
+					<?php if($pending_signature): ?><div class="form-text text-warning"><i class="ti ti-clock-hour-4 me-1"></i><?php echo lang('field_audit_pending');?></div><?php endif; ?>
+					<?php if(!$pending_signature && $signature_change_limit > 0): ?>
+					<div class="form-text text-body-secondary"><i class="ti ti-info-circle me-1"></i><?php echo lang('signature_remaining_tip', array('remaining'=>$signature_remaining, 'limit'=>$signature_change_limit));?></div>
+					<?php endif; ?>
+					<div class="invalid-feedback"></div>
+				</div>
+					<div>
+						<button type="submit" class="btn btn-primary" id="profile_submit" data-loading-text="<?php echo lang('submiting');?>..."<?php echo (!empty($pending_profile_fields) && ($pending_nickname || $pending_signature)) ? ' disabled' : '';?>><?php echo lang('save_profile');?></button>
+					</div>
+				</form>
+				<!--{hook my_profile_end.htm}-->
+			</div>
+		</div>
+
+	</div>
+
+	<!-- 右侧空栏 -->
+	<div class="d-none d-lg-block col-lg-3"></div>
+</div>
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+// 基本资料表单提交
+var profileForm = document.getElementById('profile_form');
+var profileSubmit = document.getElementById('profile_submit');
+var profileSubmitOriginal = profileSubmit.innerHTML;
+
+// 提交前禁用按钮，防止重复提交
+profileForm.addEventListener('htmx:beforeRequest', function(e) {
+	profileSubmit.disabled = true;
+	profileSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('submiting');?>...';
+});
+
+// 请求完成后处理响应
+profileForm.addEventListener('htmx:afterRequest', function(e) {
+	var response = e.detail && e.detail.xhr;
+	if(!response || response.status !== 200) {
+		// 失败时恢复按钮
+		profileSubmit.disabled = false;
+		profileSubmit.innerHTML = profileSubmitOriginal;
+		return;
+	}
+	try {
+		var res = JSON.parse(response.responseText);
+		if(parseInt(res.code) === 0) {
+			// 成功：更新签名展示
+			var sigDisplay = this.querySelector('.user-signature-display');
+			var sigInput = this.querySelector('[name="signature"]');
+			if(sigDisplay && sigInput) {
+				var newSig = sigInput.value.trim();
+				if(newSig) {
+					sigDisplay.innerHTML = '<i class="ti ti-quote me-1"></i>' + XN.escapeHtml(newSig);
+					sigDisplay.style.display = '';
+				} else {
+					sigDisplay.style.display = 'none';
+				}
+			}
+			// 判断是否需要审核（消息包含"审核"字样）
+			var needAudit = res.message && res.message.indexOf('审核') >= 0;
+			if(needAudit) {
+				// 需要审核：禁用表单字段，显示审核状态，刷新页面
+				profileSubmit.innerHTML = '<i class="ti ti-clock-hour-4 me-1"></i>' + res.message;
+				profileSubmit.classList.remove('btn-primary');
+				profileSubmit.classList.add('btn-warning');
+				// 刷新页面以显示审核状态
+				setTimeout(function() {
+					window.location.reload();
+				}, 1500);
+			} else {
+				// 直接成功：显示成功后恢复按钮
+				profileSubmit.innerHTML = '<i class="ti ti-check me-1"></i>' + res.message;
+				profileSubmit.classList.remove('btn-primary');
+				profileSubmit.classList.add('btn-success');
+				setTimeout(function() {
+					profileSubmit.disabled = false;
+					profileSubmit.innerHTML = profileSubmitOriginal;
+					profileSubmit.classList.remove('btn-success');
+					profileSubmit.classList.add('btn-primary');
+				}, 1500);
+			}
+		} else {
+			// 错误：恢复按钮
+			profileSubmit.disabled = false;
+			profileSubmit.innerHTML = profileSubmitOriginal;
+		}
+	} catch(ex) {
+		profileSubmit.disabled = false;
+		profileSubmit.innerHTML = profileSubmitOriginal;
+	}
+});
+</script>

@@ -14,9 +14,15 @@
 function url($url, $extra = array()) {
 	$conf = _SERVER('conf');
 	!isset($conf['url_rewrite_on']) AND $conf['url_rewrite_on'] = 0;
-	
+
 	// hook model_url_start.php
-	
+
+	// admin 后台始终使用 ? 格式，不受 url_rewrite_on 影响
+	// 避免切换伪静态风格后后台链接失效
+	$request_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
+	$is_admin = (strpos($request_uri, '/admin/') === 0 || strpos($request_uri, '/admin?') === 0 || $request_uri === '/admin');
+	$url_rewrite_on = $is_admin ? 0 : intval($conf['url_rewrite_on']);
+
 	$r = $path = $query = '';
 	if(strpos($url, '/') !== FALSE) {
 		$path = substr($url, 0, strrpos($url, '/') + 1);
@@ -25,15 +31,36 @@ function url($url, $extra = array()) {
 		$path = '';
 		$query = $url;
 	}
-	
-	if($conf['url_rewrite_on'] == 0) {
+
+	if($url_rewrite_on == 0) {
 		$r = $path . '?' . $query . '.htm';
-	} elseif($conf['url_rewrite_on'] == 1) {
+	} elseif($url_rewrite_on == 1) {
 		$r = $path . $query . '.htm';
-	} elseif($conf['url_rewrite_on'] == 2) {
+	} elseif($url_rewrite_on == 2) {
 		$r = $path . '?' . str_replace('-', '/', $query);
-	} elseif($conf['url_rewrite_on'] == 3) {
+	} elseif($url_rewrite_on == 3) {
 		$r = $path . str_replace('-', '/', $query);
+	} elseif($url_rewrite_on == 4) {
+		// .html 后缀风格：thread-create-1 → thread-create-1.html
+		$r = $path . $query . '.html';
+	} elseif($url_rewrite_on == 5) {
+		// 自定义格式：根据 url_rewrite_custom 配置生成 URL
+		$custom = isset($conf['url_rewrite_custom']) ? $conf['url_rewrite_custom'] : '/{controller}-{action}-{id}.html';
+		// 解析 query：thread-create-1 → controller=thread, action=create, id=1
+		$parts = explode('-', $query);
+		$replace = array(
+			'{controller}' => isset($parts[0]) ? $parts[0] : '',
+			'{action}' => isset($parts[1]) ? $parts[1] : '',
+			'{id}' => isset($parts[2]) ? $parts[2] : '',
+			'{page}' => isset($parts[2]) ? $parts[2] : '',
+		);
+		$r = $path . str_replace(array_keys($replace), array_values($replace), $custom);
+		// 清理空的标签占位（如 action 为空时 /thread--1.html → /thread-1.html）
+		$r = preg_replace('#[-/]+#', '$0', $r); // 保留分隔符
+		$r = preg_replace('#\{[\w]+\}#', '', $r); // 移除未替换的标签
+		$r = preg_replace('#--+#', '-', $r); // 合并多余连字符
+		$r = preg_replace('#-\.#', '.', $r); // 修正 -.html → .html
+		$r = preg_replace('#/-#', '/', $r); // 修正 /- → /
 	}
 	// 附加参数
 	if($extra) {
@@ -41,16 +68,18 @@ function url($url, $extra = array()) {
 		$sep = strpos($r, '?') === FALSE ? '?' : '&';
 		$r .= $sep.$args;
 	}
-	
+
 	// hook model_url_end.php
 
 	// 对于没有路径组件的 URL（如 ?forum-5.htm），在前台添加 / 前缀使其成为绝对路径
 	// 避免在子页面（如 /forums）上相对路径解析错误
-	// admin 目录下保持相对路径，因为 admin 有自己的路由
+	// admin 目录下使用 ./? 格式，确保在伪静态 URL 下也能正确跳转
 	if($path === '' && $r !== '' && $r[0] !== '/' && strpos($r, 'http') !== 0 && strpos($r, '//') !== 0) {
-		$request_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
-		$is_admin = (strpos($request_uri, '/admin/') === 0 || strpos($request_uri, '/admin?') === 0 || $request_uri === '/admin');
-		if(!$is_admin) {
+		if($is_admin) {
+			// admin 下 ?xxx.htm 格式在伪静态页面中会被拼接到路径后
+			// 改为 ./?xxx.htm 确保始终跳转到 admin 入口
+			$r = './' . $r;
+		} else {
 			$r = '/' . $r;
 		}
 	}
@@ -116,11 +145,14 @@ function _render_like_btn($tid, $pid, $is_liked, $likes_count, $ctx = 'post') {
 			$btn_style = '';
 			break;
 	}
-	$like_url = url('thread-like-'.$tid.'-'.$pid);
+	// 已点赞 → 指向取消点赞路由；未点赞 → 指向点赞路由
+	$action = $is_liked ? 'unlike' : 'like';
+	$like_url = url('thread-'.$action.'-'.$tid.'-'.$pid);
 	$icon_class = $is_liked ? 'ti-heart-filled text-danger' : 'ti-heart';
 	$title = lang('like');
 	$style_attr = $btn_style ? ' style="'.esc_html($btn_style).'"' : '';
-	return '<span class="'.esc_html($btn_class).'" hx-post="'.esc_html($like_url).'" hx-vals=\'{"_ctx":"'.esc_html($ctx).'"}\' hx-target="this" hx-swap="outerHTML" hx-ext="hx-optimistic" hx-optimistic role="button" title="'.esc_html($title).'"'.$style_attr.'>'
+	// hx-confirm=" " 为真值，触发 htmx:confirm 事件，让积分确认弹窗逻辑生效
+	return '<span class="'.esc_html($btn_class).'" hx-post="'.esc_html($like_url).'" hx-vals=\'{"_ctx":"'.esc_html($ctx).'"}\' hx-target="this" hx-swap="outerHTML" hx-disable="this" hx-confirm=" " role="button" title="'.esc_html($title).'"'.$style_attr.'>'
 		. '<i class="ti '.esc_html($icon_class).'"></i> '
 	. '<span class="like-count">'.intval($likes_count).'</span>'
 		. '</span>';
@@ -132,7 +164,8 @@ function _render_favorite_btn($tid, $is_favorited, $favorites_count) {
 	$btn_class = 'thread-favorite-btn cursor-pointer transition-colors';
 	$icon_class = $is_favorited ? 'ti-star-filled text-warning' : 'ti-star';
 	$title = lang('favorite');
-	return '<span class="'.esc_html($btn_class).'" hx-post="'.esc_html($fav_url).'" hx-target="this" hx-swap="outerHTML" hx-ext="hx-optimistic" hx-optimistic role="button" title="'.esc_html($title).'">'
+	// hx-confirm=" " 为真值，触发 htmx:confirm 事件，让积分确认弹窗逻辑生效
+	return '<span class="'.esc_html($btn_class).'" hx-post="'.esc_html($fav_url).'" hx-target="this" hx-swap="outerHTML" hx-disable="this" hx-confirm=" " role="button" title="'.esc_html($title).'">'
 		. '<i class="ti '.esc_html($icon_class).'"></i> '
 	. '<span class="favorite-count">'.intval($favorites_count).'</span>'
 		. '</span>';
@@ -202,21 +235,48 @@ function message($code, $message, $extra = array()) {
 		if(!empty($arr['redirect_url'])) {
 			$msg = is_string($message) ? $message : lang('operate_successfully');
 			// HTTP 头不支持 UTF-8 中文，需要 rawurlencode 编码
-			$trigger_data = json_encode(array('message' => rawurlencode($msg), 'redirect' => $arr['redirect_url']), JSON_UNESCAPED_UNICODE);
-			header("HX-Trigger: {\"htmxSuccessRedirect\":$trigger_data}");
+			$trigger_data = array('message' => rawurlencode($msg), 'redirect' => $arr['redirect_url']);
+			// 积分变动描述
+			if(!empty($arr['change_desc'])) {
+				$trigger_data['change_desc'] = rawurlencode($arr['change_desc']);
+			}
+			$trigger_json = json_encode(array('htmxSuccessRedirect' => $trigger_data), JSON_UNESCAPED_UNICODE);
+			header("HX-Trigger: $trigger_json");
 			header('Content-Type: text/html; charset=utf-8');
 			// 返回空 span，htmx 会 swap 到 target 并处理 HX-Trigger 头
 			echo '<span class="htmx-redirect-pending" style="display:none"></span>';
 			exit;
 		}
-		// 成功无跳转 → 返回 HTML 成功消息片段
+		// 成功无跳转 → 检测 jump() 生成的跳转，或通过 HX-Trigger 触发 toast
 		$msg = is_string($message) ? $message : '';
-		header('Content-Type: text/html; charset=utf-8');
-		if($msg) {
-			echo '<div class="alert alert-success py-2 small mb-2">' . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . '</div>';
-		} else {
-			echo '<div class="alert alert-success py-2 small mb-2">' . lang('operate_successfully') . '</div>';
+		// 检测 jump() 返回的跳转 URL（格式：<a href="URL">msg</a><script>...window.location='URL'...</script>）
+		$redirect_url = '';
+		if($msg && preg_match('/window\.location=[\'"]([^\'"]+)[\'"]/', $msg, $m)) {
+			$redirect_url = $m[1];
+			// 提取纯文本消息（去掉 HTML 标签）
+			$msg = strip_tags($msg);
 		}
+		if($redirect_url) {
+			// 有跳转 → 走 htmxSuccessRedirect 逻辑
+			$trigger_data = array('message' => rawurlencode($msg ?: lang('operate_successfully')), 'redirect' => $redirect_url);
+			if(!empty($arr['change_desc'])) {
+				$trigger_data['change_desc'] = rawurlencode($arr['change_desc']);
+			}
+			$trigger_json = json_encode(array('htmxSuccessRedirect' => $trigger_data), JSON_UNESCAPED_UNICODE);
+			header("HX-Trigger: $trigger_json");
+			header('Content-Type: text/html; charset=utf-8');
+			echo '<span class="htmx-redirect-pending" style="display:none"></span>';
+			exit;
+		}
+		// 无跳转 → 通过 HX-Trigger 触发 toast 提示，返回空 span
+		$trigger_data = array('message' => rawurlencode($msg ?: lang('operate_successfully')));
+		if(!empty($arr['change_desc'])) {
+			$trigger_data['change_desc'] = rawurlencode($arr['change_desc']);
+		}
+		$trigger_json = json_encode(array('htmxSuccess' => $trigger_data), JSON_UNESCAPED_UNICODE);
+		header("HX-Trigger: $trigger_json");
+		header('Content-Type: text/html; charset=utf-8');
+		echo '<span class="htmx-success-pending" style="display:none"></span>';
 		exit;
 	}
 
@@ -241,6 +301,42 @@ function message($code, $message, $extra = array()) {
 			}
 			exit;
 		} else {
+			// PRG 模式：成功时设置 flash cookie + 303 重定向
+			// 避免渲染 message.htm 中间页，刷新不会重复提交 POST 表单
+			if($code == 0) {
+				$msg_str = is_string($message) ? $message : '';
+				$has_jump = $msg_str && preg_match('/window\.location=[\'"]([^\'"]+)[\'"]/', $msg_str);
+				$has_redirect = !empty($arr['redirect_url']);
+				$clean_msg = strip_tags($msg_str ?: lang('operate_successfully'));
+				// 从 jump() 中提取跳转 URL
+				$jump_url = '';
+				if($has_jump && preg_match('/window\.location=[\'"]([^\'"]+)[\'"]/', $msg_str, $m)) {
+					$jump_url = $m[1];
+				}
+				// 确定跳转目标：redirect_url 优先，其次 jump() URL，最后回来源页
+				$redirect_target = '';
+				if($has_redirect) {
+					$redirect_target = $arr['redirect_url'];
+				} elseif($jump_url) {
+					$redirect_target = $jump_url;
+				}
+				if($redirect_target) {
+					// 有明确跳转目标 → flash cookie + 303 重定向
+					setcookie('flash_msg', $clean_msg, time() + 10, '/');
+					setcookie('flash_type', 'success', time() + 10, '/');
+					http_response_code(303);
+					header("Location: " . $redirect_target);
+					exit;
+				} else {
+					// 无跳转目标 → 303 重定向回来源页
+					setcookie('flash_msg', $clean_msg, time() + 10, '/');
+					setcookie('flash_type', 'success', time() + 10, '/');
+					$referer = !empty($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '/';
+					http_response_code(303);
+					header("Location: " . $referer);
+					exit;
+				}
+			}
 			if(defined('MESSAGE_HTM_PATH')) {
 				include _include(MESSAGE_HTM_PATH);
 			} else {

@@ -1,0 +1,158 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<div class=""><?php echo admin_tab_active($menu['security']['tab'], 'other');?></div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo admin_security_url('other');?>" method="post" id="other-form">
+			<?php echo CsrfService::input(); ?>
+
+			<h6 class="fw-semibold mb-3"><i class="ti ti-upload me-1"></i><?php echo lang('admin_upload_limit')?></h6>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_avatar_upload_limit_label')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_avatar_upload_limit" value="<?php echo $security_config['security_avatar_upload_limit'];?>" min="0">
+						<span class="input-group-text"><?php echo lang('unit_times')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_zero_no_limit')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_avatar_max_size_label')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_avatar_max_size" value="<?php echo $security_config['security_avatar_max_size'];?>" min="1">
+						<span class="input-group-text"><?php echo lang('admin_unit_kb'); ?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_limit_upload_size')?></small></div>
+			</div>
+
+			<hr class="my-4">
+
+			<h6 class="fw-semibold mb-3"><i class="ti ti-user-edit me-1"></i><?php echo lang('admin_profile_change_limit')?></h6>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_nickname_change_limit_label')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_nickname_change_limit" value="<?php echo $security_config['security_nickname_change_limit'];?>" min="0">
+						<span class="input-group-text"><?php echo lang('unit_times')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_nickname_change_limit')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_signature_change_limit_label')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_signature_change_limit" value="<?php echo $security_config['security_signature_change_limit'];?>" min="0">
+						<span class="input-group-text"><?php echo lang('unit_times')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_signature_change_limit')?></small></div>
+			</div>
+
+			<hr class="my-4">
+
+			<h6 class="fw-semibold mb-3"><i class="ti ti-device-tv me-1"></i><?php echo lang('admin_iframe_whitelist_settings')?></h6>
+			<p class="text-body-secondary small mb-3"><?php echo lang('admin_iframe_whitelist_desc')?></p>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_iframe_whitelist_label')?></label>
+				<div class="col-sm-6">
+					<textarea class="form-control" name="security_iframe_whitelist" rows="8" placeholder="player.bilibili.com&#10;www.youtube.com"><?php echo esc_html($security_config['security_iframe_whitelist'] ?? '');?></textarea>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="min-height:38px"><?php echo lang('tip_iframe_whitelist')?></small></div>
+			</div>
+
+			<hr class="my-4">
+
+			<h6 class="fw-semibold mb-3"><i class="ti ti-speedometer me-1"></i><?php echo lang('admin_rate_limit')?></h6>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_search_interval_label')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_search_interval" value="<?php echo $security_config['security_search_interval'];?>" min="0">
+						<span class="input-group-text"><?php echo lang('unit_second')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_prevent_frequent_search')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_search_require_login_label')?></label>
+				<div class="col-sm-6">
+					<input type="hidden" name="security_search_require_login" value="0">
+					<div class="form-check form-switch">
+						<input class="form-check-input" type="checkbox" name="security_search_require_login" value="1" <?php echo !empty($security_config['security_search_require_login']) ? 'checked' : '';?>>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_search_require_login_desc')?></small></div>
+			</div>
+
+			<hr class="my-4">
+
+			<h6 class="fw-semibold mb-3"><i class="ti ti-cookie me-1"></i><?php echo lang('admin_cookie_security');?></h6>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_cookie_secure');?></label>
+				<div class="col-sm-6">
+					<input type="hidden" name="security_cookie_secure" value="0">
+					<div class="form-check form-switch">
+						<input class="form-check-input" type="checkbox" name="security_cookie_secure" value="1" <?php echo !empty($security_config['security_cookie_secure']) ? 'checked' : '';?>>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('admin_cookie_secure_desc');?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_cookie_httponly');?></label>
+				<div class="col-sm-6">
+					<input type="hidden" name="security_cookie_httponly" value="0">
+					<div class="form-check form-switch">
+						<input class="form-check-input" type="checkbox" name="security_cookie_httponly" value="1" <?php echo !empty($security_config['security_cookie_httponly']) ? 'checked' : '';?>>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('admin_cookie_httponly_desc');?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_cookie_samesite');?></label>
+				<div class="col-sm-6">
+					<select class="form-select rounded-pill" name="security_cookie_samesite">
+						<option value="Lax" <?php echo $security_config['security_cookie_samesite'] === 'Lax' ? 'selected' : '';?>><?php echo lang('admin_cookie_samesite_lax');?></option>
+						<option value="Strict" <?php echo $security_config['security_cookie_samesite'] === 'Strict' ? 'selected' : '';?>><?php echo lang('admin_cookie_samesite_strict');?></option>
+						<option value="None" <?php echo $security_config['security_cookie_samesite'] === 'None' ? 'selected' : '';?>><?php echo lang('admin_cookie_samesite_none');?></option>
+					</select>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('admin_cookie_samesite_desc');?></small></div>
+			</div>
+
+			<div class="mt-4">
+				<button type="submit" class="btn btn-primary rounded-pill">
+					<i class="ti ti-device-floppy me-1"></i><?php echo lang('admin_save_settings')?>
+				</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+var jform = $('#other-form');
+var jsubmit = jform.find('button[type="submit"]');
+jform.on('submit', function() {
+	jsubmit.button('loading');
+	var postdata = jform.serialize();
+	$.xpost(jform.attr('action'), postdata, function(code, message) {
+		if(code == 0) {
+			showToast(message, 'success');
+			setTimeout(function(){ window.location.reload(); }, 500);
+		} else if(xn.is_number(code)) {
+			showToast(message, 'error');
+			jsubmit.button('reset');
+		} else {
+			jform.find('[name="'+code+'"]').alert(message).focus();
+			jsubmit.button('reset');
+		}
+	});
+	return false;
+});
+</script>

@@ -22,7 +22,7 @@
         <div class="row g-4">
             <!-- IP 黑名单 -->
             <div class="col-lg-6">
-                <div class="cardh-100">
+                <div class="card  ">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="ti ti-ban me-2"></i><?php echo lang('admin_ip_blacklist')?></h5>
                         <span class="badge bg-danger" id="ip-blacklist-count"><?php echo count($ip_blacklist);?></span>
@@ -69,7 +69,7 @@
 
             <!-- IP 白名单 -->
             <div class="col-lg-6">
-                <div class="cardh-100">
+                <div class="card  ">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="ti ti-shield-check me-2"></i><?php echo lang('admin_ip_whitelist')?></h5>
                         <span class="badge bg-success" id="ip-whitelist-count"><?php echo count($ip_whitelist);?></span>
@@ -130,7 +130,7 @@
         <div class="row g-4">
             <!-- 添加域名 -->
             <div class="col-lg-4">
-                <div class="cardh-100">
+                <div class="card  ">
                     <div class="card-header">
                         <h5 class="mb-0"><i class="ti ti-plus me-2"></i><?php echo lang('admin_add_domain')?></h5>
                     </div>
@@ -170,7 +170,7 @@
 
             <!-- 域名列表 -->
             <div class="col-lg-8">
-                <div class="cardh-100">
+                <div class="card  ">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="ti ti-list me-2"></i><?php echo lang('admin_domain_blacklist')?> <span class="badge bg-secondary" id="email-domains-count"><?php echo count($email_blacklist);?></span></h5>
                     </div>
@@ -263,7 +263,7 @@ function addIpBlacklist() {
     var remarkInput = document.getElementById('newBlackRemark');
     var ip = ipInput.value.trim();
     if (!ip) return;
-    XN.post('<?php echo url('security-blacklist');?>/ip_blacklist_add', { ip: ip, remark: remarkInput.value }, function(code, message) {
+    XN.post('<?php echo admin_security_url('blacklist');?>/ip_blacklist_add', { ip: ip, remark: remarkInput.value }, function(code, message) {
         if (code == 0) {
             var list = document.getElementById('ip-blacklist-list');
             var item = document.createElement('div');
@@ -287,7 +287,7 @@ function removeIpBlacklist(btn) {
     var el = btn.closest('[data-ip]');
     var ip = el.getAttribute('data-ip');
     XN.confirm('<?php echo lang('admin_confirm_remove_ip_blacklist')?>' + ip + '？', function() {
-    XN.post('<?php echo url('security-blacklist');?>/ip_blacklist_remove', { ip: ip }, function(code, message) {
+    XN.post('<?php echo admin_security_url('blacklist');?>/ip_blacklist_remove', { ip: ip }, function(code, message) {
         if (code == 0) {
             el.remove();
             updateIpBlacklistUI();
@@ -321,7 +321,7 @@ function addIpWhitelist() {
     var remarkInput = document.getElementById('newWhiteRemark');
     var ip = ipInput.value.trim();
     if (!ip) return;
-    XN.post('<?php echo url('security-blacklist');?>/ip_whitelist_add', { ip: ip, remark: remarkInput.value }, function(code, message) {
+    XN.post('<?php echo admin_security_url('blacklist');?>/ip_whitelist_add', { ip: ip, remark: remarkInput.value }, function(code, message) {
         if (code == 0) {
             var list = document.getElementById('ip-whitelist-list');
             var item = document.createElement('div');
@@ -345,7 +345,7 @@ function removeIpWhitelist(btn) {
     var el = btn.closest('[data-ip]');
     var ip = el.getAttribute('data-ip');
     XN.confirm('<?php echo lang('admin_confirm_remove_ip_whitelist')?>' + ip + '？', function() {
-    XN.post('<?php echo url('security-blacklist');?>/ip_whitelist_remove', { ip: ip }, function(code, message) {
+    XN.post('<?php echo admin_security_url('blacklist');?>/ip_whitelist_remove', { ip: ip }, function(code, message) {
         if (code == 0) {
             el.remove();
             updateIpWhitelistUI();
@@ -378,7 +378,7 @@ function addDomain() {
     var input = document.getElementById('newDomain');
     var domain = input.value.trim();
     if (!domain) return;
-    XN.post('<?php echo url('security-blacklist');?>/email_add', { domain: domain }, function(code, message) {
+    XN.post('<?php echo admin_security_url('blacklist');?>/email_add', { domain: domain }, function(code, message) {
         if (code == 0) {
             var container = document.querySelector('#email-domains-list .d-flex');
             var badge = document.createElement('span');
@@ -400,7 +400,7 @@ function removeDomain(btn) {
     var el = btn.closest('[data-domain]');
     var domain = el.getAttribute('data-domain');
     XN.confirm('<?php echo lang('admin_confirm_remove_domain')?>' + domain + '？', function() {
-    XN.post('<?php echo url('security-blacklist');?>/email_remove', { domain: domain }, function(code, message) {
+    XN.post('<?php echo admin_security_url('blacklist');?>/email_remove', { domain: domain }, function(code, message) {
         if (code == 0) {
             el.remove();
             updateEmailDomainsUI();
@@ -417,7 +417,7 @@ function batchImport() {
     var textarea = document.getElementById('importText');
     var text = textarea.value.trim();
     if (!text) return;
-    XN.post('<?php echo url('security-blacklist');?>/email_import', { words_text: text }, function(code, message) {
+    XN.post('<?php echo admin_security_url('blacklist');?>/email_import', { words_text: text }, function(code, message) {
         if (code == 0) {
             showToast(message, 'success');
             textarea.value = '';
@@ -435,7 +435,7 @@ function uploadBlacklistFile(event) {
     var formData = new FormData();
     formData.append('email_file', file);
     var xhr = new XMLHttpRequest();
-    xhr.open('POST', '<?php echo url('security-blacklist');?>/email_import_file', true);
+    xhr.open('POST', '<?php echo admin_security_url('blacklist');?>/email_import_file', true);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.onreadystatechange = function() {
         if (xhr.readyState === 4) {

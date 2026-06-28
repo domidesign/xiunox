@@ -8,7 +8,7 @@
 	</div>
 	<div class="x-card card">
 		<div class="card-body">
-			<form action="<?php echo url("user-create");?>" method="post" id="form">
+			<form action="<?php echo admin_user_create_url();?>" method="post" id="form">
 				<?php echo CsrfService::input(); ?>
 				<div class="d-flex gap-4 align-items-center mb-3">
 					<label class="form-label" style="width:25%"><?php echo lang('email');?>：</label>

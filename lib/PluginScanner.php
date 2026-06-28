@@ -7,12 +7,17 @@
  * 依赖：
  * - PluginScannerRules.php    规则定义
  * - PluginScannerSuggestion.php  动态建议构建
- * - PluginScannerAlpine.php   Alpine.js 检测
  */
 class PluginScanner {
 
     private array $rules;
     private array $severityLevels;
+    /**
+     * direct_db 抑制区间（按文件路径索引）
+     * 记录每个文件中"保留 db_*"注释影响的最大行号
+     * 格式：['plugin/xxx/model/X.php' => 最大抑制行号]
+     */
+    private array $suppressDirectDbUntil = [];
 
     public function __construct() {
         $this->rules = PluginScannerRules::getRules();
@@ -181,10 +186,71 @@ class PluginScanner {
                 }
             }
 
-            // Alpine.js 检测（仅 htm/html 文件）
+            // PHP 注释陷阱检测：单行注释中包含 PHP 结束标签会触发 headers already sent
+            if ($ext === 'php') {
+                $lines = explode("\n", $content);
+                foreach ($lines as $lineNum => $lineContent) {
+                    $lineNumber = $lineNum + 1;
+                    // 检测双斜线单行注释中的 PHP 结束标签
+                    if (preg_match('#//.*\?>#', $lineContent)) {
+                        $issues[] = $this->buildIssue($shortPath, $lineNumber, 'php_comment_close_tag', '// 注释', '单行注释 // 中包含 PHP 结束标签会触发 headers already sent 错误，请移除或改用块注释 /* */', $lineContent);
+                    }
+                    // 检测行首 # 单行注释中的 PHP 结束标签
+                    elseif (preg_match('/^\s*#.*\?>/', $lineContent)) {
+                        $issues[] = $this->buildIssue($shortPath, $lineNumber, 'php_comment_close_tag', '# 注释', '单行注释 # 中包含 PHP 结束标签会触发 headers already sent 错误，请移除或改用块注释 /* */', $lineContent);
+                    }
+                    // 检测行中 # 单行注释中的 PHP 结束标签（前面有空格，避免匹配 shebang）
+                    elseif (preg_match('/\s+#.*\?>/', $lineContent)) {
+                        $issues[] = $this->buildIssue($shortPath, $lineNumber, 'php_comment_close_tag', '# 注释', '单行注释 # 中包含 PHP 结束标签会触发 headers already sent 错误，请移除或改用块注释 /* */', $lineContent);
+                    }
+                }
+            }
+
+            // MD5.js 全局加载检测
             if ($ext === 'htm' || $ext === 'html') {
-                $issues = array_merge($issues, PluginScannerAlpine::checkScoping($file, $shortPath));
-                $issues = array_merge($issues, PluginScannerAlpine::checkRegister($file, $shortPath, $this->severityLevels));
+                if (preg_match('/<script[^>]*src\s*=\s*["\'][^"\']*md5[^"\']*\.js["\']/i', $content, $m, PREG_OFFSET_CAPTURE)) {
+                    $lineNumber = substr_count(substr($content, 0, $m[0][1]), "\n") + 1;
+                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'md5js_global_load', '<script src="*md5*.js">', 'MD5.js 不得全局加载，前端 MD5 哈希已移除，密码必须明文提交', $m[0][0]);
+                }
+            }
+
+            // HEREDOC 语法检测：HEREDOC 块内含 PHP 开始标签
+            if ($ext === 'php') {
+                if (preg_match('/<<<(\w+).*?<\?php.*?\1;/s', $content, $m, PREG_OFFSET_CAPTURE)) {
+                    $lineNumber = substr_count(substr($content, 0, $m[0][1]), "\n") + 1;
+                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'heredoc_php_tag', '<<<EOT ... <?php ... EOT;', 'HEREDOC 语法中需使用 {$variable} 语法嵌入 PHP 变量，避免使用 PHP 开始标签导致解析错误', $m[0][0]);
+                }
+            }
+
+            // Bootstrap Tab 误用检测：外层导航用 data-bs-toggle="tab" 跳转页面
+            if ($ext === 'htm' || $ext === 'html') {
+                if (preg_match_all('/<a\s+[^>]*data-bs-toggle\s*=\s*["\']tab["\'][^>]*>/is', $content, $matches, PREG_OFFSET_CAPTURE)) {
+                    foreach ($matches[0] as $match) {
+                        $tagStr = $match[0];
+                        $offset = $match[1];
+                        // 检查同标签 href 是否含 .htm 或 .php
+                        if (preg_match('/href\s*=\s*["\']([^"\']*\.(?:htm|php)[^"\']*)["\']/i', $tagStr, $hrefMatch)) {
+                            $lineNumber = substr_count(substr($content, 0, $offset), "\n") + 1;
+                            $issues[] = $this->buildIssue($shortPath, $lineNumber, 'bs_tab_navigation', 'data-bs-toggle="tab" + href="'.$hrefMatch[1].'"', '外层导航（页面跳转）禁止用 Bootstrap Tab 系统，应改为普通 <a> 链接跳转；内层导航才用 tab', $tagStr);
+                        }
+                    }
+                }
+            }
+
+            // APP_PATH 误用检测：script/link 的 src/href 用 APP_PATH
+            if ($ext === 'htm' || $ext === 'html') {
+                if (preg_match('/<(?:script|link)[^>]*(?:src|href)\s*=\s*["\'][^"\']*APP_PATH/i', $content, $m, PREG_OFFSET_CAPTURE)) {
+                    $lineNumber = substr_count(substr($content, 0, $m[0][1]), "\n") + 1;
+                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'app_path_in_url', '<script/link src/href="*APP_PATH*">', 'APP_PATH 是文件系统绝对路径，浏览器无法访问，必须用 $conf[\'view_url\'] 生成资源 URL', $m[0][0]);
+                }
+            }
+
+            // install.php 非幂等建表检测
+            if (basename($file) === 'install.php') {
+                if (preg_match('/CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS)/i', $content, $m, PREG_OFFSET_CAPTURE)) {
+                    $lineNumber = substr_count(substr($content, 0, $m[0][1]), "\n") + 1;
+                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'install_non_idempotent', 'CREATE TABLE (without IF NOT EXISTS)', 'install.php 所有建表语句必须用 IF NOT EXISTS 保证幂等', $m[0][0]);
+                }
             }
 
             // conf.json 版本检查
@@ -211,6 +277,23 @@ class PluginScanner {
                         'match' => $hookName, 'suggestion' => 'Hook 文件名不规范', 'severity' => 'info', 'context' => $hookName,
                     ];
                 }
+
+                // Hook 文件头检测
+                $hookExt = strtolower(pathinfo($hf, PATHINFO_EXTENSION));
+                $firstLine = '';
+                $fp = @fopen($hf, 'r');
+                if ($fp) {
+                    $firstLine = (string)fgets($fp, 256);
+                    fclose($fp);
+                }
+                $hookShortPath = str_replace(APP_PATH, '', $hf);
+
+                if ($hookExt === 'htm') {
+                    // .htm hook 文件以 PHP exit 开头会白屏
+                    if (strpos($firstLine, '<?php exit;') === 0) {
+                        $issues[] = $this->buildIssue($hookShortPath, 1, 'hook_htm_header', '<?php exit;', '.htm 模板 hook 文件以 <?php exit; 开头会白屏！只能用 <?php 开头（编译拼进模板执行）', $firstLine);
+                    }
+                }
             }
         }
 
@@ -230,6 +313,13 @@ class PluginScanner {
      * @param array &$issues 结果收集
      */
     private function scanLine(string $line, int $lineNumber, string $shortPath, string $contextExt, array $phpOnlyCats, array $htmlOnlyCats, array &$issues): void {
+        // direct_db 抑制：检测"保留 db_*"注释，标记后续 10 行跳过 direct_db 报告
+        // 用于跳过已审计的合理保留 SQL（JOIN/系统表/复杂聚合等），符合 bugfix_rules 中"保留的原始 SQL 必须在代码注释中说明保留原因"的要求
+        if ($contextExt === 'php' && preg_match('/(保留|@suppress).*db_(?:sql_find|sql_find_one|exec)/', $line)) {
+            $current = $this->suppressDirectDbUntil[$shortPath] ?? 0;
+            $this->suppressDirectDbUntil[$shortPath] = max($current, $lineNumber + 10);
+        }
+
         foreach ($this->rules as $category => $patterns) {
             if ($category === 'missing_csrf') continue;
 
@@ -248,7 +338,20 @@ class PluginScanner {
 
                 if ($found) {
                     if ($category === 'direct_db') {
-                        if (in_array(basename($shortPath), ['install.php', 'uninstall.php', 'unstall.php', 'upgrade.php'])) continue;
+                        $basename = basename($shortPath);
+                        // install/uninstall/upgrade 脚本中直接操作数据库是合理的
+                        if (in_array($basename, ['install.php', 'uninstall.php', 'unstall.php', 'upgrade.php'])) continue;
+
+                        // 只保留 model/ 目录中的原始 SQL 检测（db_exec/db_sql_find/db_sql_find_one），移除其他 db_* 的检测
+                        // route/setting/admin 中的 db_count/db_insert/db_update 等是正常业务操作
+                        $isModelFile = strpos($shortPath, 'model/') !== false;
+                        $isRawSqlPattern = in_array($pattern, ['db_exec(', 'db_sql_find_one(', 'db_sql_find(']);
+                        if (!$isModelFile && !$isRawSqlPattern) continue;
+                        if ($isModelFile && !$isRawSqlPattern) continue;  // model 中也只检测原始 SQL
+
+                        // 检查是否在"保留"注释的抑制区间内（10 行覆盖多行 SQL 拼接）
+                        $suppressUntil = $this->suppressDirectDbUntil[$shortPath] ?? 0;
+                        if ($lineNumber <= $suppressUntil) continue;
                     }
 
                     $context = PluginScannerSuggestion::extractContext($line, $pattern, $category);
@@ -264,6 +367,43 @@ class PluginScanner {
                         'context' => mb_substr($context, 0, 120),
                     ];
                 }
+            }
+        }
+
+        // password_update_api 检测：user_update 修改 password 字段
+        if ($contextExt === 'php' && in_array('password_update_api', $phpOnlyCats)) {
+            if (preg_match('/user_update\s*\(/', $line) && preg_match('/[\'"]password[\'"]/', $line)) {
+                $issues[] = $this->buildIssue($shortPath, $lineNumber, 'password_update_api', 'user_update(...password...)', '找回密码必须使用 user__update() 而非 user_update()，因为后者会过滤掉 password 字段', $line);
+            }
+        }
+
+        // db_charset 检测：数据库字符集为 utf8（非 utf8mb4）
+        if ($contextExt === 'php' && in_array('db_charset', $phpOnlyCats)) {
+            if (preg_match('/charset\s*=\s*utf8(?!mb4)/i', $line) || preg_match('/set\s+names\s+utf8(?!mb4)/i', $line)) {
+                $issues[] = $this->buildIssue($shortPath, $lineNumber, 'db_charset', 'utf8 (without mb4)', '数据库连接字符集必须为 utf8mb4（支持 emoji 等 4 字节字符）', $line);
+            }
+        }
+
+        // service_undefined_var 检测：Service 类 SQL 拼接使用未定义变量
+        if ($contextExt === 'php' && in_array('service_undefined_var', $phpOnlyCats) && strpos($shortPath, 'model/') !== false) {
+            if (preg_match('/(SELECT|INSERT|UPDATE|DELETE|FROM|INTO)\s/i', $line)) {
+                if (preg_match('/\$tableName\b/', $line) || preg_match('/\$tablePrefix\b/', $line)) {
+                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'service_undefined_var', '$tableName / $tablePrefix', 'Service 类中拼接 SQL 表名必须用 $this->tablepre . \'表名\'，不能使用未定义变量', $line);
+                }
+            }
+        }
+
+        // raw_htmlspecialchars 检测：裸 htmlspecialchars 调用
+        if ($contextExt === 'php' && in_array('raw_htmlspecialchars', $phpOnlyCats)) {
+            if (preg_match('/\bhtmlspecialchars\s*\(/', $line)) {
+                $issues[] = $this->buildIssue($shortPath, $lineNumber, 'raw_htmlspecialchars', 'htmlspecialchars(', '禁止裸写 htmlspecialchars，必须用 esc_html() / esc_attr() / esc_js() 统一转义', $line);
+            }
+        }
+
+        // db_find_col_string 检测：db_find_one/db_find 第 4 参数为字符串字面量
+        if ($contextExt === 'php' && in_array('db_find_col_string', $phpOnlyCats)) {
+            if (preg_match('/db_find(?:_one)?\s*\(\s*[^,]+,\s*[^,]+,\s*[^,]+,\s*[\'"][^\'"]+[\'"]\s*\)/', $line)) {
+                $issues[] = $this->buildIssue($shortPath, $lineNumber, 'db_find_col_string', 'db_find_one(..., "string")', 'db_find_one() 第 4 个参数 $col 必须传入数组（如 array(\'fid\', \'uid\')），禁止传入字符串以避免 implode() 参数类型错误', $line);
             }
         }
     }
@@ -379,5 +519,20 @@ class PluginScanner {
                 if (in_array($ext, $extensions)) $files[] = $item;
             }
         }
+    }
+
+    /**
+     * 构建 issue 数组的辅助方法
+     */
+    private function buildIssue(string $shortPath, int $lineNumber, string $category, string $match, string $suggestion, string $contextLine): array {
+        return [
+            'file' => $shortPath,
+            'line' => $lineNumber,
+            'category' => $category,
+            'match' => $match,
+            'suggestion' => $suggestion,
+            'severity' => $this->severityLevels[$category] ?? 'info',
+            'context' => mb_substr(trim($contextLine), 0, 120),
+        ];
     }
 }

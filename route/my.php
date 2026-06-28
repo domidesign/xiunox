@@ -18,8 +18,8 @@ if($is_htmx && empty($user) && in_array($action, array('notify_unread', 'notify_
 
 user_login_check();
 
-$header['mobile_title'] = $user['username'];
-$header['mobile_linke'] = url("my");
+$header['mobile_title'] = $user['display_name'] ?? $user['username'];
+$header['mobile_linke'] = my_url();
 
 is_numeric($action) AND $action = '';
 
@@ -30,7 +30,7 @@ $_schema_marker = APP_PATH . 'tmp/my_schema_initialized.php';
 if(!is_file($_schema_marker)) {
 
 	if(db_check_column_exists('user', 'signature') === FALSE) {
-		db_exec("ALTER TABLE `bbs_user` ADD COLUMN `signature` varchar(255) NOT NULL DEFAULT '' COMMENT '个性签名' AFTER `username`");
+		db_exec("ALTER TABLE `{$db->tablepre}user` ADD COLUMN `signature` varchar(255) NOT NULL DEFAULT '' COMMENT '个性签名' AFTER `username`");
 	}
 
 	// 修复 avatar 字段：原 unsigned 无法存储预设头像的负数标识
@@ -43,30 +43,32 @@ if(!is_file($_schema_marker)) {
 		unset($_col_info);
 	}
 
-	// 确保通知系统表和字段存在（不依赖插件安装）
-	if(!db_check_table_exists('notice')) {
-		db_exec("CREATE TABLE IF NOT EXISTS `{$db->tablepre}notice` (
-			`nid` int(11) unsigned NOT NULL auto_increment,
-			`fromuid` int(11) unsigned NOT NULL default '0',
-			`recvuid` int(11) unsigned NOT NULL default '0',
-			`create_date` int(11) unsigned NOT NULL default '0',
-			`isread` tinyint(3) unsigned NOT NULL default '0',
-			`is_read` tinyint(1) unsigned NOT NULL default '0',
-			`type` tinyint(3) unsigned NOT NULL default '0',
-			`message` longtext NOT NULL,
-			`icon` varchar(64) NOT NULL DEFAULT '' COMMENT '公告图标类名',
-			`url` varchar(255) NOT NULL DEFAULT '' COMMENT '公告跳转链接',
-			PRIMARY KEY (`nid`),
-			KEY (`fromuid`, `type`),
-			KEY (`recvuid`, `type`),
-			KEY (`recvuid`, `is_read`)
-		) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci");
-	}
+	// 确保通知系统字段存在（notice 表已废弃合并到 notify，仅补齐 user 计数字段和 notify 扩展字段）
 	if(db_check_column_exists('user', 'notices') === FALSE) {
 		db_exec("ALTER TABLE `{$db->tablepre}user` ADD COLUMN `notices` mediumint(8) unsigned NOT NULL DEFAULT '0'");
 	}
 	if(db_check_column_exists('user', 'unread_notices') === FALSE) {
 		db_exec("ALTER TABLE `{$db->tablepre}user` ADD COLUMN `unread_notices` mediumint(8) unsigned NOT NULL DEFAULT '0'");
+	}
+
+	// 确保 notify 表有扩展字段（message/icon/url/reply_to_uid/parent_pid）
+	// notify_merge 升级步骤会做同样的事，这里作为安全保障
+	if(db_check_table_exists('notify')) {
+		if(db_check_column_exists('notify', 'message') === FALSE) {
+			db_exec("ALTER TABLE `{$db->tablepre}notify` ADD COLUMN `message` LONGTEXT AFTER `content`");
+		}
+		if(db_check_column_exists('notify', 'icon') === FALSE) {
+			db_exec("ALTER TABLE `{$db->tablepre}notify` ADD COLUMN `icon` VARCHAR(64) DEFAULT '' AFTER `message`");
+		}
+		if(db_check_column_exists('notify', 'url') === FALSE) {
+			db_exec("ALTER TABLE `{$db->tablepre}notify` ADD COLUMN `url` VARCHAR(255) DEFAULT '' AFTER `icon`");
+		}
+		if(db_check_column_exists('notify', 'reply_to_uid') === FALSE) {
+			db_exec("ALTER TABLE `{$db->tablepre}notify` ADD COLUMN `reply_to_uid` INT(11) UNSIGNED DEFAULT 0 AFTER `pid`");
+		}
+		if(db_check_column_exists('notify', 'parent_pid') === FALSE) {
+			db_exec("ALTER TABLE `{$db->tablepre}notify` ADD COLUMN `parent_pid` INT(11) UNSIGNED DEFAULT 0 AFTER `reply_to_uid`");
+		}
 	}
 
 	// DDL 执行完成，写入标记文件
@@ -78,30 +80,12 @@ if(!is_file($_schema_marker)) {
 
 if(empty($action)) {
 
-	$header['title'] = lang('my_home');
-
-	$active_tab = param('tab', 'profile');
-
-	$ai_config = [];
-	if(!empty($user['ai_config'])) {
-		$ai_config = json_decode($user['ai_config'], true);
-		if(!is_array($ai_config)) $ai_config = [];
-	}
-
-	// 积分记录数据
-	include_once APP_PATH . 'lib/CreditsService.php';
-	include_once APP_PATH . 'service/CreditsRuleService.php';
-	$creditsService = new CreditsService($db, $conf);
-	$credits_rules_global = CreditsRuleService::getAllGlobalRules();
-	$creditsLogResult = $creditsService->log($uid, 1, 20);
-	$credits_loglist = !empty($creditsLogResult['ok']) ? $creditsLogResult['logs'] : array();
-
-	// 版块列表（积分规则版块选择器）
-	$forumlist = forum_list_cache();
-
-	include _include(APP_PATH.'view/htm/my.htm');
+	// 默认跳转到基本资料页
+	http_location(my_profile_url());
 
 } elseif($action == 'profile') {
+
+	$active_tab = 'profile';
 
 	if($method == 'POST') {
 
@@ -109,23 +93,68 @@ if(empty($action)) {
 
 		// hook my_profile_post_start.php
 
-		$username = param('username');
+		$nickname = param('nickname');
 		$signature = param('signature');
 
-		!empty($username) AND mb_strlen($username) > 32 AND message('username', lang('username_length_too_long'));
+		!empty($nickname) AND mb_strlen($nickname) > 32 AND message('nickname', lang('nickname_length_too_long'));
 
 		// 检查个人资料审核权限
 		$need_profile_audit = !PermissionService::check('allow_direct_profile');
 
 		$update = array();
-		if(!empty($username) && $username != $user['username']) {
-			$exists = user_read_by_username($username);
-			if(!empty($exists) && $exists['uid'] != $uid) {
-				message('username', lang('username_is_in_use'));
+		if(!empty($nickname) && $nickname != $user['nickname']) {
+			// 昵称敏感词检查（拦截，不允许使用）
+			include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
+			$filter_result = SensitiveWordFilter::content_filter($nickname);
+			if (!$filter_result['pass']) {
+				message('nickname', lang('nickname_contains_sensitive_word'));
 			}
-			$update['username'] = $username;
+			// 昵称全局唯一性检查
+			$exists = db_find_one('user', array('nickname'=>$nickname));
+			if(!empty($exists) && $exists['uid'] != $uid) {
+				message('nickname', lang('nickname_is_in_use'));
+			}
+			// 昵称修改频率限制：读取后台配置，30天内最多修改N次
+		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+		$nickname_change_limit = intval(SecurityConfigService::get('security_nickname_change_limit', 1));
+		if($nickname_change_limit > 0 && db_check_column_exists('user', 'nickname') && db_check_table_exists('nickname_change_log')) {
+			// 用 db_count + 时间条件替代 db_find 100 条记录
+			$thirty_days_ago = $time - 30 * 86400;
+			$recent_changes = db_count('nickname_change_log', array('uid'=>$uid, 'change_time'=>array('>'=>$thirty_days_ago)));
+			if($recent_changes >= $nickname_change_limit) {
+				// 仅在被限制时查询最近一次修改时间，用于计算剩余天数
+				$last_log = db_find_one('nickname_change_log', array('uid'=>$uid, 'change_time'=>array('>'=>$thirty_days_ago)), array('change_time'=>-1));
+				$last_change_time = $last_log ? $last_log['change_time'] : $time;
+				$remain_days = 30 - intval((time() - $last_change_time) / 86400);
+				$remain_days = $remain_days > 0 ? $remain_days : 1;
+				message('nickname', lang('nickname_change_too_frequent', array('days'=>$remain_days)));
+			}
 		}
-		if(db_check_column_exists('user', 'signature')) {
+			$update['nickname'] = $nickname;
+		}
+		if(db_check_column_exists('user', 'signature') && $signature != $user['signature']) {
+			// 签名敏感词检查
+			include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
+			$sig_filter_result = SensitiveWordFilter::content_filter($signature);
+			if (!$sig_filter_result['pass']) {
+				message('signature', lang('signature_contains_sensitive_word'));
+			}
+			// 签名修改频率限制：读取后台配置，30天内最多修改N次
+		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+		$signature_change_limit = intval(SecurityConfigService::get('security_signature_change_limit', 3));
+		if($signature_change_limit > 0 && db_check_table_exists('signature_change_log')) {
+			// 用 db_count + 时间条件替代 db_find 100 条记录
+			$thirty_days_ago = $time - 30 * 86400;
+			$recent_changes = db_count('signature_change_log', array('uid'=>$uid, 'change_time'=>array('>'=>$thirty_days_ago)));
+			if($recent_changes >= $signature_change_limit) {
+				// 仅在被限制时查询最近一次修改时间，用于计算剩余天数
+				$last_log = db_find_one('signature_change_log', array('uid'=>$uid, 'change_time'=>array('>'=>$thirty_days_ago)), array('change_time'=>-1));
+				$last_change_time = $last_log ? $last_log['change_time'] : $time;
+				$remain_days = 30 - intval((time() - $last_change_time) / 86400);
+				$remain_days = $remain_days > 0 ? $remain_days : 1;
+				message('signature', lang('signature_change_too_frequent', array('days'=>$remain_days)));
+			}
+		}
 			$update['signature'] = $signature;
 		}
 
@@ -147,7 +176,27 @@ if(empty($action)) {
 			} else {
 				$r = user_update($uid, $update);
 				$r === FALSE AND message(-1, lang('update_error'));
-				message(0, lang('update_successfully'));
+				// 记录昵称修改日志
+			if(isset($update['nickname']) && db_check_table_exists('nickname_change_log')) {
+				db_insert('nickname_change_log', array(
+					'uid' => $uid,
+					'old_nickname' => $user['nickname'],
+					'new_nickname' => $update['nickname'],
+					'change_time' => $time,
+					'ip' => $longip,
+				));
+			}
+			// 记录签名修改日志
+			if(isset($update['signature']) && db_check_table_exists('signature_change_log')) {
+				db_insert('signature_change_log', array(
+					'uid' => $uid,
+					'old_signature' => $user['signature'],
+					'new_signature' => $update['signature'],
+					'change_time' => $time,
+					'ip' => $longip,
+				));
+			}
+			message(0, lang('update_successfully'));
 			}
 		} else {
 			message(0, lang('update_successfully'));
@@ -156,30 +205,43 @@ if(empty($action)) {
 		// hook my_profile_post_end.php
 	}
 
+	// 查询当前用户待审资料状态
+	$pending_profile_fields = array();
+	$pending_audits = db_find('user_profile_audit', array('uid'=>$uid, 'audit_status'=>0), array(), 1, 10);
+	if($pending_audits) {
+		foreach($pending_audits as $pa) {
+			$pending_profile_fields[] = $pa['field_name'];
+		}
+	}
+
+	// 计算昵称/签名剩余可修改次数（30天周期）
+	include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+	$nickname_change_limit = intval(SecurityConfigService::get('security_nickname_change_limit', 1));
+	$signature_change_limit = intval(SecurityConfigService::get('security_signature_change_limit', 3));
+	$nickname_remaining = $nickname_change_limit;
+	$signature_remaining = $signature_change_limit;
+	$thirty_days_ago = $time - 30 * 86400;
+	if($nickname_change_limit > 0 && db_check_table_exists('nickname_change_log')) {
+		// 用 db_count + 时间条件替代 db_find 100 条记录
+		$recent = db_count('nickname_change_log', array('uid'=>$uid, 'change_time'=>array('>'=>$thirty_days_ago)));
+		$nickname_remaining = max(0, $nickname_change_limit - $recent);
+	}
+	if($signature_change_limit > 0 && db_check_table_exists('signature_change_log')) {
+		// 用 db_count + 时间条件替代 db_find 100 条记录
+		$recent = db_count('signature_change_log', array('uid'=>$uid, 'change_time'=>array('>'=>$thirty_days_ago)));
+		$signature_remaining = max(0, $signature_change_limit - $recent);
+	}
+
+	include _include(APP_PATH.'view/htm/my_profile.htm');
+
+} elseif($action == 'security') {
+
+	$active_tab = 'security';
+	include _include(APP_PATH.'view/htm/my_security.htm');
+
 } elseif($action == 'password') {
 
-	if($method == 'GET') {
-
-		$active_tab = 'security';
-
-		$ai_config = [];
-		if(!empty($user['ai_config'])) {
-			$ai_config = json_decode($user['ai_config'], true);
-			if(!is_array($ai_config)) $ai_config = [];
-		}
-
-		// 积分记录数据
-		include_once APP_PATH . 'lib/CreditsService.php';
-		include_once APP_PATH . 'service/CreditsRuleService.php';
-		$creditsService = new CreditsService($db, $conf);
-		$credits_rules_global = CreditsRuleService::getAllGlobalRules();
-		$creditsLogResult = $creditsService->log($uid, 1, 20);
-		$credits_loglist = !empty($creditsLogResult['ok']) ? $creditsLogResult['logs'] : array();
-		$forumlist = forum_list_cache();
-
-		include _include(APP_PATH.'view/htm/my.htm');
-
-	} elseif($method == 'POST') {
+	if($method == 'POST') {
 
 		CsrfService::check();
 
@@ -188,11 +250,13 @@ if(empty($action)) {
 		$password_old = param('password_old');
 		$password_new = param('password_new');
 		$password_new_repeat = param('password_new_repeat');
-		password_md5($password_old);
-		password_md5($password_new);
-		password_md5($password_new_repeat);
 		$password_new_repeat != $password_new AND message(-1, lang('repeat_password_incorrect'));
-		
+
+		// 密码策略校验（最小长度 + 复杂度，读取后台安全配置）
+		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+		$policy_err = SecurityConfigService::checkPasswordPolicy($password_new);
+		$policy_err AND message('password_new', $policy_err);
+
 		$r = user_change_password($uid, $password_new, $password_old);
 		$r === FALSE AND message('password_old', lang('old_password_incorrect'));
 
@@ -214,6 +278,11 @@ if(empty($action)) {
 
 		empty($email_new) AND message('email_new', lang('please_input_email'));
 		!filter_var($email_new, FILTER_VALIDATE_EMAIL) AND message('email_new', lang('email_format_mismatch'));
+
+		// 新邮箱与当前邮箱一致
+		if($email_new == $user['email']) {
+			message('email_new', lang('email_same_as_current'));
+		}
 
 		$session_code = isset($_SESSION['email_change_code']) ? $_SESSION['email_change_code'] : '';
 		$session_email = isset($_SESSION['email_change_target']) ? $_SESSION['email_change_target'] : '';
@@ -251,6 +320,23 @@ if(empty($action)) {
 		empty($email) AND message(-1, lang('please_input_email'));
 		!filter_var($email, FILTER_VALIDATE_EMAIL) AND message(-1, lang('email_format_mismatch'));
 
+		// 邮箱域名白名单检查
+		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+		$allowed_domains = SecurityConfigService::get('security_allowed_email_domains', '');
+		if (!empty($allowed_domains)) {
+			$email_domain = strtolower(substr(strrchr($email, '@'), 1));
+			$allowed_list = array_map('trim', explode(',', strtolower($allowed_domains)));
+			$allowed_list = array_filter($allowed_list);
+			if (!empty($allowed_list) && !in_array($email_domain, $allowed_list)) {
+				message(-1, '该邮箱域名不允许使用，仅支持：' . implode('、', $allowed_list));
+			}
+		}
+
+		// 新邮箱与当前邮箱一致
+		if($email == $user['email']) {
+			message(-1, lang('email_same_as_current'));
+		}
+
 		$exists = user_read_by_email($email);
 		if(!empty($exists) && $exists['uid'] != $uid) {
 			message(-1, lang('email_is_in_use'));
@@ -286,10 +372,11 @@ if(empty($action)) {
 
 		// hook my_send_email_code_end.php
 
+		$interval = class_exists('SecurityConfigService') ? intval(SecurityConfigService::get('security_email_code_interval', 60)) : 60;
 		if($is_htmx) {
 			htmx_trigger('codeSent', array('message' => lang('send_code_successfully')));
 		}
-		message(0, lang('send_code_successfully'));
+		message(0, lang('send_code_successfully'), array('wait' => $interval));
 	}
 
 } elseif($action == 'avatar') {
@@ -298,28 +385,40 @@ if(empty($action)) {
 
 		$active_tab = 'avatar';
 
-		$ai_config = [];
-		if(!empty($user['ai_config'])) {
-			$ai_config = json_decode($user['ai_config'], true);
-			if(!is_array($ai_config)) $ai_config = [];
+		// 检查上传附件权限
+		$allowattach = PermissionService::check('allowattach');
+
+		// 查询头像审核状态
+		$pending_profile_fields = array();
+		$pending_audits = db_find('user_profile_audit', array('uid'=>$uid, 'audit_status'=>0), array(), 1, 10);
+		if($pending_audits) {
+			foreach($pending_audits as $pa) {
+				$pending_profile_fields[] = $pa['field_name'];
+			}
 		}
 
-		// 积分记录数据
-		include_once APP_PATH . 'lib/CreditsService.php';
-		include_once APP_PATH . 'service/CreditsRuleService.php';
-		$creditsService = new CreditsService($db, $conf);
-		$credits_rules_global = CreditsRuleService::getAllGlobalRules();
-		$creditsLogResult = $creditsService->log($uid, 1, 20);
-		$credits_loglist = !empty($creditsLogResult['ok']) ? $creditsLogResult['logs'] : array();
-		$forumlist = forum_list_cache();
+		// 头像上传限制信息（用于前端展示）
+		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+		$avatar_upload_limit = intval(SecurityConfigService::get('security_avatar_upload_limit', 3));
+		$avatar_max_size = intval(SecurityConfigService::get('security_avatar_max_size', 512));
+		$avatar_used_count = 0;
+		if($avatar_upload_limit > 0 && $uid > 0) {
+			$_avatar_count_key = 'security_avatar_upload_count_' . $uid;
+			$_saved = kv_get($_avatar_count_key);
+			$avatar_used_count = ($_saved === null || $_saved === false) ? 0 : intval($_saved);
+		}
+		$avatar_remaining = $avatar_upload_limit > 0 ? max(0, $avatar_upload_limit - $avatar_used_count) : -1; // -1 表示不限制
 
-		include _include(APP_PATH.'view/htm/my.htm');
+		include _include(APP_PATH.'view/htm/my_avatar_page.htm');
 
 	} else {
 
 		CsrfService::check();
 
 		// hook my_avatar_post_start.php
+
+		// 检查上传附件权限
+		!PermissionService::check('allowattach') AND message(-1, lang('user_group_insufficient_privilege'));
 
 		// 头像上传限制检查
 		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
@@ -350,29 +449,58 @@ if(empty($action)) {
 		// 检查个人资料审核权限
 		$need_profile_audit = !PermissionService::check('allow_direct_profile');
 
-		$filename = "$uid.png";
 		$dir = substr(sprintf("%09d", $uid), 0, 3).'/';
 		$path = $conf['upload_path'].'avatar/'.$dir;
-		$url = $conf['upload_url'].'avatar/'.$dir.$filename;
 		!is_dir($path) AND (mkdir($path, 0777, TRUE) OR message(-2, lang('directory_create_failed')));
-		$destfile = $path.$filename;
 
 		// 优先处理 FormData 文件上传（UploadService 方式）
 		if(!empty($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
 			$file = $_FILES['file'];
 			// 校验文件类型
-			$allowed = array('jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp');
+			$allowed = array('jpg', 'jpeg', 'png', 'gif', 'bmp');
+			// WebP 仅在 GD 真正支持时允许（function_exists 不够，需验证实际可用）
+			if(function_exists('imagecreatefromwebp')) {
+				$gd_info = gd_info();
+				if(!empty($gd_info['WebP Support'])) {
+					$allowed[] = 'webp';
+				}
+			}
+			// 再保险：生成 1x1 WebP 测试 GD 是否真的能读写（某些面板 GD 声明支持但实际失败）
+			if(in_array('webp', $allowed)) {
+				$webp_test = @imagecreatetruecolor(1, 1);
+				if($webp_test) {
+					ob_start();
+					@imagewebp($webp_test);
+					$webp_data = ob_get_clean();
+					if(empty($webp_data) || !@imagecreatefromstring($webp_data)) {
+						$allowed = array_diff($allowed, array('webp'));
+					}
+				}
+			}
 			$ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
 			!in_array($ext, $allowed) AND message(-1, lang('file_type_not_allowed'));
-			// 校验文件大小（最大 5MB）
-			$file['size'] > 5242880 AND message(-1, lang('filesize_too_large', array('maxsize'=>'5MB', 'size'=>$file['size'])));
+			// 校验文件大小（使用后台配置，0=不限制）
+			$_avatar_max_bytes = $max_size > 0 ? $max_size * 1024 : 0;
+			if($_avatar_max_bytes > 0 && $file['size'] > $_avatar_max_bytes) {
+				message(-1, lang('filesize_too_large', array('maxsize'=>$max_size.'KB', 'size'=>intval($file['size']/1024).'KB')));
+			}
 			$tmpfile = $file['tmp_name'];
+			
+			// 头像统一保存为 jpg，GD 库兼容性最好
+			$avatar_ext = 'jpg';
+			$filename = "$uid.$avatar_ext";
+			$url = $conf['upload_url'].'avatar/'.$dir.$filename;
+			$destfile = $path.$filename;
+
 			// hook my_avatar_post_save_before.php
-			$n = image_clip_thumb($tmpfile, $destfile, 256, 256);
+			// 需要审核时保存到临时文件，避免覆盖当前头像
+			$save_destfile = $need_profile_audit ? ($path.$uid.'_pending_'.$time.'.'.$avatar_ext) : $destfile;
+			// 使用和帖子上传一样的方式：等比缩放到 256x256
+			$thumb_result = image_thumb($tmpfile, $save_destfile, 256, 256);
 			@unlink($tmpfile);
-			$n <= 0 AND message(-1, lang('image_process_failed'));
+			empty($thumb_result['filesize']) AND message(-1, lang('image_process_failed'));
 			if($need_profile_audit) {
-				// 需要审核：记录到审核表，暂不更新头像
+				// 需要审核：记录到审核表，暂不更新头像，不删除当前头像文件
 				user_profile_audit_create(array(
 					'uid' => $uid,
 					'field_name' => 'avatar',
@@ -381,10 +509,15 @@ if(empty($action)) {
 					'audit_status' => 0,
 					'create_date' => $time,
 				));
-				header('Location: '.url('my-avatar'));
+				header('Location: '.my_avatar_url());
 				exit;
 			}
 			user_update($uid, array('avatar'=>$time));
+			// 清理旧的其他格式头像文件，避免 URL 指向旧文件
+			foreach(array('png', 'webp') as $_old_ext) {
+				$_old_file = $path.$uid.'.'.$_old_ext;
+				if(is_file($_old_file)) @unlink($_old_file);
+			}
 			// hook my_avatar_post_end.php
 			// 头像上传成功后累加上传计数
 			include_once APP_PATH . 'lib/security/SecurityConfigService.php';
@@ -397,7 +530,7 @@ if(empty($action)) {
 			    }
 			    kv_set($upload_count_key, intval($upload_count) + 1);
 			}
-			header('Location: '.url('my-avatar'));
+			header('Location: '.my_avatar_url());
 			exit;
 		}
 
@@ -409,7 +542,9 @@ if(empty($action)) {
 		$size > 40000 AND message(-1, lang('filesize_too_large', array('maxsize'=>'40K', 'size'=>$size)));
 
 		// hook my_avatar_post_save_before.php
-		file_put_contents($destfile, $data) OR message(-1, lang('write_to_file_failed'));
+		// 需要审核时保存到临时文件，避免覆盖当前头像
+		$save_destfile_b64 = $need_profile_audit ? ($path.$uid.'_pending_'.$time.'.jpg') : $destfile;
+		file_put_contents($save_destfile_b64, $data) OR message(-1, lang('write_to_file_failed'));
 
 		if($need_profile_audit) {
 			// 需要审核：记录到审核表，暂不更新头像
@@ -421,7 +556,7 @@ if(empty($action)) {
 				'audit_status' => 0,
 				'create_date' => $time,
 			));
-			header('Location: '.url('my-avatar'));
+			header('Location: '.my_avatar_url());
 			exit;
 		}
 
@@ -429,7 +564,7 @@ if(empty($action)) {
 
 		// hook my_avatar_post_end.php
 
-		header('Location: '.url('my-avatar'));
+		header('Location: '.my_avatar_url());
 		exit;
 
 	}
@@ -446,13 +581,7 @@ if(empty($action)) {
 		// avatar_index = 0 表示恢复默认头像
 		if($avatar_index === 0) {
 			user_update($uid, array('avatar'=>0));
-			if($is_htmx) {
-				$user = user_read($uid);
-				$preset_list = avatar_preset_files();
-				include _include(APP_PATH.'view/htm/my_avatar.htm');
-				exit;
-			}
-			header('Location: '.url('my-avatar'));
+			header('Location: '.my_avatar_url());
 			exit;
 		}
 
@@ -464,16 +593,7 @@ if(empty($action)) {
 
 		// hook my_avatar_preset_end.php
 
-		if($is_htmx) {
-			// HTMX 请求：重新读取用户数据，直接输出 avatar section fragment
-			$user = user_read($uid);
-			$preset_list = avatar_preset_files();
-			include _include(APP_PATH.'view/htm/my_avatar.htm');
-			// 只输出 avatar-section 的内容，不是整页
-			exit;
-		}
-
-		header('Location: '.url('my-avatar'));
+		header('Location: '.my_avatar_url());
 		exit;
 
 	} elseif($method == 'GET') {
@@ -484,111 +604,108 @@ if(empty($action)) {
 
 	}
 
-} elseif($action == 'ai_setting') {
+} elseif($action == 'ai') {
 
-	if($method == 'POST') {
+	$active_tab = 'ai';
+
+	// 从后台配置读取 AI 提供商列表
+	$ai_providers = !empty($conf['ai']['providers']) ? $conf['ai']['providers'] : [];
+
+	if($method == 'GET') {
+
+		$ai_config = [];
+		if(!empty($user['ai_config'])) {
+			$ai_config = json_decode($user['ai_config'], true);
+			if(!is_array($ai_config)) $ai_config = [];
+		}
+
+		include _include(APP_PATH.'view/htm/my_ai.htm');
+
+	} elseif($method == 'POST') {
 
 		CsrfService::check();
 
 		// hook my_ai_setting_post_start.php
 
-		$ai_provider = param('ai_provider');
-		$ai_apikey = param('ai_apikey');
-		$ai_endpoint = param('ai_endpoint');
-		$ai_model = param('ai_model');
+		$provider_name = param('ai_provider');
+		$apikey = param('ai_apikey');
+		$model = param('ai_model');
+		$ai_prompt_continue = param('ai_prompt_continue', '', false);
+		$ai_prompt_improve = param('ai_prompt_improve', '', false);
 
-		$ai_config = [];
-		if(!empty($ai_provider) && !empty($ai_apikey)) {
-			$model_config = [
-				'apiKey' => $ai_apikey,
-			];
-			if(!empty($ai_endpoint)) {
-				if ($ai_provider === 'custom') {
-					$model_config['url'] = $ai_endpoint;
-				} else {
-					$model_config['endpoint'] = $ai_endpoint;
+		empty($provider_name) AND message(-1, lang('please_select_ai_provider'));
+		empty($apikey) AND message(-1, lang('please_input_ai_apikey'));
+
+		// 根据选择的提供商名称从后台配置中读取 URL
+		$url = '';
+		if(!empty($ai_providers) && is_array($ai_providers)) {
+			foreach($ai_providers as $provider) {
+				if(!empty($provider['name']) && $provider['name'] == $provider_name) {
+					$url = $provider['url'] ?? '';
+					break;
 				}
 			}
-			if(!empty($ai_model)) {
-				$model_config['model'] = $ai_model;
-			}
-			$ai_config['models'] = [
-				$ai_provider => $model_config,
-			];
-			$ai_config['bubblePanelEnable'] = true;
-			$ai_config['bubblePanelModel'] = $ai_provider;
 		}
+
+		$ai_config = [
+			'provider_name' => $provider_name,
+			'apiKey' => $apikey,
+			'model' => $model,
+			'url' => $url,
+		];
+
+		// 保存用户自定义 prompt
+		if(!empty($ai_prompt_continue)) $ai_config['promptContinue'] = $ai_prompt_continue;
+		if(!empty($ai_prompt_improve)) $ai_config['promptImprove'] = $ai_prompt_improve;
 
 		user_update($uid, ['ai_config' => json_encode($ai_config)]);
 
 		// hook my_ai_setting_post_end.php
 
-		message(0, '保存成功');
+		message(0, lang('save_successfully'));
 	}
 
 } elseif($action == 'credits') {
 
 	$active_tab = 'credits';
 
-	$ai_config = [];
-	if(!empty($user['ai_config'])) {
-		$ai_config = json_decode($user['ai_config'], true);
-		if(!is_array($ai_config)) $ai_config = [];
-	}
-
-	// 获取积分规则
+	// 获取积分记录（按操作分组，每页10条）
 	include_once APP_PATH . 'lib/CreditsService.php';
-	include_once APP_PATH . 'service/CreditsRuleService.php';
 	$creditsService = new CreditsService($db, $conf);
-	$credits_rules_global = CreditsRuleService::getAllGlobalRules();
-
-	// 获取积分记录
 	$page = param(2, 1);
-	$pagesize = 20;
-	$creditsLogResult = $creditsService->log($uid, $page, $pagesize);
+	$pagesize = 10;
+	$creditsLogResult = $creditsService->logGrouped($uid, $page, $pagesize);
 	$credits_loglist = !empty($creditsLogResult['ok']) ? $creditsLogResult['logs'] : array();
 
-	// 版块列表
-	$forumlist = forum_list_cache();
+	// 分页
+	$_total = !empty($creditsLogResult['ok']) ? intval($creditsLogResult['count']) : 0;
+	$pagination = pagination(route_url('my_credits_page'), $_total, $page, $pagesize);
 
-	include _include(APP_PATH.'view/htm/my.htm');
+	include _include(APP_PATH.'view/htm/credits.htm');
 
 } elseif($action == 'credits_rules') {
 
-	// 积分规则按版块加载 API
-	$fid = param('fid', 0);
+	// 积分规则独立页面
+	$active_tab = 'credits_rules';
 	include_once APP_PATH . 'service/CreditsRuleService.php';
+	$fid = param('fid', 0);
 
 	if($fid > 0) {
-		$rules = CreditsRuleService::getForumRules($fid);
+		$credits_rules = CreditsRuleService::getForumRules($fid);
 	} else {
-		$rules = CreditsRuleService::getAllGlobalRules();
+		$credits_rules = CreditsRuleService::getAllGlobalRules();
 	}
 
+	// htmx 请求只返回规则表格片段
 	if(is_htmx_request()) {
-		header('Content-Type: text/html; charset=utf-8');
-		if(!empty($rules)) {
-			echo '<table class="table table-sm table-hover"><thead><tr><th>事项名称</th><th>积分</th><th>金币</th><th>RMB</th></tr></thead><tbody>';
-			foreach($rules as $rule) {
-				$event_name = credits_event_name($rule['event']);
-				$credits_change = intval($rule['credits_change'] ?? 0);
-				$golds_change = intval($rule['golds_change'] ?? 0);
-				$rmbs_change = intval($rule['rmbs_change'] ?? 0);
-				echo '<tr><td>' . esc_html($event_name) . '</td>';
-				echo '<td class="' . ($credits_change > 0 ? 'text-success' : ($credits_change < 0 ? 'text-danger' : '')) . '">';
-				echo ($credits_change > 0 ? '+' : '') . $credits_change . '</td>';
-				echo '<td class="' . ($golds_change > 0 ? 'text-success' : ($golds_change < 0 ? 'text-danger' : '')) . '">';
-				echo ($golds_change > 0 ? '+' : '') . $golds_change . '</td>';
-				echo '<td class="' . ($rmbs_change > 0 ? 'text-success' : ($rmbs_change < 0 ? 'text-danger' : '')) . '">';
-				echo ($rmbs_change > 0 ? '+' : '') . $rmbs_change . '</td></tr>';
-			}
-			echo '</tbody></table>';
-		} else {
-			echo '<div class="text-center text-body-secondary py-4">暂无积分规则</div>';
-		}
-		exit;
+		include _include(APP_PATH.'view/htm/credits_rules_table.inc.htm');
+		return;
 	}
-	message(0, $rules);
+
+	$credits_rules_global = $credits_rules;
+	$forumlist = forum_list_cache();
+
+	include _include(APP_PATH.'view/htm/credits_rules.htm');
 
 } elseif($action == 'follow_users') {
 
@@ -597,14 +714,25 @@ if(empty($action)) {
     $followlist = user_follow_find_following($uid, 1, 50);
     $users = array();
     if($followlist) {
-        foreach($followlist as $f) {
-            $u = user_read_cache($f['follow_uid']);
-            if(!empty($u)) {
-                $users[] = array(
-                    'uid' => $u['uid'],
-                    'username' => $u['username'],
-                    'avatar_url' => !empty($u['avatar_url']) ? $u['avatar_url'] : '/view/img/avatar.png',
-                );
+        // 批量查询用户数据，避免循环内 user_read_cache 的 N+1 查询
+        $follow_uids = arrlist_values($followlist, 'follow_uid');
+        $userlist = user_find(array('uid'=>$follow_uids), array(), 1, count($follow_uids));
+        if($userlist) {
+            // 以 uid 为 key 重新组织，便于按 followlist 顺序输出
+            $user_map = array();
+            foreach($userlist as $u) {
+                $user_map[$u['uid']] = $u;
+            }
+            foreach($followlist as $f) {
+                $_uid = $f['follow_uid'];
+                if(isset($user_map[$_uid])) {
+                    $u = $user_map[$_uid];
+                    $users[] = array(
+                        'uid' => $u['uid'],
+                        'username' => $u['display_name'] ?? $u['username'],
+                        'avatar_url' => !empty($u['avatar_url']) ? $u['avatar_url'] : '/view/img/avatar.png',
+                    );
+                }
             }
         }
     }
@@ -616,14 +744,20 @@ if(empty($action)) {
 
 	// hook my_thread_start.php
 
+	$active_tab = 'thread';
 	$page = param(2, 1);
-	$pagesize = 20;
-	$totalnum = $user['threads'];
-
-	// hook my_profile_thread_list_before.php
-
-	$pagination = pagination(url('my-thread-{page}'), $totalnum, $page, $pagesize);
-	$threadlist = mythread_find_by_uid($uid, $page, $pagesize);
+	$pagesize = 10;
+	// 与 user_thread 保持一致：直接查 thread 表，按审核状态过滤
+	$thread_cond = array('uid' => $uid);
+	if($gid == 0 || $gid > 2) {
+		$totalnum = thread_count(array('uid' => $uid, 'audit_status' => 1));
+		$thread_cond['audit_status'] = 1;
+	} else {
+		$totalnum = $user['threads'];
+	}
+	$pagination = pagination(route_url('my_thread_page'), $totalnum, $page, $pagesize);
+	$threadlist = thread_find($thread_cond, array('tid' => -1), $page, $pagesize);
+	thread_list_access_filter($threadlist, $gid);
 
 	// hook my_thread_end.php
 
@@ -632,18 +766,18 @@ if(empty($action)) {
 
 } elseif($action == 'favorite') {
 
+	$active_tab = 'favorite';
 	$page = param(2, 1);
 	$pagesize = 20;
 	$favlist = thread_favorite_find_by_uid($uid, $page, $pagesize);
 	$totalnum = $user['favorites'];
-	$pagination = pagination(url('my-favorite-{page}'), $totalnum, $page, $pagesize);
+	$pagination = pagination(route_url('my_favorite_page'), $totalnum, $page, $pagesize);
 
 	$threadlist = array();
 	if($favlist) {
-		foreach($favlist as $fav) {
-			$t = thread_read($fav['tid']);
-			if(!empty($t)) $threadlist[$fav['tid']] = $t;
-		}
+		// 批量查询帖子，消除 N+1 查询
+		$fav_tids = array_column($favlist, 'tid');
+		$threadlist = thread_find_by_tids($fav_tids);
 	}
 	// 过滤待审帖子（收藏的他人待审帖子不可见）
 	thread_list_access_filter($threadlist, $gid);
@@ -651,31 +785,132 @@ if(empty($action)) {
 	$header['title'] = lang('my_favorite');
 	include _include(APP_PATH.'view/htm/my_favorite.htm');
 
+} elseif($action == 'post') {
+
+	// 我的回复列表（复制自 user.php post action，固定查当前登录用户）
+	$active_tab = 'post';
+	$page = param(2, 1);
+	$pagesize = 10;
+	$totalnum = $user['posts'];
+	$pagination = pagination(route_url('my_post_page'), $totalnum, $page, $pagesize);
+
+	$is_user_post_list = TRUE; // 标记为回帖列表，用于截断内容
+
+	if(function_exists('post_find_by_uid')) {
+		$postlist = post_find_by_uid($uid, $page, $pagesize);
+	} else {
+		$postlist = post_find(array('uid'=>$uid, 'isfirst'=>0), array('pid'=>-1), $page, $pagesize);
+	}
+	post_list_access_filter($postlist, $gid);
+
+	// 为回帖添加帖子标题信息（批量查询，消除 N+1）
+	if($postlist) {
+		$_post_tids = array_unique(array_column($postlist, 'tid'));
+		$_post_threads = empty($_post_tids) ? array() : db_find('thread', array('tid'=>$_post_tids), array(), 1, count($_post_tids), 'tid');
+		foreach($postlist as &$_p) {
+			if(isset($_post_threads[$_p['tid']])) {
+				$_p['thread_subject'] = $_post_threads[$_p['tid']]['subject'];
+			}
+		}
+		unset($_p);
+	}
+
+	$header['title'] = lang('my_post');
+	include _include(APP_PATH.'view/htm/my_post.htm');
+
+} elseif($action == 'like') {
+
+	// 我的点赞列表（复制自 user.php like action，按帖子去重）
+	$active_tab = 'like';
+	$page = param(2, 1);
+	$pagesize = 10;
+
+	global $db;
+	$tablepre = $db->tablepre;
+	$offset = ($page - 1) * $pagesize;
+
+	// 按帖子去重查询点赞列表，JOIN thread 表过滤已删除帖子
+	$sql = "SELECT pl.tid, MAX(pl.create_date) AS last_like_time FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$uid' GROUP BY pl.tid ORDER BY last_like_time DESC LIMIT $offset, $pagesize";
+	$tid_rows = db_sql_find($sql);
+	$threadlist = array();
+	if($tid_rows) {
+		$like_tids = array_column($tid_rows, 'tid');
+		$threadlist = thread_find_by_tids($like_tids);
+	}
+
+	// 去重后的总数（仅统计帖子仍存在的）
+	$totalnum = db_sql_find_one("SELECT COUNT(DISTINCT pl.tid) AS cnt FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$uid'");
+	$totalnum = !empty($totalnum['cnt']) ? intval($totalnum['cnt']) : 0;
+
+	$pagination = pagination(route_url('my_like_page'), $totalnum, $page, $pagesize);
+	thread_list_access_filter($threadlist, $gid);
+
+	$header['title'] = lang('my_like');
+	include _include(APP_PATH.'view/htm/my_like.htm');
+
+} elseif($action == 'following') {
+
+	// 我关注的人（复制自 user.php following action，固定查当前登录用户）
+	$active_tab = 'following';
+	$page = param(2, 1);
+	$pagesize = 10;
+	$followlist = user_follow_find_following($uid, $page, $pagesize);
+	$userlist = array();
+	if($followlist) {
+		$_follow_uids = array();
+		foreach($followlist as $f) { $_follow_uids[] = $f['follow_uid']; }
+		// 批量查询关注状态，消除 N+1
+		$_follow_status = !empty($uid) ? user_follow_read_batch($uid, $_follow_uids) : array();
+		foreach($followlist as $f) {
+			$u = user_read_cache($f['follow_uid']);
+			if(!empty($u)) {
+				$u['is_followed'] = !empty($_follow_status[$u['uid']]);
+				$userlist[$u['uid']] = $u;
+			}
+		}
+	}
+	$totalnum = $user['follows'];
+	$pagination = pagination(route_url('my_following_page'), $totalnum, $page, $pagesize);
+
+	$header['title'] = lang('i_following');
+	include _include(APP_PATH.'view/htm/my_following.htm');
+
+} elseif($action == 'followers') {
+
+	// 关注我的人（复制自 user.php followers action，固定查当前登录用户）
+	$active_tab = 'followers';
+	$page = param(2, 1);
+	$pagesize = 10;
+	$followlist = user_follow_find_followers($uid, $page, $pagesize);
+	$userlist = array();
+	if($followlist) {
+		$_follower_uids = array();
+		foreach($followlist as $f) { $_follower_uids[] = $f['uid']; }
+		// 批量查询关注状态，消除 N+1
+		$_follow_status = !empty($uid) ? user_follow_read_batch($uid, $_follower_uids) : array();
+		foreach($followlist as $f) {
+			$u = user_read_cache($f['uid']);
+			if(!empty($u)) {
+				$u['is_followed'] = !empty($_follow_status[$u['uid']]);
+				$userlist[$u['uid']] = $u;
+			}
+		}
+	}
+	$totalnum = $user['followeds'];
+	$pagination = pagination(route_url('my_followers_page'), $totalnum, $page, $pagesize);
+
+	$header['title'] = lang('follow_me');
+	include _include(APP_PATH.'view/htm/my_followers.htm');
+
 } elseif($action == 'feed') {
 
-	http_location(url('index', array('order' => 'follow')));
-
-} elseif($action == 'notify') {
-
-	$page = param(2, 1);
-	$pagesize = 50;
-	$notifylist = notify_find_by_uid($uid, $page, $pagesize);
-	$totalnum = db_count('notify', array('uid'=>$uid));
-	$pagination = pagination(url('my-notify-{page}'), $totalnum, $page, $pagesize);
-
-	// 不再自动标记已读，用户需要手动点击"全部标记已读"
-	// 通知列表渲染后再标记，保证页面能正确显示已读/未读状态
-
-	$header['title'] = lang('my_notify');
-	include _include(APP_PATH.'view/htm/my_notify.htm');
+	http_location(index_url(array('order' => 'follow')));
 
 } elseif($action == 'notify_unread') {
 
 	!$uid AND exit('');
-	$notify_count = notify_count_unread($uid);
-	// 合并 notice 系统未读数
-	$notice_count = notice_count_unread($uid);
-	$total = $notify_count + $notice_count;
+	// 通知系统已合并，notice 数据已迁移到 notify 表
+	$total = notify_count_unread($uid);
 	if($total > 0) {
 		echo '<span class="position-absolute top-0 start-100 translate-middle badge rounded-circle bg-danger p-1" style="width:0.5rem;height:0.5rem"></span>';
 	}
@@ -685,106 +920,48 @@ if(empty($action)) {
 
 	// 通知未读数 API（AJAX 调用）
 	!$uid AND exit(json_encode(array('code' => -1, 'message' => '未登录')));
-	$notify_unread = function_exists('notify_count_unread') ? notify_count_unread($uid) : 0;
-	$notice_unread = function_exists('notice_count_unread') ? notice_count_unread($uid) : 0;
-	$total = intval($notify_unread) + intval($notice_unread);
+	$total = notify_count_unread($uid);
 	header('Content-Type: application/json; charset=utf-8');
-	echo json_encode(array('code' => 0, 'data' => array('total' => $total, 'notify' => $notify_unread, 'notice' => $notice_unread)));
+	echo json_encode(array('code' => 0, 'data' => array('total' => $total)));
 	exit;
 
 } elseif($action == 'notify_dropdown') {
 
 	!$uid AND exit('');
 
-	// notice_format() 依赖 global $notice_menu，此处必须定义
-	global $notice_menu;
-	$notice_menu = array(
-		0 => array('name'=>'其他', 'class'=>'info', 'icon'=>''),
-		1 => array('name'=>'公告', 'class'=>'info', 'icon'=>''),
-		3 => array('name'=>'系统', 'class'=>'danger', 'icon'=>''),
-		99 => array('name'=>'其他', 'class'=>'success', 'icon'=>'bell'),
-	);
-
-	// 合并 notify 和 notice 两个系统的通知
-	$all_items = array();
-
-	// 互动通知 (notify)
-	$notifylist = db_find('notify', array('uid'=>$uid), array('nid'=>-1), 1, 8, 'nid');
-	if($notifylist) {
-		foreach($notifylist as &$n) {
-			notify_format($n);
-			$all_items[] = array(
-				'source' => 'notify',
-				'nid' => $n['nid'],
-				'message' => $n['message'],
-				'is_read' => empty($n['is_read']) ? 0 : 1,
-				'type' => $n['type'],
-				'url' => isset($n['url']) ? $n['url'] : '',
-				'avatar_url' => isset($n['from_avatar_url']) ? $n['from_avatar_url'] : '/view/img/avatar.png',
-				'username' => isset($n['from_username']) ? $n['from_username'] : '',
-				'create_date' => $n['create_date'],
-				'create_date_fmt' => isset($n['create_date_fmt']) ? $n['create_date_fmt'] : '',
-				'fid' => isset($n['fid']) ? $n['fid'] : 0,
-			);
-		}
-	}
-
-	// 消息通知 (notice)
-	$noticelist = notice_find_latest_by_recvuid($uid, 8);
-	if($noticelist) {
-		foreach($noticelist as $n) {
-			$all_items[] = array(
-				'source' => 'notice',
-				'nid' => $n['nid'],
-				'message' => strip_tags($n['message']),
-				'is_read' => empty($n['is_read']) ? 0 : 1,
-				'type' => $n['type'],
-				'url' => url('my-notice'),
-				'avatar_url' => isset($n['from_user_avatar_url']) ? $n['from_user_avatar_url'] : '/view/img/avatar.png',
-				'username' => isset($n['from_username']) ? $n['from_username'] : '',
-				'create_date' => $n['create_date'],
-				'create_date_fmt' => $n['create_date_fmt'],
-				'fid' => 0,
-			);
-		}
-	}
-
-	// 按时间排序，取最新5条
-	usort($all_items, function($a, $b) { return $b['create_date'] - $a['create_date']; });
-	$all_items = array_slice($all_items, 0, 5);
-
-	if(empty($all_items)) {
+	// 通知系统已合并，仅查询 notify 表
+	$notifylist = notify_find_latest($uid, 5);
+	if(empty($notifylist)) {
 		echo '<div class="text-center text-body-secondary small py-4"><i class="ti ti-bell-off fs-4 d-block mb-1 opacity-50"></i>暂无通知</div>';
 		exit;
 	}
 
-	$html = '';
-	foreach($all_items as $item) {
-		$typeLabel = '';
-		if($item['source'] == 'notify') {
-			if($item['type'] == 'like') { $typeLabel = '赞了你的帖子'; }
-			elseif($item['type'] == 'favorite') { $typeLabel = '收藏了你的帖子'; }
-			elseif($item['type'] == 'follow') { $typeLabel = '关注了你'; }
-			elseif($item['type'] == 'reply') { $typeLabel = '回复了你的评论'; }
-			elseif($item['type'] == 'thread') { $typeLabel = '发布了新帖'; }
-			elseif($item['type'] == 'forum_post') { $typeLabel = '发布了新帖'; }
-			elseif($item['type'] == 'mention') { $typeLabel = '提及了你'; }
-			else { $typeLabel = '通知了你'; }
-		} else {
-			if($item['type'] == 1) { $typeLabel = '发布了公告'; }
-			elseif($item['type'] == 2) { $typeLabel = '评论了'; }
-			elseif($item['type'] == 3) { $typeLabel = '系统通知'; }
-			else { $typeLabel = '通知'; }
-		}
+	// 类型标签从注册中心获取（统一来源，支持插件扩展）
+	include_once APP_PATH . 'lib/NotifyTypeRegistry.php';
+	NotifyTypeRegistry::init();
 
+	$html = '';
+	foreach($notifylist as $item) {
+		$_is_audit = in_array($item['type'], array('audit_pending', 'audit_approve', 'audit_reject'));
+		$_is_report = in_array($item['type'], array('report_auto_audit', 'report_result', 'report_penalty'));
+		$typeLabel = NotifyTypeRegistry::get_label($item['type']);
 		$unreadClass = empty($item['is_read']) ? ' notice-unread' : '';
 		$unreadDot = empty($item['is_read']) ? '<span class="badge bg-primary rounded-pill flex-shrink-0" style="font-size:0.5rem;padding:2px 5px;">新</span>' : '';
-		$href = $item['url'] ?: url('my-notice');
+		$href = !empty($item['url']) ? $item['url'] : my_notify_url();
 
-		// 单行紧凑格式：头像 用户名 时间 操作
-		$html .= '<a href="' . htmlspecialchars($href) . '" class="dropdown-item d-flex align-items-center gap-2 px-3 py-2 notice-dropdown-item' . $unreadClass . '" data-nid="' . $item['nid'] . '" data-source="' . $item['source'] . '" hx-boost="false">';
-		$html .= '<img class="rounded-circle flex-shrink-0" src="' . htmlspecialchars($item['avatar_url']) . '" alt="" style="width:24px;height:24px;object-fit:cover;" onerror="this.src=\'/view/img/avatar.png\'">';
-		$html .= '<span class="fw-semibold" style="font-size:0.8rem;">' . htmlspecialchars($item['username']) . '</span>';
+		$html .= '<a href="' . htmlspecialchars($href) . '" class="dropdown-item d-flex align-items-center gap-2 px-3 py-2 notice-dropdown-item' . $unreadClass . '" data-nid="' . $item['nid'] . '" data-source="notify" hx-boost="false">';
+		if($_is_audit) {
+			$html .= '<span class="rounded-circle flex-shrink-0 bg-info bg-opacity-10 d-flex align-items-center justify-content-center" style="width:24px;height:24px;"><i class="ti ti-shield-check text-info" style="font-size:0.8rem;"></i></span>';
+			$html .= '<span class="fw-semibold" style="font-size:0.8rem;">审核通知</span>';
+		} elseif($_is_report) {
+			$html .= '<span class="rounded-circle flex-shrink-0 bg-warning bg-opacity-10 d-flex align-items-center justify-content-center" style="width:24px;height:24px;"><i class="ti ti-flag text-warning" style="font-size:0.8rem;"></i></span>';
+			$html .= '<span class="fw-semibold" style="font-size:0.8rem;">举报通知</span>';
+		} else {
+			$avatar_url = isset($item['from_avatar_url']) ? $item['from_avatar_url'] : '/view/img/avatar.png';
+			$username = isset($item['from_username']) ? $item['from_username'] : '系统';
+			$html .= '<img class="rounded-circle flex-shrink-0" src="' . htmlspecialchars($avatar_url) . '" alt="" style="width:24px;height:24px;object-fit:cover;" onerror="this.src=\'/view/img/avatar.png\'">';
+			$html .= '<span class="fw-semibold" style="font-size:0.8rem;">' . htmlspecialchars($username) . '</span>';
+		}
 		$html .= '<span class="text-body-secondary flex-shrink-0" style="font-size:0.75rem;">' . $item['create_date_fmt'] . '</span>';
 		$html .= '<span class="text-truncate" style="font-size:0.8rem;min-width:0;">' . htmlspecialchars($typeLabel) . '</span>';
 		$html .= $unreadDot;
@@ -813,7 +990,7 @@ if(empty($action)) {
 		}
 	}
 	$totalnum = db_count('notify', $condition);
-	$pagination = pagination(url('my-notify_list', array('type'=>$type)).'-{page}', $totalnum, $page, $pagesize);
+	$pagination = pagination(route_url('my_notify_list_page', array('type'=>$type)), $totalnum, $page, $pagesize);
 	
 	message(0, array('notifylist' => array_values($notifylist), 'total' => $totalnum));
 
@@ -828,12 +1005,9 @@ if(empty($action)) {
 		echo xn_json_encode(array('code' => '-1', 'message' => lang('please_login')));
 		exit;
 	}
+	// 通知系统已合并，仅操作 notify 表
 	notify_mark_all_read($uid);
-	// 同时标记 notice 全部已读
-	notice_update_by_recvuid($uid);
-	$notify_unread = notify_count_unread($uid);
-	$notice_unread = notice_count_unread($uid);
-	$total_unread = $notify_unread + $notice_unread;
+	$total_unread = notify_count_unread($uid);
 
 	if(is_htmx_request()) {
 		// htmx: 返回 HX-Trigger 事件，前端监听后刷新通知列表
@@ -888,18 +1062,16 @@ if(empty($action)) {
 		exit;
 	}
 	notify_mark_read($nid);
-	$notify_unread = notify_count_unread($uid);
-	$notice_unread = notice_count_unread($uid);
-	$total_unread = $notify_unread + $notice_unread;
+	$total_unread = notify_count_unread($uid);
 
 	if(is_htmx_request()) {
 		// htmx: 返回已读状态的 notify 卡片 HTML（OOB 替换）
 		notify_format($notify);
 		$notify['is_read'] = 1;
-		$icon_map = array('like'=>'heart-filled', 'reply'=>'message', 'follow'=>'user-plus', 'favorite'=>'star-filled', 'thread'=>'file-text', 'forum_post'=>'news', 'mention'=>'at');
-		$icon_name = isset($icon_map[$notify['type']]) ? $icon_map[$notify['type']] : 'bell';
+		include_once APP_PATH . 'lib/NotifyTypeRegistry.php';
+		NotifyTypeRegistry::init();
+		$icon_name = NotifyTypeRegistry::get_icon($notify['type']);
 		$type_label = isset($notify['type_label']) ? $notify['type_label'] : lang('notify_type_label_notice_other');
-		$from_gid = isset($notify['from_gid']) ? $notify['from_gid'] : 0;
 
 		header('Content-Type: text/html; charset=utf-8');
 		echo '<div class="notice-card p-3" id="notice-nid-' . $nid . '" data-nid="' . $nid . '" data-source="notify" hx-swap-oob="true">';
@@ -930,134 +1102,155 @@ if(empty($action)) {
 }
 
 // 通知系统路由（核心功能）
-elseif($action == 'notice') {
+elseif($action == 'notify') {
 
 	if($method == 'GET') {
+
+		// 初始化通知类型注册中心（幂等），用于动态构建菜单与查询条件
+		include_once APP_PATH . 'lib/NotifyTypeRegistry.php';
+		NotifyTypeRegistry::init();
 
 		$page = param(3, 1);
 		$pagesize = 20;
 		$active = 'notice';
 		$type = param(2, '');
 
+		// 修复分页：URL my-notify-{page}.htm 中 page 是纯数字，会被误解析为 type
+		// 当 type 为纯数字时，实际是"全部"类型的第 N 页
+		if($type !== '' && ctype_digit((string)$type)) {
+			$page = intval($type);
+			$type = '';
+		}
+
 		global $notice_menu;
-		$notice_menu = array(
-			0 => array('url'=>url('my-notice'), 'name'=>'全部', 'class'=>'info', 'icon'=>''),
-			'like' => array('url'=>url('my-notice-like'), 'name'=>'点赞', 'class'=>'danger', 'icon'=>'heart'),
-			'reply' => array('url'=>url('my-notice-reply'), 'name'=>'评论', 'class'=>'primary', 'icon'=>'message'),
-			'favorite' => array('url'=>url('my-notice-favorite'), 'name'=>'收藏', 'class'=>'warning', 'icon'=>'star'),
-			'mention' => array('url'=>url('my-notice-mention'), 'name'=>'@', 'class'=>'info', 'icon'=>'at'),
-			'follow' => array('url'=>url('my-notice-follow'), 'name'=>'关注', 'class'=>'success', 'icon'=>'user-plus'),
-			'thread' => array('url'=>url('my-notice-thread'), 'name'=>'帖子', 'class'=>'primary', 'icon'=>'file-text'),
-			1 => array('url'=>url('my-notice-1'), 'name'=>'公告', 'class'=>'info', 'icon'=>'speakerphone'),
-			3 => array('url'=>url('my-notice-3'), 'name'=>'系统', 'class'=>'danger', 'icon'=>'file-text'),
-		);
+		// 通知类型筛选菜单：通过注册中心动态构建（支持插件扩展 tab 与「其他」兜底 tab）
+		$notice_menu = array();
+		$_tabs = NotifyTypeRegistry::get_all_tabs();
+		foreach($_tabs as $_tab_key => $_tab_info) {
+			if($_tab_key === 0 || $_tab_key === '0') {
+				$_tab_url = my_notify_url();
+			} else {
+				$_tab_url = my_notify_list_url($_tab_key);
+			}
+			$notice_menu[$_tab_key] = array(
+				'url' => $_tab_url,
+				'name' => $_tab_info['name'],
+				'class' => $_tab_info['class'],
+				'icon' => $_tab_info['icon'],
+			);
+		}
 
-		// 合并 notify（互动通知）和 notice（系统消息）两个来源
-		$merged_items = array();
-
-		// 支持的 notify 类型列表
-		$notify_types = array('like', 'reply', 'favorite', 'mention', 'follow', 'thread', 'forum_post');
-
-		// 判断是否为"全部"模式
+		// 通知系统已合并，仅查询 notify 表
 		$is_all = ($type === '' || $type === '0');
 
-		// Notify items: include when type is empty (全部) or type is a specific notify type
-		if($is_all || in_array($type, $notify_types)) {
-			$notify_condition = array('uid'=>$uid);
-			if(in_array($type, $notify_types)) {
-				$notify_condition['type'] = $type;
-			}
-			$notifylist = db_find('notify', $notify_condition, array('nid'=>-1), 1, 200, 'nid');
-			if($notifylist) {
-				foreach($notifylist as &$n) {
-					notify_format($n);
-					// 获取帖子标题
-					$_thread_subject = '';
-					if($n['tid'] > 0) {
-						$_thread = thread_read_cache($n['tid']);
-						if(!empty($_thread)) $_thread_subject = $_thread['subject'];
-					}
-					// 获取原评论内容（回复场景：pid 对应的 post）
-					$_quote_content = '';
-					if($n['type'] == 'reply' && $n['pid'] > 0) {
-						$_post = post_read_cache($n['pid']);
-						if(!empty($_post)) $_quote_content = strip_tags($_post['message']);
-					}
-					// 获取 from_user 的 gid
-					$_from_user = user_read_cache($n['from_uid']);
-					$_from_gid = $_from_user ? intval($_from_user['gid']) : 0;
-					$merged_items[] = array(
-						'source' => 'notify',
-						'nid' => $n['nid'],
-						'is_read' => empty($n['is_read']) ? 0 : 1,
-						'from_uid' => $n['from_uid'],
-						'from_gid' => $_from_gid,
-						'from_user_avatar_url' => isset($n['from_avatar_url']) ? $n['from_avatar_url'] : '/view/img/avatar.png',
-						'from_username' => isset($n['from_username']) ? $n['from_username'] : '',
-						'type' => $n['type'],
-						'type_label' => isset($n['type_label']) ? $n['type_label'] : lang('notify_type_label_notice_other'),
-						'name' => isset($n['summary']) ? $n['summary'] : lang('notify_summary_notice'),
-						'summary' => isset($n['summary']) ? $n['summary'] : lang('notify_summary_notice'),
-						'message' => isset($n['message']) ? $n['message'] : '',
-						'content' => isset($n['content']) ? $n['content'] : '',
-						'quote_content' => $_quote_content,
-						'tid' => $n['tid'],
-						'pid' => $n['pid'],
-						'thread_subject' => $_thread_subject,
-						'url' => isset($n['url']) ? $n['url'] : '',
-						'create_date_fmt' => isset($n['create_date_fmt']) ? $n['create_date_fmt'] : '',
-						'create_date' => isset($n['create_date']) ? $n['create_date'] : 0,
-					);
+		// 构建查询条件
+		$cond = array('uid'=>$uid);
+		if(!$is_all) {
+			// 通过注册中心获取 tab 下的所有 type（支持插件扩展 type 与「其他」tab 动态归集）
+			$_tab_types = NotifyTypeRegistry::get_types_by_tab($type);
+			if(!empty($_tab_types)) {
+				if(count($_tab_types) == 1) {
+					$cond['type'] = $_tab_types[0];
+				} else {
+					$cond['type'] = $_tab_types;
 				}
+			} else {
+				// 未知 tab，查询空结果
+				$cond['type'] = '__unknown_tab__';
 			}
 		}
 
-		// Notice items: include when type is empty (全部) or type is numeric and > 0
-		if($is_all || (is_numeric($type) && intval($type) > 0)) {
-			$notice_type = (is_numeric($type) && intval($type) > 0) ? intval($type) : 0;
-			$noticelist_raw = notice_find_by_recvuid($uid, 1, 200, $notice_type);
-			if($noticelist_raw) {
-				foreach($noticelist_raw as $n) {
-					$type_name = isset($notice_menu[$n['type']]) ? $notice_menu[$n['type']]['name'] : lang('notify_summary_notice');
-					// 通知类型标签
-					$notice_label_map = array(1=>lang('notify_type_label_notice_announcement'), 3=>lang('notify_type_label_notice_system'));
-					$type_label = isset($notice_label_map[$n['type']]) ? $notice_label_map[$n['type']] : lang('notify_type_label_notice_other');
-					$merged_items[] = array(
-						'source' => 'notice',
-						'nid' => $n['nid'],
-						'is_read' => empty($n['is_read']) ? 0 : 1,
-						'from_user_avatar_url' => isset($n['from_user_avatar_url']) ? $n['from_user_avatar_url'] : '/view/img/avatar.png',
-						'from_username' => isset($n['from_username']) ? $n['from_username'] : '',
-						'type' => $n['type'],
-						'type_label' => $type_label,
-						'name' => $type_name,
-						'summary' => lang('notify_summary_notice'),
-						'message' => $n['message'],
-						'url' => '',
-						'create_date_fmt' => $n['create_date_fmt'],
-						'create_date' => $n['create_date'],
-					);
+		// 先获取总数，再分页查询
+		$totalnum = db_count('notify', $cond);
+		$notifylist = db_find('notify', $cond, array('nid'=>-1), $page, $pagesize, 'nid');
+
+		$noticelist = array();
+	if($notifylist) {
+		// 收集所有需要批量查询的 ID，消除 N+1 查询
+		$_batch_tids = array();
+		$_batch_pids = array();
+		$_batch_uids = array();
+		foreach($notifylist as $_n) {
+			if(!empty($_n['tid'])) $_batch_tids[] = intval($_n['tid']);
+			if(!empty($_n['parent_pid'])) $_batch_pids[] = intval($_n['parent_pid']);
+			if(!empty($_n['from_uid'])) $_batch_uids[] = intval($_n['from_uid']);
+		}
+		$_batch_tids = array_unique($_batch_tids);
+		$_batch_pids = array_unique($_batch_pids);
+		$_batch_uids = array_unique($_batch_uids);
+
+		// 批量查询 thread、post、user，替代 foreach 内的逐条查询
+		$_batch_threads = empty($_batch_tids) ? array() : db_find('thread', array('tid'=>$_batch_tids), array(), 1, count($_batch_tids), 'tid');
+		$_batch_posts = empty($_batch_pids) ? array() : db_find('post', array('pid'=>$_batch_pids), array(), 1, count($_batch_pids), 'pid');
+		$_batch_users = empty($_batch_uids) ? array() : user_find_by_uids(implode(',', $_batch_uids));
+
+		// forum 从全局缓存取
+		global $forumlist;
+		if(!isset($forumlist)) forum_list_cache();
+
+		foreach($notifylist as &$n) {
+		// 传入预加载数据，避免 notify_format 内部重复单条查询
+		notify_format($n, array(
+			'threads' => &$_batch_threads,
+			'posts' => &$_batch_posts,
+		));
+			// 获取帖子标题（从批量查询结果取）
+			$_thread_subject = '';
+			$_thread_fid = 0;
+			if($n['tid'] > 0 && isset($_batch_threads[$n['tid']])) {
+				$_thread_subject = $_batch_threads[$n['tid']]['subject'];
+				$_thread_fid = $_batch_threads[$n['tid']]['fid'];
+			}
+			// 获取原评论内容（回复场景：parent_pid 对应的 post，即被回复的那条）
+			$_quote_content = '';
+			if($n['type'] == 'reply' && !empty($n['parent_pid']) && isset($_batch_posts[$n['parent_pid']])) {
+				$_quote_content = strip_tags($_batch_posts[$n['parent_pid']]['message']);
+			}
+			// 获取版块名（forum_post/thread_forum 类型用于显示来源，从全局缓存取）
+			$_forum_name = '';
+			if(in_array($n['type'], array('forum_post', 'thread_forum')) && $_thread_fid > 0) {
+				if(isset($forumlist[$_thread_fid])) {
+					$_forum_name = $forumlist[$_thread_fid]['name'];
 				}
 			}
+			// 获取 from_user 的 gid（从批量查询结果取）
+			$_from_gid = 0;
+			if(!empty($n['from_uid']) && isset($_batch_users[$n['from_uid']])) {
+				$_from_gid = intval($_batch_users[$n['from_uid']]['gid']);
+			}
+			$noticelist[] = array(
+				'source' => 'notify',
+				'nid' => $n['nid'],
+				'is_read' => empty($n['is_read']) ? 0 : 1,
+				'from_uid' => $n['from_uid'],
+				'from_gid' => $_from_gid,
+				'from_user_avatar_url' => isset($n['from_avatar_url']) ? $n['from_avatar_url'] : '/view/img/avatar.png',
+				'from_username' => isset($n['from_username']) ? $n['from_username'] : '',
+				'type' => $n['type'],
+				'type_label' => isset($n['type_label']) ? $n['type_label'] : lang('notify_type_label_notice_other'),
+				'name' => isset($n['summary']) ? $n['summary'] : lang('notify_summary_notice'),
+				'summary' => isset($n['summary']) ? $n['summary'] : lang('notify_summary_notice'),
+				'message' => isset($n['message']) ? $n['message'] : '',
+				'content' => isset($n['content']) ? $n['content'] : '',
+				'quote_content' => $_quote_content,
+				'forum_name' => $_forum_name,
+				'tid' => $n['tid'],
+				'pid' => $n['pid'],
+				'thread_subject' => $_thread_subject,
+				'url' => isset($n['url']) ? $n['url'] : '',
+				'create_date_fmt' => isset($n['create_date_fmt']) ? $n['create_date_fmt'] : '',
+				'create_date' => isset($n['create_date']) ? $n['create_date'] : 0,
+			);
 		}
+	}
 
-		// 按时间倒序排列
-		usort($merged_items, function($a, $b) {
-			return $b['create_date'] - $a['create_date'];
-		});
-
-		// 总数和分页
-		$totalnum = count($merged_items);
-		$offset = ($page - 1) * $pagesize;
-		$noticelist = array_slice($merged_items, $offset, $pagesize);
-
-		$pagination_url = $is_all ? url("my-notice-{page}") : url("my-notice-$type-{page}");
+		$pagination_url = $is_all ? route_url('my_notify_page') : route_url('my_notify_list_page', array('type'=>$type));
 		$pagination = pagination($pagination_url, $totalnum, $page, $pagesize);
 
 		$header['title'] = lang('notice');
 		$header['mobile_title'] = lang('notice');
 
-		include _include(APP_PATH.'view/htm/my_notice.htm');
+		include _include(APP_PATH.'view/htm/my_notify.htm');
 
 	} elseif($method == 'POST') {
 		CsrfService::check();
@@ -1066,12 +1259,10 @@ elseif($action == 'notice') {
 			$recvuid = param('uid');
 			$recvuid != $uid AND message(-1, lang('notice_my_error'));
 
-			// 同时标记两个系统已读
+			// 通知系统已合并，仅操作 notify 表
 			notify_mark_all_read($uid);
-			$r = notice_update_by_recvuid($recvuid);
-			$r === FALSE AND message(-1, lang('notice_my_update_failed'));
 
-			$unread_count = notify_count_unread($uid) + notice_count_unread($uid);
+			$unread_count = notify_count_unread($uid);
 
 			if(is_htmx_request()) {
 				// htmx: 返回 HX-Trigger 事件，前端监听后刷新通知列表
@@ -1084,35 +1275,36 @@ elseif($action == 'notice') {
 
 		} elseif($act == 'readone') {
 			$nid = param('nid');
-			$notice = notice__read($nid);
-			empty($notice) AND message(-1, lang('not_exists'));
-			$notice['recvuid'] != $uid AND message(-1, lang('notice_my_error'));
+			$notify = notify__read($nid);
+			empty($notify) AND message(-1, lang('not_exists'));
+			$notify['uid'] != $uid AND message(-1, lang('notice_my_error'));
 
-			$is_read = isset($notice['is_read']) ? $notice['is_read'] : $notice['isread'];
+			$is_read = isset($notify['is_read']) ? $notify['is_read'] : 0;
 			$is_read == 1 AND message(-1, lang('notice_my_update_readed'));
 
-			$r = notice_update($nid);
+			$r = notify_mark_read($nid);
 			$r === FALSE AND message(-1, lang('notice_my_update_failed'));
 
-			$unread_count = notice_count_unread($uid);
+			$unread_count = notify_count_unread($uid);
 
 			if(is_htmx_request()) {
-				// htmx: 返回已读状态的 notice 卡片 HTML（OOB 替换）
-				$icon_map = array(1=>'speakerphone', 2=>'message', 3=>'file-text');
-				$icon_name = isset($icon_map[$notice['type']]) ? $icon_map[$notice['type']] : 'bell';
-				$notice_label_map = array(1=>lang('notify_type_label_notice_announcement'), 3=>lang('notify_type_label_notice_system'));
-				$type_label = isset($notice_label_map[$notice['type']]) ? $notice_label_map[$notice['type']] : lang('notify_type_label_notice_other');
+				// htmx: 返回已读状态的 notify 卡片 HTML（OOB 替换）
+				notify_format($notify);
+				include_once APP_PATH . 'lib/NotifyTypeRegistry.php';
+				NotifyTypeRegistry::init();
+				$icon_name = NotifyTypeRegistry::get_icon($notify['type']);
+				$type_label = isset($notify['type_label']) ? $notify['type_label'] : lang('notify_type_label_notice_other');
 
 				header('Content-Type: text/html; charset=utf-8');
-				echo '<div class="notice-card p-3" id="notice-nid-' . $nid . '" data-nid="' . $nid . '" data-source="notice" hx-swap-oob="true">';
+				echo '<div class="notice-card p-3" id="notice-nid-' . $nid . '" data-nid="' . $nid . '" data-source="notify" hx-swap-oob="true">';
 				echo '  <div class="notice-row-top mb-1">';
 				echo '    <span class="notice-type-badge">';
 				echo '      <i class="ti ti-' . $icon_name . '"></i> ' . htmlspecialchars($type_label);
 				echo '    </span>';
-				echo '    <span class="notice-time">' . $notice['create_date_fmt'] . '</span>';
+				echo '    <span class="notice-time">' . $notify['create_date_fmt'] . '</span>';
 				echo '  </div>';
 				echo '  <div class="d-flex justify-content-between align-items-start gap-3">';
-				echo '    <div class="notice-detail flex-fill" style="min-width:0">' . htmlspecialchars($notice['message']) . '</div>';
+				echo '    <div class="notice-detail flex-fill" style="min-width:0">' . htmlspecialchars($notify['message']) . '</div>';
 				echo '    <div class="notice-actions"></div>';
 				echo '  </div>';
 				echo '</div>';
@@ -1123,10 +1315,10 @@ elseif($action == 'notice') {
 
 		} elseif($act == 'delete') {
 			$nid = param('nid');
-			$notice = notice__read($nid);
-			$notice['recvuid'] != $uid AND message(-1, lang('notice_my_error'));
+			$notify = notify__read($nid);
+			$notify['uid'] != $uid AND message(-1, lang('notice_my_error'));
 
-			$r = notice_delete($nid);
+			$r = notify_delete($nid);
 			$r === FALSE AND message(-1, lang('notice_my_update_failed'));
 
 			if(is_htmx_request()) {
@@ -1142,6 +1334,39 @@ elseif($action == 'notice') {
 			message(-1, lang('notice_my_error'));
 		}
 	}
+}
+
+// 积分预检查 API（前端发帖/点赞/收藏前查询积分消耗）
+elseif($action == 'credits_check') {
+	$event = param('event', '');
+	$fid = param('fid', 0);
+	if(empty($event) || $uid <= 0) {
+		header('Content-Type: application/json; charset=utf-8');
+		echo json_encode(array('code' => -1, 'message' => '参数错误'));
+		exit;
+	}
+	include_once APP_PATH . 'service/CreditsRuleService.php';
+	$result = CreditsRuleService::applyRule($event, $uid, $fid, true);
+
+	// 有扣减时附带用户当前余额，供前端弹窗显示
+	if(!empty($result['deduct_desc'])) {
+		$_user = user_read_cache($uid);
+		if(!empty($_user)) {
+			$result['balances'] = array(
+				'credits' => intval($_user['credits'] ?? 0),
+				'golds' => intval($_user['golds'] ?? 0),
+				'rmbs' => intval($_user['rmbs'] ?? 0),
+			);
+		}
+	}
+
+	header('Content-Type: application/json; charset=utf-8');
+	echo json_encode(array(
+		'code' => $result['ok'] ? 0 : -1,
+		'message' => $result['message'],
+		'data' => $result,
+	), JSON_UNESCAPED_UNICODE);
+	exit;
 }
 
 // hook my_end.php

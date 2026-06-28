@@ -337,13 +337,23 @@ switch ($method) {
             if (!$user) {
                 ApiResponse::notFound('User not found');
             }
+            // 检查上传附件权限
+            include_once APP_PATH . 'lib/security/PermissionService.php';
+            if (!PermissionService::check('allowattach')) {
+                ApiResponse::forbidden('您无权上传');
+            }
             // 校验文件上传
             if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
                 ApiResponse::validationError('请上传头像文件');
             }
             $file = $_FILES['file'];
             // 校验文件类型
-            $allowed = array('jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp');
+            $allowed = array('jpg', 'jpeg', 'png', 'gif', 'bmp');
+            // WebP 仅在 GD 真正支持时允许
+            if (function_exists('imagecreatefromwebp')) {
+                $gd_info = gd_info();
+                if (!empty($gd_info['WebP Support'])) $allowed[] = 'webp';
+            }
             $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
             if (!in_array($ext, $allowed)) {
                 ApiResponse::validationError('不支持的文件类型');

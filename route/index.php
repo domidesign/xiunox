@@ -26,11 +26,6 @@ if($order_param == 'follow') {
 $pagesize = $conf['pagesize'];
 $active = 'default';
 
-// 读取视图模式
-$view_mode = param('view', '');
-if(empty($view_mode)) $view_mode = isset($_COOKIE['bbs_view_mode']) ? $_COOKIE['bbs_view_mode'] : 'list';
-if(!in_array($view_mode, array('list', 'timeline', 'waterfall'))) $view_mode = 'list';
-
 // 从默认的地方读取主题列表
 $thread_list_from_default = 1;
 
@@ -38,12 +33,17 @@ $thread_list_from_default = 1;
 if($order == 'follow' && !empty($uid)) {
     $following_uids = user_follow_find_following_uids($uid);
     if(!empty($following_uids)) {
-        $totalnum = thread_count(array('uid' => $following_uids));
+        $follow_cond = array('uid' => $following_uids);
+        // 非管理员只显示审核通过的帖子（排除待审和驳回）
+        if($gid == 0 || $gid > 2) {
+            $follow_cond['audit_status'] = 1;
+        }
+        $totalnum = thread_count($follow_cond);
         $pagination = pagination(url("$route-{page}", array('order' => 'follow')), $totalnum, $page, $pagesize);
-        $threadlist = thread_find(array('uid' => $following_uids), array('tid' => -1), $page, $pagesize);
+        $threadlist = thread_find($follow_cond, array('tid' => -1), $page, $pagesize);
         if($threadlist) foreach($threadlist as &$thread) thread_format($thread);
         unset($thread);
-        // 过滤待审帖子（普通用户不可见他人待审帖子）
+        // 过滤没有权限访问的主题
         thread_list_access_filter($threadlist, $gid);
     } else {
         $threadlist = array();
@@ -57,6 +57,10 @@ if($order == 'follow' && !empty($uid)) {
 if($order == 'digest') {
     $fids = arrlist_values($forumlist_show, 'fid');
     $digest_cond = array('fid' => $fids, 'digest' => array('>' => 0));
+    // 非管理员只显示审核通过的帖子（排除待审和驳回）
+    if($gid == 0 || $gid > 2) {
+        $digest_cond['audit_status'] = 1;
+    }
     $totalnum = thread_count($digest_cond);
     $pagination = pagination(url("$route-{page}", array('order' => 'digest')), $totalnum, $page, $pagesize);
     $threadlist = thread_find($digest_cond, array('create_date' => -1), $page, $pagesize);
@@ -69,39 +73,41 @@ if($order == 'digest') {
 // hook index_thread_list_before.php
 if($thread_list_from_default) {
 	$fids = arrlist_values($forumlist_show, 'fid');
-	$threads = arrlist_sum($forumlist_show, 'threads');
-	$pagination = pagination(url("$route-{page}", array('order' => $order)), $threads, $page, $pagesize);
-	
-	// hook thread_find_by_fids_before.php
-	// 最热排序：数据库没有hot字段，先用lastpid取数据再PHP排序
-	$db_order = ($order == 'hot') ? 'lastpid' : $order;
-	$threadlist = thread_find_by_fids($fids, $page, $pagesize, $db_order, $threads);
-	if($order == 'hot') {
-		usort($threadlist, function($a, $b) {
-			$score_a = intval($a['views']) + intval($a['posts']) * 5;
-			$score_b = intval($b['views']) + intval($b['posts']) * 5;
-			return $score_b - $score_a;
-		});
+	// 首页版块过滤：如果后台设置了 home_forum_ids，则只显示指定版块的帖子
+	$_home_forum_ids = isset($conf['home_forum_ids']) ? $conf['home_forum_ids'] : array();
+	if(!empty($_home_forum_ids)) {
+		$fids = array_intersect($fids, $_home_forum_ids);
+		$fids = array_values($fids);
 	}
+	// 首页帖子总数：使用 60 秒短时缓存，避免每次请求都实时 COUNT
+	$_count_cache_key = 'index_thread_count_' . md5(implode(',', $fids)) . '_' . $gid;
+	$totalnum = cache_get($_count_cache_key);
+	if($totalnum === NULL) {
+		if($gid == 0 || $gid > 2) {
+			$totalnum = thread_count(array('fid' => $fids, 'audit_status' => 1));
+		} else {
+			$totalnum = thread_count(array('fid' => $fids));
+		}
+		cache_set($_count_cache_key, $totalnum, 60);
+	}
+	$pagination = pagination(url("$route-{page}", array('order' => $order)), $totalnum, $page, $pagesize);
+
+	// hook thread_find_by_fids_before.php
+	// 最热排序：直接用 ORDER BY views DESC（与版块页一致），修正之前的语义错误
+	$_list_order = ($order == 'hot') ? 'views' : $order;
+	$threadlist = thread_find_by_fids($fids, $page, $pagesize, $_list_order, FALSE);
 }
 
 // 查找置顶帖（在主要浏览排序的第一页显示，排除精华/关注等过滤视图）
 $toplist = array();
 if($page == 1 && !in_array($order, array('digest', 'follow'))) {
-	$toplist = thread_top_find(0);
+	// 使用缓存版（全站置顶 fid=0，缓存 300 秒，置顶变化时主动失效）
+	$toplist = thread_top_find_cache();
 	thread_list_access_filter($toplist, $gid);
-	if($view_mode != 'list') {
-		$toplist = thread_list_enrich($toplist);
-	}
 }
 
 // 过滤没有权限访问的主题 / filter no permission thread
 thread_list_access_filter($threadlist, $gid);
-
-// 为朋友圈/瀑布流视图加载内容预览和缩略图
-if($view_mode != 'list') {
-	$threadlist = thread_list_enrich($threadlist);
-}
 
 // SEO
 $header['title'] = $conf['sitename']; 				// site title

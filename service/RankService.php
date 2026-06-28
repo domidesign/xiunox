@@ -26,6 +26,12 @@ class RankService {
      * @return array 包含 list 和 total
      */
     public function getHotThreads(string $period, int $page, int $pageSize): array {
+        // 缓存 5 分钟：不同用户组看到的权限过滤结果不同，按 gid 区分缓存
+        global $gid;
+        $cacheKey = 'rank_hot_threads_' . $period . '_' . intval($page) . '_' . intval($pageSize) . '_gid' . intval($gid);
+        $cached = function_exists('cache_get') ? cache_get($cacheKey) : NULL;
+        if($cached !== NULL && $cached !== FALSE) return $cached;
+
         $pre = $this->db->tablepre;
 
         // 根据时间周期构建条件
@@ -39,12 +45,12 @@ class RankService {
 
         $offset = ($page - 1) * $pageSize;
 
-        // 查询列表，按 views+posts 综合得分降序，排除待审帖子
+        // 查询列表，按 views+posts 综合得分降序，只显示审核通过的帖子（排除待审和驳回）
         // 多查一些用于版块权限过滤后仍能填满 pageSize
         $fetchSize = $pageSize * 3;
-        $whereAudit = ($timeCond ? ' AND' : ' WHERE') . ' (t.audit_status IS NULL OR t.audit_status != 0)';
+        $whereAudit = ($timeCond ? ' AND' : ' WHERE') . ' t.audit_status = 1';
         $sql = "SELECT t.tid, t.subject AS title, t.uid, t.posts AS replies, t.views, t.last_date, t.fid, t.audit_status,
-                       u.username
+                       IFNULL(NULLIF(u.nickname,''), u.username) AS username
                 FROM {$pre}thread t
                 LEFT JOIN {$pre}user u ON t.uid = u.uid
                 {$timeCond}{$whereAudit}
@@ -63,8 +69,9 @@ class RankService {
                 }
                 return true;
             });
-            $list = array_slice(array_values($list), 0, $pageSize);
         }
+        // 无论是否进行权限过滤，都截断到 pageSize，避免多查的 3 倍数据被返回
+        $list = array_slice(array_values($list), 0, $pageSize);
 
         // 格式化输出
         $items = array_map(function($row) {
@@ -85,7 +92,9 @@ class RankService {
         $countRow = $this->db->sqlFindOne($countSql);
         $total = !empty($countRow) ? intval($countRow['total']) : 0;
 
-        return ['list' => $items, 'total' => $total];
+        $result = ['list' => $items, 'total' => $total];
+        if(function_exists('cache_set')) cache_set($cacheKey, $result, 300);
+        return $result;
     }
 
     /**
@@ -97,12 +106,17 @@ class RankService {
      * @return array 包含 list 和 total
      */
     public function getActiveUsers(string $period, int $page, int $pageSize): array {
+        // 缓存 5 分钟
+        $cacheKey = 'rank_active_users_' . $period . '_' . intval($page) . '_' . intval($pageSize);
+        $cached = function_exists('cache_get') ? cache_get($cacheKey) : NULL;
+        if($cached !== NULL && $cached !== FALSE) return $cached;
+
         $pre = $this->db->tablepre;
 
         $offset = ($page - 1) * $pageSize;
 
         // 按用户 threads+posts 总数排序
-        $sql = "SELECT u.uid, u.username, u.avatar, u.threads, u.posts, u.create_date, u.gid,
+        $sql = "SELECT u.uid, IFNULL(NULLIF(u.nickname,''), u.username) AS username, u.avatar, u.threads, u.posts, u.create_date, u.gid,
                        COALESCE(u.credits, 0) AS credits
                 FROM {$pre}user u
                 ORDER BY (u.threads + u.posts) DESC
@@ -133,7 +147,9 @@ class RankService {
         $countRow = $this->db->sqlFindOne($countSql);
         $total = !empty($countRow) ? intval($countRow['total']) : 0;
 
-        return ['list' => $items, 'total' => $total];
+        $result = ['list' => $items, 'total' => $total];
+        if(function_exists('cache_set')) cache_set($cacheKey, $result, 300);
+        return $result;
     }
 
     /**
@@ -144,12 +160,17 @@ class RankService {
      * @return array 包含 list 和 total
      */
     public function getCreditsRanking(int $page, int $pageSize): array {
+        // 缓存 5 分钟
+        $cacheKey = 'rank_credits_' . intval($page) . '_' . intval($pageSize);
+        $cached = function_exists('cache_get') ? cache_get($cacheKey) : NULL;
+        if($cached !== NULL && $cached !== FALSE) return $cached;
+
         $pre = $this->db->tablepre;
 
         $offset = ($page - 1) * $pageSize;
 
         // 按用户积分降序排序
-        $sql = "SELECT u.uid, u.username, u.avatar, u.credits, u.golds, u.threads, u.posts, u.gid
+        $sql = "SELECT u.uid, IFNULL(NULLIF(u.nickname,''), u.username) AS username, u.avatar, u.credits, u.golds, u.threads, u.posts, u.gid
                 FROM {$pre}user u
                 ORDER BY u.credits DESC
                 LIMIT {$offset}, {$pageSize}";
@@ -178,7 +199,9 @@ class RankService {
         $countRow = $this->db->sqlFindOne($countSql);
         $total = !empty($countRow) ? intval($countRow['total']) : 0;
 
-        return ['list' => $items, 'total' => $total];
+        $result = ['list' => $items, 'total' => $total];
+        if(function_exists('cache_set')) cache_set($cacheKey, $result, 300);
+        return $result;
     }
 
 }

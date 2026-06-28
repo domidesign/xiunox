@@ -1,0 +1,159 @@
+<?php
+/**
+ * 共用用户信息侧栏组件
+ *
+ * 使用方式：在页面路由中 prepare 以下变量，然后 include 此组件
+ *
+ * 必需变量：
+ *   $uid, $user (全局)
+ *   $sidebar_ttype - 页面类型：home / checkin / invite / medal
+ *   $sidebar_stats - 统计数据数组，格式：
+ *     array(
+ *       array('label' => '累计签到', 'value' => 10, 'key' => 'total_days'),
+ *       array('label' => '积分', 'value' => 50, 'key' => 'credits'),
+ *     )
+ *   $sidebar_btn    - 主操作按钮，格式：
+ *     array('url' => '...', 'icon' => 'ti-pencil', 'text' => '发帖')
+ *     或 null（不显示按钮）
+ *
+ * 可选变量：
+ *   $sidebar_extra_html - 额外 HTML（如勋章佩戴图标等），插入到用户名后面
+ *                         若未设置，自动获取已佩戴勋章
+ */
+
+// 移动端跳过右侧栏
+$_is_mobile = (function() {
+    if (empty($_SERVER['HTTP_USER_AGENT'])) return false;
+    $ua = $_SERVER['HTTP_USER_AGENT'];
+    return (bool)preg_match('/Android|iPhone|iPod|Mobile|Opera Mini|IEMobile|WPDesktop/i', $ua);
+})();
+if ($_is_mobile) return;
+
+$_ttype = $sidebar_ttype ?? 'home';
+$_stats = $sidebar_stats ?? array();
+$_btn = $sidebar_btn ?? null;
+
+// 自动获取勋章（如果未传入 $sidebar_extra_html 且勋章插件已安装）
+if (!isset($sidebar_extra_html) && !empty($uid) && class_exists('MedalService')) {
+    $_sidebar_medals = MedalService::getUserWearingMedalsCached($uid);
+    if (!empty($_sidebar_medals)) {
+        $sidebar_extra_html = '<span class="medal-icons d-inline-flex align-items-center ms-1" style="gap:2px;vertical-align:middle">';
+        foreach ($_sidebar_medals as $_sm) {
+            if (!empty($_sm['medal']['icon'])) {
+                $sidebar_extra_html .= '<a href="' . url('medal-' . intval($_sm['medal']['id'])) . '" title="' . esc_attr($_sm['medal']['name']) . '" style="display:flex;align-items:center">';
+                $sidebar_extra_html .= '<img src="' . esc_attr($_sm['medal']['icon']) . '" alt="' . esc_attr($_sm['medal']['name']) . '" style="width:16px;height:16px">';
+                $sidebar_extra_html .= '</a>';
+            }
+        }
+        $sidebar_extra_html .= '</span>';
+    } else {
+        $sidebar_extra_html = '';
+    }
+}
+$_extra_html = $sidebar_extra_html ?? '';
+$_cols = count($_stats) > 0 ? min(count($_stats), 4) : 4;
+?>
+
+<div class="d-none d-lg-block" id="sidebar-right" hx-preserve>
+    <div class="x-card card">
+        <?php if (!empty($uid) && !empty($user)) { ?>
+        <!-- 登录用户信息 -->
+        <div class="card-body">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <?php echo avatar_component($uid, 'lg'); ?>
+                <div class="flex-grow-1" style="min-width:0">
+                    <div class="d-flex align-items-center flex-wrap gap-1">
+                        <span class="fw-semibold text-truncate"><?php echo esc_html($user['display_name'] ?? $user['username']); ?></span>
+                        <?php echo $_extra_html; ?>
+                    </div>
+                    <div class="d-flex align-items-center flex-wrap gap-1 mt-1">
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary" style="font-size:0.65em">uid:<?php echo $uid; ?></span>
+                        <?php if (!empty($user['groupname'])): ?>
+                        <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:0.65em">
+                            <?php echo esc_html($user['groupname']); ?>
+                        </span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php if (!empty($user['signature'])): ?>
+        <!-- 用户签名独立区块 -->
+        <div class="card-body py-2">
+            <div class="bg-body-tertiary rounded-1 p-1 small text-body-secondary">
+                <?php echo esc_html($user['signature']); ?>
+            </div>
+        </div>
+        <?php endif; ?>
+        <div class="">
+            <div class="d-grid text-center small rounded-3 py-3" style="grid-template-columns:repeat(<?php echo $_cols; ?>, 1fr);">
+                <?php foreach ($_stats as $_s): ?>
+                <div>
+                    <span class="text-secondary"><?php echo esc_html($_s['label']); ?></span><br>
+                    <b class="stat-count sidebar-stat" data-key="<?php echo esc_attr($_s['key'] ?? ''); ?>" data-count="<?php echo intval($_s['value']); ?>"><?php echo intval($_s['value']); ?></b>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php if (!empty($_btn)): ?>
+        <div class="py-3 d-flex gap-2 flex-wrap">
+            <a role="button" class="btn btn-primary flex-fill rounded-pill" href="<?php echo esc_attr($_btn['url']); ?>" hx-boost="false">
+                <i class="<?php echo esc_attr($_btn['icon'] ?? 'ti-pencil'); ?> me-1"></i>
+                <?php echo esc_html($_btn['text']); ?>
+            </a>
+        </div>
+        <?php endif; ?>
+
+        <?php } else { ?>
+        <!-- 未登录站点信息 -->
+        <div class="card-body">
+            <?php
+            $_logo_src = !empty($conf['logo_url']) ? $conf['logo_url'] : (!empty($conf['logo_mobile_url']) ? $conf['logo_mobile_url'] : '');
+            ?>
+            <div class="d-flex align-items-center gap-2">
+                <?php if ($_logo_src) { ?>
+                <img src="<?php echo esc_attr($_logo_src); ?>" alt="<?php echo esc_attr($conf['sitename']); ?>"
+                    class="avatar-lg flex-shrink-0" onerror="this.src='/view/img/avatar.png'">
+                <?php } ?>
+                <div class="flex-grow-1" style="min-width:0">
+                    <h5 class="card-title mb-1"><?php echo esc_html($conf['sitename']); ?></h5>
+                </div>
+            </div>
+        </div>
+        <?php if (!empty($conf['sitebrief'])): ?>
+        <div class="card-body py-2">
+            <div class="bg-body-tertiary rounded-1 p-1 small text-body-secondary">
+                <?php echo esc_html($conf['sitebrief']); ?>
+            </div>
+        </div>
+        <?php endif; ?>
+        <div class="pt-3">
+            <div class="d-grid text-center small rounded-3 p-2" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+                <div>
+                    <span class="text-secondary"><?php echo lang('threads'); ?></span><br>
+                    <b><?php echo $runtime['threads']; ?></b>
+                </div>
+                <div>
+                    <span class="text-secondary"><?php echo lang('posts'); ?></span><br>
+                    <b><?php echo $runtime['posts']; ?></b>
+                </div>
+                <div>
+                    <span class="text-secondary"><?php echo lang('users'); ?></span><br>
+                    <b><?php echo $runtime['users']; ?></b>
+                </div>
+                <div>
+                    <span class="text-secondary"><?php echo lang('online'); ?></span><br>
+                    <b><?php echo $runtime['onlines'] > 0 ? $runtime['onlines'] : 0; ?></b>
+                </div>
+            </div>
+        </div>
+        <div class="py-3 d-flex gap-2 flex-wrap">
+            <a role="button" class="btn btn-primary flex-fill rounded-pill" href="<?php echo user_login_url(); ?>">
+                <i class="ti ti-login me-1"></i><?php echo lang('login'); ?>
+            </a>
+        </div>
+        <?php } ?>
+    </div>
+
+    <!--{hook sidebar_user_card_after.htm}-->
+</div>

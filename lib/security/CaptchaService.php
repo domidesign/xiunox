@@ -9,35 +9,108 @@ if (!function_exists('kv_get')) {
 /**
  * 验证码服务 - 可插拔验证码，内置 GD 图片验证码实现
  *
- * 场景：login, register, post, resetpw
+ * 场景：login, register, post, reply, resetpw
  * 配置存储在 bbs_kv 表，键名 security_captcha_config
  *
- * 接口：
- * - captcha_generate($scene): 生成验证码，返回 ['key'=>string, 'image'=>string(base64)] 或 false
- * - captcha_verify($scene, $input): 验证用户输入，返回 bool
- * - captcha_is_enabled($scene): 检查场景是否开启验证码
- * - captcha_get_config(): 获取配置
- * - captcha_save_config($config): 保存配置
+ * 配置格式：
+ * [
+ *   'types' => [                   // 每个场景的验证码类型
+ *     'login'    => 'gd_image',
+ *     'register' => 'gd_math',
+ *     'post'     => 'gd_image',
+ *     'reply'    => 'gd_image',
+ *     'resetpw'  => 'gd_image',
+ *   ],
+ *   'gids' => [                    // 每个场景需要验证码的用户组ID列表
+ *     'login'    => [0],           // 登录/注册/找回密码：只有游客(0)
+ *     'register' => [0],
+ *     'post'     => [0,5,6,...],   // 发帖/回帖：按用户组配置
+ *     'reply'    => [0,5,6,...],
+ *     'resetpw'  => [0],
+ *   ]
+ * ]
  */
 class CaptchaService {
 
     // 支持的场景
-    const SCENES = ['login', 'register', 'post', 'resetpw'];
+    const SCENES = ['login', 'register', 'post', 'reply', 'resetpw'];
+
+    // 登录前场景（用户未登录，只有游客gid=0）
+    const PRE_AUTH_SCENES = ['login', 'register', 'resetpw'];
+
+    // 已注册的自定义场景（供插件使用）
+    // 格式：['scene_name' => '显示名称']
+    private static $custom_scenes = [];
+
+    /**
+     * 注册自定义场景（供插件使用）
+     * 插件注册的场景不检查 is_enabled，由插件自己控制是否需要验证码
+     * @param string $scene 场景名（只能包含字母、数字、下划线）
+     * @param string $label 显示名称（可选，用于后台/日志）
+     */
+    public static function register_scene(string $scene, string $label = ''): void {
+        // 场景名只能包含字母、数字、下划线，防止注入
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $scene)) {
+            return;
+        }
+        // 不允许覆盖标准场景
+        if (in_array($scene, self::SCENES)) {
+            return;
+        }
+        self::$custom_scenes[$scene] = $label ?: $scene;
+    }
+
+    /**
+     * 获取所有已注册的自定义场景
+     * @return array ['scene_name' => '显示名称']
+     */
+    public static function get_custom_scenes(): array {
+        return self::$custom_scenes;
+    }
+
+    /**
+     * 检查是否为已注册的自定义场景
+     */
+    public static function is_custom_scene(string $scene): bool {
+        return isset(self::$custom_scenes[$scene]);
+    }
 
     // 默认配置
     const DEFAULT_CONFIG = [
-        'login' => ['enabled' => 0, 'type' => 'gd_image'],
-        'register' => ['enabled' => 0, 'type' => 'gd_image'],
-        'post' => ['enabled' => 0, 'type' => 'gd_image'],
-        'resetpw' => ['enabled' => 0, 'type' => 'gd_image'],
+        'types' => [
+            'login' => 'gd_image',
+            'register' => 'gd_image',
+            'post' => 'gd_image',
+            'reply' => 'gd_image',
+            'resetpw' => 'gd_image',
+        ],
+        'gids' => [
+            'login' => [],
+            'register' => [],
+            'post' => [],
+            'reply' => [],
+            'resetpw' => [],
+        ],
     ];
 
     /**
-     * 检查场景是否开启验证码
+     * 检查场景+用户组是否需要验证码
+     * @param string $scene 场景名
+     * @param int $gid 用户组ID（默认0=游客）
      */
-    public static function is_enabled(string $scene): bool {
+    public static function is_enabled(string $scene, int $gid = 0): bool {
         $config = self::get_config();
-        return !empty($config[$scene]['enabled']);
+        $gids = $config['gids'][$scene] ?? [];
+        return in_array($gid, $gids);
+    }
+
+    /**
+     * 检查场景是否有任何用户组开启验证码（用于前端判断是否加载验证码组件）
+     */
+    public static function is_scene_active(string $scene): bool {
+        $config = self::get_config();
+        $gids = $config['gids'][$scene] ?? [];
+        return !empty($gids);
     }
 
     /**
@@ -46,13 +119,15 @@ class CaptchaService {
      * @return array|false ['key'=>string, 'image'=>string(base64)] 或 false（场景未开启）
      */
     public static function generate(string $scene) {
-        if (!self::is_enabled($scene)) {
-            return false;
+        // 标准场景：检查是否有用户组开启
+        if (in_array($scene, self::SCENES)) {
+            if (!self::is_scene_active($scene)) {
+                return false;
+            }
         }
+        // 自定义场景（插件注册）：不检查 is_enabled，由插件自己控制是否需要验证码
 
         // hook: 插件可覆盖验证码生成
-        // Xiuno 使用模板 hook 机制，PHP 层通过全局函数扩展
-        // 插件可定义 security_captcha_generate_{scene} 函数来覆盖生成逻辑
         $hook_func = 'security_captcha_generate_' . $scene;
         if (function_exists($hook_func)) {
             $result = $hook_func($scene);
@@ -62,7 +137,7 @@ class CaptchaService {
         }
 
         $config = self::get_config();
-        $type = $config[$scene]['type'] ?? 'gd_image';
+        $type = $config['types'][$scene] ?? 'gd_image';
 
         if ($type === 'gd_math') {
             return self::generate_gd_math($scene);
@@ -75,12 +150,17 @@ class CaptchaService {
      * 验证验证码
      * @param string $scene 场景名
      * @param string $input 用户输入
+     * @param int $gid 用户组ID（默认0=游客，仅对标准场景生效）
      * @return bool
      */
-    public static function verify(string $scene, string $input): bool {
-        if (!self::is_enabled($scene)) {
-            return true; // 场景未开启，直接通过
+    public static function verify(string $scene, string $input, int $gid = 0): bool {
+        // 标准场景：按用户组判断是否需要验证
+        if (in_array($scene, self::SCENES)) {
+            if (!self::is_enabled($scene, $gid)) {
+                return true; // 该用户组无需验证码，直接通过
+            }
         }
+        // 自定义场景（插件注册）：始终验证，由插件自己控制是否需要验证码
 
         // hook: 插件可覆盖验证码验证
         $hook_func = 'security_captcha_verify_' . $scene;
@@ -94,7 +174,7 @@ class CaptchaService {
         $session_key = 'captcha_' . $scene;
         $stored = $_SESSION[$session_key] ?? '';
 
-        if (empty($stored) || empty($input)) {
+        if (empty($stored) || $input === '') {
             return false;
         }
 
@@ -107,7 +187,7 @@ class CaptchaService {
 
     /**
      * 获取配置
-     * kv_get/kv_set 内部已处理 JSON 编解码，无需二次 json_encode/json_decode
+     * 兼容旧格式自动迁移
      */
     public static function get_config(): array {
         static $config = null;
@@ -118,26 +198,73 @@ class CaptchaService {
         if (empty($config) || !is_array($config)) {
             $config = self::DEFAULT_CONFIG;
         }
+        // 兼容旧格式1：scene=>{enabled,type}（最旧格式）
+        if (!isset($config['gids'])) {
+            $new_config = ['types' => self::DEFAULT_CONFIG['types'], 'gids' => []];
+            foreach (self::SCENES as $scene) {
+                if (!empty($config[$scene]['enabled'])) {
+                    global $grouplist;
+                    $all_gids = [0];
+                    if (!empty($grouplist)) {
+                        foreach ($grouplist as $g) {
+                            $all_gids[] = intval($g['gid']);
+                        }
+                    }
+                    $new_config['gids'][$scene] = $all_gids;
+                } else {
+                    $new_config['gids'][$scene] = [];
+                }
+                if (!empty($config[$scene]['type'])) {
+                    $new_config['types'][$scene] = $config[$scene]['type'];
+                }
+            }
+            $config = $new_config;
+            self::save_config($config);
+        }
+        // 兼容旧格式2：type（全局类型）→ types（每场景独立类型）
+        if (isset($config['type']) && !isset($config['types'])) {
+            $global_type = in_array($config['type'], ['gd_image', 'gd_math']) ? $config['type'] : 'gd_image';
+            $config['types'] = [];
+            foreach (self::SCENES as $scene) {
+                $config['types'][$scene] = $global_type;
+            }
+            unset($config['type']);
+            self::save_config($config);
+        }
+        // 确保每个场景都有 types 和 gids
+        foreach (self::SCENES as $scene) {
+            if (!isset($config['types'][$scene])) {
+                $config['types'][$scene] = 'gd_image';
+            }
+            if (!isset($config['gids'][$scene])) {
+                $config['gids'][$scene] = [];
+            }
+        }
         return $config;
     }
 
     /**
      * 保存配置
-     * kv_set 内部已处理 JSON 编解码，直接传入数组
      */
     public static function save_config(array $config): bool {
-        // 确保只保留合法场景
-        $clean = [];
+        $clean = [
+            'types' => [],
+            'gids' => [],
+        ];
         foreach (self::SCENES as $scene) {
-            $clean[$scene] = [
-                'enabled' => !empty($config[$scene]['enabled']) ? 1 : 0,
-                'type' => in_array($config[$scene]['type'] ?? '', ['gd_image', 'gd_math'])
-                    ? $config[$scene]['type'] : 'gd_image',
-            ];
+            $type = $config['types'][$scene] ?? 'gd_image';
+            $clean['types'][$scene] = in_array($type, ['gd_image', 'gd_math']) ? $type : 'gd_image';
+            $gids = $config['gids'][$scene] ?? [];
+            // 不能用默认 array_filter()，否则会过滤掉 gid=0（游客组）
+            $filtered = [];
+            foreach ((array)$gids as $gid) {
+                if ($gid !== '' && $gid !== null) {
+                    $filtered[] = intval($gid);
+                }
+            }
+            $clean['gids'][$scene] = $filtered;
         }
         $r = kv_set('security_captcha_config', $clean);
-        // kv_set 返回 db_replace 的结果（int），0 表示 REPLACE 成功但无自增ID
-        // 只有 FALSE 才表示真正失败
         return $r !== FALSE;
     }
 
@@ -203,9 +330,11 @@ class CaptchaService {
         $a = random_int(1, 20);
         $b = random_int(1, 20);
         $op = random_int(0, 1) ? '+' : '-';
-        if ($op === '-' && $a < $b) {
-            // 确保结果非负
-            $tmp = $a; $a = $b; $b = $tmp;
+        if ($op === '-') {
+            // 确保结果为正数（不为0）
+            if ($a <= $b) {
+                $tmp = $a; $a = $b + 1; $b = $tmp;
+            }
         }
         $answer = $op === '+' ? $a + $b : $a - $b;
         $code_str = "$a $op $b = ?";

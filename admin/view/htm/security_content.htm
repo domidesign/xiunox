@@ -1,0 +1,102 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<div class=""><?php echo admin_tab_active($menu['security']['tab'], 'content');?></div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo admin_security_url('content');?>" method="post" id="content-form">
+			<?php echo CsrfService::input(); ?>
+
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_allow_edit_post')?></label>
+				<div class="col-sm-6">
+					<input type="hidden" name="security_allow_edit" value="0">
+					<div class="form-check form-switch">
+						<input class="form-check-input" type="checkbox" name="security_allow_edit" value="1" <?php echo !empty($security_config['security_allow_edit']) ? 'checked' : '';?>>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_global_switch')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_edit_time_limit_label')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_edit_time_limit" value="<?php echo $security_config['security_edit_time_limit'];?>" min="0">
+						<span class="input-group-text"><?php echo lang('unit_minute')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_zero_always_editable')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_allow_delete_post')?></label>
+				<div class="col-sm-6">
+					<input type="hidden" name="security_allow_delete" value="0">
+					<div class="form-check form-switch">
+						<input class="form-check-input" type="checkbox" name="security_allow_delete" value="1" <?php echo !empty($security_config['security_allow_delete']) ? 'checked' : '';?>>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_global_switch')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_delete_time_limit_label')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_delete_time_limit" value="<?php echo $security_config['security_delete_time_limit'];?>" min="0">
+						<span class="input-group-text"><?php echo lang('unit_minute')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_zero_no_delete')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_soft_delete_label')?></label>
+				<div class="col-sm-6">
+					<input type="hidden" name="security_soft_delete" value="0">
+					<div class="form-check form-switch">
+						<input class="form-check-input" type="checkbox" name="security_soft_delete" value="1" <?php echo !empty($security_config['security_soft_delete']) ? 'checked' : '';?>>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_easy_recovery')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_allow_delete_reply')?></label>
+				<div class="col-sm-6">
+					<input type="hidden" name="security_allow_delete_reply" value="0">
+					<div class="form-check form-switch">
+						<input class="form-check-input" type="checkbox" name="security_allow_delete_reply" value="1" <?php echo !empty($security_config['security_allow_delete_reply']) ? 'checked' : '';?>>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_user_delete_own_reply')?></small></div>
+			</div>
+
+			<div class="mt-4">
+				<button type="submit" class="btn btn-primary rounded-pill">
+					<i class="ti ti-device-floppy me-1"></i><?php echo lang('admin_save_settings')?>
+				</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+var jform = $('#content-form');
+var jsubmit = jform.find('button[type="submit"]');
+jform.on('submit', function() {
+	jsubmit.button('loading');
+	var postdata = jform.serialize();
+	$.xpost(jform.attr('action'), postdata, function(code, message) {
+		if(code == 0) {
+			showToast(message, 'success');
+			setTimeout(function(){ window.location.reload(); }, 500);
+		} else if(xn.is_number(code)) {
+			showToast(message, 'error');
+			jsubmit.button('reset');
+		} else {
+			jform.find('[name="'+code+'"]').alert(message).focus();
+			jsubmit.button('reset');
+		}
+	});
+	return false;
+});
+</script>

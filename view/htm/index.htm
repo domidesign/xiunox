@@ -17,7 +17,7 @@
 		}
 		?>
 		<?php if($_announcement || $_announcements) { ?>
-	<div class="x-card card mb-3">
+	<div class="x-card card ">
 		<div class="d-flex align-items-center gap-2">
 			<span class="announcement-badge flex-shrink-0"><i class="ti ti-speakerphone me-1"></i><?php echo lang('announcement');?></span>
 			<div class="announcement-scroll flex-fill" id="announcementScroll">
@@ -31,42 +31,35 @@
 		</div>
 	</div>
 	<?php } ?>
-		<div class="index-threadlist ">
-			<div class="  py-1 pe-3">
-				<div class="d-flex justify-content-between align-items-center flex-wrap">
-					<ul class="nav thread-nav-tabs" role="tablist">
-						<li class="nav-item"><a class="nav-link<?php echo $order == 'tid' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'tid'));?>" hx-get="<?php echo url("$route", array('order' => 'tid', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('latest_tab');?></a></li>
-						<li class="nav-item"><a class="nav-link<?php echo $order == 'hot' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'hot'));?>" hx-get="<?php echo url("$route", array('order' => 'hot', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('hottest_tab');?></a></li>
-						<li class="nav-item"><a class="nav-link<?php echo $order == 'digest' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'digest'));?>" hx-get="<?php echo url("$route", array('order' => 'digest', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('digest');?></a></li>
-						<?php if(!empty($uid)) { ?>
-						<li class="nav-item"><a class="nav-link<?php echo $order == 'follow' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'follow'));?>" hx-get="<?php echo url("$route", array('order' => 'follow', 'view' => $view_mode));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('follow_tab');?></a></li>
-						<?php } ?>
-						<!--{hook index_thread_list_nav_item_after.htm}-->
-					</ul>
-					<?php $toggle_url = url("$route-$page", array('order' => $order)); ?>
-					<?php include _include(APP_PATH.'view/htm/view_toggle.inc.htm');?>
-				</div>
-			</div>
-			<div class="mt-0 ">
-				<!--{hook index_threadlist_before.htm}-->
-				<?php if ($view_mode == 'list') { ?>
-					 
-				<ul class="list-none threadlist x-card card  mb-0">
-					<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm');?>
+		<div class="index-threadlist list-mode">
+		<div class="  py-1 pe-3">
+			<div class="d-flex justify-content-between align-items-center flex-wrap">
+				<ul class="nav thread-nav-tabs" role="tablist">
+					<li class="nav-item"><a class="nav-link<?php echo ($order == 'lastpid' || $order == 'tid') ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'lastpid'));?>" hx-get="<?php echo url("$route", array('order' => 'lastpid'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('latest_tab');?></a></li>
+					<li class="nav-item"><a class="nav-link<?php echo $order == 'hot' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'hot'));?>" hx-get="<?php echo url("$route", array('order' => 'hot'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('hottest_tab');?></a></li>
+					<li class="nav-item"><a class="nav-link<?php echo $order == 'digest' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'digest'));?>" hx-get="<?php echo url("$route", array('order' => 'digest'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('digest');?></a></li>
+					<?php if(!empty($uid)) { ?>
+					<li class="nav-item"><a class="nav-link<?php echo $order == 'follow' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'follow'));?>" hx-get="<?php echo url("$route", array('order' => 'follow'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('follow_tab');?></a></li>
+					<?php } ?>
+					<!--{hook index_thread_list_nav_item_after.htm}-->
 				</ul>
-				<?php } elseif ($view_mode == 'timeline') { ?>
-				<div class="timeline-feed ">
-					<?php include _include(APP_PATH.'view/htm/thread_list_timeline.inc.htm');?>
-				</div>
-				<?php } else { ?>
-				<div class="masonry-container ">
-					<?php include _include(APP_PATH.'view/htm/thread_list_masonry.inc.htm');?>
+				<?php if($order == 'lastpid' || $order == 'tid') { ?>
+				<div class="btn-group btn-group-sm" role="group">
+					<a class="btn btn-outline-secondary<?php echo $order == 'lastpid' ? ' active' : '';?>" href="<?php echo url("$route", array('order' => 'lastpid'));?>" hx-get="<?php echo url("$route", array('order' => 'lastpid'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('latest_reply');?></a>
+					<a class="btn btn-outline-secondary<?php echo $order == 'tid' ? ' active' : '';?>" href="<?php echo url("$route", array('order' => 'tid'));?>" hx-get="<?php echo url("$route", array('order' => 'tid'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('new_thread');?></a>
 				</div>
 				<?php } ?>
-				<!--{hook index_threadlist_after.htm}-->
-				<?php if($view_mode == 'list') { include _include(APP_PATH.'view/htm/thread_list_mod.inc.htm'); } ?>
 			</div>
 		</div>
+		<div class="mt-0 ">
+			<!--{hook index_threadlist_before.htm}-->
+			<ul class="list-none threadlist x-card card  mb-0">
+				<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm');?>
+			</ul>
+			<!--{hook index_threadlist_after.htm}-->
+			<?php include _include(APP_PATH.'view/htm/thread_list_mod.inc.htm'); ?>
+		</div>
+	</div>
 
 		<!--{hook index_page_before.htm}-->
 		<?php include _include(APP_PATH.'view/htm/pagination.inc.htm');?>
@@ -156,8 +149,7 @@ $('li[data-active="fid-0"]').addClass('active');
 
 	// ===== 帖子列表淡入交错动画 =====
 	function animateThreadItems() {
-		// 支持三种布局：列表、朋友圈、瀑布流
-		var items = document.querySelectorAll('.thread-list-item:not([data-animated]), .timeline-card:not([data-animated]), .masonry-item:not([data-animated])');
+		var items = document.querySelectorAll('.thread-list-item:not([data-animated])');
 		if(!items.length) return;
 
 		// 设置初始状态

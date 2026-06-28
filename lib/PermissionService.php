@@ -132,15 +132,28 @@ class PermissionService {
      */
     public static function updatePermissions(int $gid, array $permissions): bool {
         if(!self::tableExists()) return FALSE;
+        if(empty($permissions)) return TRUE;
+
+        // 使用 INSERT ... ON DUPLICATE KEY UPDATE 批量 upsert，消除 N+1 查询
+        // group_permission 表有复合主键 (gid, permission_key)，支持 ON DUPLICATE KEY UPDATE
+        global $db;
+        $tablepre = $db->tablepre;
+        $gid = intval($gid);
+
+        $values = array();
         foreach($permissions as $key => $value) {
             $value = intval($value);
-            $existing = db_find_one('group_permission', array('gid'=>$gid, 'permission_key'=>$key));
-            if($existing) {
-                db_update('group_permission', array('gid'=>$gid, 'permission_key'=>$key), array('value'=>$value));
-            } else {
-                db_insert('group_permission', array('gid'=>$gid, 'permission_key'=>$key, 'value'=>$value));
-            }
+            $key_escaped = addslashes((string)$key);
+            $values[] = "({$gid}, '{$key_escaped}', {$value})";
         }
+
+        if(empty($values)) return TRUE;
+
+        $sql = "INSERT INTO `{$tablepre}group_permission` (`gid`, `permission_key`, `value`) VALUES "
+             . implode(',', $values)
+             . " ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)";
+        db_exec($sql);
+
         return TRUE;
     }
 

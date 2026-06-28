@@ -8,7 +8,7 @@
 
 <div class="x-card card">
 	<div class="card-body">
-		<form action="<?php echo url('setting-credits');?>" method="post" id="form">
+		<form action="<?php echo admin_setting_url('credits');?>" method="post" id="form">
 			<?php echo CsrfService::input(); ?>
 
 			<!-- 防刷设置 -->
@@ -100,7 +100,7 @@ jform.on('submit', function() {
 	$.xpost(jform.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
 			showToast(message, 'success');
-			jsubmit.text(message).delay(1000).button('reset');
+			setTimeout(function(){ window.location.reload(); }, 1000);
 		} else if(xn.is_number(code)) {
 			showToast(message, 'error');
 			jsubmit.button('reset');

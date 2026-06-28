@@ -30,25 +30,22 @@
 <script>
 var jform = $('#form');
 var jsubmit = $('#submit');
-var jemail = $('#email');
 var jpassword = $('#password').focus();
 jform.on('submit', function() {
 	jform.reset();
-	jsubmit.button('loading');
+	jsubmit.prop('disabled', true).html('<?php echo lang('submiting');?>...');
 	var postdata = jform.serializeObject();
 	$.xpost(jform.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
 			showToast(message, 'success');
-			jsubmit.button(message).delay(1000).location('./');
-		} else if(code == 'email') {
-			jemail.alert(message).focus();
-			jsubmit.button('reset');
+			setTimeout(function() { window.location.assign('./'); }, 1000);
 		} else if(code == 'password') {
-			jpassword.alert(message).focus();
-			jsubmit.button('reset');
+			showToast(message, 'error');
+			jpassword.focus();
+			jsubmit.prop('disabled', false).html('<?php echo lang('login');?>');
 		} else {
 			showToast(message, 'error');
-			jsubmit.button('reset');
+			jsubmit.prop('disabled', false).html('<?php echo lang('login');?>');
 		}
 	});
 	return false;

@@ -1,0 +1,167 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<div class=""><?php echo admin_tab_active($menu['security']['tab'], 'account');?></div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo admin_security_url('account');?>" method="post" id="account-form">
+			<?php echo CsrfService::input(); ?>
+
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_ip_register_interval')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_ip_register_interval" value="<?php echo $security_config['security_ip_register_interval'];?>" min="0">
+						<span class="input-group-text"><?php echo lang('unit_hour')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_prevent_batch_register')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_password_max_retries_label')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_password_max_retries" value="<?php echo $security_config['security_password_max_retries'];?>" min="1">
+						<span class="input-group-text"><?php echo lang('unit_times')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_lock_after_reached')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_lockout_duration_label')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_lockout_duration" value="<?php echo $security_config['security_lockout_duration'];?>" min="1">
+						<span class="input-group-text"><?php echo lang('unit_minute')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_auto_unlock_time')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_password_min_length_label')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_password_min_length" value="<?php echo $security_config['security_password_min_length'];?>" min="4">
+						<span class="input-group-text"><?php echo lang('unit_digit')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_password_force_require')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_password_complexity_label')?></label>
+				<div class="col-sm-6">
+					<select class="form-select rounded-pill" name="security_password_complexity">
+						<option value="none" <?php echo $security_config['security_password_complexity'] == 'none' ? 'selected' : '';?>><?php echo lang('option_no_limit')?></option>
+						<option value="number" <?php echo $security_config['security_password_complexity'] == 'number' ? 'selected' : '';?>><?php echo lang('option_must_contain_number')?></option>
+						<option value="mixed" <?php echo $security_config['security_password_complexity'] == 'mixed' ? 'selected' : '';?>><?php echo lang('option_must_contain_mixed_case')?></option>
+						<option value="special" <?php echo $security_config['security_password_complexity'] == 'special' ? 'selected' : '';?>><?php echo lang('option_must_contain_special')?></option>
+					</select>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_password_strength')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_allowed_email_domains')?></label>
+				<div class="col-sm-6">
+					<input type="text" class="form-control rounded-pill" name="security_allowed_email_domains" value="<?php echo esc_html($security_config['security_allowed_email_domains']);?>" placeholder="<?php echo lang('placeholder_no_limit')?>">
+					<div class="mt-2 d-flex flex-wrap gap-1" id="domain-presets">
+						<?php
+						$preset_domains = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', '163.com', '126.com', 'qq.com', 'sina.com', 'foxmail.com', 'icloud.com'];
+						$current_domains = array_map('trim', explode(',', $security_config['security_allowed_email_domains']));
+						foreach($preset_domains as $d):
+							$active = in_array($d, $current_domains);
+						?>
+						<button type="button" class="btn btn-sm rounded-pill <?php echo $active ? 'btn-primary' : 'btn-outline-secondary';?> domain-preset-btn" data-domain="<?php echo $d;?>">
+							<?php echo $d;?>
+						</button>
+						<?php endforeach; ?>
+					</div>
+					<div class="form-text mt-1"><?php echo lang('tip_email_domain_rule')?></div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_limit_register_email')?></small></div>
+			</div>
+
+			<hr class="my-4">
+			<h6 class="mb-3"><i class="ti ti-mail-fast me-1"></i><?php echo lang('admin_email_code_limit');?></h6>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_email_code_interval')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_email_code_interval" value="<?php echo $security_config['security_email_code_interval'];?>" min="30" max="300">
+						<span class="input-group-text"><?php echo lang('unit_second')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_email_code_interval')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_email_code_daily_limit')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_email_code_daily_limit" value="<?php echo $security_config['security_email_code_daily_limit'];?>" min="1" max="50">
+						<span class="input-group-text"><?php echo lang('unit_times')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_email_code_daily_limit')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_email_code_ip_hourly_limit')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_email_code_ip_hourly_limit" value="<?php echo $security_config['security_email_code_ip_hourly_limit'];?>" min="1" max="100">
+						<span class="input-group-text"><?php echo lang('unit_times_per_hour')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_email_code_ip_limit')?></small></div>
+			</div>
+
+			<div class="mt-4">
+				<button type="submit" class="btn btn-primary rounded-pill">
+					<i class="ti ti-device-floppy me-1"></i><?php echo lang('admin_save_settings')?>
+				</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+var jform = $('#account-form');
+var jsubmit = jform.find('button[type="submit"]');
+jform.on('submit', function() {
+	jsubmit.button('loading');
+	var postdata = jform.serialize();
+	$.xpost(jform.attr('action'), postdata, function(code, message) {
+		if(code == 0) {
+			showToast(message, 'success');
+			setTimeout(function(){ window.location.reload(); }, 500);
+		} else if(xn.is_number(code)) {
+			showToast(message, 'error');
+			jsubmit.button('reset');
+		} else {
+			jform.find('[name="'+code+'"]').alert(message).focus();
+			jsubmit.button('reset');
+		}
+	});
+	return false;
+});
+
+// 预设域名按钮交互
+document.querySelectorAll('.domain-preset-btn').forEach(function(btn) {
+	btn.addEventListener('click', function() {
+		var domain = this.getAttribute('data-domain');
+		var input = document.querySelector('input[name="security_allowed_email_domains"]');
+		var current = input.value ? input.value.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s; }) : [];
+		var idx = current.indexOf(domain);
+		if(idx > -1) {
+			current.splice(idx, 1);
+			this.classList.remove('btn-primary');
+			this.classList.add('btn-outline-secondary');
+		} else {
+			current.push(domain);
+			this.classList.remove('btn-outline-secondary');
+			this.classList.add('btn-primary');
+		}
+		input.value = current.join(',');
+	});
+});
+</script>

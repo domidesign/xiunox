@@ -91,29 +91,37 @@ if(empty($action) || $action == 'list') {
 	
 // 队列操作（旧接口，保留兼容）
 } elseif($action == 'operation') {
-		
+
 	$queueid = _SESSION('thread_find_queueid');
 	empty($queueid) AND message(-1, lang('thread_queue_not_exists'));
-	
+
 	$op = param(2);
 	$tids = array();
 	// hook admin_thread_operation_start.php
+	// 先从队列中取出所有 tid，再批量操作，避免逐条更新
 	for($i = 0; $i <= $pagesize; $i++) {
 		$tid = queue_pop($queueid);
 		if(!$tid) {
 			break;
 		}
-		if($op == 'delete') {
-			thread_delete($tid);
-		} elseif($op == 'close') {
-			thread_update($tid, array('closed'=>1));
-		} elseif($op == 'open') {
-			thread_update($tid, array('closed'=>0));
-		} elseif($op == 'announcement') {
-			thread_update($tid, array('announcement'=>1));
-		}
-		// hook admin_thread_operation_for.php
 		$tids[] = $tid;
+		// hook admin_thread_operation_for.php
+	}
+
+	if(!empty($tids)) {
+		if($op == 'delete') {
+			// 删除涉及级联，保持循环
+			foreach($tids as $tid) {
+				thread_delete($tid);
+			}
+		} elseif($op == 'close') {
+			// 批量更新
+			db_update('thread', array('tid'=>$tids), array('closed'=>1));
+		} elseif($op == 'open') {
+			db_update('thread', array('tid'=>$tids), array('closed'=>0));
+		} elseif($op == 'announcement') {
+			db_update('thread', array('tid'=>$tids), array('announcement'=>1));
+		}
 	}
 	// hook admin_thread_operation_end.php
 	// 记录操作日志
@@ -131,48 +139,69 @@ if(empty($action) || $action == 'list') {
 	$op = param('op');
 	$tids_str = param('tids');
 	$tids = $tids_str ? explode(',', $tids_str) : array();
-	
+
 	if(empty($tids)) {
 		message(-1, lang('admin_thread_no_selection'));
 	}
-	
-	// hook admin_thread_batch_start.php
-	
-	$success_count = 0;
+
+	// 过滤有效的 tid
+	$valid_tids = array();
 	foreach($tids as $tid) {
 		$tid = intval($tid);
-		if($tid <= 0) continue;
-		
+		if($tid > 0) $valid_tids[] = $tid;
+	}
+
+	// hook admin_thread_batch_start.php
+
+	$success_count = 0;
+	$target_fid = 0;
+
+	if(!empty($valid_tids)) {
 		if($op == 'delete') {
-			thread_delete($tid);
-			$success_count++;
+			// 删除涉及级联，保持循环
+			foreach($valid_tids as $tid) {
+				thread_delete($tid);
+				$success_count++;
+			}
 		} elseif($op == 'close') {
-			thread_update($tid, array('closed'=>1));
-			$success_count++;
+			// 批量更新
+			db_update('thread', array('tid'=>$valid_tids), array('closed'=>1));
+			$success_count = count($valid_tids);
 		} elseif($op == 'open') {
-			thread_update($tid, array('closed'=>0));
-			$success_count++;
+			db_update('thread', array('tid'=>$valid_tids), array('closed'=>0));
+			$success_count = count($valid_tids);
 		} elseif($op == 'top') {
-			thread_update($tid, array('top'=>1));
-			$success_count++;
+			db_update('thread', array('tid'=>$valid_tids), array('top'=>1));
+			$success_count = count($valid_tids);
 		} elseif($op == 'digest') {
-			$thread = thread_read($tid);
-			$new_digest = !empty($thread['digest']) ? 0 : 1;
-			thread_digest_change($tid, $new_digest, $thread['uid'], $thread['fid']);
-			$success_count++;
+			// 批量读取 thread，然后逐条调用 thread_digest_change（涉及积分等复杂逻辑）
+			$threadlist = thread_find_by_tids($valid_tids);
+			if($threadlist) {
+				foreach($valid_tids as $tid) {
+					if(isset($threadlist[$tid])) {
+						$thread = $threadlist[$tid];
+						$new_digest = !empty($thread['digest']) ? 0 : 1;
+						thread_digest_change($tid, $new_digest, $thread['uid'], $thread['fid']);
+						$success_count++;
+					}
+				}
+			}
 		} elseif($op == 'announcement') {
-			thread_update($tid, array('announcement'=>1));
-			$success_count++;
+			db_update('thread', array('tid'=>$valid_tids), array('announcement'=>1));
+			$success_count = count($valid_tids);
 		} elseif($op == 'move') {
+			// move 涉及 fid 变更和 forum 计数更新，保持循环
 			$target_fid = param('target_fid', 0);
 			if($target_fid > 0) {
-				thread_update($tid, array('fid'=>$target_fid));
-				$success_count++;
+				foreach($valid_tids as $tid) {
+					thread_update($tid, array('fid'=>$target_fid));
+					$success_count++;
+				}
 			}
 		}
 		// hook admin_thread_batch_for.php
 	}
-	
+
 	// hook admin_thread_batch_end.php
 	// 记录操作日志
 	if($success_count > 0) {
@@ -194,7 +223,7 @@ if(empty($action) || $action == 'list') {
 	
 	$page = param(2, 1);
 	$total = queue_count($queueid);
-	$pagination = pagination(url('thread-found-{page}'), $total, $page, $pagesize);
+	$pagination = pagination(route_url('admin_thread_found'), $total, $page, $pagesize);
 	// hook admin_thread_found_start.php
 	$tids = queue_find($queueid, $page, $pagesize);
 	$threadlist = thread_find_by_tids($tids);

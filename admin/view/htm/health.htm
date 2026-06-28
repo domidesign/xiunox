@@ -1,0 +1,165 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_health_start.htm}-->
+
+<!-- 健康评分区 -->
+<?php
+$score = $result['score'];
+$grade = $result['grade'];
+$grade_label = $result['grade_label'];
+
+// 根据等级确定颜色
+$grade_colors = array(
+	'excellent' => '#198754',
+	'good'      => '#2563eb',
+	'fair'      => '#e68a00',
+	'poor'      => '#dc3545',
+);
+$ring_color = isset($grade_colors[$grade]) ? $grade_colors[$grade] : '#2563eb';
+
+// SVG 环计算
+$circumference = 2 * 3.1415926 * 70; // ≈ 439.82
+$offset = $circumference * (1 - $score / 100);
+
+// 检测时间格式化
+$checked_at = date('Y-m-d H:i:s', $result['checked_at']);
+?>
+
+<div class="x-card card mb-4">
+	<div class="card-body">
+		<div class="health-score-section">
+			<div class="health-ring-wrap">
+				<svg width="160" height="160" viewBox="0 0 160 160">
+					<circle cx="80" cy="80" r="70" fill="none" stroke="var(--bs-border-color)" stroke-width="10"/>
+					<circle id="health-ring" cx="80" cy="80" r="70" fill="none" stroke="<?php echo $ring_color;?>" stroke-width="10"
+							stroke-dasharray="<?php echo $circumference;?>" stroke-dashoffset="<?php echo $circumference;?>"
+							stroke-linecap="round" transform="rotate(-90 80 80)"
+							data-target-offset="<?php echo $offset;?>"
+							style="transition: stroke-dashoffset 1.2s ease;"/>
+				</svg>
+				<div class="score-text" style="color:<?php echo $ring_color;?>">
+					<span id="health-score-num">0</span>
+					<span class="score-unit"><?php echo lang('admin_health_score_unit');?></span>
+				</div>
+			</div>
+			<div class="health-grade-label" style="color:<?php echo $ring_color;?>"><?php echo esc_html($grade_label);?></div>
+			<div class="health-check-time"><?php echo lang('admin_health_check_time');?>：<?php echo $checked_at;?></div>
+			<div class="health-summary">
+				<span><i class="ti ti-circle-check text-success"></i> <?php echo $result['pass_count'];?> <?php echo lang('admin_health_items_pass');?></span>
+				<span><i class="ti ti-alert-triangle text-warning"></i> <?php echo $result['warn_count'];?> <?php echo lang('admin_health_items_warn');?></span>
+				<span><i class="ti ti-circle-x text-danger"></i> <?php echo $result['fail_count'];?> <?php echo lang('admin_health_items_fail');?></span>
+				<span><i class="ti ti-circle-dashed text-secondary"></i> <?php echo $result['skip_count'];?> <?php echo lang('admin_health_items_skip');?></span>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- 检测模块卡片 -->
+<?php
+$modules = array(
+	array('key' => 'config',      'title' => lang('admin_health_config'),       'icon' => 'ti-settings'),
+	array('key' => 'performance', 'title' => lang('admin_health_performance'),  'icon' => 'ti-activity'),
+	array('key' => 'database',    'title' => lang('admin_health_database'),     'icon' => 'ti-database'),
+	array('key' => 'environment', 'title' => lang('admin_health_environment'),  'icon' => 'ti-server'),
+	array('key' => 'security',    'title' => lang('admin_health_security'),     'icon' => 'ti-shield-lock'),
+	array('key' => 'third_party', 'title' => lang('admin_health_third_party'),  'icon' => 'ti-plug'),
+);
+
+$status_icons = array(
+	'pass' => '<i class="ti ti-circle-check text-success check-icon"></i>',
+	'warn' => '<i class="ti ti-alert-triangle text-warning check-icon"></i>',
+	'fail' => '<i class="ti ti-circle-x text-danger check-icon"></i>',
+	'skip' => '<i class="ti ti-circle-dashed text-secondary check-icon"></i>',
+	'info' => '<i class="ti ti-info-circle text-info check-icon"></i>',
+);
+?>
+
+<div class="row g-3">
+	<?php foreach($modules as $mod): ?>
+	<?php
+	$items = isset($result[$mod['key']]) ? $result[$mod['key']] : array();
+	$mod_pass = 0; $mod_total = count($items);
+	foreach($items as $it) {
+		if($it['status'] === 'pass') $mod_pass++;
+	}
+	$badge_class = $mod_pass === $mod_total ? 'bg-success bg-opacity-10 text-success' : ($mod_pass === 0 ? 'bg-danger bg-opacity-10 text-danger' : 'bg-warning bg-opacity-10 text-warning');
+	?>
+	<div class="col-12 col-lg-6">
+		<div class="x-card card health-module-card hover-lift rounded-3 h-100">
+			<div class="card-header">
+				<i class="ti <?php echo $mod['icon'];?> module-icon text-primary"></i>
+				<?php echo $mod['title'];?>
+				<span class="badge rounded-pill module-badge <?php echo $badge_class;?>"><?php echo $mod_pass;?>/<?php echo $mod_total;?> <?php echo lang('admin_health_pass_rate');?></span>
+			</div>
+			<div class="card-body p-3">
+				<?php if(empty($items)): ?>
+				<div class="text-body-secondary text-center py-2" style="font-size:0.85rem"><?php echo lang('admin_health_no_items');?></div>
+				<?php else: ?>
+				<?php foreach($items as $item): ?>
+				<div class="check-item">
+					<?php echo isset($status_icons[$item['status']]) ? $status_icons[$item['status']] : $status_icons['skip'];?>
+					<div class="check-item-row">
+						<div class="check-item-main">
+							<span class="check-label"><?php echo esc_html($item['label']);?></span>
+							<?php if($item['value'] !== ''): ?>
+							<span class="check-value"><?php echo esc_html($item['value']);?></span>
+							<?php endif; ?>
+						</div>
+						<?php if($item['message'] !== ''): ?>
+						<div class="check-message"><?php echo esc_html($item['message']);?></div>
+						<?php endif; ?>
+					</div>
+				</div>
+				<?php endforeach; ?>
+				<?php endif; ?>
+			</div>
+		</div>
+	</div>
+	<?php endforeach; ?>
+</div>
+
+<!-- 底部操作栏 -->
+<div class="health-action-bar">
+	<form id="health-recheck-form" action="<?php echo admin_health_url();?>" method="post" class="d-none">
+		<?php echo CsrfService::input();?>
+	</form>
+	<button type="submit" form="health-recheck-form" class="btn btn-primary rounded-pill">
+		<i class="ti ti-refresh me-1"></i><?php echo lang('admin_health_recheck');?>
+	</button>
+</div>
+
+<!--{hook admin_health_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+// SVG 环动画
+(function() {
+	var ring = document.getElementById('health-ring');
+	if(ring) {
+		var targetOffset = parseFloat(ring.getAttribute('data-target-offset'));
+		setTimeout(function() {
+			ring.style.strokeDashoffset = targetOffset;
+		}, 100);
+	}
+
+	// 评分数字动画
+	var scoreEl = document.getElementById('health-score-num');
+	var targetScore = <?php echo $score;?>;
+	var current = 0;
+	var duration = 1200;
+	var startTime = null;
+
+	function animateScore(timestamp) {
+		if(!startTime) startTime = timestamp;
+		var progress = Math.min((timestamp - startTime) / duration, 1);
+		var eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+		current = Math.round(eased * targetScore);
+		scoreEl.textContent = current;
+		if(progress < 1) {
+			requestAnimationFrame(animateScore);
+		}
+	}
+	requestAnimationFrame(animateScore);
+})();
+</script>

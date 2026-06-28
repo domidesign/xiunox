@@ -6,10 +6,11 @@ $action = param(1);
 
 // hook thread_start.php
 
-if($action == 'like') {
+if($action == 'like' || $action == 'unlike') {
 	$tid = param(2, 0);
 	$pid = param(3, 0);
 	$is_htmx = is_htmx_request();
+	$is_like_action = ($action == 'like'); // true=点赞, false=取消点赞
 
 	if(!$uid) {
 		if($is_htmx) {
@@ -17,8 +18,8 @@ if($action == 'like') {
 			htmx_trigger('showToast', array('message' => lang('please_login'), 'type' => 'error'));
 			$thread = thread__read($tid);
 			$post = post__read($pid);
-			$is_liked = FALSE;
-			$likes_count = intval($post['likes']);
+			$is_liked = !$is_like_action; // 未登录时返回原始状态
+			$likes_count = $post ? intval($post['likes']) : 0;
 			$ctx = param('_ctx', ($thread && $pid == $thread['firstpid']) ? 'thread' : 'post');
 			header('Content-Type: text/html; charset=utf-8');
 			echo _render_like_btn($tid, $pid, $is_liked, $likes_count, $ctx);
@@ -33,12 +34,12 @@ if($action == 'like') {
 	}
 
 	// 关闭/审核中帖子不允许普通用户点赞
-	if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] == 0)) && $gid > 5) {
+	if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] != 1)) && $gid > 5) {
 		if($is_htmx) {
 			htmx_trigger('showToast', array('message' => lang('thread_has_already_closed'), 'type' => 'error'));
 			$post = post__read($pid);
 			$is_liked = !empty(post_like_read($uid, $pid));
-			$likes_count = intval($post['likes']);
+			$likes_count = $post ? intval($post['likes']) : 0;
 			$ctx = param('_ctx', ($pid == $thread['firstpid']) ? 'thread' : 'post');
 			header('Content-Type: text/html; charset=utf-8');
 			echo _render_like_btn($tid, $pid, $is_liked, $likes_count, $ctx);
@@ -51,38 +52,81 @@ if($action == 'like') {
 	if(empty($post)) {
 		message(-1, lang('post_not_exists'));
 	}
+	// 保存操作前的 likes 值，用于 htmx 响应计算（避免主从延迟）
+	$likes_before = intval($post['likes']);
 
-	$exists = post_like_read($uid, $pid);
-	if(!empty($exists)) {
-		post_like_delete($uid, $tid, $pid);
+	// 积分变动描述
+	$like_change_desc = '';
+
+	if($is_like_action) {
+		// ===== 点赞 =====
+		// 点赞前检查积分是否充足
+		if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
+		$creditsCheck = CreditsRuleService::applyRule('like', $uid, intval($thread['fid']), true);
+		if(!$creditsCheck['ok']) {
+			message(-1, $creditsCheck['message']);
+		}
+
+		$create_result = post_like_create($uid, $tid, $pid);
+		// $create_result=1 表示真正新增了点赞；=0 表示已存在（幂等，不重复处理）
+		error_log("[thread-like DEBUG] create_result=" . var_export($create_result, true));
+		if($create_result == 1) {
+			// 点赞时通知帖子作者（post_like_create 内部已处理通知，这里不再重复）
+			// 积分规则：被点赞者获得积分，点赞者可选扣分
+			if(!empty($post['uid']) && $post['uid'] != $uid) {
+				$beLikedResult = CreditsRuleService::applyRule('be_liked', intval($post['uid']), intval($thread['fid']), false, strval($pid));
+				error_log("[thread-like DEBUG] be_liked result=" . json_encode($beLikedResult, JSON_UNESCAPED_UNICODE));
+			}
+			$likeResult = CreditsRuleService::applyRule('like', $uid, intval($thread['fid']), false, strval($pid));
+			error_log("[thread-like DEBUG] like result=" . json_encode($likeResult, JSON_UNESCAPED_UNICODE));
+			if(!empty($likeResult['ok']) && !empty($likeResult['change_desc'])) {
+				$like_change_desc = $likeResult['change_desc'];
+			}
+			// 每日上限达到：提醒用户本次不扣减积分
+			if(!empty($likeResult['daily_limit_reached'])) {
+				$like_change_desc = $likeResult['message'] . '，本次点赞不扣减积分';
+			}
+		}
 	} else {
-		post_like_create($uid, $tid, $pid);
-		// 点赞时通知帖子作者
-		if($post['uid'] != $uid) {
-			notify_create($post['uid'], $uid, 'like', $tid, $pid);
+		// ===== 取消点赞 =====
+		$delete_result = post_like_delete($uid, $tid, $pid);
+		// $delete_result>0 表示真正删除了点赞
+		if($delete_result && $delete_result > 0) {
+			// 取消点赞：应用 unlike 规则（管理员可设置取消时扣减/返还积分）
+			if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
+			$unlikeResult = CreditsRuleService::applyRule('unlike', $uid, intval($thread['fid']), false, strval($pid));
+			if(!empty($unlikeResult['ok']) && !empty($unlikeResult['change_desc'])) {
+				$like_change_desc = $unlikeResult['change_desc'];
+			}
+			// 每日上限达到：提醒用户本次不扣减/返还积分
+			if(!empty($unlikeResult['daily_limit_reached'])) {
+				$like_change_desc = $unlikeResult['message'] . '，本次取消点赞不扣减/返还积分';
+			}
 		}
 	}
 
 	$post = post__read($pid);
-	$like_action = empty($exists) ? 'like' : 'unlike';
-	$data = array('action' => $like_action, 'count' => intval($post['likes']), 'pid' => $pid, 'tid' => $tid);
+	$like_action = $is_like_action ? 'like' : 'unlike';
+	$data = array('action' => $like_action, 'count' => $post ? intval($post['likes']) : 0, 'pid' => $pid, 'tid' => $tid);
 	// hook thread_like_end.php
 
-	// 积分规则：被点赞者获得积分，点赞者可选扣分
-	if(empty($exists)) {
-		if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
-		if(!empty($post['uid']) && $post['uid'] != $uid) {
-			CreditsRuleService::applyRule('be_liked', intval($post['uid']), intval($thread['fid']));
-		}
-		CreditsRuleService::applyRule('like', $uid, intval($thread['fid']));
-	}
-
 	if($is_htmx) {
-		$is_liked = !empty(post_like_read($uid, $pid));
-		$likes_count = intval($post['likes']);
+		// 直接用操作类型判断点赞状态（幂等操作）
+		// likes_count：根据操作前值和操作结果计算，避免主从延迟
+		$is_liked = $is_like_action;
+		if($is_like_action) {
+			$likes_count = $create_result == 1 ? $likes_before + 1 : $likes_before;
+		} else {
+			$likes_count = $delete_result > 0 ? $likes_before - 1 : $likes_before;
+		}
 		$ctx = param('_ctx', ($pid == $thread['firstpid']) ? 'thread' : 'post');
 		header('Content-Type: text/html; charset=utf-8');
 		echo _render_like_btn($tid, $pid, $is_liked, $likes_count, $ctx);
+		echo '<!-- DEBUG: create_result=' . var_export($create_result ?? 'N/A', true) . ' like_change_desc=' . htmlspecialchars($like_change_desc) . ' -->';
+		// 积分变动提示（OOB toast）
+		if($like_change_desc) {
+			echo '<div id="credits-toast" hx-swap-oob="true" data-change-desc="' . htmlspecialchars($like_change_desc, ENT_QUOTES, 'UTF-8') . '"></div>';
+		}
 		exit;
 	}
 
@@ -115,7 +159,7 @@ if($action == 'favorite') {
 	}
 
 	// 关闭/审核中帖子不允许普通用户收藏
-	if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] == 0)) && $gid > 5) {
+	if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] != 1)) && $gid > 5) {
 		if($is_htmx) {
 			htmx_trigger('showToast', array('message' => lang('thread_has_already_closed'), 'type' => 'error'));
 			$is_favorited = !empty(thread_favorite_read($uid, $tid));
@@ -128,39 +172,74 @@ if($action == 'favorite') {
 	}
 
 	$exists = thread_favorite_read($uid, $tid);
+	// 保存操作前的收藏数，用于 htmx 响应计算（避免数据库重新读取返回 null）
+	$favorites_before = intval($thread['favorites']);
 	if(!empty($exists)) {
-		thread_favorite_delete($uid, $tid);
+		$r = thread_favorite_delete($uid, $tid);
 	} else {
-		thread_favorite_create($uid, $tid);
-		// 收藏时通知帖子作者
-		if($thread['uid'] != $uid) {
-			notify_create($thread['uid'], $uid, 'favorite', $tid);
+		// 收藏前检查积分是否充足
+		if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
+		$creditsCheck = CreditsRuleService::applyRule('favorite', $uid, intval($thread['fid']), true);
+		if(!$creditsCheck['ok']) {
+			message(-1, $creditsCheck['message']);
 		}
+
+		$r = thread_favorite_create($uid, $tid);
+		// thread_favorite_create 内部已调用 notify_create，此处不再重复
 	}
 
 	// hook thread_favorite_end.php
 
-	// 积分规则：被收藏者获得积分，收藏者可选扣分
+	// 积分规则：被收藏者获得积分，收藏者可选扣分；取消收藏时反向处理
+	$fav_change_desc = '';
 	if(empty($exists)) {
 		if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
 		if(!empty($thread['uid']) && $thread['uid'] != $uid) {
-			CreditsRuleService::applyRule('be_favorited', intval($thread['uid']), intval($thread['fid']));
+			CreditsRuleService::applyRule('be_favorited', intval($thread['uid']), intval($thread['fid']), false, strval($tid));
 		}
-		CreditsRuleService::applyRule('favorite', $uid, intval($thread['fid']));
+		$favResult = CreditsRuleService::applyRule('favorite', $uid, intval($thread['fid']), false, strval($tid));
+		if(!empty($favResult['ok']) && !empty($favResult['change_desc'])) {
+			$fav_change_desc = $favResult['change_desc'];
+		}
+		// 每日上限达到：提醒用户本次不扣减积分
+		if(!empty($favResult['daily_limit_reached'])) {
+			$fav_change_desc = $favResult['message'] . '，本次收藏不扣减积分';
+		}
+	} else {
+		// 取消收藏：应用 unfavorite 规则（管理员可设置取消时扣减/返还积分）
+		if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
+		$unfavResult = CreditsRuleService::applyRule('unfavorite', $uid, intval($thread['fid']), false, strval($tid));
+		if(!empty($unfavResult['ok']) && !empty($unfavResult['change_desc'])) {
+			$fav_change_desc = $unfavResult['change_desc'];
+		}
+		// 每日上限达到：提醒用户本次不扣减/返还积分
+		if(!empty($unfavResult['daily_limit_reached'])) {
+			$fav_change_desc = $unfavResult['message'] . '，本次取消收藏不扣减/返还积分';
+		}
 	}
 
 	if($is_htmx) {
-		$thread = thread__read($tid);
-		$is_favorited = !empty(thread_favorite_read($uid, $tid));
-		$favorites_count = intval($thread['favorites']);
+		// 根据操作结果计算新状态，避免重新读取数据库（thread__read 可能返回 null）
+		$is_favorited = empty($exists); // 之前不存在=已创建（已收藏）；之前存在=已删除（未收藏）
+		if(empty($exists)) {
+			// 收藏成功：+1
+			$favorites_count = ($r !== FALSE) ? $favorites_before + 1 : $favorites_before;
+		} else {
+			// 取消收藏成功：-1
+			$favorites_count = ($r !== FALSE) ? max(0, $favorites_before - 1) : $favorites_before;
+		}
 		header('Content-Type: text/html; charset=utf-8');
 		echo _render_favorite_btn($tid, $is_favorited, $favorites_count);
+		// 积分变动提示（OOB toast）
+		if($fav_change_desc) {
+			echo '<div id="credits-toast" hx-swap-oob="true" data-change-desc="' . htmlspecialchars($fav_change_desc, ENT_QUOTES, 'UTF-8') . '"></div>';
+		}
 		exit;
 	}
 
 	$fav_action = empty($exists) ? 'favorite' : 'unfavorite';
-	$thread = thread__read($tid);
-	$data = array('action' => $fav_action, 'count' => $thread['favorites'], 'tid' => $tid);
+	$fav_count = empty($exists) ? $favorites_before + 1 : max(0, $favorites_before - 1);
+	$data = array('action' => $fav_action, 'count' => $fav_count, 'tid' => $tid);
 	header('Content-Type: application/json; charset=utf-8');
 	echo json_encode(array('code' => 0, 'message' => '操作成功', 'data' => $data), JSON_UNESCAPED_UNICODE);
 	exit;
@@ -189,7 +268,7 @@ if($action == 'forum_follow_status') {
 
 	header('Content-Type: text/html; charset=utf-8');
 	if(empty($uid)) {
-		echo '<a href="'.url('user-login').'" class="btn btn-sm btn-primary w-100"><i class="ti ti-star me-1"></i>'.lang('follow').'</a>';
+		echo '<a href="'.user_login_url().'" class="btn btn-sm btn-primary w-100"><i class="ti ti-star me-1"></i>'.lang('follow').'</a>';
 	} elseif($followed) {
 		echo '<input type="hidden" name="fid" value="'.$fid.'"><button class="btn btn-sm btn-outline-secondary w-100" hx-post="'.url('forum-unfollow').'" hx-include="[name=fid]" hx-target="this" hx-swap="outerHTML" hx-optimistic><i class="ti ti-star-filled me-1"></i>已关注版块</button>';
 	} else {
@@ -223,7 +302,7 @@ if($action == 'create') {
 		
 		$header['title'] = lang('create_thread');
 		$header['mobile_title'] = $fid ? $forum['name'] : '';
-		$header['mobile_linke'] = url("forum-$fid");
+		$header['mobile_linke'] = forum_url($fid);
 		
 		// hook thread_create_get_end.php
 		
@@ -237,12 +316,12 @@ if($action == 'create') {
 
 		// ===== 发帖验证码检查 =====
 		include_once APP_PATH . 'lib/security/CaptchaService.php';
-		if (CaptchaService::is_enabled('post')) {
+		if (CaptchaService::is_enabled('post', $gid)) {
 			$captcha_input = param('captcha');
 			if (empty($captcha_input)) {
 				message(-1001, lang('please_input_captcha'));
 			}
-			if (!CaptchaService::verify('post', $captcha_input)) {
+			if (!CaptchaService::verify('post', $captcha_input, $gid)) {
 				message(-1001, lang('captcha_error'));
 			}
 		}
@@ -256,8 +335,23 @@ if($action == 'create') {
 		!$r AND message(-1, lang('user_group_insufficient_privilege'));
 
 		$subject = param('subject');
+		// 标题只允许纯文本，过滤所有HTML标签
+		$subject = strip_tags($subject);
+		// 去除首尾空格后再计算字数（空格不计入标题长度）
+		$subject = trim($subject);
 		empty($subject) AND message('subject', lang('please_input_subject'));
-		xn_strlen($subject) > 128 AND message('subject', lang('subject_length_over_limit', array('maxlength'=>128)));
+
+		// ===== 标题字数检查 =====
+		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+		$subject_min_length = SecurityConfigService::get('security_subject_min_length', 2);
+		$subject_max_length = SecurityConfigService::get('security_subject_max_length', 128);
+		$subject_len = mb_strlen($subject, 'UTF-8');
+		if ($subject_min_length > 0 && $subject_len < $subject_min_length) {
+			message('subject', lang('subject_too_short', array('minlength'=>$subject_min_length)));
+		}
+		if ($subject_max_length > 0 && $subject_len > $subject_max_length) {
+			message('subject', lang('subject_too_long', array('maxlength'=>$subject_max_length)));
+		}
 
 		$message = param('message', '', FALSE);
 		empty($message) AND message('message', lang('please_input_message'));
@@ -265,11 +359,15 @@ if($action == 'create') {
 		$doctype > 10 AND message(-1, lang('doc_type_not_supported'));
 		xn_strlen($message) > 2028000 AND message('message', lang('message_too_long'));
 
-		// ===== 敏感词过滤 =====
+		// ===== 敏感词过滤（内容替换***，不拦截发布） =====
 		include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
-		$filter_result = SensitiveWordFilter::content_filter($subject . ' ' . $message);
-		if (!$filter_result['pass']) {
-			message(-1, '内容包含敏感词：' . implode('、', array_slice($filter_result['matched_keywords'], 0, 5)) . '，请修改后重新发布');
+		$filter_result_subject = SensitiveWordFilter::content_filter($subject);
+		$filter_result_message = SensitiveWordFilter::content_filter($message);
+		if (!$filter_result_subject['pass']) {
+			$subject = $filter_result_subject['filtered_text'];
+		}
+		if (!$filter_result_message['pass']) {
+			$message = $filter_result_message['filtered_text'];
 		}
 
 		// ===== 内容安全审核 =====
@@ -349,67 +447,161 @@ if($action == 'create') {
 		$pid === FALSE AND message(-1, lang('create_post_failed'));
 		$tid === FALSE AND message(-1, lang('create_thread_failed'));
 		
-		// 通知关注该版块的用户有新帖
-		// 频次控制：同一用户每30分钟最多收到1条版块新帖通知（避免关注多个活跃版块时被刷屏）
-		$_followers = forum_follow_find_by_fid($fid);
-		if($_followers) {
-			$_thread_short = mb_substr($subject, 0, 30);
-			foreach($_followers as $_follow) {
-				if($_follow['uid'] == $uid) continue; // 不通知发帖人自己
-				// 频次控制：检查该用户最近30分钟内是否已收到 forum_post 通知
-				$_recent = db_find_one('notify', array(
-					'uid' => $_follow['uid'],
+		// 仅审核通过的帖子才通知关注版块的用户和@提及（待审帖子审核通过后在 AuditService::approve 中补发）
+		if(!$need_audit) {
+			// 通知关注该版块的用户有新帖
+			// 频次控制：同一用户每30分钟最多收到1条版块新帖通知（避免关注多个活跃版块时被刷屏）
+			// 去重：如果用户已收到该帖的 thread 类型通知（关注了发帖人），则合并为一条通知
+			$_followers = forum_follow_find_by_fid($fid);
+			// 限制通知用户数量，避免大量关注用户时性能问题
+			$_followers = array_slice($_followers, 0, 1000, true);
+			if($_followers) {
+				$_thread_short = mb_substr($subject, 0, 30);
+				// 收集需要通知的 uid（排除发帖人自己）
+				$_follow_uids = array();
+				foreach($_followers as $_follow) {
+					if($_follow['uid'] != $uid) {
+						$_follow_uids[] = $_follow['uid'];
+					}
+				}
+
+				if(!empty($_follow_uids)) {
+				// 批量查询已存在的 thread 类型通知（去重检查），消除 N+1 查询
+				$_existing_thread_notifies = db_find('notify', array(
+					'uid' => $_follow_uids,
+					'type' => 'thread',
+					'tid' => $tid,
+				), array('nid' => -1), 1, count($_follow_uids), 'uid');
+
+				// 批量查询 forum_post 类型通知（频次控制），消除 N+1 查询
+				$_recent_forum_posts = db_find('notify', array(
+					'uid' => $_follow_uids,
 					'type' => 'forum_post',
-				), array('nid' => -1));
-				if($_recent && ($time - $_recent['create_date']) < 1800) continue;
-				notify_create($_follow['uid'], $uid, 'forum_post', $tid, 0, $_thread_short);
+				), array('nid' => -1), 1, count($_follow_uids), 'uid');
+
+				// 收集需要批量插入的通知记录，循环结束后一次性插入，消除 N+1 INSERT
+				$_batch_notify_records = array();
+				foreach($_follow_uids as $_notify_uid) {
+					// 去重：已有该帖的 thread 类型通知，更新为合并类型（同时来自关注的用户和版块）
+					if(isset($_existing_thread_notifies[$_notify_uid])) {
+						notify__update($_existing_thread_notifies[$_notify_uid]['nid'], array('type' => 'thread_forum'));
+						continue;
+					}
+					// 频次控制：30分钟内已收到 forum_post 通知则跳过
+					if(isset($_recent_forum_posts[$_notify_uid])
+						&& ($time - $_recent_forum_posts[$_notify_uid]['create_date']) < 1800) {
+						continue;
+					}
+					$_batch_notify_records[] = array(
+						'uid' => $_notify_uid,
+						'from_uid' => $uid,
+						'type' => 'forum_post',
+						'tid' => $tid,
+						'pid' => 0,
+						'content' => $_thread_short,
+						'create_date' => $time,
+						'is_read' => 0,
+					);
+				}
+
+				// 批量插入通知（单次 INSERT + 单次 UPDATE user.unread_notices）
+				if(!empty($_batch_notify_records)) {
+					notify_create_batch($_batch_notify_records);
+				}
+			}
+			}
+
+			// 解析 @提及：合并富文本（data-id=UID）与旧版纯文本（@username）两种来源，
+		// 批量查询用户名对应的 UID，收集通知记录后一次性 INSERT，消除 N+1 查询和 N+1 INSERT
+		$_mention_uid_set = array(); // 用于去重的 UID 集合（key 为 UID）
+		$_mention_text_usernames = array(); // 旧版纯文本 @username 待查列表
+		if(!empty($message)) {
+			// 1) 富文本 span：<span data-type="mention" data-id="UID">
+			$mentionPattern = '/<span[^>]*data-type="mention"[^>]*data-id="(\d+)"[^>]*>/';
+			if(preg_match_all($mentionPattern, $message, $matches)) {
+				foreach($matches[1] as $_muid) {
+					$_muid = intval($_muid);
+					if($_muid > 0 && $_muid != $uid) {
+						$_mention_uid_set[$_muid] = $_muid;
+					}
+				}
+			}
+			// 2) 旧版纯文本：@username
+			preg_match_all('/@([a-zA-Z0-9_\x{4e00}-\x{9fa5}]+)/u', $message, $matches);
+			if(!empty($matches[1])) {
+				foreach($matches[1] as $_mname) {
+					$_mention_text_usernames[$_mname] = $_mname;
+				}
 			}
 		}
-
-		// 解析@提及
-		if(!empty($message)) {
-			preg_match_all('/@(\S+)/', $message, $matches);
-			if(!empty($matches[1])) {
-				$mentioned_usernames = array_unique($matches[1]);
-				foreach($mentioned_usernames as $musername) {
-					$muser = user_read_by_username($musername);
-					if(!empty($muser) && $muser['uid'] != $uid) {
-						notify_create($muser['uid'], $uid, 'mention', $tid, 0, '在帖子中提及了你');
+		// 批量查询旧版纯文本 @username 对应的 UID（单次 SQL）
+		if(!empty($_mention_text_usernames)) {
+			$_mention_users = user_find_by_usernames(array_values($_mention_text_usernames));
+			if(!empty($_mention_users)) {
+				foreach($_mention_users as $_muser) {
+					$_muid = intval($_muser['uid']);
+					if($_muid > 0 && $_muid != $uid) {
+						$_mention_uid_set[$_muid] = $_muid;
 					}
 				}
 			}
 		}
-
-		// 解析富文本 @提及 并发送通知
-		$mentionPattern = '/<span[^>]*data-type="mention"[^>]*data-id="(\d+)"[^>]*>/';
-		if(preg_match_all($mentionPattern, $message, $matches)) {
-			$mentionUids = array_unique($matches[1]);
-			$mentionUids = array_filter($mentionUids, function($muid) use ($uid) {
-				return $muid != $uid && $muid > 0;
-			});
-			foreach($mentionUids as $mentionUid) {
-				$mentionUid = intval($mentionUid);
-				notify_create($mentionUid, $uid, 'mention', $tid, 0, '在帖子中提及了你');
+		// 收集通知记录，单次 INSERT（mention 类型不在防抖列表，notify_create_batch 会过滤自己通知自己）
+		if(!empty($_mention_uid_set)) {
+			$_mention_records = array();
+			foreach($_mention_uid_set as $_muid) {
+				$_mention_records[] = array(
+					'uid' => $_muid,
+					'from_uid' => $uid,
+					'type' => 'mention',
+					'tid' => $tid,
+					'pid' => 0,
+					'content' => '在帖子中提及了你',
+					'create_date' => $time,
+					'is_read' => 0,
+				);
 			}
+			notify_create_batch($_mention_records);
+		}
+		}
+
+		// ===== 积分预检查：扣减类操作余额不足则拒绝 =====
+		if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
+		$creditsCheck = CreditsRuleService::applyRule('thread_post', $uid, $fid, true);
+		if(!$creditsCheck['ok']) {
+			message(-1, $creditsCheck['message']);
 		}
 
 		// hook thread_create_thread_end.php
 
-		// 积分规则：发主题获得积分
-		if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
-		CreditsRuleService::applyRule('thread_post', $uid, $fid);
+		// 积分规则：发主题获得/扣除积分
+		// 需要审核时：扣除部分立即执行，奖励部分延迟到审核通过后发放
+		// 不需要审核时：正常执行全部积分变动
+		if($need_audit) {
+			$threadCreditsResult = CreditsRuleService::applyRuleDeductOnly('thread_post', $uid, $fid);
+		} else {
+			$threadCreditsResult = CreditsRuleService::applyRule('thread_post', $uid, $fid);
+		}
 
 		// 审核通知：如果帖子进入审核，通知作者
-		if(!empty($_SESSION['security_thread_needs_audit'])) {
-			unset($_SESSION['security_thread_needs_audit']);
-			if(!empty($tid)) {
-				notify_create($uid, 0, 'audit_pending', $tid, 0, lang('notify_audit_thread_pending', array('subject' => mb_substr($subject, 0, 30))));
-			}
+		if($need_audit && !empty($tid)) {
+			notify_create($uid, 0, 'audit_pending', $tid, 0, lang('notify_audit_thread_pending', array('subject' => mb_substr($subject, 0, 30))));
 		}
+
+		// 积分变动描述
+		$change_desc = '';
+		if(!empty($threadCreditsResult['ok']) && !empty($threadCreditsResult['change_desc'])) {
+			$change_desc = $threadCreditsResult['change_desc'];
+		}
+		// 每日上限达到：提醒用户本次不发放/扣除积分
+		if(!empty($threadCreditsResult['daily_limit_reached'])) {
+			$change_desc = $threadCreditsResult['message'] . '，本次发帖不发放/扣除积分';
+		}
+
 		if($need_audit) {
-			message(0, '帖子已提交，等待审核', array('redirect_url' => url("forum-$fid")));
+			message(0, '帖子已提交，等待审核', array('redirect_url' => forum_url($fid), 'change_desc' => $change_desc));
 		} else {
-			message(0, lang('create_thread_sucessfully'), array('redirect_url' => url("thread-$tid")));
+			message(0, lang('create_thread_sucessfully'), array('redirect_url' => thread_url($tid), 'change_desc' => $change_desc));
 		}
 	}
 	
@@ -421,49 +613,72 @@ if($action == 'create') {
 	$page = param(2, 1);
 	$keyword = param(3);
 	$pagesize = $conf['postlist_pagesize'];
-	//$pagesize = 10;
-	//$page == 1 AND $pagesize++;
-	
-	// hook thread_info_start.php
-	
+
+	// 评论排序：asc(正序) / desc(倒序) / hot(热度)
+	$sort = param('sort', '');
+	$valid_sorts = array('asc', 'desc', 'hot');
+	if(!in_array($sort, $valid_sorts)) $sort = 'asc';
+
 	$thread = thread_read($tid);
 	empty($thread) AND error_page(404, lang('thread_not_exists'));
 
-	// 待审帖子访问控制：非管理员(gid!=1,2)不能查看他人待审帖子
-	if(($gid == 0 || $gid > 2) && isset($thread['audit_status']) && $thread['audit_status'] == 0 && $thread['uid'] != $uid) {
-		error_page(404, lang('thread_not_exists'));
+	// 待审/驳回帖子访问控制：非管理员(gid!=1,2)不能查看他人待审帖子，驳回帖子仅作者可见
+	if(($gid == 0 || $gid > 2) && isset($thread['audit_status']) && $thread['audit_status'] != 1) {
+		// 驳回帖子(audit_status=2)仅作者可见；待审帖子(audit_status=0)仅作者可见
+		if($thread['uid'] != $uid) {
+			error_page(404, lang('thread_not_exists'));
+		}
 	}
+
+	// hook thread_info_start.php
 
 	$fid = $thread['fid'];
 	$forum = isset($forumlist[$fid]) ? $forumlist[$fid] : forum_read($fid);
 	empty($forum) AND error_page(404, lang('forum_not_exists'));
 
-	$postlist = post_find_by_tid($tid, $page, $pagesize);
-	empty($postlist) AND error_page(404, lang('post_not_exists'));
+	// 根据 sort 设置排序方式
+	switch($sort) {
+		case 'desc':
+			$_orderby = array('pid'=>-1);
+			break;
+		case 'hot':
+			$_orderby = array('likes'=>-1, 'pid'=>1);
+			break;
+		default:
+			$_orderby = array('pid'=>1);
+			break;
+	}
 
-	// 待审回帖过滤：非管理员(gid!=1,2)不可见 audit_status=0 的回帖，但作者自己可见
+	// 查询回帖（排除首帖），排序由 sort 参数控制
+	$postlist = post__find(array('tid'=>$tid, 'isfirst'=>0), $_orderby, $page, $pagesize);
+	// 格式化回帖
+	if($postlist) {
+		$floor = ($page - 1) * $pagesize + 1;
+		foreach($postlist as &$_pf_post) {
+			$_pf_post['floor'] = $floor++;
+			post_format($_pf_post);
+		}
+		unset($_pf_post);
+	}
+
+	// 待审/驳回回帖过滤：非管理员(gid!=1,2)不可见 audit_status!=1 的他人回帖，作者自己可见待审和驳回回帖
 	if(($gid == 0 || $gid > 2) && !empty($postlist)) {
 		foreach($postlist as $_pid => $_post) {
-			// 首帖不在此过滤（首帖状态跟随 thread）
-			if(!empty($_post['isfirst'])) continue;
-			if(isset($_post['audit_status']) && $_post['audit_status'] == 0 && $_post['uid'] != $uid) {
-				unset($postlist[$_pid]);
+			if(isset($_post['audit_status']) && $_post['audit_status'] != 1) {
+				// 待审/驳回回帖仅作者可见
+				if($_post['uid'] != $uid) {
+					unset($postlist[$_pid]);
+				}
 			}
 		}
 	}
 
-	// 先提取首帖（原始 postlist 以 pid 为 key）
+	// 首帖单独获取（不受排序影响，始终显示）
+	$first = post_read($thread['firstpid']);
+	empty($first) AND error_page(404, lang('data_malformation'));
+	post_format($first);
 	if($page == 1) {
-		empty($postlist[$thread['firstpid']]) AND error_page(404, lang('data_malformation'));
-		$first = $postlist[$thread['firstpid']];
-		unset($postlist[$thread['firstpid']]);
-		$attachlist = $imagelist = $filelist = array();
-		
-		// 如果是大站，可以用单独的点击服务，减少 db 压力
-		// if request is huge, separate it from mysql server
 		thread_inc_views($tid);
-	} else {
-		$first = post_read($thread['firstpid']);
 	}
 
 	// 查询当前用户对首帖的点赞和收藏状态（从 thread_format 移出，仅详情页需要）
@@ -505,7 +720,7 @@ if($action == 'create') {
 					$_depth++;
 				}
 
-				// 设置 reply_to_username（直接回复的对象）
+				// 设置 reply_to_username（直接回复的对象，显示昵称）
 				if(isset($pid_map[$_p['quotepid']])) {
 					$_p['reply_to_username'] = $pid_map[$_p['quotepid']]['username'] ?? '';
 					$_p['reply_to_uid'] = $pid_map[$_p['quotepid']]['uid'] ?? 0;
@@ -526,6 +741,13 @@ if($action == 'create') {
 				$main_postlist[] = $_p;
 			}
 		}
+		// 置顶评论排在最前面
+		usort($main_postlist, function($a, $b) {
+			$a_top = !empty($a['is_top']) ? 1 : 0;
+			$b_top = !empty($b['is_top']) ? 1 : 0;
+			if($a_top != $b_top) return $b_top - $a_top;
+			return $a['pid'] - $b['pid'];
+		});
 		$postlist = $main_postlist;
 	}
 	
@@ -540,13 +762,15 @@ if($action == 'create') {
 	$allowdelete = forum_access_mod($fid, $gid, 'allowdelete') ? 1 : 0;
 	
 	forum_access_user($fid, $gid, 'allowread') OR message(-1, lang('user_group_insufficient_privilege'));
-	
-	$pagination = pagination(url("thread-$tid-{page}$keywordurl"), $thread['posts'] + 1, $page, $pagesize);
+
+	// 分页：只针对回帖（首帖单独获取，不参与分页）
+	$_sort_query = $sort != 'asc' ? '?sort=' . $sort : '';
+	$pagination = pagination(url("thread-$tid-{page}$keywordurl") . $_sort_query, $thread['posts'], $page, $pagesize);
 	
 	$header['title'] = $thread['subject'].'-'.$forum['name'].'-'.$conf['sitename']; 
 	//$header['mobile_title'] = lang('thread_detail');
 	$header['mobile_title'] = $forum['name'];;
-	$header['mobile_link'] = url("forum-$fid");
+	$header['mobile_link'] = forum_url($fid);
 	$header['keywords'] = ''; 
 	$header['description'] = $thread['subject'];
 	$_SESSION['fid'] = $fid;
@@ -578,14 +802,15 @@ if($action == 'create') {
 	if(!empty($author_recent_threads)) {
 		if(($gid == 0 || $gid > 2) && $thread['uid'] != $uid) {
 			foreach($author_recent_threads as $_rt_key => $_rt) {
-				if(isset($_rt['audit_status']) && $_rt['audit_status'] == 0) {
+				// 非管理员查看他人：只显示审核通过的帖子（排除待审和驳回）
+				if(isset($_rt['audit_status']) && $_rt['audit_status'] != 1) {
 					unset($author_recent_threads[$_rt_key]);
 				}
 			}
 		}
 		foreach($author_recent_threads as &$_rt) {
 			$_rt['user_avatar_url'] = $author['avatar_url'];
-			$_rt['username'] = $author['username'];
+			$_rt['username'] = $author['display_name'] ?? $author['username'];
 		}
 		unset($_rt);
 	}
@@ -604,7 +829,7 @@ if($action == 'create') {
 	$allowdown = forum_access_user($fid, $gid, 'allowdown') ? 1 : 0;
 
 	// 帖子完整URL（用于二维码）
-	$thread_url = http_url_path() . url("thread-$tid");
+	$thread_url = http_url_path() . thread_url($tid);
 
 	include _include(APP_PATH.'view/htm/thread.htm');
 }

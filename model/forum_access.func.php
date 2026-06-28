@@ -98,10 +98,8 @@ function forum_access_delete($fid, $gid) {
 
 function forum_access_delete_by_fid($fid) {
 	// hook model_forum_access_delete_by_fid_start.php
-	$accesslist = forum_access_find_by_fid($fid);
-	foreach ($accesslist as $access) {
-		forum_access_delete($access['fid'], $access['gid']);
-	}
+	// 直接按 fid 删除，消除 N+1 查询
+	$r = db_delete('forum_access', array('fid'=>$fid));
 	// hook model_forum_access_delete_by_fid_end.php
 }
 
@@ -115,9 +113,12 @@ function forum_access_find($cond = array(), $orderby = array(), $page = 1, $page
 
 function forum_access_find_by_fid($fid) {
 	// hook model_forum_access_find_by_fid_start.php
+	static $cache = array();
+	if(isset($cache[$fid])) return $cache[$fid];
 	$cond = array('fid'=>$fid);
 	$orderby = array('gid'=>1);
 	$accesslist = db_find('forum_access', $cond, $orderby, 1, 100, 'gid');
+	$cache[$fid] = $accesslist;
 	// hook model_forum_access_find_by_fid_end.php
 	return $accesslist;
 }
@@ -126,6 +127,12 @@ function forum_access_find_by_fid($fid) {
 function forum_access_user($fid, $gid, $access) {
 	// hook model_forum_access_user_start.php
 	global $conf, $grouplist, $forumlist;
+
+	// 结果缓存，加速判断（参照 forum_access_mod）
+	static $result = array();
+	$k = "$fid-$gid-$access";
+	if(isset($result[$k])) return $result[$k];
+
 	if(empty($forumlist[$fid])) return FALSE;
 	// 管理员组拥有所有权限
 	if($gid == 1 || $gid == 2) return TRUE;
@@ -136,6 +143,7 @@ function forum_access_user($fid, $gid, $access) {
 	} else {
 		$r = !empty($group[$access]);
 	}
+	$result[$k] = $r;
 	// hook model_forum_access_user_end.php
 	return $r;
 }

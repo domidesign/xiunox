@@ -44,7 +44,6 @@ class SecurityService {
         $user = user_read($uid);
         if (empty($user)) return false;
 
-        password_md5($password);
         return user_login_verify($password, $user);
     }
 

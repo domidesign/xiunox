@@ -9,7 +9,7 @@
 		<div class="row g-4 mb-4">
 			<div class="col-lg-4">
 				<h6 class="fw-semibold mb-3"><i class="ti ti-file-import me-1"></i><?php echo lang('admin_sensitive_batch_import')?></h6>
-				<form id="import-form" action="<?php echo url('security-words');?>" method="post">
+				<form id="import-form" action="<?php echo admin_security_url('words');?>" method="post">
 					<?php echo CsrfService::input(); ?>
 					<input type="hidden" name="word_action" value="import">
 					<textarea class="form-control mb-2" name="words_text" rows="5" placeholder="<?php echo lang('admin_sensitive_placeholder')?>"></textarea>
@@ -20,7 +20,7 @@
 			</div>
 			<div class="col-lg-4">
 				<h6 class="fw-semibold mb-3"><i class="ti ti-upload me-1"></i><?php echo lang('admin_sensitive_file_import')?></h6>
-				<form id="file-import-form" action="<?php echo url('security-words');?>" method="post" enctype="multipart/form-data">
+				<form id="file-import-form" action="<?php echo admin_security_url('words');?>" method="post" enctype="multipart/form-data">
 					<?php echo CsrfService::input(); ?>
 					<input type="hidden" name="word_action" value="import_file">
 					<input type="file" class="form-control rounded-pill mb-2" name="words_file" accept=".txt" required>
@@ -79,7 +79,7 @@ document.querySelectorAll('.word-delete').forEach(function(btn) {
 	btn.addEventListener('click', function() {
 		var word = this.getAttribute('data-word');
 		XN.confirm('<?php echo lang('admin_confirm_delete_word')?>' + word + '？', function() {
-			XN.post('<?php echo url('security-words');?>', { word_action: 'delete', word: word }, function(code, message) {
+			XN.post('<?php echo admin_security_url('words');?>', { word_action: 'delete', word: word }, function(code, message) {
 				if(code == 0) {
 					showToast(message, 'success');
 					setTimeout(function(){ location.reload(); }, 800);
@@ -96,7 +96,7 @@ var clearBtn = document.getElementById('clear-btn');
 if(clearBtn) {
 	clearBtn.addEventListener('click', function() {
 		XN.confirm('<?php echo lang('admin_confirm_clear_all_words')?>', function() {
-			XN.post('<?php echo url('security-words');?>', { word_action: 'clear' }, function(code, message) {
+			XN.post('<?php echo admin_security_url('words');?>', { word_action: 'clear' }, function(code, message) {
 				if(code == 0) {
 					showToast(message, 'success');
 					setTimeout(function(){ location.reload(); }, 800);

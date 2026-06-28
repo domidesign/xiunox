@@ -6,7 +6,7 @@
 	<?php echo admin_tab_active($menu['log']['tab'], 'audit');?>
 </div>
 
-<div class="x-card  cardrounded-3">
+<div class="x-card  card">
 	<div class="card-body">
 		<!-- 筛选表单 -->
 		<form onsubmit="return doSearch();" class="mb-4">
@@ -52,20 +52,63 @@
 					<tr>
 						<th><?php echo lang('admin_col_operator');?></th>
 						<th><?php echo lang('admin_op_target_type');?></th>
-						<th><?php echo lang('admin_col_target_id');?></th>
+						<th><?php echo lang('admin_col_user');?></th>
+						<th><?php echo lang('admin_col_changed_field');?></th>
+						<th><?php echo lang('admin_col_old_value').' → '.lang('admin_col_new_value');?></th>
 						<th><?php echo lang('admin_log_col_action');?></th>
-						<th><?php echo lang('admin_log_col_reason');?></th>
+						<th><?php echo lang('admin_col_reason');?></th>
 						<th><?php echo lang('admin_log_col_time');?></th>
 					</tr>
 				</thead>
 				<tbody>
 					<?php if(empty($logs)) { ?>
-					<tr><td colspan="6" class="text-center text-body-secondary py-4"><?php echo lang('admin_no_data')?></td></tr>
-					<?php } else { foreach($logs as $log) { ?>
+					<tr><td colspan="8" class="text-center text-body-secondary py-4"><?php echo lang('admin_no_data')?></td></tr>
+					<?php } else { foreach($logs as $log) {
+						// 字段名中文映射
+						$field_labels = array('avatar'=>lang('admin_field_avatar'), 'signature'=>lang('admin_field_signature'), 'username'=>lang('admin_field_username'));
+						$is_profile = ($log['target_type'] == 'profile');
+						$is_thread = ($log['target_type'] == 'thread');
+						$is_post = ($log['target_type'] == 'post');
+						$field_label = $is_profile && !empty($log['field_name']) ? ($field_labels[$log['field_name']] ?? $log['field_name']) : '-';
+
+						// 目标对象展示：可点击查看
+						$target_display = intval($log['target_id']);
+						if($is_profile && !empty($log['target_uid'])) {
+							$target_display = '<a href="'.admin_user_update_url($log['target_uid']).'" target="_blank"><i class="ti ti-user me-1"></i>'.esc_html($log['target_username'] ?? '').'</a> <span class="text-body-secondary">#'.intval($log['target_uid']).'</span>';
+						} elseif($is_thread && !empty($log['thread_subject'])) {
+							$target_display = '<a href="'.frontend_thread_url($log['target_id']).'" target="_blank"><i class="ti ti-message-2 me-1"></i>'.esc_html(mb_substr($log['thread_subject'], 0, 30)).'</a>';
+						} elseif($is_post && !empty($log['post_tid'])) {
+							$target_display = '<a href="'.frontend_thread_url($log['post_tid']).'" target="_blank"><i class="ti ti-message me-1"></i>'.esc_html(mb_substr($log['post_summary'] ?? '', 0, 30)).'</a>';
+						}
+
+						// 变更展示
+						$change_display = '-';
+						if($is_profile && !empty($log['field_name'])) {
+							if($log['field_name'] == 'avatar') {
+								$change_display = '<span class="text-body-secondary">'.lang('admin_avatar_replaced').'</span>';
+							} else {
+								$old_val = esc_html(mb_substr($log['old_value'] ?? '', 0, 40));
+								$new_val = esc_html(mb_substr($log['new_value'] ?? '', 0, 40));
+								$change_display = '<span class="text-body-secondary text-decoration-line-through">'.$old_val.'</span> → <span class="text-success">'.$new_val.'</span>';
+							}
+						}
+					?>
 					<tr>
 						<td><?php echo esc_html($log['username']);?></td>
-						<td><span class="badge bg-secondary"><?php echo esc_html($log['target_type']);?></span></td>
-						<td><?php echo intval($log['target_id']);?></td>
+						<td><span class="badge bg-secondary"><?php
+							if($is_thread) {
+								echo lang('admin_type_thread');
+							} elseif($is_post) {
+								echo lang('admin_type_post');
+							} elseif($is_profile) {
+								echo lang('admin_type_profile');
+							} else {
+								echo esc_html($log['target_type']);
+							}
+						?></span></td>
+						<td><?php echo $target_display;?></td>
+						<td><?php echo $field_label;?></td>
+						<td><?php echo $change_display;?></td>
 						<td>
 							<?php if($log['action'] == 'approve'): ?>
 							<span class="badge bg-success"><?php echo lang('admin_action_approve');?></span>
@@ -88,10 +131,20 @@
 				<?php
 				$total_pages = ceil($count / $pagesize);
 				$query_params = http_build_query(array_filter(array('uid'=>$filter_uid, 'target_type'=>$filter_target_type, 'audit_action'=>$filter_audit_action, 'date_start'=>$filter_date_start, 'date_end'=>$filter_date_end)));
-				for($i = 1; $i <= min($total_pages, 20); $i++) {
-					$url = url('log-audit') . ($query_params ? '&'.$query_params : '') . '&page='.$i;
+				if($page > 1) {
+					$prev_url = admin_log_url('audit') . ($query_params ? '&'.$query_params : '') . '&page='.($page-1);
+				?>
+				<li class="page-item"><a class="page-link" href="<?php echo $prev_url;?>"><i class="ti ti-chevron-left"></i></a></li>
+				<?php } ?>
+				<?php for($i = 1; $i <= min($total_pages, 20); $i++) {
+					$url = admin_log_url('audit') . ($query_params ? '&'.$query_params : '') . '&page='.$i;
 				?>
 				<li class="page-item <?php echo $page == $i ? 'active' : '';?>"><a class="page-link" href="<?php echo $url;?>"><?php echo $i;?></a></li>
+				<?php } ?>
+				<?php if($page < $total_pages) {
+					$next_url = admin_log_url('audit') . ($query_params ? '&'.$query_params : '') . '&page='.($page+1);
+				?>
+				<li class="page-item"><a class="page-link" href="<?php echo $next_url;?>"><i class="ti ti-chevron-right"></i></a></li>
 				<?php } ?>
 			</ul>
 		</nav>
@@ -106,7 +159,7 @@
 <!-- 搜索表单JS：修复GET表单导致URL双问号问题 -->
 <script>
 function doSearch() {
-    var base = '<?php echo url('log-audit');?>';
+    var base = '<?php echo admin_log_url('audit');?>';
     var params = [];
     var uid = document.querySelector('[name="uid"]').value;
     if(uid) params.push('uid=' + encodeURIComponent(uid));

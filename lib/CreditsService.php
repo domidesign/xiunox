@@ -25,16 +25,17 @@ class CreditsService {
      * @param string $type 积分类型: credits/golds/rmbs
      * @param int $amount 增加金额（必须>0）
      * @param string $reason 变动原因
+     * @param int $dailyLimit 规则级每日限制次数，0使用全局设置
      * @return array ['ok'=>bool, 'message'=>string, 'balance'=>int]
      */
-    public function add(int $uid, string $type, int $amount, string $reason = ''): array {
+    public function add(int $uid, string $type, int $amount, string $reason = '', int $dailyLimit = 0): array {
         // 1. 参数校验
         if ($uid <= 0) return ['ok' => false, 'message' => '无效的用户ID'];
         if ($amount <= 0) return ['ok' => false, 'message' => '增加金额必须大于0'];
         if (!$this->isValidType($type)) return ['ok' => false, 'message' => '无效的积分类型'];
 
         // 2. 防刷检查
-        $limitCheck = $this->checkDailyLimit($uid, $reason);
+        $limitCheck = $this->checkDailyLimit($uid, $reason, $dailyLimit);
         if (!$limitCheck['ok']) return $limitCheck;
 
         // 3. credits_before_change 钩子
@@ -64,6 +65,11 @@ class CreditsService {
 
             $this->commit();
 
+            // 积分变动后检查用户组升级（仅 credits 类型）
+            if ($type === 'credits' && function_exists('user_update_group')) {
+                user_update_group($uid);
+            }
+
             // 5. credits_after_change 钩子
             $this->fireAfterChange($uid, $type, $amount, $newBalance, $reason);
 
@@ -81,15 +87,16 @@ class CreditsService {
      * @param string $type 积分类型
      * @param int $amount 扣减金额（必须>0）
      * @param string $reason 变动原因
+     * @param int $dailyLimit 规则级每日限制次数，0使用全局设置
      * @return array
      */
-    public function sub(int $uid, string $type, int $amount, string $reason = ''): array {
+    public function sub(int $uid, string $type, int $amount, string $reason = '', int $dailyLimit = 0): array {
         if ($uid <= 0) return ['ok' => false, 'message' => '无效的用户ID'];
         if ($amount <= 0) return ['ok' => false, 'message' => '扣减金额必须大于0'];
         if (!$this->isValidType($type)) return ['ok' => false, 'message' => '无效的积分类型'];
 
         // 防刷检查
-        $limitCheck = $this->checkDailyLimit($uid, $reason);
+        $limitCheck = $this->checkDailyLimit($uid, $reason, $dailyLimit);
         if (!$limitCheck['ok']) return $limitCheck;
 
         // credits_before_change 钩子
@@ -120,6 +127,11 @@ class CreditsService {
             $this->insertLog($uid, $type, -$amount, $newBalance, $reason);
 
             $this->commit();
+
+            // 积分变动后检查用户组升级（仅 credits 类型）
+            if ($type === 'credits' && function_exists('user_update_group')) {
+                user_update_group($uid);
+            }
 
             $this->fireAfterChange($uid, $type, -$amount, $newBalance, $reason);
 
@@ -186,6 +198,75 @@ class CreditsService {
     }
 
     /**
+     * 按操作分组的积分记录（一次操作可能产生 credits/golds/rmbs 多条记录，合并为一条显示）
+     * 分页基于分组后的条目数
+     */
+    public function logGrouped(int $uid, int $page = 1, int $pagesize = 10): array {
+        if ($uid <= 0) return ['ok' => false, 'message' => '无效的用户ID'];
+
+        $page = max(1, $page);
+        $offset = ($page - 1) * $pagesize;
+        $tableName = $this->db->table('credits_log');
+        $uid = intval($uid);
+
+        // 使用 SQL GROUP BY 分页查询分组（按 create_date + reason 作为一次操作的唯一标识）
+        // 先获取分组总数
+        $sqlCount = "SELECT COUNT(*) AS c FROM (
+                        SELECT 1 FROM `{$tableName}`
+                        WHERE uid = {$uid}
+                        GROUP BY create_date, reason
+                     ) t";
+        $countRow = $this->db->sqlFindOne($sqlCount);
+        $total = $countRow ? intval($countRow['c']) : 0;
+
+        if ($total <= 0) {
+            return ['ok' => true, 'logs' => [], 'count' => 0, 'page' => $page, 'pagesize' => $pagesize];
+        }
+
+        // 获取当前页分组（使用 GROUP_CONCAT 聚合 type/change，避免 PHP 内二次查询）
+        // 注意：change 是 MySQL 保留字，需用反引号
+        $sql = "SELECT create_date, reason,
+                       GROUP_CONCAT(type ORDER BY logid) AS types,
+                       GROUP_CONCAT(`change` ORDER BY logid) AS changes
+                FROM `{$tableName}`
+                WHERE uid = {$uid}
+                GROUP BY create_date, reason
+                ORDER BY create_date DESC
+                LIMIT {$offset}, {$pagesize}";
+        $groups = $this->db->sqlFind($sql);
+
+        $typeNames = ['credits' => '积分', 'golds' => '金币', 'rmbs' => 'RMB'];
+        $result = [];
+        if ($groups) {
+            foreach ($groups as $g) {
+                $changes = [];
+                $types = explode(',', $g['types'] ?? '');
+                $changeValues = explode(',', $g['changes'] ?? '');
+                $count = count($types);
+                for ($i = 0; $i < $count; $i++) {
+                    $tname = $typeNames[$types[$i]] ?? $types[$i];
+                    $change = intval($changeValues[$i] ?? 0);
+                    $changes[] = $tname . ($change > 0 ? ' +' : ' ') . $change;
+                }
+                $result[] = [
+                    'reason' => $g['reason'],
+                    'create_date' => intval($g['create_date']),
+                    'create_date_fmt' => date('Y-m-d H:i:s', intval($g['create_date'])),
+                    'changes' => $changes,
+                ];
+            }
+        }
+
+        return [
+            'ok' => true,
+            'logs' => $result,
+            'count' => $total,
+            'page' => $page,
+            'pagesize' => $pagesize,
+        ];
+    }
+
+    /**
      * 检查余额是否足够
      */
     public function checkNegative(int $uid, string $type, int $amount): array {
@@ -219,27 +300,48 @@ class CreditsService {
 
     /**
      * 防刷检查：同一 reason+uid 每日限制
+     * @param int $uid 用户ID
+     * @param string $reason 变动原因
+     * @param int $ruleDailyLimit 规则级每日限制，0使用全局设置，-1表示不限制
      */
-    private function checkDailyLimit(int $uid, string $reason): array {
+    private function checkDailyLimit(int $uid, string $reason, int $ruleDailyLimit = 0): array {
         if (empty($reason)) return ['ok' => true]; // 无 reason 不限制
 
-        $limit = intval($this->conf['credits_daily_limit'] ?? 10);
-        if ($limit <= 0) return ['ok' => true]; // 0 表示不限制
+        // 优先使用规则级限制，0 表示使用全局设置，-1 表示不限制
+        if ($ruleDailyLimit === -1) return ['ok' => true]; // 规则明确设为不限制
+        $limit = $ruleDailyLimit > 0 ? $ruleDailyLimit : intval($this->conf['credits_daily_limit'] ?? 10);
+        if ($limit <= 0) return ['ok' => true]; // 全局设为 0 也不限制
 
         // 计算今日起始时间戳
         $todayStart = strtotime(date('Y-m-d'));
 
-        $count = $this->db->count('credits_log', [
-            'uid' => $uid,
-            'reason' => $reason,
-            'create_date>' => $todayStart,
-        ]);
+        // 按 reason 统计今日操作次数
+        // 一次操作可能写多条不同 type 的日志（credits/golds/rmbs），需按 create_date 去重
+        // 同一秒内同一 reason 的日志视为同一次操作
+        // 注意：tablepre 是 db 对象的属性，不是全局变量；quote() 返回去掉首尾引号的转义字符串
+        $tableName = $this->db->table('credits_log');
+        $sql = "SELECT COUNT(*) as cnt FROM (
+                    SELECT 1 FROM `{$tableName}`
+                    WHERE uid = " . intval($uid) . "
+                    AND reason = '" . $this->db->quote($reason) . "'
+                    AND create_date > " . intval($todayStart) . "
+                    GROUP BY create_date
+                ) t";
+        $row = $this->db->sqlFindOne($sql);
+        $count = $row ? intval($row['cnt']) : 0;
 
         if ($count >= $limit) {
             return ['ok' => false, 'message' => "每日操作次数已达上限({$limit}次)"];
         }
 
         return ['ok' => true];
+    }
+
+    /**
+     * 公开的防刷检查方法，供 CreditsRuleService 调用
+     */
+    public function checkDailyLimitPublic(int $uid, string $reason, int $ruleDailyLimit = 0): array {
+        return $this->checkDailyLimit($uid, $reason, $ruleDailyLimit);
     }
 
     /**
@@ -256,6 +358,16 @@ class CreditsService {
      */
     private function updateUserCredits(int $uid, string $type, int $newBalance): void {
         $this->db->update('user', ['uid' => $uid], [$type => $newBalance]);
+
+        // 修复：清理用户缓存，确保后续 user_update_group 能读到最新积分
+        // CreditsService 绕过 user_update()，需手动清理两层缓存
+        global $conf, $g_static_users;
+        if (!in_array($conf['cache']['type'] ?? '', array('mysql', 'pdo_mysql'))) {
+            cache_delete("user-$uid");
+        }
+        if (isset($g_static_users[$uid])) {
+            $g_static_users[$uid][$type] = $newBalance;
+        }
     }
 
     /**

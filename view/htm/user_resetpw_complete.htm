@@ -11,7 +11,7 @@
 		</div>
 		<!--{hook user_create_card_title.htm}-->
 		<div class="card-body">
-			<form hx-post="<?php echo url('user-resetpw_complete');?>" hx-target="#resetpw-complete-msg" hx-swap="innerHTML" id="form">
+			<form hx-post="<?php echo user_resetpw_complete_url();?>" hx-target="#resetpw-complete-msg" hx-swap="innerHTML" id="form">
 				<?php echo CsrfService::input(); ?>
 				<div class="input-group mb-3">
 					<span class="input-group-text"><i class="ti ti-mail"></i></span>

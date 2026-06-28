@@ -1,18 +1,19 @@
 <?php
+// 内容审核未审核数量统计
+include_once APP_PATH . 'lib/security/AuditService.php';
 $route_menu_map = array(
 	'index' => 'home',
 	'setting' => 'setting',
 	'forum' => 'forum',
-	'friendlink' => 'friendlink',
 	'group' => 'user',
 	'other' => 'other',
+	'health' => 'health',
 	'user' => 'user',
 	'thread' => 'thread',
+	'audit' => 'audit',
 	'attach' => 'attach',
 	'plugin' => 'plugin',
 	'theme' => 'theme',
-	'upgrade_phase1' => 'other',
-	'upgrade_phase1_do' => 'other',
 	'api' => 'api',
 	'upgrade' => 'other',
 	'icon_preview' => 'icon_preview',
@@ -31,8 +32,8 @@ if($route == 'plugin' && param(1) == 'scanner') {
 $nav_section_map = array(
 	'setting' => 'general',
 	'forum' => 'content',
-	'friendlink' => 'content',
 	'thread' => 'content',
+	'audit' => 'content',
 	'attach' => 'content',
 	'user' => 'content',
 	'group' => 'content',
@@ -42,6 +43,7 @@ $nav_section_map = array(
 	'scanner' => 'extension',
 	'api' => 'extension',
 	'other' => 'other',
+	'health' => 'other',
 	'icon_preview' => 'other',
 	'log' => 'other',
 	'notice' => 'other',
@@ -52,6 +54,7 @@ $nav_icon_map = array(
 	'setting' => 'ti-settings',
 	'forum' => 'ti-message-circle',
 	'thread' => 'ti-file-text',
+	'audit' => 'ti-clipboard-check',
 	'attach' => 'ti-paperclip',
 	'user' => 'ti-users',
 	'group' => 'ti-shield-lock',
@@ -61,10 +64,10 @@ $nav_icon_map = array(
 	'scanner' => 'ti-search',
 	'api' => 'ti-code',
 	'other' => 'ti-tool',
+	'health' => 'ti-heart-rate-monitor',
 	'icon_preview' => 'ti-icons',
 	'log' => 'ti-file-text',
 	'notice' => 'ti-bell',
-	'friendlink' => 'ti-link',
 );
 
 $nav_text_map = array(
@@ -72,6 +75,7 @@ $nav_text_map = array(
 	'setting' => lang('admin_site_setting'),
 	'forum' => lang('admin_forum_manage'),
 	'thread' => lang('admin_thread_manage'),
+	'audit' => lang('admin_content_audit'),
 	'attach' => lang('admin_attach_manage'),
 	'user' => lang('admin_user_manage'),
 	'group' => lang('admin_user_group'),
@@ -82,9 +86,9 @@ $nav_text_map = array(
 	'notice' => lang('admin_system_notice'),
 	'api' => 'API',
 	'other' => lang('admin_system_tools'),
+	'health' => lang('admin_site_health'),
 	'icon_preview' => lang('admin_icon_preview'),
 	'log' => lang('admin_log_short'),
-	'friendlink' => lang('friendlink'),
 );
 ?>
 <!--{hook admin_sidebar_start.htm}-->
@@ -148,6 +152,12 @@ $nav_text_map = array(
 					<a href="<?php echo $menu[$nav_key]['url'];?>" data-nav="<?php echo $nav_key;?>" class="side-nav-link <?php echo $active_nav == $nav_key ? 'active' : '';?>">
 						<span class="menu-icon"><i class="ti <?php echo $icon;?>"></i></span>
 						<span class="menu-text"><?php echo $text;?></span>
+						<?php if($nav_key == 'audit') {
+							$_pending_total = AuditService::get_pending_count('thread') + AuditService::get_pending_count('post') + AuditService::get_pending_profile_count();
+							if($_pending_total > 0) {
+								echo '<span class="badge bg-danger ms-auto">' . $_pending_total . '</span>';
+							}
+						} ?>
 					</a>
 				</li>
 				<?php } ?>

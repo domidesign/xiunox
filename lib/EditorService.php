@@ -9,13 +9,14 @@ class EditorService {
     }
 
     public function getEditorAssets(): array {
+        $viewUrl = isset($GLOBALS['conf']['view_url']) ? $GLOBALS['conf']['view_url'] : '/view/';
         $assets = [
             'css' => [
-                'view/js/aieditor/style.css',
+                $viewUrl . 'js/aieditor/style.css',
             ],
             'js' => [
-                'view/js/upload-service.js',
-                'view/js/aieditor/index.umd.js',
+                $viewUrl . 'js/upload-service.js',
+                $viewUrl . 'js/aieditor/index.umd.js',
             ],
         ];
         if (function_exists('hook')) {
@@ -32,14 +33,29 @@ class EditorService {
         }
 
         $aiConfig = $this->buildAiConfig();
+        // AI 是否可用取决于用户配置是否完整
+        $aiEnabled = $this->isUserAiConfigComplete();
+        $aiEnabledJs = $aiEnabled ? 'true' : 'false';
+        $aiNotConfiguredTip = addslashes(lang('ai_not_configured_tip'));
+        $myAiUrl = url('my-ai');
         $mentionTip = lang('mention_label');
         $mentionFollowUrl = url('my-follow_users');
         $mentionSearchUrl = url('user-search');
+        $lang = $this->conf['lang'] ?? 'zh-cn';
+        $aieditorLang = $this->mapLangCode($lang);
 
         return <<<HTML
 <style>
-.aieditor-container {border:1px solid var(--border-color, #ddd);border-radius:4px;min-height:450px;}
-.aieditor-container .aieditor {min-height:450px;}
+.aieditor-container {border:1px solid var(--border-color, #ddd);border-radius:4px;min-height:300px;}
+.aieditor-container .aieditor {min-height:300px;}
+/* 编辑器内容区：移动端不强制固定高度，避免 100vh 在键盘弹起时不变导致内容溢出到键盘下方 */
+.aieditor-container .aie-content {min-height:250px;overflow:auto !important;}
+/* 桌面端保留较大高度（不使用 !important，允许覆盖） */
+@media (min-width: 768px) {
+    .aieditor-container .aie-content {min-height:calc(100vh - 400px);}
+}
+/* 工具栏吸顶 */
+.aieditor-container .aie-header {position:sticky;top:0;z-index:10;background:var(--aie-bg-color, #fff);}
 .editor-upload-progress {height:3px;background:transparent;position:relative;margin-top:-3px;z-index:10;overflow:hidden;}
 .editor-upload-progress .progress-bar {height:100%;width:0;background:var(--bs-primary, #0d6efd);border-radius:0 2px 2px 0;transition:width 0.2s ease;}
 .editor-upload-progress.active .progress-bar {background:var(--bs-primary, #0d6efd);}
@@ -64,6 +80,10 @@ class EditorService {
     if (!wrap) {
         return;
     }
+
+    // AI 是否已完整配置（由 PHP 端判断）
+    var aiConfigured = {$aiEnabledJs};
+    var aiNotConfiguredTip = '{$aiNotConfiguredTip}';
 
     var oldTa = document.getElementById('{$textareaId}');
     if (oldTa) { oldTa.name = '_message_old'; oldTa.style.display = 'none'; }
@@ -193,6 +213,7 @@ class EditorService {
         attachmentList.style.display = '';
         var li = document.createElement('li');
         li.className = 'editor-attachment-item';
+        li.setAttribute('aid', msg.aid || '');
         var url = msg.url || '';
         var name = msg.orgfilename || '附件';
         var size = msg.filesize ? UploadService.formatFileSize(msg.filesize) : '';
@@ -202,7 +223,8 @@ class EditorService {
         }
         li.innerHTML = '<span class="att-icon"><i class="ti ti-paperclip"></i></span>' +
             '<span class="att-name" title="' + name + '">' + nameHtml + '</span>' +
-            (size ? '<span class="att-size">' + size + '</span>' : '');
+            (size ? '<span class="att-size">' + size + '</span>' : '') +
+            '<button type="button" class="btn btn-sm btn-outline-danger rounded-pill py-0 px-2" title="删除" onclick="deleteAttach(this, ' + (msg.aid || 0) + ')"><i class="ti ti-trash" style="font-size:12px;"></i></button>';
         attachmentList.appendChild(li);
     }
 
@@ -309,31 +331,38 @@ class EditorService {
             aiConfigRaw.bubblePanelMenus = customMenus;
         }
 
+        // @提及按钮配置
+        var mentionBtn = {
+            icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>',
+            onClick: function(event, editor) {
+                editor.focus();
+                editor.insert('@');
+            },
+            tip: '{$mentionTip}'
+        };
+
+        // 构建工具栏：AI 按钮始终显示
+        var mobileToolbar = ['bold','italic','link','image','divider', mentionBtn, 'ai','code'];
+        var desktopToolbar = ['bold','italic','underline','strike','heading','font-color','link','image','video','attachment','divider', mentionBtn, 'ai','code-block','quote','ordered-list','bullet-list','align','hr','undo','redo'];
+
+        var toolbar = window.innerWidth < 768 ? mobileToolbar : desktopToolbar;
+
+        // 读取当前主题（前端动态决定，存在 localStorage 中）
+        var currentTheme = 'light';
+        try {
+            currentTheme = localStorage.getItem('theme') ||
+                (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        } catch(e) {
+            currentTheme = document.documentElement.getAttribute('data-bs-theme') || 'light';
+        }
+
         var opts = {
             element: '#aieditor-container',
             placeholder: '',
             content: oldTa ? oldTa.value : '',
-            toolbar: window.innerWidth < 768
-                ? ['bold','italic','link','image',
-                    {
-                        icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>',
-                        onClick: function(event, editor) {
-                            editor.focus();
-                            editor.insert('@');
-                        },
-                        tip: '{$mentionTip}'
-                    },
-                    'ai','code']
-                : ['bold','italic','underline','strikeThrough','heading','color','link','image',
-                    {
-                        icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>',
-                        onClick: function(event, editor) {
-                            editor.focus();
-                            editor.insert('@');
-                        },
-                        tip: '{$mentionTip}'
-                    },
-                    'ai','codeBlock','quote','orderedList','unorderedList','align','hr','undo','redo'],
+            toolbar: toolbar,
+            theme: currentTheme,
+            lang: '{$aieditorLang}',
             image: {
                 uploadUrl: '{$uploadUrl}',
                 uploadHeaders: {'X-CSRF-Token': '{$csrfToken}'},
@@ -356,8 +385,41 @@ class EditorService {
                 uploadUrl: '{$uploadUrl}',
                 uploadHeaders: {'X-CSRF-Token': '{$csrfToken}'},
                 uploader: function(file, uploadUrl, headers) {
+                    // 附件按钮不允许上传图片和视频，提示用户使用对应按钮
+                    if (UploadService && UploadService.isImageFile(file)) {
+                        if (typeof XN !== 'undefined' && XN.toast) {
+                            XN.toast('图片请使用图片按钮上传', 'warning');
+                        }
+                        return Promise.reject('图片请使用图片按钮上传');
+                    }
+                    if (UploadService && UploadService.isVideoFile && UploadService.isVideoFile(file)) {
+                        if (typeof XN !== 'undefined' && XN.toast) {
+                            XN.toast('视频请使用视频按钮上传', 'warning');
+                        }
+                        return Promise.reject('视频请使用视频按钮上传');
+                    }
+                    // 兜底：通过文件扩展名判断
+                    var fileName = (file.name || '').toLowerCase();
+                    var imgExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
+                    var videoExts = ['.mp4', '.webm', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.m4v'];
+                    var ext = fileName.substr(fileName.lastIndexOf('.'));
+                    if (imgExts.indexOf(ext) !== -1) {
+                        if (typeof XN !== 'undefined' && XN.toast) {
+                            XN.toast('图片请使用图片按钮上传', 'warning');
+                        }
+                        return Promise.reject('图片请使用图片按钮上传');
+                    }
+                    if (videoExts.indexOf(ext) !== -1) {
+                        if (typeof XN !== 'undefined' && XN.toast) {
+                            XN.toast('视频请使用视频按钮上传', 'warning');
+                        }
+                        return Promise.reject('视频请使用视频按钮上传');
+                    }
+                    // 方案B：附件不自动插入编辑器 a 链接，只添加到附件列表
                     return uploadFile(file, uploadUrl, function(msg) {
-                        return {errorCode: 0, data: {href: msg.url || '', fileName: msg.orgfilename || file.name}};
+                        addAttachmentItem(msg);
+                        // 返回空数据，阻止 AIEditor 自动插入 a 链接
+                        return {errorCode: 0, data: {href: '', fileName: ''}};
                     });
                 }
             },
@@ -391,7 +453,7 @@ class EditorService {
                     }).then(function(r) { return r.json(); }).then(function(res) {
                         if (res.code == 0 && res.data) {
                             var searchResults = res.data.map(function(u) {
-                                return {id: String(u.uid), label: u.username};
+                                return {id: String(u.uid), label: u.display_name || u.username};
                             });
                             // 合并关注用户（去重）
                             var allResults = searchResults.slice();
@@ -422,6 +484,44 @@ class EditorService {
 
         try {
             aiEditorInstance = new AE(opts);
+            // 暴露到全局，供侧边栏引用帖子等功能调用
+            window.aiEditorInstance = aiEditorInstance;
+
+            // AI 未配置完整时，给 AI 按钮绑定提示和跳转
+            if (!aiConfigured) {
+                setTimeout(function() {
+                    var aiBtn = container.querySelector('aie-ai');
+                    if (aiBtn) {
+                        // 销毁 tippy 弹出实例
+                        if (aiBtn.tippyInstance) {
+                            aiBtn.tippyInstance.destroy();
+                            aiBtn.tippyInstance = null;
+                        }
+                        var tippyEl = aiBtn.querySelector('#tippy') || aiBtn.querySelector('.menu-ai');
+                        var target = tippyEl || aiBtn;
+                        target.addEventListener('click', function(e) {
+                            e.stopImmediatePropagation();
+                            e.preventDefault();
+                            if (confirm(aiNotConfiguredTip)) {
+                                window.location.href = '{$myAiUrl}';
+                            }
+                        }, true);
+                    }
+                }, 500);
+            }
+
+            // 监听网站主题切换，同步编辑器主题
+            var themeObserver = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.attributeName === 'data-bs-theme') {
+                        var newTheme = document.documentElement.getAttribute('data-bs-theme') || 'light';
+                        if (aiEditorInstance && typeof aiEditorInstance.changeTheme === 'function') {
+                            aiEditorInstance.changeTheme(newTheme);
+                        }
+                    }
+                });
+            });
+            themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
 
             // 启用拖拽上传
             if (uploadSvc) uploadSvc.enableDragDrop(container);
@@ -451,6 +551,64 @@ class EditorService {
         }
     }
 
+    // ===== 移动端键盘弹起/收起处理 =====
+    // 解决：iOS Safari 键盘收起后 fixed 的 tabbar 不复位、滚动位置错乱、底部残留空白
+    var isMobile = window.innerWidth < 768;
+    if (isMobile && window.visualViewport) {
+        var vv = window.visualViewport;
+        var savedScrollY = 0;
+        var keyboardOpen = false;
+        var restoreTimer = null;
+
+        // 判断键盘是否弹起：视觉视口高度比布局视口小 150px 以上
+        function checkKeyboard() {
+            return (window.innerHeight - vv.height) > 150;
+        }
+
+        function onViewportResize() {
+            var nowKb = checkKeyboard();
+            if (nowKb && !keyboardOpen) {
+                // 键盘弹起：隐藏 fixed tabbar / 悬浮按钮，避免遮挡编辑器
+                keyboardOpen = true;
+                document.body.classList.add('keyboard-active');
+            } else if (!nowKb && keyboardOpen) {
+                // 键盘收起：恢复布局，延迟复位滚动位置
+                // iOS 上 fixed 元素复位有延迟，用 rAF + 多次校准
+                keyboardOpen = false;
+                document.body.classList.remove('keyboard-active');
+                if (restoreTimer) clearTimeout(restoreTimer);
+                var restoreCount = 0;
+                function tryRestore() {
+                    restoreCount++;
+                    window.scrollTo(0, savedScrollY);
+                    if (restoreCount < 3) {
+                        restoreTimer = setTimeout(tryRestore, 60);
+                    }
+                }
+                restoreTimer = setTimeout(tryRestore, 50);
+            }
+        }
+
+        // 编辑器获得焦点前记录原始滚动位置（此时键盘尚未弹起）
+        // 用 focusin 事件委托，覆盖编辑器内所有可聚焦元素
+        wrap.addEventListener('focusin', function() {
+            if (!keyboardOpen) {
+                savedScrollY = window.scrollY;
+            }
+        }, true);
+
+        vv.addEventListener('resize', onViewportResize);
+        // iOS 键盘弹起时 visualViewport.scroll 也会触发，用于校准
+        vv.addEventListener('scroll', function() {
+            if (keyboardOpen) {
+                // 键盘弹起期间，阻止 iOS 把页面整体顶离（page-top 偏移过大时拉回）
+                if (vv.pageTop > savedScrollY + 200) {
+                    vv.pageTop = savedScrollY;
+                }
+            }
+        });
+    }
+
     safeInit();
 
     if (typeof htmx !== 'undefined') {
@@ -466,43 +624,34 @@ HTML;
     }
 
     private function buildAiConfig(): string {
-        $ai = $this->conf['ai'] ?? [];
-
         $userAi = $this->getUserAiConfig();
-        if (!empty($userAi)) {
-            $ai = $this->mergeAiConfig($ai, $userAi);
-        }
 
-        if (empty($ai) || empty($ai['models'])) {
+        // 用户 AI 配置不完整时，不生成模型配置，但前端仍然渲染 AI 按钮
+        if (!$this->isUserAiConfigComplete($userAi)) {
             return '{bubblePanelEnable:false}';
         }
 
+        $ai = $this->conf['ai'] ?? [];
+        $ai = $this->mergeAiConfig($ai, $userAi);
+
         $parts = [];
 
-        if (!empty($ai['models'])) {
-            $modelsJs = [];
-            foreach ($ai['models'] as $name => $config) {
-                // 如果用户配置的 custom 直接转为 openai 兼容配置，这样简单易用
-                if ($name === 'custom') {
-                    $name = 'openai';
-                    if (!empty($config['url']) && empty($config['endpoint'])) {
-                        $config['endpoint'] = $config['url'];
-                        unset($config['url']);
-                    }
-                    $parts[] = 'bubblePanelModel:' . json_encode($name);
-                }
-                $modelConfig = $this->arrayToJs($config);
-                $modelsJs[] = '"' . addslashes($name) . '":' . $modelConfig;
-            }
-            $parts[] = 'models:{' . implode(',', $modelsJs) . '}';
-        }
+        // 统一使用 openai 作为模型 key（都用 OpenAI 兼容接口）
+        $models = [
+            'openai' => [
+                'apiKey' => $userAi['apiKey'],
+                'endpoint' => $userAi['url'],
+                'model' => $userAi['model'],
+            ]
+        ];
+        $parts[] = 'models:' . $this->arrayToJs($models);
+        $parts[] = 'bubblePanelModel:"openai"';
 
+        // 默认开启 bubblePanel，用户可在配置中覆盖
         if (isset($ai['bubblePanelEnable'])) {
             $parts[] = 'bubblePanelEnable:' . ($ai['bubblePanelEnable'] ? 'true' : 'false');
-        }
-
-        if (isset($ai['bubblePanelModel'])) {
-            $parts[] = 'bubblePanelModel:"' . addslashes($ai['bubblePanelModel']) . '"';
+        } else {
+            $parts[] = 'bubblePanelEnable:true';
         }
 
         if (!empty($ai['menus'])) {
@@ -529,10 +678,6 @@ HTML;
             $parts[] = 'promptImprove:' . json_encode($ai['promptImprove']);
         }
 
-        if (empty($parts)) {
-            return '{bubblePanelEnable:false}';
-        }
-
         return '{' . implode(',', $parts) . '}';
     }
 
@@ -547,7 +692,21 @@ HTML;
         return is_array($config) ? $config : [];
     }
 
+    private function isUserAiConfigComplete(?array $userAi = null): bool {
+        if ($userAi === null) {
+            $userAi = $this->getUserAiConfig();
+        }
+        return !empty($userAi['provider_name']) && !empty($userAi['apiKey']) && !empty($userAi['model']) && !empty($userAi['url']);
+    }
+
     private function mergeAiConfig(array $global, array $user): array {
+        // 用户未启用 AI 时，直接禁用
+        if (isset($user['enabled']) && !$user['enabled']) {
+            $global['models'] = [];
+            $global['bubblePanelEnable'] = false;
+            return $global;
+        }
+
         if (!empty($user['models'])) {
             $global['models'] = $user['models'];
         }
@@ -562,6 +721,13 @@ HTML;
         }
         if (!empty($user['bubblePanelMenus'])) {
             $global['bubblePanelMenus'] = $user['bubblePanelMenus'];
+        }
+        // 用户自定义 prompt 覆盖全局 prompt
+        if (!empty($user['promptContinue'])) {
+            $global['promptContinue'] = $user['promptContinue'];
+        }
+        if (!empty($user['promptImprove'])) {
+            $global['promptImprove'] = $user['promptImprove'];
         }
         return $global;
     }
@@ -585,5 +751,17 @@ HTML;
             $pairs[] = $key . $this->arrayToJs($v);
         }
         return '{' . implode(',', $pairs) . '}';
+    }
+
+    private function mapLangCode(string $xiunoLang): string {
+        $map = [
+            'zh-cn' => 'zh',
+            'zh-tw' => 'zh',
+            'en-us' => 'en',
+            'ja-jp' => 'ja',
+            'ko-kr' => 'ko',
+            'th-th' => 'th',
+        ];
+        return $map[$xiunoLang] ?? 'en';
     }
 }

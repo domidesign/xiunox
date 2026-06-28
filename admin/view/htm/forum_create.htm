@@ -2,9 +2,9 @@
 
 <!--{hook admin_forum_create_start.htm}-->
 
-<div class="x-card  cardrounded-3">
+<div class="x-card  card">
 	<div class="card-body">
-		<form action="<?php echo url('forum-create');?>" method="post" enctype="multipart/form-data" id="form">
+		<form action="<?php echo admin_forum_create_url();?>" method="post" enctype="multipart/form-data" id="form">
 			<?php echo CsrfService::input(); ?>
 			<h4 class="card-title mb-4"><i class="ti ti-plus"></i> <?php echo lang('admin_add_forum')?></h4>
 
@@ -83,7 +83,7 @@
 				<label class="form-label" style="width:25%"></label>
 				<div style="width:75%">
 					<button type="submit" class="btn btn-primary rounded-pill" id="submit" style="width:10rem"><?php echo lang('admin_confirm_create')?></button>
-					<a class="d-block mt-3" href="<?php echo url('forum-list');?>"><i class="ti ti-arrow-left"></i> <?php echo lang('admin_back_to_forum_manage')?></a>
+					<a class="d-block mt-3" href="<?php echo admin_forum_list_url();?>"><i class="ti ti-arrow-left"></i> <?php echo lang('admin_back_to_forum_manage')?></a>
 				</div>
 			</div>
 		</form>

@@ -1,6 +1,6 @@
 <?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
 
-<div class="x-card  cardrounded-3">
+<div class="x-card  card">
     <div class="card-body">
         <h5 class="card-title"><i class="ti ti-palette"></i> <?php echo lang('admin_theme_setting');?></h5>
         <p class="text-body-secondary fs-6 mb-4"><?php echo lang('admin_theme_setting_desc');?></p>
@@ -45,6 +45,11 @@
                 'purple' => array('hex' => '#9333ea', 'label' => lang('admin_theme_color_purple')),
                 'red'    => array('hex' => '#dc2626', 'label' => lang('admin_theme_color_red')),
                 'orange' => array('hex' => '#ea580c', 'label' => lang('admin_theme_color_orange')),
+                'pink'   => array('hex' => '#db2777', 'label' => '粉色'),
+                'teal'   => array('hex' => '#0d9488', 'label' => '青色'),
+                'indigo' => array('hex' => '#4f46e5', 'label' => '靛蓝'),
+                'cyan'   => array('hex' => '#0891b2', 'label' => '天蓝'),
+                'lime'   => array('hex' => '#65a30d', 'label' => '青柠'),
             );
             foreach ($color_presets as $name => $item) {
             ?>
@@ -84,8 +89,8 @@
 </style>
 
 <script>
-var csrf_token = '<?php echo $header["csrf_token"];?>';
-var _currentBrand = '<?php echo $current_brand;?>';
+var csrf_token = <?php echo json_encode($header['csrf_token'] ?? '');?>;
+var _currentBrand = <?php echo json_encode($current_brand ?? '');?>;
 
 function setDefault(theme) {
     $.xpost('<?php echo url("theme-default");?>', {theme: theme, csrf_token: csrf_token}, function(code, message) {
@@ -113,6 +118,13 @@ function selectBrand(name) {
         el.classList.toggle('active', el.getAttribute('data-color') === name);
     });
     _currentBrand = name;
-    showToast('<?php echo lang('admin_theme_brand_color');?>' + ' ' + name, 'success');
+    // 同步保存到后台作为默认主题色
+    $.xpost('<?php echo url("theme-brand");?>', {theme_brand: name, csrf_token: csrf_token}, function(code, message) {
+        if(code == 0) {
+            showToast('<?php echo lang('admin_theme_brand_color');?>' + ' ' + name, 'success');
+        } else {
+            showToast(message, 'error');
+        }
+    });
 }
 </script>

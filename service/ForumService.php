@@ -170,7 +170,8 @@ class ForumService {
             $iconClass = $forum['icon'];
         } else {
             // 默认图标
-            $iconClass = 'ti ti-message-circle';
+            $iconUrl = '/view/img/forum.png';
+            $iconClass = '';
         }
 
         // 版主列表：从 moduids 字段解析
@@ -228,6 +229,8 @@ class ForumService {
         if ($r === FALSE) {
             return ['code' => -1, 'msg' => '已关注或操作失败'];
         }
+        // 清除版块成员缓存
+        cache_delete('forum_members_' . $fid);
         $forum = $this->db->findOne('forum', ['fid' => $fid]);
         return [
             'code' => 0,
@@ -250,6 +253,8 @@ class ForumService {
         if ($r === FALSE) {
             return ['code' => -1, 'msg' => '操作失败'];
         }
+        // 清除版块成员缓存
+        cache_delete('forum_members_' . $fid);
         $forum = $this->db->findOne('forum', ['fid' => $fid]);
         return [
             'code' => 0,

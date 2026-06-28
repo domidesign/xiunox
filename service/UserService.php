@@ -110,11 +110,13 @@ class UserService {
      * @return bool
      */
     public function verifyPassword(string $password, array $user): bool {
+        // 优先 bcrypt 验证（新格式）
         if (!empty($user['password_hash'])) {
             return password_verify($password, $user['password_hash']);
         }
+        // 旧格式：md5(md5(明文)+salt)，兼容 4.0.4 升级用户
         if (!empty($user['password']) && !empty($user['salt'])) {
-            if (md5($password . $user['salt']) === $user['password']) {
+            if (md5(md5($password) . $user['salt']) === $user['password']) {
                 $this->upgradePasswordHash(intval($user['uid']), $password);
                 return true;
             }
@@ -123,7 +125,7 @@ class UserService {
     }
 
     /**
-     * 升级密码哈希为bcrypt
+     * 升级密码哈希为bcrypt，清空旧字段
      * @param int $uid
      * @param string $password 明文密码
      * @return void
@@ -131,7 +133,11 @@ class UserService {
     public function upgradePasswordHash(int $uid, string $password): void {
         if ($uid <= 0) return;
         $hash = password_hash($password, PASSWORD_DEFAULT);
-        $this->updateUser($uid, ['password_hash' => $hash]);
+        $this->updateUser($uid, [
+            'password_hash' => $hash,
+            'password' => '',
+            'salt' => '',
+        ]);
     }
 
     /**

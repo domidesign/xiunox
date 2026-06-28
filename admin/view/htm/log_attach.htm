@@ -6,7 +6,7 @@
 	<?php echo admin_tab_active($menu['log']['tab'], 'attach');?>
 </div>
 
-<div class="x-card  cardrounded-3">
+<div class="x-card  card">
 	<div class="card-body">
 		<!-- 筛选表单 -->
 		<form onsubmit="return doSearch();" class="mb-4">
@@ -76,10 +76,20 @@
 				<?php
 				$total_pages = ceil($count / $pagesize);
 				$query_params = http_build_query(array_filter(array('uid'=>$filter_uid, 'log_action'=>$filter_action, 'date_start'=>$filter_date_start, 'date_end'=>$filter_date_end)));
-				for($i = 1; $i <= min($total_pages, 20); $i++) {
-					$url = url('log-attach') . ($query_params ? '&'.$query_params : '') . '&page='.$i;
+				if($page > 1) {
+					$prev_url = admin_log_url('attach') . ($query_params ? '&'.$query_params : '') . '&page='.($page-1);
+				?>
+				<li class="page-item"><a class="page-link" href="<?php echo $prev_url;?>"><i class="ti ti-chevron-left"></i></a></li>
+				<?php } ?>
+				<?php for($i = 1; $i <= min($total_pages, 20); $i++) {
+					$url = admin_log_url('attach') . ($query_params ? '&'.$query_params : '') . '&page='.$i;
 				?>
 				<li class="page-item <?php echo $page == $i ? 'active' : '';?>"><a class="page-link" href="<?php echo $url;?>"><?php echo $i;?></a></li>
+				<?php } ?>
+				<?php if($page < $total_pages) {
+					$next_url = admin_log_url('attach') . ($query_params ? '&'.$query_params : '') . '&page='.($page+1);
+				?>
+				<li class="page-item"><a class="page-link" href="<?php echo $next_url;?>"><i class="ti ti-chevron-right"></i></a></li>
 				<?php } ?>
 			</ul>
 		</nav>
@@ -94,7 +104,7 @@
 <!-- 搜索表单JS：修复GET表单导致URL双问号问题 -->
 <script>
 function doSearch() {
-    var base = '<?php echo url('log-attach');?>';
+    var base = '<?php echo admin_log_url('attach');?>';
     var params = [];
     var uid = document.querySelector('[name="uid"]').value;
     if(uid) params.push('uid=' + encodeURIComponent(uid));

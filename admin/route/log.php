@@ -66,16 +66,15 @@ if($action == 'credits') {
 
 	$today_count = db_count('credits_log', $today_cond);
 
-	// 今日收入/支出统计
-	$today_income = 0;
-	$today_expense = 0;
-	$today_logs = db_find('credits_log', $today_cond, array('logid'=>-1), 1, 10000);
-	if($today_logs) {
-		foreach($today_logs as $tl) {
-			if($tl['change'] > 0) $today_income += $tl['change'];
-			else $today_expense += abs($tl['change']);
-		}
-	}
+	// 今日收入/支出统计 - 改用 SQL SUM 聚合查询，避免全表扫描
+	global $db;
+	$today_stats = db_sql_find_one("SELECT 
+			SUM(CASE WHEN `change` > 0 THEN `change` ELSE 0 END) AS today_income,
+			SUM(CASE WHEN `change` < 0 THEN ABS(`change`) ELSE 0 END) AS today_expense
+			FROM {$db->tablepre}credits_log 
+			WHERE create_date > " . intval($today_start));
+	$today_income = $today_stats['today_income'] ?? 0;
+	$today_expense = $today_stats['today_expense'] ?? 0;
 
 	// 大额变动（单笔变动绝对值>=100，基于当前筛选条件）
 	$big_change_cond = $cond;
@@ -100,7 +99,7 @@ if($action == 'credits') {
 		$users = array();
 		foreach($uids as $uid) {
 			$_u = user_read_cache($uid);
-			if(!empty($_u)) $users[$uid] = $_u['username'];
+			if(!empty($_u)) $users[$uid] = $_u['display_name'] ?? $_u['username'];
 		}
 	} else {
 		$logs = array();
@@ -179,7 +178,7 @@ if($action == 'credits') {
 		$users = array();
 		foreach($uids as $uid) {
 			$_u = user_read_cache($uid);
-			if(!empty($_u)) $users[$uid] = $_u['username'];
+			if(!empty($_u)) $users[$uid] = $_u['display_name'] ?? $_u['username'];
 		}
 	} else {
 		$logs = array();
@@ -247,7 +246,7 @@ if($action == 'credits') {
 		$users = array();
 		foreach($uids as $uid) {
 			$_u = user_read_cache($uid);
-			if(!empty($_u)) $users[$uid] = $_u['username'];
+			if(!empty($_u)) $users[$uid] = $_u['display_name'] ?? $_u['username'];
 		}
 	} else {
 		$logs = array();
@@ -303,7 +302,7 @@ if($action == 'credits') {
 		// 其他
 		'group_update' => lang('admin_op_group_update'),
 		'credits_rule_update' => lang('admin_op_credits_rule_update'),
-		'friendlink_update' => lang('admin_op_friendlink_update'),
+
 		'theme_switch' => lang('admin_op_theme_switch'),
 		'cache_clear' => lang('admin_op_cache_clear'),
 	);
@@ -321,7 +320,7 @@ if($action == 'credits') {
 		'security' => lang('admin_op_target_security'),
 		'group' => lang('admin_op_target_group'),
 		'credits_rule' => lang('admin_op_target_credits_rule'),
-		'friendlink' => lang('admin_op_target_friendlink'),
+
 		'theme' => lang('admin_op_target_theme'),
 		'cache' => lang('admin_op_target_cache'),
 		'profile' => lang('admin_op_target_profile'),
@@ -384,13 +383,83 @@ if($action == 'credits') {
 	// 格式化数据
 	if($logs) {
 		$uids = array();
+		$profile_audit_ids = array();
+		$thread_ids = array();
+		$post_ids = array();
 		foreach($logs as &$log) {
 			$uids[] = $log['uid'];
 			$user = user_read_cache($log['uid']);
-			$log['username'] = $user['username'] ?? '';
+			$log['username'] = $user['display_name'] ?? $user['username'] ?? '';
 			$log['create_date_fmt'] = date('Y-m-d H:i:s', $log['create_date']);
+			// 收集各类型的审核ID，用于关联查询
+			if($log['target_type'] == 'profile' && !empty($log['target_id'])) {
+				$profile_audit_ids[] = intval($log['target_id']);
+			} elseif($log['target_type'] == 'thread' && !empty($log['target_id'])) {
+				$thread_ids[] = intval($log['target_id']);
+			} elseif($log['target_type'] == 'post' && !empty($log['target_id'])) {
+				$post_ids[] = intval($log['target_id']);
+			}
 		}
 		unset($log);
+
+		// 批量查询 thread 信息（标题）
+		$threads_info = array();
+		if(!empty($thread_ids)) {
+			$threads_info = db_find('thread', array('tid'=>$thread_ids), array(), 1, 100, 'tid');
+		}
+
+		// 批量查询 post 信息（所属主题ID + 内容摘要）
+		$posts_info = array();
+		if(!empty($post_ids)) {
+			$posts_info = db_find('post', array('pid'=>$post_ids), array(), 1, 100, 'pid');
+		}
+
+		// 将 thread/post 信息合并到日志中
+		foreach($logs as &$log) {
+			if($log['target_type'] == 'thread' && isset($threads_info[$log['target_id']])) {
+				$log['thread_subject'] = $threads_info[$log['target_id']]['subject'] ?? '';
+			}
+			if($log['target_type'] == 'post' && isset($posts_info[$log['target_id']])) {
+				$log['post_tid'] = intval($posts_info[$log['target_id']]['tid']);
+				$log['post_summary'] = mb_substr($posts_info[$log['target_id']]['message'] ?? '', 0, 60);
+			}
+		}
+		unset($log);
+
+		// 批量查询 profile 审核详情，获取被修改用户、字段名、旧值新值
+		$profile_audits = array();
+		$target_uids = array();
+		if(!empty($profile_audit_ids)) {
+			$profile_audits = db_find('user_profile_audit', array('id'=>$profile_audit_ids), array(), 1, 100, 'id');
+			if($profile_audits) {
+				foreach($profile_audits as $pa) {
+					$target_uids[] = intval($pa['uid']);
+				}
+			}
+		}
+
+		// 批量获取被修改用户的用户名
+		$target_users = array();
+		$target_uids = array_unique($target_uids);
+		foreach($target_uids as $tuid) {
+			$_u = user_read_cache($tuid);
+			if(!empty($_u)) $target_users[$tuid] = $_u['display_name'] ?? $_u['username'];
+		}
+
+		// 将 profile 审核详情合并到日志中
+		if(!empty($profile_audits)) {
+			foreach($logs as &$log) {
+				if($log['target_type'] == 'profile' && isset($profile_audits[$log['target_id']])) {
+					$pa = $profile_audits[$log['target_id']];
+					$log['target_uid'] = intval($pa['uid']);
+					$log['target_username'] = $target_users[$pa['uid']] ?? '';
+					$log['field_name'] = $pa['field_name'];
+					$log['old_value'] = $pa['old_value'];
+					$log['new_value'] = $pa['new_value'];
+				}
+			}
+			unset($log);
+		}
 	} else {
 		$logs = array();
 	}

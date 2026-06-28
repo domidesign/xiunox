@@ -1,16 +1,21 @@
 					<!--{hook thread_list_inc_start.htm}-->
 
 					<?php
-					// 计算管理权限
-					$_status_labels = thread_status_labels();
-					$have_allowtop = 0;
-					if(!empty($toplist)) {
-						foreach($toplist as &$_t) {
-							$_t['allowtop'] = forum_access_mod($_t['fid'], $gid, 'allowtop');
-							if($_t['allowtop']) $have_allowtop = 1;
+				// 计算管理权限
+				$_status_labels = thread_status_labels();
+				$have_allowtop = 0;
+				// 收集已在置顶区显示的帖子 tid，用于普通列表去重
+				$_toplist_tids = array();
+				if(!empty($toplist)) {
+					foreach($toplist as &$_t) {
+						$_t['allowtop'] = forum_access_mod($_t['fid'], $gid, 'allowtop');
+						if($_t['allowtop']) $have_allowtop = 1;
+						if(isset($_t['tid'])) {
+							$_toplist_tids[$_t['tid']] = true;
 						}
-						unset($_t);
 					}
+					unset($_t);
+				}
 					if(!empty($threadlist)) {
 						foreach($threadlist as &$_t) {
 							$_t['allowtop'] = !empty($_t['fid']) ? forum_access_mod($_t['fid'], $gid, 'allowtop') : false;
@@ -62,7 +67,9 @@
 								<a href="<?php echo url("forum-$_thread[fid]");?>" class="bg-body-tertiary px-2 rounded-5 me-2 text-body-secondary text-decoration-none"><?php echo $_thread['forumname'];?></a>
 								<!-- <span class="mx-1 fw-bold">·</span> -->
 								<?php } ?>
-								<span class="username text-secondary me-2" uid="<?php echo $_thread['uid'];?>"><?php echo $_thread['username'];?></span>
+								<span class="username text-secondary me-2" uid="<?php echo $_thread['uid'];?>"><?php echo $_thread['username'];?>
+									<!-- <span class="text-body-tertiary ms-1" style="font-size:0.85em">#<?php echo $_thread['uid'];?></span> -->
+								</span>
 								<!-- <span class="mx-1 fw-bold">·</span> -->
 								<span class="text-secondary"><?php echo $_thread['create_date_fmt'];?></span>
 								<span class="  thread-list-interact ms-auto">
@@ -92,12 +99,12 @@
 					?>
 
 					<?php
-					// 渲染普通帖子（排除已在置顶区显示的帖子）
-					if(!empty($threadlist)) { foreach($threadlist as &$_thread) {
-						if(!isset($_thread['top_class']) || !isset($_thread['tid'])){ continue; }
-						// 跳过置顶帖（已在置顶区域显示）
-						if(!empty($_thread['top']) && $_thread['top'] > 0 && !empty($toplist)) { continue; }
-					?>
+				// 渲染普通帖子（排除已在置顶区显示的帖子）
+				if(!empty($threadlist)) { foreach($threadlist as &$_thread) {
+					if(!isset($_thread['top_class']) || !isset($_thread['tid'])){ continue; }
+					// 只跳过已在置顶区显示的帖子（按 tid 去重，避免重复显示）
+					if(isset($_toplist_tids[$_thread['tid']])) { continue; }
+				?>
 					<li class="d-flex align-items-center thread-list-item <?php echo $_thread['top_class'];?>" data-tid="<?php echo $_thread['tid'];?>">
 						<?php if($have_allowtop) { ?>
 							<?php if(!empty($force_show_checkbox) || $_thread['allowtop']) { ?>
@@ -149,7 +156,9 @@
 								<a href="<?php echo url("forum-$_thread[fid]");?>" class=" bg-body-tertiary px-2 rounded-5 me-2 text-body-secondary text-decoration-none"><?php echo $_thread['forumname'];?></a>
 								<!-- <span class="mx-1 fw-bold">·</span> -->
 								<?php } ?>
-								<span class="username text-secondary me-2" uid="<?php echo $_thread['uid'];?>"><?php echo $_thread['username'];?></span>
+								<span class="username text-secondary me-2" uid="<?php echo $_thread['uid'];?>"><?php echo $_thread['username'];?>
+									<!-- <span class="text-body-tertiary ms-1" style="font-size:0.85em">#<?php echo $_thread['uid'];?></span> -->
+								</span>
 								<!-- <span class="mx-1 fw-bold">·</span> -->
 								<span class="text-secondary"><?php echo $_thread['create_date_fmt'];?></span>
 

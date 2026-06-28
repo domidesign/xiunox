@@ -11,26 +11,26 @@
 	<div class="admin-mod-bar-right">
 		<div class="btn-group" role="group" aria-label="<?php echo lang('thread_operations');?>">
 			<!--{hook thread_list_mod_delete_before.htm}-->
-			<button class="btn btn-sm btn-outline-danger" onclick="handleModBtnClick('<?php echo url("mod-delete");?>', '<?php echo lang('delete');?>', 'md')">
+			<button class="btn btn-sm btn-outline-danger" onclick="handleModBtnClick('<?php echo mod_delete_url();?>', '<?php echo lang('delete');?>', 'md')">
 				<i class="ti ti-trash"></i> <?php echo lang('delete');?>
 			</button>
 			<!--{hook thread_list_mod_delete_after.htm}-->
-			<button class="btn btn-sm btn-outline-secondary" onclick="handleModBtnClick('<?php echo url("mod-move");?>', '<?php echo lang('move');?>', 'md')">
+			<button class="btn btn-sm btn-outline-secondary" onclick="handleModBtnClick('<?php echo mod_move_url();?>', '<?php echo lang('move');?>', 'md')">
 				<i class="ti ti-category-2"></i> <?php echo lang('move');?>
 			</button>
 			<!--{hook thread_list_mod_top_before.htm}-->
-			<button class="btn btn-sm btn-outline-primary" onclick="handleModBtnClick('<?php echo url("mod-top");?>', '<?php echo lang('top');?>', 'md')">
+			<button class="btn btn-sm btn-outline-primary" onclick="handleModBtnClick('<?php echo mod_top_url();?>', '<?php echo lang('top');?>', 'md')">
 				<i class="ti ti-arrow-up"></i> <?php echo lang('top');?>
 			</button>
 			<!--{hook thread_list_mod_top_after.htm}-->
-			<button class="btn btn-sm btn-outline-warning" onclick="handleModBtnClick('<?php echo url("mod-close");?>', '<?php echo lang('close');?>', 'md')">
+			<button class="btn btn-sm btn-outline-warning" onclick="handleModBtnClick('<?php echo mod_close_url();?>', '<?php echo lang('close');?>', 'md')">
 				<i class="ti ti-lock"></i> <?php echo lang('close');?>
 			</button>
 			<!--{hook thread_list_mod_close_after.htm}-->
-			<button class="btn btn-sm btn-outline-warning" onclick="handleModBtnClick('<?php echo url("mod-digest");?>', '<?php echo lang('digest');?>', 'md')">
+			<button class="btn btn-sm btn-outline-warning" onclick="handleModBtnClick('<?php echo mod_digest_url();?>', '<?php echo lang('digest');?>', 'md')">
 				<i class="ti ti-star"></i> <?php echo lang('digest');?>
 			</button>
-			<button class="btn btn-sm btn-outline-info" onclick="handleModBtnClick('<?php echo url("mod-announcement");?>', '<?php echo lang('announcement');?>', 'md')">
+			<button class="btn btn-sm btn-outline-info" onclick="handleModBtnClick('<?php echo mod_announcement_url();?>', '<?php echo lang('announcement');?>', 'md')">
 				<i class="ti ti-bell"></i> <?php echo lang('announcement');?>
 			</button>
 		</div>

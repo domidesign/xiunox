@@ -1,8 +1,10 @@
 <template include="./view/htm/user_thread.template.htm">
 	<slot name="user_body">
 		<ul class="list-unstyled threadlist">
-			<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm'); ?>
-		</ul>
+		<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm'); ?>
+	</ul>
+
+	<?php include _include(APP_PATH.'view/htm/thread_list_mod.inc.htm'); ?>
 
 		<?php if($pagination) { ?>
 		<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap"><?php echo $pagination; ?></ul></nav>

@@ -1,41 +1,72 @@
 <?php
-// 底部导航"发现"项：固定链接到发现页面
+// 手机底部导航：后台开关控制是否显示，配置项动态渲染
+$_mobile_nav_enable = !empty($conf['mobile_nav_enable']);
+if(!$_mobile_nav_enable) return;
+$_mobile_nav_items = isset($conf['mobile_nav_items']) ? $conf['mobile_nav_items'] : array();
+if(!empty($_mobile_nav_items)) {
+	// 按 rank 排序
+	usort($_mobile_nav_items, function($a, $b) {
+		return intval($a['rank'] ?? 0) - intval($b['rank'] ?? 0);
+	});
+}
 ?>
 <nav class="bottom-nav" id="mobileTabbar">
-	<a href="<?php echo url('index');?>" class="bottom-nav-item" data-nav="home">
+<?php if(!empty($_mobile_nav_items)) { ?>
+	<?php foreach($_mobile_nav_items as $_mnav) {
+		$_mnav_icon = isset($_mnav['icon']) ? $_mnav['icon'] : '';
+		$_mnav_name = isset($_mnav['name']) ? $_mnav['name'] : '';
+		$_mnav_url = isset($_mnav['url']) ? $_mnav['url'] : '';
+		$_mnav_need_login = !empty($_mnav['need_login']);
+		$_mnav_slug = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $_mnav_url));
+		if(empty($_mnav_slug)) $_mnav_slug = 'nav';
+
+		if($_mnav_need_login && empty($uid)) {
+			$_mnav_href = user_login_url();
+		} else {
+			$_mnav_href = url($_mnav_url);
+		}
+	?>
+	<a href="<?php echo esc_attr($_mnav_href);?>" class="bottom-nav-item" data-nav="<?php echo esc_attr($_mnav_slug);?>" data-icon-active="<?php echo esc_attr(isset($_mnav['icon_active']) ? $_mnav['icon_active'] : '');?>"<?php if(strpos($_mnav_url, 'thread-create') !== false): ?> hx-boost="false"<?php endif; ?>>
+		<i class="ti <?php echo esc_attr($_mnav_icon);?>"></i>
+		<span><?php echo esc_html($_mnav_name);?></span>
+	</a>
+	<?php } ?>
+<?php } else { ?>
+	<a href="<?php echo index_url();?>" class="bottom-nav-item" data-nav="home">
 		<i class="ti ti-smart-home"></i>
 		<span><?php echo lang('index_page');?></span>
 	</a>
-	<a href="<?php echo url('forums');?>" class="bottom-nav-item" data-nav="forum">
+	<a href="<?php echo forums_url();?>" class="bottom-nav-item" data-nav="forum">
 		<i class="ti ti-category"></i>
 		<span><?php echo lang('forum');?></span>
 	</a>
 	<?php if(!empty($uid)) { ?>
-	<a href="<?php echo url('thread-create-'.$fid);?>" class="bottom-nav-item" data-nav="create" hx-boost="false">
+	<a href="<?php echo thread_create_url($fid);?>" class="bottom-nav-item" data-nav="create" hx-boost="false">
 		<i class="ti ti-circle-plus"></i>
 		<span><?php echo lang('thread_create');?></span>
 	</a>
 	<?php } else { ?>
-	<a href="<?php echo url('user-login');?>" class="bottom-nav-item" data-nav="create">
+	<a href="<?php echo user_login_url();?>" class="bottom-nav-item" data-nav="create">
 		<i class="ti ti-circle-plus"></i>
 		<span><?php echo lang('thread_create');?></span>
 	</a>
 	<?php } ?>
-	<a href="<?php echo url('more');?>" class="bottom-nav-item" data-nav="discover">
+	<a href="<?php echo more_url();?>" class="bottom-nav-item" data-nav="discover">
 		<i class="ti ti-compass"></i>
 		<span><?php echo lang('discover');?></span>
 	</a>
 	<?php if(!empty($uid)) { ?>
-	<a href="<?php echo url('my');?>" class="bottom-nav-item" data-nav="me">
+	<a href="<?php echo my_url();?>" class="bottom-nav-item" data-nav="me">
 		<i class="ti ti-user"></i>
 		<span><?php echo lang('my');?></span>
 	</a>
 	<?php } else { ?>
-	<a href="<?php echo url('user-login');?>" class="bottom-nav-item" data-nav="me">
+	<a href="<?php echo user_login_url();?>" class="bottom-nav-item" data-nav="me">
 		<i class="ti ti-user"></i>
 		<span><?php echo lang('login');?></span>
 	</a>
 	<?php } ?>
+<?php } ?>
 </nav>
 <script>
 (function() {
@@ -45,25 +76,37 @@
 	var items = tabbar.querySelectorAll('.bottom-nav-item');
 	var path = window.location.pathname + window.location.search;
 
-	// 图标映射：普通 → 填充
+	// 图标映射：普通 → 填充（常见图标）
 	var iconMap = {
+		'ti-smart-home': 'ti-smart-home-filled',
 		'ti-home': 'ti-home-filled',
 		'ti-category': 'ti-category-filled',
 		'ti-circle-plus': 'ti-circle-plus-filled',
 		'ti-compass': 'ti-compass-filled',
-		'ti-user': 'ti-user-filled'
+		'ti-user': 'ti-user-filled',
+		'ti-message': 'ti-message-filled',
+		'ti-bell': 'ti-bell-filled',
+		'ti-heart': 'ti-heart-filled',
+		'ti-star': 'ti-star-filled',
+		'ti-search': 'ti-search-filled',
+		'ti-bookmark': 'ti-bookmark-filled'
 	};
 
 	function setActive(item) {
 		item.classList.add('active');
-		// 替换为填充图标
 		var icon = item.querySelector('i');
 		if (icon) {
-			for (var normal in iconMap) {
-				if (icon.classList.contains(normal)) {
-					icon.classList.remove(normal);
-					icon.classList.add(iconMap[normal]);
-					break;
+			// 优先使用后台配置的选中图标
+			var activeIcon = item.getAttribute('data-icon-active');
+			if (activeIcon) {
+				icon.className = 'ti ' + activeIcon;
+			} else {
+				for (var normal in iconMap) {
+					if (icon.classList.contains(normal)) {
+						icon.classList.remove(normal);
+						icon.classList.add(iconMap[normal]);
+						break;
+					}
 				}
 			}
 		}
@@ -74,11 +117,11 @@
 		var nav = item.getAttribute('data-nav');
 		if (!nav) return;
 
-		var isHome = (nav === 'home') && (path === '/' || path === '/index.php' || path.indexOf('index') > -1 || path === './');
-		var isForum = (nav === 'forum') && /forums/i.test(path);
-		var isCreate = (nav === 'create') && /thread-create/i.test(path);
-		var isDiscover = (nav === 'discover') && /more/i.test(path);
-		var isMe = (nav === 'me') && (/my/i.test(path) && !/my-notice/i.test(path));
+		var isHome = (nav === 'home' || nav === 'index') && (path === '/' || path === '/index.php' || path.indexOf('index') > -1 || path === './');
+		var isForum = (nav === 'forum' || nav === 'forums') && /forums/i.test(path);
+		var isCreate = (nav === 'create' || nav === 'threadcreate') && /thread-create/i.test(path);
+		var isDiscover = (nav === 'discover' || nav === 'more') && /more/i.test(path);
+		var isMe = (nav === 'me' || nav === 'my') && (/my/i.test(path) && !/my-notify/i.test(path));
 
 		if (isHome || isForum || isCreate || isDiscover || isMe) {
 			setActive(item);

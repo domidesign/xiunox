@@ -8,7 +8,7 @@
 	<div class="text-center py-5" style="max-width:32rem">
 		<!--{hook error_icon_before.htm}-->
 		<div class="mb-3">
-			<i class="ti <?php echo $error_icon;?> text-primary" style="font-size:4.5rem;line-height:1"></i>
+			<i class="ti <?php echo esc_attr($error_icon ?? '');?> text-primary" style="font-size:4.5rem;line-height:1"></i>
 		</div>
 		<!--{hook error_icon_after.htm}-->
 
@@ -27,7 +27,7 @@
 		<?php if(!empty($error_message)) { ?>
 		<!--{hook error_message_before.htm}-->
 		<p class="text-body-secondary mb-4">
-			<?php echo $error_message;?>
+			<?php echo esc_html($error_message ?? '');?>
 		</p>
 		<!--{hook error_message_after.htm}-->
 		<?php } ?>
@@ -37,7 +37,7 @@
 			<a href="./" class="btn btn-primary rounded-pill px-4">
 				<i class="ti ti-home me-1"></i><?php echo lang('back_to_home');?>
 			</a>
-			<a href="javascript:history.back()" class="btn btn-outline-secondary rounded-pill px-4">
+			<a href="./" onclick="if(document.referrer &amp;&amp; window.history.length&gt;1){window.history.back();}else{window.location.href='./';}return false;" class="btn btn-outline-secondary rounded-pill px-4">
 				<i class="ti ti-arrow-left me-1"></i><?php echo lang('back_to_prev');?>
 			</a>
 		</div>

@@ -14,7 +14,6 @@ if($action == 'do') {
 
 	include APP_PATH . 'lib/PluginScannerRules.php';
 	include APP_PATH . 'lib/PluginScannerSuggestion.php';
-	include APP_PATH . 'lib/PluginScannerAlpine.php';
 	include APP_PATH . 'lib/PluginScanner.php';
 	$scanner = new PluginScanner();
 
@@ -38,7 +37,6 @@ if($action == 'do') {
 
 	include APP_PATH . 'lib/PluginScannerRules.php';
 	include APP_PATH . 'lib/PluginScannerSuggestion.php';
-	include APP_PATH . 'lib/PluginScannerAlpine.php';
 	include APP_PATH . 'lib/PluginScanner.php';
 	$scanner = new PluginScanner();
 
@@ -60,7 +58,6 @@ if($action == 'do') {
 
 	include APP_PATH . 'lib/PluginScannerRules.php';
 	include APP_PATH . 'lib/PluginScannerSuggestion.php';
-	include APP_PATH . 'lib/PluginScannerAlpine.php';
 	include APP_PATH . 'lib/PluginScanner.php';
 	$scanner = new PluginScanner();
 	$result = $scanner->scanBeforeInstall($dir);
@@ -74,7 +71,7 @@ if($action == 'do') {
 	$dir = param_word(3);
 	if(empty($dir)) message(-1, 'Plugin dir required');
 
-	message(0, jump('详情功能暂不可用', url('plugin-scanner'), 2));
+	message(0, jump('详情功能暂不可用', admin_plugin_scanner_url(), 2));
 
 } elseif($action == 'export') {
 
@@ -84,7 +81,6 @@ if($action == 'do') {
 
 	include APP_PATH . 'lib/PluginScannerRules.php';
 	include APP_PATH . 'lib/PluginScannerSuggestion.php';
-	include APP_PATH . 'lib/PluginScannerAlpine.php';
 	include APP_PATH . 'lib/PluginScanner.php';
 	$scanner = new PluginScanner();
 
@@ -124,7 +120,6 @@ if($action == 'do') {
 
 	include APP_PATH . 'lib/PluginScannerRules.php';
 	include APP_PATH . 'lib/PluginScannerSuggestion.php';
-	include APP_PATH . 'lib/PluginScannerAlpine.php';
 	include APP_PATH . 'lib/PluginScanner.php';
 	$scanner = new PluginScanner();
 	$rulesSummary = $scanner->getRulesSummary();

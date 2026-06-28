@@ -8,7 +8,7 @@
 
 <div class="x-card card">
 	<div class="card-body">
-		<form action="<?php echo url('setting-upload');?>" method="post" id="form">
+		<form action="<?php echo admin_setting_url('upload');?>" method="post" id="form">
 			<?php echo CsrfService::input(); ?>
 
 			<!-- 文件大小限制 -->
@@ -18,7 +18,7 @@
 				<label class="form-label fw-medium"><?php echo lang('admin_upload_max_image_size');?></label>
 				<div class="input-group" style="max-width:300px;">
 					<input type="number" name="upload_max_image_size" id="upload_max_image_size" class="form-control rounded-pill" value="<?php echo $upload_max_image_size_mb;?>" min="1" max="100">
-					<span class="input-group-text rounded-pill">MB</span>
+					<span class="input-group-text rounded-pill"><?php echo lang('admin_unit_mb'); ?></span>
 				</div>
 				<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('admin_upload_max_image_size_tip');?></p>
 			</div>
@@ -27,7 +27,7 @@
 				<label class="form-label fw-medium"><?php echo lang('admin_upload_max_file_size');?></label>
 				<div class="input-group" style="max-width:300px;">
 					<input type="number" name="upload_max_file_size" id="upload_max_file_size" class="form-control rounded-pill" value="<?php echo $upload_max_file_size_mb;?>" min="1" max="200">
-					<span class="input-group-text rounded-pill">MB</span>
+					<span class="input-group-text rounded-pill"><?php echo lang('admin_unit_mb'); ?></span>
 				</div>
 				<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('admin_upload_max_file_size_tip');?></p>
 			</div>
@@ -36,7 +36,7 @@
 				<label class="form-label fw-medium"><?php echo lang('admin_upload_max_video_size');?></label>
 				<div class="input-group" style="max-width:300px;">
 					<input type="number" name="upload_max_video_size" id="upload_max_video_size" class="form-control rounded-pill" value="<?php echo $upload_max_video_size_mb;?>" min="1" max="500">
-					<span class="input-group-text rounded-pill">MB</span>
+					<span class="input-group-text rounded-pill"><?php echo lang('admin_unit_mb'); ?></span>
 				</div>
 				<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('admin_upload_max_video_size_tip');?></p>
 			</div>
@@ -56,7 +56,7 @@
 				<label class="form-label fw-medium"><?php echo lang('admin_upload_thumb_width');?></label>
 				<div class="input-group" style="max-width:300px;">
 					<input type="number" name="upload_thumb_width" id="upload_thumb_width" class="form-control rounded-pill" value="<?php echo $upload_thumb_width;?>" min="50" max="1000">
-					<span class="input-group-text rounded-pill">px</span>
+					<span class="input-group-text rounded-pill"><?php echo lang('admin_unit_px'); ?></span>
 				</div>
 				<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('admin_upload_thumb_width_tip');?></p>
 			</div>
@@ -144,7 +144,7 @@ jform.on('submit', function() {
 	$.xpost(jform.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
 			showToast(message, 'success');
-			jsubmit.text(message).delay(1000).button('reset');
+			setTimeout(function(){ window.location.reload(); }, 1000);
 		} else if(xn.is_number(code)) {
 			showToast(message, 'error');
 			jsubmit.button('reset');

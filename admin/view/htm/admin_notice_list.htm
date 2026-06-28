@@ -57,7 +57,7 @@ var announcementLoaded = false;
 document.querySelector('button[data-bs-target="#tab-announcement-list"]').addEventListener('shown.bs.tab', function() {
     if(announcementLoaded) return;
     var container = document.getElementById('announcement-list-content');
-    fetch('<?php echo url("notice-announcement_list");?>', {
+    fetch('<?php echo admin_notice_list_url('announcement');?>', {
         headers: {'X-Requested-With': 'XMLHttpRequest'}
     }).then(function(r) { return r.text(); }).then(function(html) {
         container.innerHTML = html;
@@ -77,7 +77,7 @@ function bindAnnouncementDelete() {
             XN.confirm('<?php echo lang('admin_confirm_delete_question');?>', function() {
             var csrfToken = document.querySelector('meta[name="csrf-token"]');
             var data = {nid: nid, csrf_token: csrfToken ? csrfToken.getAttribute('content') : ''};
-            fetch('<?php echo url("notice-delete");?>', {
+            fetch('<?php echo admin_notice_delete_url();?>', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
                 body: Object.keys(data).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(data[k]); }).join('&')

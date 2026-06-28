@@ -8,8 +8,28 @@
 
 <div class="x-card card">
 	<div class="card-body">
-		<form action="<?php echo url('setting-display');?>" method="post" id="displayForm">
+		<form action="<?php echo admin_setting_url('display');?>" method="post" id="displayForm">
 			<?php echo CsrfService::input(); ?>
+
+		<!-- 首页版块过滤 -->
+			<h6 class="fw-semibold mb-3"><i class="ti ti-filter me-1"></i><?php echo lang('admin_home_forum_filter');?></h6>
+			<p class="text-body-secondary small mb-3"><?php echo lang('admin_home_forum_filter_desc');?></p>
+			<div class="mb-4">
+				<div class="d-flex flex-wrap gap-2">
+					<?php foreach($all_forums as $_forum) { ?>
+					<?php if(empty($_forum['fup'])) continue; // 跳过分区（fup=0），只显示子版块 ?>
+					<div class="form-check">
+						<input class="form-check-input" type="checkbox" name="home_forum_ids[]" value="<?php echo $_forum['fid'];?>" id="forum_<?php echo $_forum['fid'];?>" <?php echo in_array($_forum['fid'], $home_forum_ids) ? 'checked' : '';?>>
+						<label class="form-check-label small" for="forum_<?php echo $_forum['fid'];?>"><?php echo esc_html($_forum['name'] ?? '');?></label>
+					</div>
+					<?php } ?>
+				</div>
+				<?php if(empty($all_forums)) { ?>
+				<p class="text-body-secondary small"><?php echo lang('admin_no_forum'); ?></p>
+				<?php } ?>
+			</div>
+
+			<hr class="my-4">
 
 			<h6 class="fw-semibold mb-3"><i class="ti ti-tags me-1"></i><?php echo lang('admin_thread_status_labels');?></h6>
 			<p class="text-body-secondary small mb-3"><?php echo lang('admin_thread_status_labels_desc');?></p>
@@ -25,6 +45,8 @@
 							<th style="width:80px" class="text-center"><?php echo lang('admin_col_show_text');?></th>
 							<th style="width:120px"><?php echo lang('admin_col_bg_color');?></th>
 							<th style="width:120px"><?php echo lang('admin_col_text_color');?></th>
+							<th style="width:120px"><?php echo lang('admin_badge_class_label');?></th>
+							<th style="width:100px"><?php echo lang('admin_badge_font_size_label');?></th>
 							<th style="width:60px" class="text-center"><?php echo lang('admin_col_sort');?></th>
 						</tr>
 					</thead>
@@ -66,6 +88,8 @@
 		var textVal = item.text || '';
 		var colorVal = item.color || '#6c757d';
 		var textColorVal = item.text_color || '#ffffff';
+		var badgeClassVal = item.badge_class || 'badge';
+		var badgeFontSizeVal = item.badge_font_size || '0.7em';
 		var rankVal = item.rank || 0;
 		var showIconVal = item.show_icon !== false ? true : false;
 		var showTextVal = item.show_text !== false ? true : false;
@@ -99,6 +123,8 @@
 					'<input type="text" class="form-control form-control-sm" name="status_text_color_text[]" value="' + textColorVal + '" placeholder="#ffffff" style="max-width:100px">' +
 				'</div>' +
 			'</td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="status_badge_class[]" value="' + badgeClassVal + '" placeholder="badge"></td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="status_badge_font_size[]" value="' + badgeFontSizeVal + '" placeholder="0.7em"></td>' +
 			'<td><input type="number" class="form-control form-control-sm text-center" name="status_rank[]" value="' + rankVal + '"></td>';
 
 		// 图标选择器

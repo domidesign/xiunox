@@ -507,7 +507,7 @@ class AttachmentService {
             case 'image/jpeg': $srcImg = imagecreatefromjpeg($srcPath); break;
             case 'image/png':  $srcImg = imagecreatefrompng($srcPath);  break;
             case 'image/gif':  $srcImg = imagecreatefromgif($srcPath);  break;
-            case 'image/webp': $srcImg = imagecreatefromwebp($srcPath); break;
+            case 'image/webp': $srcImg = @imagecreatefromwebp($srcPath); break;
             case 'image/bmp':  $srcImg = imagecreatefrombmp($srcPath);  break;
             default: return false;
         }

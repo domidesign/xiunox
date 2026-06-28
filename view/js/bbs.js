@@ -67,51 +67,98 @@ function sendVerifyCode(btn, extraData) {
 	var csrfToken = document.querySelector('meta[name="csrf-token"]');
 	if(csrfToken) data.csrf_token = csrfToken.getAttribute('content');
 
-	// 禁用按钮并倒计时
-	btn.disabled = true;
-	var countdown = 60;
 	var originalText = btn.textContent;
-	btn.textContent = countdown + 's';
-
-	var timer = setInterval(function() {
-		countdown--;
-		if(countdown <= 0) {
-			clearInterval(timer);
-			btn.disabled = false;
-			btn.textContent = originalText;
-		} else {
-			btn.textContent = countdown + 's';
-		}
-	}, 1000);
 
 	XN.post(url, data, function(code, msg) {
 		if(code == 0) {
 			if(typeof XN.toast === 'function') XN.toast(bbs_lang.captcha_sent, 'success');
+			// 倒计时秒数从后端返回的 wait 字段获取，默认 60 秒
+			var countdown = (this && this.wait) ? parseInt(this.wait) : 60;
+			if(isNaN(countdown) || countdown < 1) countdown = 60;
+			btn.disabled = true;
+			btn.textContent = countdown + 's';
+			var timer = setInterval(function() {
+				countdown--;
+				if(countdown <= 0) {
+					clearInterval(timer);
+					btn.disabled = false;
+					btn.textContent = originalText;
+				} else {
+					btn.textContent = countdown + 's';
+				}
+			}, 1000);
 		} else {
 			if(typeof XN.toast === 'function') XN.toast(msg || bbs_lang.send_failed, 'danger');
-			clearInterval(timer);
-			btn.disabled = false;
-			btn.textContent = originalText;
 		}
 	});
 }
 
 // 删除附件（发帖页上传预览）
 function deleteAttach(btn, aid) {
-	var url = 'attach-delete-' + aid;
-	var csrfToken = document.querySelector('meta[name="csrf-token"]');
-	var data = {};
-	if(csrfToken) data.csrf_token = csrfToken.getAttribute('content');
+	var url = '/attach-delete-' + aid;
+	var data = {csrf_token: XN.csrfToken || ''};
 
 	XN.post(url, data, function(code, msg) {
 		if(code == 0) {
-			// 移除附件卡片
-			var card= btn.closest('.card, .upload-preview-card, [aid]');
+			// 移除附件卡片（兼容多种容器：card、upload-preview-card、editor-attachment-item）
+			var card= btn.closest('.card, .upload-preview-card, .editor-attachment-item, [aid]');
 			if(card) card.remove();
 			if(typeof XN.toast === 'function') XN.toast(bbs_lang.deleted, 'success');
 		} else {
 			if(typeof XN.toast === 'function') XN.toast(msg || bbs_lang.delete_failed, 'danger');
 		}
+	});
+}
+
+// AJAX Blob 下载附件（方案C+D：不暴露真实 URL，通过 fetch 下载）
+// 使用事件委托，支持动态插入的元素
+if (typeof document !== 'undefined') {
+	document.addEventListener('click', function(e) {
+		var btn = e.target.closest('.attach-fetch-btn');
+		if(!btn) return;
+		e.preventDefault();
+		if(btn.disabled) return;
+
+		var fetchUrl = btn.getAttribute('data-url');
+		var fileName = btn.getAttribute('data-name') || 'download';
+		if(!fetchUrl) {
+			if(typeof XN !== 'undefined' && XN.toast) XN.toast('下载链接无效', 'danger');
+			return;
+		}
+
+		// 禁用按钮，显示加载状态
+		btn.disabled = true;
+		var originalHtml = btn.innerHTML;
+		btn.innerHTML = '<i class="ti ti-loader ti-spin"></i>';
+
+		fetch(fetchUrl, {
+			method: 'GET',
+			headers: {'X-Requested-With': 'XMLHttpRequest'}
+		}).then(function(response) {
+			if(!response.ok) {
+				throw new Error('HTTP ' + response.status);
+			}
+			return response.blob();
+		}).then(function(blob) {
+			// 创建临时下载链接
+			var url = window.URL.createObjectURL(blob);
+			var a = document.createElement('a');
+			a.href = url;
+			a.download = fileName;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			window.URL.revokeObjectURL(url);
+			// 清空 data-url，防止右键复制
+			btn.removeAttribute('data-url');
+			if(typeof XN !== 'undefined' && XN.toast) XN.toast('下载成功', 'success');
+		}).catch(function(err) {
+			if(typeof XN !== 'undefined' && XN.toast) XN.toast('下载失败：' + err.message, 'danger');
+		}).finally(function() {
+			// 恢复按钮
+			btn.disabled = false;
+			btn.innerHTML = originalHtml;
+		});
 	});
 }
 
@@ -233,8 +280,22 @@ function openModModal(url, title, size, tid) {
 			var cancelBtn = modalEl.querySelector('#cancel-btn');
 			if(cancelBtn) {
 				cancelBtn.addEventListener('click', function() {
+					// 先让按钮失焦，避免在 aria-hidden 容器内被聚焦（WAI-ARIA 规范）
+					// 用 blur() 比 body.focus() 更可靠（body 默认不可聚焦）
+					if(document.activeElement && document.activeElement.blur) {
+						document.activeElement.blur();
+					}
 					var m = bootstrap.Modal.getInstance(modalEl);
 					if(m) m.hide();
+				});
+			}
+			// btn-close 关闭按钮同样失焦
+			var closeBtn = modalEl.querySelector('.btn-close');
+			if(closeBtn) {
+				closeBtn.addEventListener('click', function() {
+					if(document.activeElement && document.activeElement.blur) {
+						document.activeElement.blur();
+					}
 				});
 			}
 
@@ -363,9 +424,36 @@ if(typeof htmx !== 'undefined') {
         } else {
             XN.alert(msg);
         }
+        // 积分变动提示
+        if(data.change_desc) {
+            var changeDesc = data.change_desc;
+            try { changeDesc = decodeURIComponent(changeDesc); } catch(e) {}
+            setTimeout(function() {
+                if(typeof XN.toast === 'function') XN.toast(changeDesc, 'info');
+            }, 800);
+        }
         setTimeout(function() {
             window.location.href = redirect;
         }, 1500);
+    });
+
+    // htmx 成功（无跳转）：仅 toast 提示
+    document.addEventListener('htmxSuccess', function(evt) {
+        var data = evt.detail || {};
+        if (Array.isArray(data) && data.length > 0) data = data[0];
+        var msg = data.message || bbs_lang.operate_successfully;
+        try { msg = decodeURIComponent(msg); } catch(e) {}
+        if(typeof XN.toast === 'function') {
+            XN.toast(msg, 'success');
+        }
+        // 积分变动提示
+        if(data.change_desc) {
+            var changeDesc = data.change_desc;
+            try { changeDesc = decodeURIComponent(changeDesc); } catch(e) {}
+            setTimeout(function() {
+                if(typeof XN.toast === 'function') XN.toast(changeDesc, 'info');
+            }, 800);
+        }
     });
 
 	window.addEventListener('popstate', function() {
@@ -376,7 +464,9 @@ if(typeof htmx !== 'undefined') {
 		highlightNav();
 		if(typeof Prism !== 'undefined') {
 			if(Prism.plugins && Prism.plugins.autoloader && !Prism.plugins.autoloader.languages_path) {
-				Prism.plugins.autoloader.languages_path = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
+				// languages_path 由页面模板设置，此处仅做兜底
+				var baseHref = document.querySelector('base');
+				Prism.plugins.autoloader.languages_path = (baseHref ? baseHref.href : '/') + 'view/vendor/prismjs/components/';
 			}
 			Prism.highlightAll();
 		}
@@ -499,11 +589,13 @@ if(typeof htmx !== 'undefined') {
 	}
 })();
 
-// ========== 主题切换（暗黑/亮色） ==========
+// ========== 主题切换（明亮/暗黑/跟随系统 + 主题色） ==========
 (function () {
 	var iconLight = document.getElementById('theme-icon-light');
 	var iconDark = document.getElementById('theme-icon-dark');
-	var toggleBtn = document.getElementById('theme-toggle');
+	var iconAuto = document.getElementById('theme-icon-auto');
+	var modeBtns = document.querySelectorAll('.theme-mode-btn');
+	var colorBtns = document.querySelectorAll('.theme-color-btn');
 
 	// 安全读写 localStorage（兼容 iOS Safari 私密模式）
 	function safeGet(key) {
@@ -513,65 +605,83 @@ if(typeof htmx !== 'undefined') {
 		try { localStorage.setItem(key, val); } catch (e) {}
 	}
 
-	function applyTheme(dark) {
-		document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
-		if (iconLight) iconLight.classList.toggle('d-none', dark);
-		if (iconDark) iconDark.classList.toggle('d-none', !dark);
-		safeSet('theme', dark ? 'dark' : 'light');
+	// 系统暗黑模式媒体查询
+	var darkMQ = window.matchMedia('(prefers-color-scheme: dark)');
+
+	function getEffectiveTheme(mode) {
+		if (mode === 'auto') {
+			return darkMQ.matches ? 'dark' : 'light';
+		}
+		return mode;
 	}
 
-	// 初始化：优先用 localStorage，其次尊重当前 DOM 状态（由 header.inc.htm 内联脚本设置）
-	var stored = safeGet('theme');
-	var isDark;
-	if (stored) {
-		isDark = stored === 'dark';
-	} else {
-		isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+	function applyThemeMode(mode) {
+		var effective = getEffectiveTheme(mode);
+		document.documentElement.setAttribute('data-bs-theme', effective);
+		// 更新图标
+		if (iconLight) iconLight.classList.toggle('d-none', mode !== 'light');
+		if (iconDark) iconDark.classList.toggle('d-none', mode !== 'dark');
+		if (iconAuto) iconAuto.classList.toggle('d-none', mode !== 'auto');
+		// 更新按钮选中状态
+		modeBtns.forEach(function(btn) {
+			var isActive = btn.getAttribute('data-mode') === mode;
+			btn.classList.toggle('btn-secondary', isActive);
+			btn.classList.toggle('btn-outline-secondary', !isActive);
+		});
+		safeSet('theme', mode);
 	}
-	applyTheme(isDark);
 
-	// 点击切换暗黑/亮色
-	if (toggleBtn) {
-		toggleBtn.addEventListener('click', function (e) {
-			e.preventDefault();
-			isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-			applyTheme(!isDark);
+	function applyThemeColor(color) {
+		document.documentElement.setAttribute('data-theme', color);
+		// 清除旧的自定义色
+		['primary','success','warning','danger','info'].forEach(function(n) {
+			safeSet('theme-color-' + n, null);
+			try { localStorage.removeItem('theme-color-' + n); } catch(e) {}
+		});
+		try { localStorage.removeItem('theme-color-body-bg-light'); } catch(e) {}
+		try { localStorage.removeItem('theme-color-body-bg-dark'); } catch(e) {}
+		safeSet('theme-color', color);
+		// 更新按钮选中状态
+		colorBtns.forEach(function(btn) {
+			var isActive = btn.getAttribute('data-color') === color;
+			btn.style.outline = isActive ? '2px solid var(--bs-body-color)' : 'none';
+			btn.style.outlineOffset = '2px';
 		});
 	}
-})();
 
-// ========== 搜索建议 ==========
-(function () {
-	var input = document.getElementById('navSearchInput');
-	var suggest = document.getElementById('searchSuggest');
-	if (!input || !suggest) return;
-	var timer = null;
-	var searchUrl;
-	if (typeof url_rewrite_on !== 'undefined' && url_rewrite_on == 1) {
-		searchUrl = 'search.htm';
-	} else if (typeof url_rewrite_on !== 'undefined' && url_rewrite_on == 3) {
-		searchUrl = 'search';
-	} else {
-		searchUrl = '?search.htm';
-	}
-	input.addEventListener('input', function () {
-		clearTimeout(timer);
-		var kw = this.value.trim();
-		if (kw.length < 2) { suggest.innerHTML = ''; return; }
-		timer = setTimeout(function () {
-			var sep = searchUrl.indexOf('?') !== -1 ? '&' : '?';
-			var url = searchUrl + sep + 'keyword=' + encodeURIComponent(kw) + '&suggest=1';
-			fetch(url).then(function (r) { return r.text(); }).then(function (html) {
-				suggest.innerHTML = html;
-			}).catch(function () { suggest.innerHTML = ''; });
-		}, 300);
+	// 初始化
+	var storedMode = safeGet('theme') || (document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light');
+	applyThemeMode(storedMode);
+
+	var storedColor = safeGet('theme-color') || document.documentElement.getAttribute('data-theme') || 'blue';
+	applyThemeColor(storedColor);
+
+	// 模式按钮点击
+	modeBtns.forEach(function(btn) {
+		btn.addEventListener('click', function() {
+			var mode = this.getAttribute('data-mode');
+			applyThemeMode(mode);
+		});
 	});
-	document.addEventListener('click', function (e) {
-		if (!input.contains(e.target) && !suggest.contains(e.target)) {
-			suggest.innerHTML = '';
+
+	// 主题色按钮点击
+	colorBtns.forEach(function(btn) {
+		btn.addEventListener('click', function() {
+			var color = this.getAttribute('data-color');
+			applyThemeColor(color);
+		});
+	});
+
+	// 跟随系统模式时，监听系统主题变化
+	darkMQ.addEventListener('change', function() {
+		var currentMode = safeGet('theme');
+		if (currentMode === 'auto') {
+			applyThemeMode('auto');
 		}
 	});
 })();
+
+
 
 // ========== 通知系统（铃铛、未读数、下拉列表） ==========
 (function () {
@@ -716,21 +826,27 @@ if(typeof htmx !== 'undefined') {
 		var item = e.target.closest('.notice-dropdown-item');
 		if (!item) return;
 		var nid = item.getAttribute('data-nid');
-		var source = item.getAttribute('data-source');
 		if (!nid) return;
 		e.preventDefault();
 		e.stopPropagation();
 		var href = item.getAttribute('href');
-		var markUrl = source === 'notice' ? bbs_notify_urls.notice_mark_read : bbs_notify_urls.notify_read_base + '-' + nid + '.htm';
+		// 通知系统已合并，统一使用 notify_read 接口
+		// 使用 URL 模板，兼容所有 url_rewrite_on 格式
+		var markUrl = bbs_notify_urls.notify_read_template.replace('__NID__', nid);
 		var data = { csrf_token: token };
-		if (source === 'notice') data.notice_id = nid;
 		fetch(markUrl, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
 			body: Object.keys(data).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(data[k]); }).join('&')
 		}).then(function (r) { return r.json(); }).then(function (json) {
 			if (json.code == 0) {
-				item.classList.remove('fw-semibold');
+				// 移除未读状态类和"新"徽章
+				item.classList.remove('notice-unread', 'fw-semibold');
+				// 移除子元素的 fw-semibold（用户名加粗）
+				var boldSpans = item.querySelectorAll('.fw-semibold');
+				for (var i = 0; i < boldSpans.length; i++) {
+					boldSpans[i].classList.remove('fw-semibold');
+				}
 				var dot = item.querySelector('.badge.bg-primary');
 				if (dot) dot.remove();
 				var unreadCount = json.unread_count !== undefined ? json.unread_count : -1;
@@ -834,6 +950,68 @@ $('a.confirm').on('click', function() {
 	return false;
 });
 
+// _confirm 确认删除（POST 方式，用于帖子/回帖删除按钮）
+$(document).on('click', 'a._confirm', function() {
+	var jthis = $(this);
+	var text = jthis.data('confirm-text') || bbs_lang.confirm_delete;
+	var href = jthis.data('href');
+	if(!href) return false;
+
+	var csrfToken = (typeof XN !== 'undefined' && XN.csrfToken) || $('input[name="csrf_token"]').first().val() || $('meta[name="csrf-token"]').attr('content') || '';
+	if(!csrfToken) {
+		XN.toast('CSRF token 缺失，请刷新页面', 'danger');
+		return false;
+	}
+	var postData = {csrf_token: csrfToken};
+
+	function doDelete() {
+		$.xpost(href, postData, function(code, message) {
+			if(parseInt(code) === 0) {
+				window.location.reload();
+			} else {
+				XN.toast(message || bbs_lang.operation_failed, 'danger');
+			}
+		});
+	}
+
+	// 删除操作：先确认删除意图，再检查积分扣减
+	var isDelete = jthis.hasClass('post_delete');
+	var isfirst = jthis.attr('isfirst') === '1' || jthis.attr('isfirst') === 1;
+	var creditsEvent = isfirst ? 'thread_delete' : 'reply_delete';
+
+	XN.confirm(text, function() {
+		if (isDelete && typeof XN.confirmCreditsDeduct === 'function') {
+			var fid = typeof threadFid !== 'undefined' ? threadFid : 0;
+			XN.confirmCreditsDeduct(creditsEvent, fid, doDelete);
+		} else {
+			doDelete();
+		}
+	});
+	return false;
+});
+
+// 评论置顶/取消置顶
+$(document).on('click', 'a.post_top_btn', function() {
+	var jthis = $(this);
+	var pid = jthis.data('pid');
+	var tid = jthis.data('tid');
+	var isTop = jthis.data('is-top');
+	var newTop = isTop ? 0 : 1;
+	var csrfToken = (typeof XN !== 'undefined' && XN.csrfToken) || $('input[name="csrf_token"]').first().val() || $('meta[name="csrf-token"]').attr('content') || '';
+	var modUrl = jthis.data('mod-url') || xn.url('mod-top_post');
+
+	$.xpost(modUrl, {pid: pid, tid: tid, is_top: newTop, csrf_token: csrfToken}, function(code, message) {
+		if(parseInt(code) === 0) {
+			if(typeof XN.toast === 'function') XN.toast(message, 'success');
+			window.location.reload();
+		} else {
+			if(typeof XN.toast === 'function') XN.toast(message || '操作失败', 'danger');
+			else XN.alert(message);
+		}
+	});
+	return false;
+});
+
 // 选中所有 / check all
 // <input class="checkall" data-target=".tid" />
 $('input.checkall').on('click', function() {
@@ -842,23 +1020,6 @@ $('input.checkall').on('click', function() {
 	jtarget = $(target);
 	jtarget.prop('checked', this.checked);
 });
-
-// 视图模式持久化 (List/Timeline/Waterfall)
-(function() {
-	var stored = localStorage.getItem('bbs-view-mode');
-	// 如果 URL 没有 view 参数但有存储的偏好，设置 cookie 供服务端读取
-	if(location.search.indexOf('view=') === -1 && stored && stored !== 'list') {
-		document.cookie = 'bbs_view_mode=' + stored + ';path=/;max-age=86400';
-	}
-	// 监听视图切换按钮点击
-	$(document).on('click', '.view-toggle .btn', function() {
-		var view = $(this).data('view');
-		if(view) {
-			localStorage.setItem('bbs-view-mode', view);
-			document.cookie = 'bbs_view_mode=' + view + ';path=/;max-age=86400';
-		}
-	});
-})();
 
 // ========== form.js 功能 ==========
 

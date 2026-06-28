@@ -404,9 +404,11 @@ function pager($url, $totalnum, $page, $pagesize = 20) {
 	$page = min($totalpage, $page);
 
 	$s = '';
-	$page > 1 AND $s .= '<li><a href="'.str_replace('{page}', $page-1, $url).'">上一页</a></li>';
-	$s .= " $page / $totalpage ";
-	$totalnum >= $pagesize AND $page != $totalpage AND $s .= '<li><a href="'.str_replace('{page}', $page+1, $url).'">下一页</a></li>';
+	$prev_icon = '<i class="ti ti-chevron-left"></i>';
+	$next_icon = '<i class="ti ti-chevron-right"></i>';
+	$page > 1 AND $s .= '<li class="page-item"><a class="page-link" href="'.str_replace('{page}', $page-1, $url).'">'.$prev_icon.'</a></li>';
+	$s .= '<li class="page-item disabled"><span class="page-link">'.$page.' / '.$totalpage.'</span></li>';
+	$totalnum >= $pagesize AND $page != $totalpage AND $s .= '<li class="page-item"><a class="page-link" href="'.str_replace('{page}', $page+1, $url).'">'.$next_icon.'</a></li>';
 	return $s;
 }
 
@@ -428,7 +430,7 @@ function pages($url, $totalnum, $page, $pagesize = 20) {
 	$left < 0 && $end = min($totalpage, $end -= $left);
 
 	$s = '';
-	$page != 1 && $s .= '<a href="'.str_replace('{page}', $page-1, $url).'">◀</a>';
+	$page != 1 && $s .= '<a href="'.str_replace('{page}', $page-1, $url).'"><i class="ti ti-chevron-left"></i></a>';
 	if($start > 1) $s .= '<a href="'.str_replace('{page}', 1, $url).'">1 '.($start > 2 ? '... ' : '').'</a>';
 	for($i=$start; $i<=$end; $i++) {
 		if($i == $page) {
@@ -438,7 +440,7 @@ function pages($url, $totalnum, $page, $pagesize = 20) {
 		}
 	}
 	if($end != $totalpage) $s .= '<a href="'.str_replace('{page}', $totalpage, $url).'">'.($totalpage - $end > 1 ? '... ' : '').$totalpage.'</a>';
-	$page != $totalpage && $s .= '<a href="'.str_replace('{page}', $page+1, $url).'">▶</a>';
+	$page != $totalpage && $s .= '<a href="'.str_replace('{page}', $page+1, $url).'"><i class="ti ti-chevron-right"></i></a>';
 	return $s;
 }
 
@@ -449,9 +451,9 @@ function simple_pages($url, $totalnum, $page, $pagesize = 20) {
 	$page = min($totalpage, $page);
 
 	$s = '';
-	$page > 1 AND $s .= '<a href="'.str_replace('{page}', $page-1, $url).'">上一页</a>';
+	$page > 1 AND $s .= '<a href="'.str_replace('{page}', $page-1, $url).'"><i class="ti ti-chevron-left"></i></a>';
 	$s .= " $page / $totalpage ";
-	$totalnum >= $pagesize AND $page != $totalpage AND $s .= '<a href="'.str_replace('{page}', $page+1, $url).'">下一页</a>';
+	$totalnum >= $pagesize AND $page != $totalpage AND $s .= '<a href="'.str_replace('{page}', $page+1, $url).'"><i class="ti ti-chevron-right"></i></a>';
 	return $s;
 }
 */
@@ -918,20 +920,26 @@ function http_multi_get($urls) {
 function file_replace_var($filepath, $replace = array(), $pretty = FALSE) {
 	$ext = file_ext($filepath);
 	if($ext == 'php') {
+		// 读取前先清除 OPcache，避免 include 返回缓存的旧值导致修改被回滚
+		if(function_exists('opcache_invalidate')) {
+			opcache_invalidate($filepath, true);
+		}
 		$arr = include $filepath;
+		if(!is_array($arr)) $arr = array();
 		$arr = array_merge($arr, $replace);
 		$s = "<?php\r\nreturn ".var_export($arr, true).";\r\n?>";
 		// 备份文件
 		file_backup($filepath);
 		$r = file_put_contents_try($filepath, $s);
-		if($r != strlen($s)) {
+		if($r === FALSE || $r != strlen($s)) {
 			file_backup_restore($filepath);
-		} else {
-			file_backup_unlink($filepath);
-			// 清除 OPcache 缓存，确保下次 include 能读到新值
-			if(function_exists('opcache_invalidate')) {
-				opcache_invalidate($filepath, true);
-			}
+			xn_log("file_replace_var 写入失败: $filepath (r=" . var_export($r, true) . ", len=" . strlen($s) . ")", 'save_error');
+			return FALSE;
+		}
+		file_backup_unlink($filepath);
+		// 写入后再次清除 OPcache，确保下次 include 能读到新值
+		if(function_exists('opcache_invalidate')) {
+			opcache_invalidate($filepath, true);
 		}
 		return $r;
 	} elseif($ext == 'js' || $ext == 'json') {
@@ -1107,6 +1115,8 @@ function xn_url_parse($request_url) {
 	}
 	
 	if(substr($front, -4) == '.htm') $front = substr($front, 0, -4);
+	// 兼容 .html 后缀风格（url_rewrite_on=4）
+	if(substr($front, -5) == '.html') $front = substr($front, 0, -5);
 	// 兼容微信等应用复制 URL 自动追加等号：index.htm= → index
 	$front = rtrim($front, '=');
 	$r = $front ? (array)explode('-', $front) : array();
@@ -1131,11 +1141,23 @@ function xn_url_parse($request_url) {
 	$r += $arr3;
 	
 	$_SERVER['REQUEST_URI_NO_PATH'] = substr($_SERVER['REQUEST_URI'], strrpos($_SERVER['REQUEST_URI'], '/') + 1);
-	
+
 	// 是否开启 /user/login 这种格式的 URL
+	// admin 后台不使用路径风格解析，避免路由参数被覆盖
 	$conf = _SERVER('conf');
-	if(!empty($conf['url_rewrite_on']) && $conf['url_rewrite_on'] == 3) {
+	$is_admin_path = (!empty($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/admin') === 0);
+	// 检测 URL 是否以 .html/.htm 结尾（非路径风格的旧格式 URL）
+	$_uri_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+	$_has_html_suffix = ($_uri_path && (substr($_uri_path, -5) === '.html' || substr($_uri_path, -4) === '.htm'));
+	if(!empty($conf['url_rewrite_on']) && $conf['url_rewrite_on'] == 3 && !$is_admin_path && !$_has_html_suffix) {
 		$r = xn_url_parse_path_format($_SERVER['REQUEST_URI']) + $r;
+	}
+	// 自定义格式解析（url_rewrite_on=5）
+	if(!empty($conf['url_rewrite_on']) && $conf['url_rewrite_on'] == 5 && !$is_admin_path && !$_has_html_suffix) {
+		$custom_r = xn_url_parse_custom_format($_SERVER['REQUEST_URI'], $conf);
+		if($custom_r) {
+			$r = $custom_r + $r;
+		}
 	}
 
 	isset($r[0]) AND $r[0] == 'index.php' AND $r[0] = 'index';
@@ -1164,6 +1186,10 @@ function xn_url_add_arg($url, $k, $v) {
 function xn_url_parse_path_format($s) {
 	$get = array();
 	substr($s, 0, 1) == '/' AND $s = substr($s, 1);
+	// 兼容 .html/.htm 后缀：去掉后缀再解析路径
+	// 如 /user-21.html → user/21，/my.html → my
+	if(substr($s, -5) == '.html') $s = substr($s, 0, -5);
+	if(substr($s, -4) == '.htm') $s = substr($s, 0, -4);
 	$arr = explode('/', $s);
 	$get = $arr;
 	$last = array_pop($arr);
@@ -1175,6 +1201,56 @@ function xn_url_parse_path_format($s) {
 		$get = array_merge($get, $arr2);
 	}
 	return $get;
+}
+
+/**
+ * 自定义伪静态格式反向解析
+ * 将自定义格式的 URL 解析为路由参数数组
+ *
+ * @param string $request_uri 请求 URI，如 /thread/create/1.html
+ * @param array $conf 配置数组
+ * @return array 路由参数，如 [0 => 'thread', 1 => 'create', 2 => '1']
+ */
+function xn_url_parse_custom_format($request_uri, $conf) {
+	$custom = isset($conf['url_rewrite_custom']) ? $conf['url_rewrite_custom'] : '';
+	if(empty($custom)) return array();
+
+	// 去掉 query string
+	$pos = strpos($request_uri, '?');
+	if($pos !== FALSE) {
+		$request_uri = substr($request_uri, 0, $pos);
+	}
+
+	// 将自定义格式转为正则表达式
+	// {controller} → (?P<controller>[a-zA-Z_][a-zA-Z0-9_]*)
+	// {action} → (?P<action>[a-zA-Z_][a-zA-Z0-9_]*)
+	// {id} → (?P<id>[0-9]+)
+	// {page} → (?P<page>[0-9]+)
+	$pattern = $custom;
+	$pattern = preg_quote($pattern, '#');
+	$pattern = str_replace(preg_quote('{controller}', '#'), '(?P<controller>[a-zA-Z_][a-zA-Z0-9_]*)', $pattern);
+	$pattern = str_replace(preg_quote('{action}', '#'), '(?P<action>[a-zA-Z_][a-zA-Z0-9_]*)', $pattern);
+	$pattern = str_replace(preg_quote('{id}', '#'), '(?P<id>[0-9]+)', $pattern);
+	$pattern = str_replace(preg_quote('{page}', '#'), '(?P<page>[0-9]+)', $pattern);
+	$pattern = '#' . $pattern . '$#';
+
+	if(!preg_match($pattern, $request_uri, $matches)) {
+		return array();
+	}
+
+	// 将匹配结果转为路由参数数组
+	$r = array();
+	if(!empty($matches['controller'])) $r[0] = $matches['controller'];
+	if(!empty($matches['action'])) $r[1] = $matches['action'];
+	if(!empty($matches['id'])) $r[2] = $matches['id'];
+	if(!empty($matches['page'])) {
+		// page 可能是第 2 或第 3 个参数
+		if(!isset($r[2])) {
+			$r[2] = $matches['page'];
+		}
+	}
+
+	return $r;
 }
 
 // 递归遍历目录
@@ -1416,7 +1492,7 @@ function http_referer() {
 	}
 	// 安全过滤，只支持站内跳转，不允许跳到外部，否则可能会被 XSS
 	// $referer = str_replace('\'', '', $referer);
-	if(!preg_match('#^\\??[\w\-/]+\.htm$#', $referer2) && !preg_match('#^[\w\/]*$#', $referer2)) {
+	if(!preg_match('#^\\??[\w\-/]+\.(htm|html)$#', $referer2) && !preg_match('#^[\w\/]*$#', $referer2)) {
 		$referer = './';
 	}
 	return $referer;
