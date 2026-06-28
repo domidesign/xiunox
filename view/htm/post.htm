@@ -417,7 +417,7 @@ function addImagePreview(msg) {
     var html = '<div class="col-4 col-sm-3 col-md-2">' +
         '<div class="x-card card upload-preview-card" aid="' + msg.aid + '">' +
             '<img src="' + (msg.thumb_url || msg.url) + '" class="card-img-top" style="height:80px;object-fit:cover;" alt="' + msg.orgfilename + '">' +
-            '<button type="button" class="btn btn-sm btn-danger btn-remove rounded-circle p-0 attach-delete-btn" style="width:22px;height:22px;line-height:22px;" title="<?php echo lang('delete');?>" onclick="deleteAttach(this, '+msg.aid+')"><i class="ti ti-x" style="font-size:12px;"></i></button>' +
+            '<button type="button" class="btn btn-sm btn-danger btn-remove rounded-circle p-0 attach-delete-btn" style="width:22px;height:22px;line-height:22px;" title="<?php echo lang('delete');?>" onclick="deleteAttach(this, \''+msg.aid+'\')"><i class="ti ti-x" style="font-size:12px;"></i></button>' +
             '<div class="card-body p-1 text-center"><small class="text-muted text-truncate d-block">' + msg.orgfilename + '</small></div>' +
         '</div>' +
     '</div>';
@@ -441,7 +441,7 @@ function addAttachmentCard(msg) {
                 '<a href="' + msg.url + '" target="_blank" class="small text-decoration-none">' + msg.orgfilename + '</a>' +
                 '<div class="text-muted" style="font-size:0.75rem;">' + fileSize + '</div>' +
             '</div>' +
-            '<button type="button" class="btn btn-sm btn-outline-danger rounded-pill btn-delete-attach attach-delete-btn" title="<?php echo lang('delete');?>" onclick="deleteAttach(this, '+msg.aid+')"><i class="ti ti-trash"></i></button>' +
+            '<button type="button" class="btn btn-sm btn-outline-danger rounded-pill btn-delete-attach attach-delete-btn" title="<?php echo lang('delete');?>" onclick="deleteAttach(this, \''+msg.aid+'\')"><i class="ti ti-trash"></i></button>' +
         '</div>' +
     '</div>';
     var el = $(html);

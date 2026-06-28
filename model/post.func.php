@@ -558,7 +558,7 @@ function post_file_list_html($filelist, $include_delete = FALSE, $imagelist = ar
             // 下载按钮：通过 JS AJAX 下载，URL 存在 data-url，JS 读取后 fetch 并清空
             $s .= '        <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 ms-2 flex-shrink-0 attach-fetch-btn" data-url="'.htmlspecialchars($fetch_url).'" data-name="'.htmlspecialchars($attach['orgfilename']).'" title="'.lang('download').'"><i class="ti ti-download"></i></button>'."\r\n";
             if($include_delete) {
-                $s .= '        <a href="javascript:void(0)" class="attach-delete attach-delete-btn text-danger text-decoration-none ms-2" aid="'.$aid.'" onclick="deleteAttach(this, '.$aid.')"><i class="ti ti-trash"></i></a>'."\r\n";
+                $s .= '        <a href="javascript:void(0)" class="attach-delete attach-delete-btn text-danger text-decoration-none ms-2" aid="'.$aid.'" onclick="deleteAttach(this, \''.$aid.'\')"><i class="ti ti-trash"></i></a>'."\r\n";
             }
             $s .= '    </div>'."\r\n";
         }

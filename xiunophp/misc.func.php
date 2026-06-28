@@ -1302,7 +1302,7 @@ function xn_copy($src, $dest) {
 	return $r;
 }
 
-function xn_mkdir($dir, $mod = NULL, $recusive = NULL) {
+function xn_mkdir($dir, $mod = 0777, $recusive = TRUE) {
 	$r = !is_dir($dir) ? mkdir($dir, $mod, $recusive) : FALSE;
 	return $r;
 }
