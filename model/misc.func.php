@@ -33,6 +33,13 @@ function url($url, $extra = array()) {
 		$query = $url;
 	}
 
+	// 空路由防护：query 为空时（如 url('')、url('/')、url('../')等），返回首页
+	if($query === '') {
+		if($url_rewrite_on == 0) return '/?index.htm';
+		if($url_rewrite_on == 2) return '/?index';
+		return '/';
+	}
+
 	if($url_rewrite_on == 0) {
 		$r = $path . '?' . $query . '.htm';
 	} elseif($url_rewrite_on == 1) {

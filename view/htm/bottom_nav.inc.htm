@@ -23,7 +23,8 @@ if(!empty($_mobile_nav_items)) {
 		if($_mnav_need_login && empty($uid)) {
 			$_mnav_href = user_login_url();
 		} else {
-			$_mnav_href = url($_mnav_url);
+			// 空或纯 / 的 URL 视为首页，避免 url() 生成 /.htm 等异常链接
+			$_mnav_href = (empty($_mnav_url) || $_mnav_url === '/') ? index_url() : url($_mnav_url);
 		}
 	?>
 	<a href="<?php echo esc_attr($_mnav_href);?>" class="bottom-nav-item" data-nav="<?php echo esc_attr($_mnav_slug);?>" data-icon-active="<?php echo esc_attr(isset($_mnav['icon_active']) ? $_mnav['icon_active'] : '');?>"<?php if(strpos($_mnav_url, 'thread-create') !== false): ?> hx-boost="false"<?php endif; ?>>
