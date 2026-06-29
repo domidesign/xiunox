@@ -79,13 +79,19 @@ function db_exec($sql, $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
-	
+
 	DEBUG AND xn_log($sql, 'db_exec');
-	
+
 	$n = $d->exec($sql);
-	
+
+	// exec() 返回 int，异常时返回 0 而非 FALSE；需检查 errno 判断是否真正出错
+	if($d->errno) {
+		db_errno_errstr(FALSE, $d, $sql);
+		return FALSE;
+	}
+
 	db_errno_errstr($n, $d, $sql);
-	
+
 	return $n;
 }
 

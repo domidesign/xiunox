@@ -168,8 +168,7 @@ CREATE TABLE bbs_thread (
   KEY (fid, lastpid),					# 顶贴时间排序，倒序
   KEY idx_uid_tid (uid, tid),				# 用户帖子列表
   KEY idx_uid_fid (uid, fid),				# 用户版块帖子
-  KEY idx_fid_audit_lastpid (fid, audit_status, lastpid),	# 版块列表含审核过滤
-  FULLTEXT INDEX ft_subject (subject) WITH PARSER ngram	# 全文搜索索引（中文分词）
+  KEY idx_fid_audit_lastpid (fid, audit_status, lastpid)	# 版块列表含审核过滤
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 # 置顶主题
@@ -220,8 +219,7 @@ CREATE TABLE bbs_post (
   PRIMARY KEY (pid),
   KEY (tid, pid),
   KEY (uid),						# 我的回帖，清理数据需要
-  KEY idx_uid_isfirst_pid (uid, isfirst, pid),		# 用户回帖列表
-  FULLTEXT INDEX ft_message (message) WITH PARSER ngram	# 全文搜索索引（中文分词）
+  KEY idx_uid_isfirst_pid (uid, isfirst, pid)		# 用户回帖列表
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 # 编辑历史
 
@@ -727,5 +725,12 @@ INSERT INTO bbs_group_permission (gid, permission_key, value) VALUES
 (103, 'allowread', 1), (103, 'allowthread', 1), (103, 'allowpost', 1), (103, 'allowattach', 1), (103, 'allowdown', 1),
 (104, 'allowread', 1), (104, 'allowthread', 1), (104, 'allowpost', 1), (104, 'allowattach', 1), (104, 'allowdown', 1),
 (105, 'allowread', 1), (105, 'allowthread', 1), (105, 'allowpost', 1), (105, 'allowattach', 1), (105, 'allowdown', 1);
+
+# 全文搜索索引（MySQL 5.6+ InnoDB 支持 ngram parser，低版本或不支持时跳过不影响核心功能）
+# FULLTEXT_TOLERANT 标记：install_sql_file 遇到失败不中断安装
+# FULLTEXT_TOLERANT
+CREATE FULLTEXT INDEX ft_subject ON bbs_thread (subject) WITH PARSER ngram;
+# FULLTEXT_TOLERANT
+CREATE FULLTEXT INDEX ft_message ON bbs_post (message) WITH PARSER ngram;
 
 

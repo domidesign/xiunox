@@ -58,10 +58,26 @@ function install_sql_file($sqlfile) {
 	$s = str_replace(";\r\n", ";\n", $s);
 	//$s = preg_replace('/#(.*?)\r\n/i', "", $s);
 	$arr = explode(";\n", $s);
+	$tolerant = false; // FULLTEXT_TOLERANT 标记：下一句失败不中断
 	foreach ($arr as $sql) {
 		$sql = trim($sql);
 		if(empty($sql)) continue;
-		db_exec($sql) === FALSE AND message(-1, "sql: $sql, errno: $errno, errstr: $errstr");
+		// 检查 FULLTEXT_TOLERANT 标记（以 # 注释行标识）
+		if(stripos($sql, 'FULLTEXT_TOLERANT') !== false) {
+			$tolerant = true;
+			continue;
+		}
+		$r = db_exec($sql);
+		if($r === FALSE) {
+			if($tolerant) {
+				// 全文索引等可选功能创建失败，跳过不中断安装
+				$tolerant = false;
+			} else {
+				message(-1, "sql: $sql, errno: $errno, errstr: $errstr");
+			}
+		} else {
+			$tolerant = false;
+		}
 	}
 }
 

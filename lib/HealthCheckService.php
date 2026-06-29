@@ -275,14 +275,22 @@ class HealthCheckService {
         global $db, $conf;
         $results = array();
 
-        // 表前缀
-        $tablePre = isset($conf['db']['master']['tablepre']) ? $conf['db']['master']['tablepre'] : 'bbs_';
+        // 表前缀：兼容不同配置结构
+        $tablePre = 'bbs_';
+        if(isset($conf['db']['pdo_mysql']['master']['tablepre'])) {
+            $tablePre = $conf['db']['pdo_mysql']['master']['tablepre'];
+        } elseif(isset($conf['db']['mysql']['master']['tablepre'])) {
+            $tablePre = $conf['db']['mysql']['master']['tablepre'];
+        } elseif(isset($conf['db']['master']['tablepre'])) {
+            $tablePre = $conf['db']['master']['tablepre'];
+        }
 
-        // 核心表存在性检查
+        // 核心表存在性检查：使用 INFORMATION_SCHEMA 精确查询
         foreach(self::$coreTables as $table) {
             try {
-                $rows = $db->sql_find("SHOW TABLES LIKE '{$table}'");
-                if(!empty($rows)) {
+                $safeTable = addslashes($table);
+                $row = $db->sql_find_one("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$safeTable}'");
+                if(!empty($row)) {
                     $results[] = array(
                         'status' => 'pass',
                         'label' => $table,
