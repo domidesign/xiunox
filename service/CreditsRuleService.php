@@ -23,7 +23,7 @@ class CreditsRuleService {
 	 * 获取积分规则
 	 * @param string $event 事件标识
 	 * @param int $fid 版块ID，0表示仅查全局规则
-	 * @param int $uid 用户ID，用于 daily_login 判断（可选）
+	 * @param int $uid 用户ID（可选）
 	 * @param string $source 来源标识（如 pid/tid），用于日志溯源和防重入
 	 * @return array ['enabled'=>bool, 'credits_change'=>int, 'golds_change'=>int, 'rmbs_change'=>int]
 	 */
@@ -42,22 +42,7 @@ class CreditsRuleService {
 			}
 		}
 
-		// 2. daily_login 防重复：数据库为唯一权威来源（session 仅作快速缓存）
-		if ($event === 'daily_login' && $uid > 0) {
-			$todayStart = strtotime(date('Y-m-d'));
-			$count = db_count('credits_log', array(
-				'uid' => $uid,
-				'reason' => 'daily_login',
-				'create_date>' => $todayStart,
-			));
-			if ($count > 0) {
-				// 同步缓存标记
-				$_SESSION['daily_login_' . $uid . '_' . date('Ymd')] = 1;
-				return array('enabled' => false);
-			}
-		}
-
-		// 3. be_liked / be_favorited 防重复：同用户对同一帖子只发放一次
+		// 2. be_liked / be_favorited 防重复：同用户对同一帖子只发放一次
 		if ($source !== '' && in_array($event, array('be_liked', 'be_favorited'))) {
 			$reason = $event . ':' . $source;
 			$count = db_count('credits_log', array('uid' => $uid, 'reason' => $reason));
@@ -121,7 +106,7 @@ class CreditsRuleService {
 		// ===== MySQL 应用级锁：防止并发请求同时处理同一事件（TOCTOU 防护） =====
 		$lockKey = NULL;
 		$lockAcquired = FALSE;
-		if (!$checkOnly && $uid > 0 && in_array($event, array('daily_login', 'be_liked', 'be_favorited'))) {
+		if (!$checkOnly && $uid > 0 && in_array($event, array('be_liked', 'be_favorited'))) {
 			global $db;
 			$lockKey = 'credits_' . $event . '_' . $uid . ($source !== '' ? '_' . $source : '');
 			if (isset($db->wlink) && $db->wlink) {
@@ -296,11 +281,6 @@ class CreditsRuleService {
 			if (!empty($changeDesc)) {
 				$returnData['change_desc'] = implode('，', $changeDesc);
 			}
-		}
-
-		// daily_login 成功发放后标记 session（仅作缓存，DB 为权威来源）
-		if ($event === 'daily_login' && !$checkOnly) {
-			$_SESSION['daily_login_' . $uid . '_' . date('Ymd')] = 1;
 		}
 
 		// 预检查模式返回扣减描述

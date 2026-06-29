@@ -145,6 +145,9 @@ function xn_email_log_write($to_email, $subject, $smtp_host, $status, $error_msg
     if (!$table_exists) return;
 
     global $time, $longip;
+    // ip 字段为 int(11) unsigned，必须写入 ip2long 后的整型；调用方传入的 $ip 是字符串
+    // 直接写入字符串会被 MySQL 隐式截断为开头数字（等同于 intval() 只保留第一段）
+    $log_ip = $ip ? ip2long($ip) : (isset($longip) ? intval($longip) : 0);
     $log = array(
         'to_email' => $to_email,
         'subject' => mb_substr($subject, 0, 200, 'UTF-8'),
@@ -152,7 +155,7 @@ function xn_email_log_write($to_email, $subject, $smtp_host, $status, $error_msg
         'status' => $status,
         'error_msg' => mb_substr($error_msg, 0, 500, 'UTF-8'),
         'create_date' => $time,
-        'ip' => $ip ?: (isset($longip) ? $longip : 0),
+        'ip' => $log_ip,
     );
 
     if (function_exists('db_create')) {

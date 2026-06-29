@@ -406,6 +406,15 @@ if(typeof htmx !== 'undefined') {
                 evt.detail.ctx.request.headers['X-CSRF-Token'] = csrfMeta.getAttribute('content');
             }
         }
+        // API 请求自动注入应用凭证（仅 /api/v1/ 路径）
+        var path = evt.detail.path || '';
+        if (path.indexOf('/api/v1/') !== -1) {
+            var appIdMeta = document.querySelector('meta[name="api-app-id"]');
+            if (appIdMeta) {
+                evt.detail.ctx.request.headers['X-App-Id'] = appIdMeta.getAttribute('content');
+                // 注意：不发送 X-App-Secret，secret 仅用于服务端调用
+            }
+        }
     });
 
     // htmx 成功跳转：toast 提示 + 延迟跳转
@@ -459,16 +468,13 @@ if(typeof htmx !== 'undefined') {
 	window.addEventListener('popstate', function() {
 		highlightNav();
 	});
-	// swap 完成后：导航高亮 + 代码高亮
+	// swap 完成后：导航高亮 + 代码高亮（highlight.js 仅在帖子详情页加载，未加载时跳过）
 	document.addEventListener('htmx:after:swap', function(evt) {
 		highlightNav();
-		if(typeof Prism !== 'undefined') {
-			if(Prism.plugins && Prism.plugins.autoloader && !Prism.plugins.autoloader.languages_path) {
-				// languages_path 由页面模板设置，此处仅做兜底
-				var baseHref = document.querySelector('base');
-				Prism.plugins.autoloader.languages_path = (baseHref ? baseHref.href : '/') + 'view/vendor/prismjs/components/';
-			}
-			Prism.highlightAll();
+		if(typeof hljs !== 'undefined' && evt.target) {
+			evt.target.querySelectorAll('pre code:not([data-highlighted])').forEach(function(el) {
+				hljs.highlightElement(el);
+			});
 		}
 	});
 }

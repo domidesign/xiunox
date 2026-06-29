@@ -17,8 +17,8 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 	<div class="container">
 		<div class="d-flex g-4 align-items-center w-100">
 
-			<!-- 左侧：Logo（与左侧栏 col-lg-2 对齐） -->
-			<div class="col col-lg-2 d-flex align-items-center gap-1 flex-shrink-0">
+			<!-- 左侧：Logo（与左侧栏 col-xl-2 对齐） -->
+			<div class="col col-xl-2 d-flex align-items-center gap-1 flex-shrink-0">
 
 				<!-- Logo -->
 				<!--{hook header_nav_logo_before.htm}-->
@@ -34,8 +34,8 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 				<!--{hook header_nav_logo_after.htm}-->
 			</div>
 
-			<!-- 中间：导航链接 + 搜索（与主内容区 col-lg-7 对齐） -->
-			<div class="d-none d-lg-flex col-lg-7 align-items-center justify-content-between gap-2">
+			<!-- 中间：导航链接 + 搜索（与主内容区 col-xl-7 对齐） -->
+			<div class="d-none d-xl-flex col-xl-7 align-items-center justify-content-between gap-2">
 				<!--{hook header_nav_custom_before.htm}-->
 				<ul class="navbar-nav flex-row   px-1">
 				<?php if(empty($_nav_items)) { ?>
@@ -131,10 +131,10 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 				<!--{hook header_nav_search_after.htm}-->
 			</div>
 
-			<!-- 右侧：操作图标（与右侧栏 col-lg-3 对齐） -->
-			<div class="col-auto col-lg-3 d-flex align-items-center justify-content-end gap-1 ms-auto ms-lg-0">
+			<!-- 右侧：操作图标（与右侧栏 col-xl-3 对齐） -->
+			<div class="col-auto col-xl-3 d-flex align-items-center justify-content-end gap-1 ms-auto ms-xl-0">
 
-				<a href="<?php echo search_url();?>" class="nav-icon-btn d-lg-none"
+				<a href="<?php echo search_url();?>" class="nav-icon-btn d-xl-none"
 					aria-label="<?php echo lang('search');?>" <?php if($_search_disabled): ?>onclick="showToast('
 					<?php echo lang('please_login_to_search');?>','warning');return false;"
 					<?php endif; ?>>

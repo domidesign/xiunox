@@ -6,10 +6,21 @@
         <p class="text-body-secondary fs-6 mb-4"><?php echo lang('admin_icon_preview_desc');?> <a href="https://tabler.io/icons" target="_blank" class="text-primary">Tabler Icons</a></p>
 
         <div class="mb-4">
-            <input type="text" class="form-control " id="iconSearch" placeholder="<?php echo lang('admin_icon_search_placeholder');?>" autocomplete="off">
+            <input type="text" class="form-control" id="iconSearch" placeholder="<?php echo lang('admin_icon_search_placeholder');?>" autocomplete="off">
         </div>
 
-        <div class="row g-2" id="iconGrid">
+        <div id="iconEmptyHint" class="text-center text-body-secondary py-5" style="display:none">
+            <i class="ti ti-mood-sad fs-1 d-block mb-2 opacity-25"></i>
+            <p class="mb-0"><?php echo lang('admin_icon_no_result');?></p>
+        </div>
+
+        <div class="row g-2" id="iconGrid"></div>
+
+        <div id="iconLoadMore" class="text-center mt-3" style="display:none">
+            <button type="button" class="btn btn-outline-primary" id="loadMoreBtn">
+                <i class="ti ti-arrow-down me-1"></i><?php echo lang('admin_icon_load_more');?>
+                <span id="loadMoreInfo"></span>
+            </button>
         </div>
     </div>
 </div>
@@ -18,29 +29,87 @@
 
 <script src="../view/js/tabler-icon-picker.js"></script>
 <script>
-// 存储动态加载的图标列表
 var allIcons = [];
+var filteredIcons = [];
+var displayedCount = 0;
+var PAGE_SIZE = 100;
+var hasSearched = false;
 
 var iconGrid = document.getElementById('iconGrid');
 var searchInput = document.getElementById('iconSearch');
 var iconCountEl = document.getElementById('iconCount');
+var iconEmptyHint = document.getElementById('iconEmptyHint');
+var iconLoadMore = document.getElementById('iconLoadMore');
+var loadMoreBtn = document.getElementById('loadMoreBtn');
+var loadMoreInfo = document.getElementById('loadMoreInfo');
 
-// 渲染图标网格
-function renderIcons(filter) {
-    iconGrid.innerHTML = '';
-    var filtered = filter ? allIcons.filter(function(name) {
-        return name.toLowerCase().indexOf(filter.toLowerCase()) !== -1;
-    }) : allIcons;
+// 渲染一批图标（追加到网格）
+function renderIconPage(startIndex) {
+    var endIndex = Math.min(startIndex + PAGE_SIZE, filteredIcons.length);
+    var fragment = document.createDocumentFragment();
 
-    filtered.forEach(function(name) {
+    for (var i = startIndex; i < endIndex; i++) {
+        var name = filteredIcons[i];
         var col = document.createElement('div');
         col.className = 'col-6 col-sm-4 col-md-3 col-lg-2';
         col.innerHTML = '<div class="icon-item text-center p-3 border rounded-3 cursor-pointer" data-icon="' + name + '" title="' + name + '">' +
             '<i class="ti ' + name + '" style="font-size:1.5rem"></i>' +
             '<div class="small text-body-secondary mt-1 text-truncate">' + name.replace('ti-', '') + '</div>' +
             '</div>';
-        iconGrid.appendChild(col);
+        fragment.appendChild(col);
+    }
+
+    iconGrid.appendChild(fragment);
+    displayedCount = endIndex;
+    updateLoadMoreUI();
+}
+
+// 更新加载更多按钮状态
+function updateLoadMoreUI() {
+    if (displayedCount >= filteredIcons.length) {
+        iconLoadMore.style.display = 'none';
+    } else {
+        iconLoadMore.style.display = '';
+        loadMoreInfo.textContent = ' (' + displayedCount + '/' + filteredIcons.length + ')';
+    }
+}
+
+// 搜索并渲染
+function doSearch(keyword) {
+    iconGrid.innerHTML = '';
+    displayedCount = 0;
+
+    if (!keyword) {
+        // 清空搜索时恢复显示全部图标的第一页
+        filteredIcons = allIcons;
+        if (allIcons.length > 0) {
+            iconEmptyHint.style.display = 'none';
+            renderIconPage(0);
+        } else {
+            iconEmptyHint.style.display = '';
+            iconLoadMore.style.display = 'none';
+        }
+        hasSearched = false;
+        return;
+    }
+
+    hasSearched = true;
+    iconEmptyHint.style.display = 'none';
+
+    var kw = keyword.toLowerCase();
+    filteredIcons = allIcons.filter(function(name) {
+        return name.toLowerCase().indexOf(kw) !== -1;
     });
+
+    if (filteredIcons.length === 0) {
+        iconEmptyHint.style.display = '';
+        iconLoadMore.style.display = 'none';
+        return;
+    }
+
+    iconEmptyHint.style.display = 'none';
+
+    renderIconPage(0);
 }
 
 // 点击复制图标代码
@@ -64,15 +133,28 @@ iconGrid.addEventListener('click', function(e) {
     }
 });
 
-// 搜索过滤
+// 搜索输入（防抖）
+var searchTimer = null;
 searchInput.addEventListener('input', function() {
-    renderIcons(this.value);
+    clearTimeout(searchTimer);
+    var val = this.value.trim();
+    searchTimer = setTimeout(function() {
+        doSearch(val);
+    }, 300);
 });
 
-// 动态加载图标列表并渲染
+// 加载更多
+loadMoreBtn.addEventListener('click', function() {
+    renderIconPage(displayedCount);
+});
+
+// 动态加载图标列表并默认展示一页
 TablerIconPicker.getIconList().then(function(icons) {
     allIcons = icons;
     iconCountEl.innerText = allIcons.length;
-    renderIcons('');
+    // 默认展示第一页（全部图标）
+    filteredIcons = allIcons;
+    iconEmptyHint.style.display = 'none';
+    renderIconPage(0);
 });
 </script>

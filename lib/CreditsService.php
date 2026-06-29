@@ -374,14 +374,15 @@ class CreditsService {
      * 写入积分日志
      */
     private function insertLog(int $uid, string $type, int $change, int $balance, string $reason): void {
-        global $ip;
+        // 使用 $longip（已通过 ip2long 转换的整型），避免对字符串 IP 误用 intval() 导致只保留第一段
+        global $longip;
         $this->db->insert('credits_log', [
             'uid' => $uid,
             'type' => $type,
             'change' => $change,
             'balance' => $balance,
             'reason' => $reason,
-            'ip' => intval($ip ?? 0),
+            'ip' => intval($longip ?? 0),
             'create_date' => time(),
         ]);
     }

@@ -43,6 +43,9 @@
 		'ti-folder', 'ti-download', 'ti-upload', 'ti-cloud', 'ti-code'
 	];
 
+	// Modal 内分页大小
+	var MODAL_PAGE_SIZE = 80;
+
 	/**
 	 * 从页面 CSS 文件动态解析图标列表
 	 * 查找页面中 tabler-icons 的 CSS 链接，fetch 其内容并用正则提取图标类名
@@ -135,7 +138,14 @@
 					'</div>' +
 					'<div class="modal-body">' +
 						'<input type="text" class="form-control rounded-pill mb-3" id="tablerIconPickerSearch" placeholder="搜索图标..." autocomplete="off">' +
+						'<div id="tablerIconPickerHint" class="text-center text-body-secondary py-4">' +
+							'<i class="ti ti-search fs-1 d-block mb-2 opacity-25"></i>' +
+							'<p class="mb-0 small">请输入关键词搜索图标</p>' +
+						'</div>' +
 						'<div class="row g-2" id="tablerIconPickerGrid"></div>' +
+						'<div id="tablerIconPickerLoadMore" class="text-center mt-2" style="display:none">' +
+							'<button type="button" class="btn btn-sm btn-outline-primary" id="tablerIconPickerLoadMoreBtn">加载更多</button>' +
+						'</div>' +
 					'</div>' +
 				'</div>' +
 			'</div>';
@@ -183,6 +193,9 @@
 		var bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
 		var grid = document.getElementById('tablerIconPickerGrid');
 		var searchInput = document.getElementById('tablerIconPickerSearch');
+		var hintEl = document.getElementById('tablerIconPickerHint');
+		var loadMoreWrap = document.getElementById('tablerIconPickerLoadMore');
+		var loadMoreBtn = document.getElementById('tablerIconPickerLoadMoreBtn');
 		var self = this;
 
 		// 当前回调优先使用 open 传入的，否则使用实例回调
@@ -191,14 +204,17 @@
 		// 异步加载图标列表
 		var iconList = await loadIconList();
 
-		// 渲染图标网格
-		function renderGrid(filter) {
-			grid.innerHTML = '';
-			var filtered = filter ? iconList.filter(function(name) {
-				return name.toLowerCase().indexOf(filter.toLowerCase()) !== -1;
-			}) : iconList;
+		// 分页状态
+		var filteredIcons = [];
+		var displayedCount = 0;
 
-			filtered.forEach(function(name) {
+		// 渲染一批图标（追加到网格）
+		function renderPage(startIndex) {
+			var endIndex = Math.min(startIndex + MODAL_PAGE_SIZE, filteredIcons.length);
+			var fragment = document.createDocumentFragment();
+
+			for (var i = startIndex; i < endIndex; i++) {
+				var name = filteredIcons[i];
 				var col = document.createElement('div');
 				col.className = 'col-4 col-sm-3 col-md-2 col-lg-1';
 				col.innerHTML =
@@ -206,8 +222,50 @@
 						'<i class="ti ' + name + '" style="font-size:1.25rem"></i>' +
 						'<div class="small text-body-secondary mt-1 text-truncate" style="font-size:0.6rem">' + name.replace('ti-', '') + '</div>' +
 					'</div>';
-				grid.appendChild(col);
+				fragment.appendChild(col);
+			}
+
+			grid.appendChild(fragment);
+			displayedCount = endIndex;
+			updateLoadMore();
+		}
+
+		// 更新加载更多按钮
+		function updateLoadMore() {
+			if (displayedCount >= filteredIcons.length) {
+				loadMoreWrap.style.display = 'none';
+			} else {
+				loadMoreWrap.style.display = '';
+			}
+		}
+
+		// 搜索并渲染
+		function doSearch(keyword) {
+			grid.innerHTML = '';
+			displayedCount = 0;
+
+			if (!keyword) {
+				hintEl.style.display = '';
+				hintEl.innerHTML = '<i class="ti ti-search fs-1 d-block mb-2 opacity-25"></i><p class="mb-0 small">请输入关键词搜索图标</p>';
+				loadMoreWrap.style.display = 'none';
+				return;
+			}
+
+			hintEl.style.display = 'none';
+
+			var kw = keyword.toLowerCase();
+			filteredIcons = iconList.filter(function(name) {
+				return name.toLowerCase().indexOf(kw) !== -1;
 			});
+
+			if (filteredIcons.length === 0) {
+				hintEl.style.display = '';
+				hintEl.innerHTML = '<i class="ti ti-mood-sad fs-1 d-block mb-2 opacity-25"></i><p class="mb-0 small">未找到匹配的图标</p>';
+				loadMoreWrap.style.display = 'none';
+				return;
+			}
+
+			renderPage(0);
 		}
 
 		// 点击图标项
@@ -233,26 +291,41 @@
 			bsModal.hide();
 		}
 
-		// 搜索过滤
+		// 搜索输入（防抖）
+		var searchTimer = null;
 		function onSearchInput() {
-			renderGrid(searchInput.value);
+			clearTimeout(searchTimer);
+			var val = searchInput.value.trim();
+			searchTimer = setTimeout(function() {
+				doSearch(val);
+			}, 200);
+		}
+
+		// 加载更多
+		function onLoadMore() {
+			renderPage(displayedCount);
 		}
 
 		// 清理事件（Modal 关闭后）
 		function onModalHidden() {
 			grid.removeEventListener('click', onGridClick);
 			searchInput.removeEventListener('input', onSearchInput);
+			loadMoreBtn.removeEventListener('click', onLoadMore);
 			modalEl.removeEventListener('hidden.bs.modal', onModalHidden);
 		}
 
 		// 绑定事件
 		grid.addEventListener('click', onGridClick);
 		searchInput.addEventListener('input', onSearchInput);
+		loadMoreBtn.addEventListener('click', onLoadMore);
 		modalEl.addEventListener('hidden.bs.modal', onModalHidden);
 
-		// 重置搜索并渲染
+		// 重置搜索（默认不展示图标，等用户搜索）
 		searchInput.value = '';
-		renderGrid('');
+		grid.innerHTML = '';
+		hintEl.style.display = '';
+		hintEl.innerHTML = '<i class="ti ti-search fs-1 d-block mb-2 opacity-25"></i><p class="mb-0 small">请输入关键词搜索图标</p>';
+		loadMoreWrap.style.display = 'none';
 
 		bsModal.show();
 	};

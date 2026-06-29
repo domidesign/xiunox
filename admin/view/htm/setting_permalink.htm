@@ -11,127 +11,108 @@
 		<form action="<?php echo admin_setting_url('permalink');?>" method="post" id="form">
 			<?php echo CsrfService::input(); ?>
 
-			<!-- URL 风格选择 -->
+			<!-- URL 风格选择：横向紧凑展示 -->
 			<div class="mb-4">
 				<label class="form-label fw-medium"><?php echo lang('admin_permalink_style');?></label>
+				<div class="row g-2">
+					<!-- 默认兼容模式 -->
+					<div class="col">
+						<label class="d-block" for="url_rewrite_on_0" style="cursor:pointer;">
+							<div class="card h-100 permalink-option-card" data-value="0">
+								<div class="card-body py-2 px-3">
+									<div class="form-check mb-1">
+										<input class="form-check-input" type="radio" name="url_rewrite_on" id="url_rewrite_on_0" value="0" <?php echo $url_rewrite_on == 0 ? 'checked' : '';?> />
+										<label class="form-check-label fw-medium small" for="url_rewrite_on_0">
+											<?php echo lang('admin_permalink_default');?>
+										</label>
+									</div>
+									<div class="text-body-secondary" style="font-size:0.75rem;line-height:1.3;min-height:2.6em;">
+										<?php echo lang('admin_permalink_default_desc');?>
+									</div>
+									<div class="mt-1"><code style="font-size:0.7rem;">/?user-1.htm</code></div>
+								</div>
+							</div>
+						</label>
+					</div>
 
-				<!-- 默认兼容模式 -->
-				<div class="form-check mb-3 ps-0">
-					<div class="x-card card" style="cursor:pointer;" onclick="document.getElementById('url_rewrite_on_0').checked=true; toggleRewriteRules();">
-						<div class="card-body py-3 px-4">
-							<div class="form-check">
-								<input class="form-check-input" type="radio" name="url_rewrite_on" id="url_rewrite_on_0" value="0" <?php echo $url_rewrite_on == 0 ? 'checked' : '';?> />
-								<label class="form-check-label fw-medium" for="url_rewrite_on_0">
-									<?php echo lang('admin_permalink_default');?>
-								</label>
+					<!-- 伪静态模式 -->
+					<div class="col">
+						<label class="d-block" for="url_rewrite_on_1" style="cursor:pointer;">
+							<div class="card h-100 permalink-option-card" data-value="1">
+								<div class="card-body py-2 px-3">
+									<div class="form-check mb-1">
+										<input class="form-check-input" type="radio" name="url_rewrite_on" id="url_rewrite_on_1" value="1" <?php echo $url_rewrite_on == 1 ? 'checked' : '';?> />
+										<label class="form-check-label fw-medium small" for="url_rewrite_on_1">
+											<?php echo lang('admin_permalink_rewrite');?>
+										</label>
+									</div>
+									<div class="text-body-secondary" style="font-size:0.75rem;line-height:1.3;min-height:2.6em;">
+										<?php echo lang('admin_permalink_rewrite_desc');?>
+									</div>
+									<div class="mt-1"><code style="font-size:0.7rem;">/user-1.htm</code></div>
+								</div>
 							</div>
-							<div class="ms-4 text-body-secondary small">
-								<?php echo lang('admin_permalink_default_desc');?>
-							</div>
-							<div class="ms-4 mt-1">
-								<code class="small">/?user-1.htm</code>
-							</div>
-						</div>
+						</label>
 					</div>
-				</div>
 
-				<!-- 伪静态模式 -->
-				<div class="form-check mb-3 ps-0">
-					<div class="x-card card" style="cursor:pointer;" onclick="document.getElementById('url_rewrite_on_1').checked=true; toggleRewriteRules();">
-						<div class="card-body py-3 px-4">
-							<div class="form-check">
-								<input class="form-check-input" type="radio" name="url_rewrite_on" id="url_rewrite_on_1" value="1" <?php echo $url_rewrite_on == 1 ? 'checked' : '';?> />
-								<label class="form-check-label fw-medium" for="url_rewrite_on_1">
-									<?php echo lang('admin_permalink_rewrite');?>
-								</label>
+					<!-- 路径风格 -->
+					<div class="col">
+						<label class="d-block" for="url_rewrite_on_3" style="cursor:pointer;">
+							<div class="card h-100 permalink-option-card" data-value="3">
+								<div class="card-body py-2 px-3">
+									<div class="form-check mb-1">
+										<input class="form-check-input" type="radio" name="url_rewrite_on" id="url_rewrite_on_3" value="3" <?php echo $url_rewrite_on == 3 ? 'checked' : '';?> />
+										<label class="form-check-label fw-medium small" for="url_rewrite_on_3">
+											<?php echo lang('admin_permalink_path');?>
+										</label>
+									</div>
+									<div class="text-body-secondary" style="font-size:0.75rem;line-height:1.3;min-height:2.6em;">
+										<?php echo lang('admin_permalink_path_desc');?>
+									</div>
+									<div class="mt-1"><code style="font-size:0.7rem;">/user/1</code></div>
+								</div>
 							</div>
-							<div class="ms-4 text-body-secondary small">
-								<?php echo lang('admin_permalink_rewrite_desc');?>
-							</div>
-							<div class="ms-4 mt-1">
-								<code class="small">/user-1.htm</code>
-							</div>
-						</div>
+						</label>
 					</div>
-				</div>
 
-				<!-- 路径风格 -->
-				<div class="form-check mb-3 ps-0">
-					<div class="x-card card" style="cursor:pointer;" onclick="document.getElementById('url_rewrite_on_3').checked=true; toggleRewriteRules();">
-						<div class="card-body py-3 px-4">
-							<div class="form-check">
-								<input class="form-check-input" type="radio" name="url_rewrite_on" id="url_rewrite_on_3" value="3" <?php echo $url_rewrite_on == 3 ? 'checked' : '';?> />
-								<label class="form-check-label fw-medium" for="url_rewrite_on_3">
-									<?php echo lang('admin_permalink_path');?>
-								</label>
+					<!-- .html 后缀风格 -->
+					<div class="col">
+						<label class="d-block" for="url_rewrite_on_4" style="cursor:pointer;">
+							<div class="card h-100 permalink-option-card" data-value="4">
+								<div class="card-body py-2 px-3">
+									<div class="form-check mb-1">
+										<input class="form-check-input" type="radio" name="url_rewrite_on" id="url_rewrite_on_4" value="4" <?php echo $url_rewrite_on == 4 ? 'checked' : '';?> />
+										<label class="form-check-label fw-medium small" for="url_rewrite_on_4">
+											.html <?php echo lang('admin_permalink_html_suffix');?>
+										</label>
+									</div>
+									<div class="text-body-secondary" style="font-size:0.75rem;line-height:1.3;min-height:2.6em;">
+										<?php echo lang('admin_permalink_html_suffix_desc');?>
+									</div>
+									<div class="mt-1"><code style="font-size:0.7rem;">/user-1.html</code></div>
+								</div>
 							</div>
-							<div class="ms-4 text-body-secondary small">
-								<?php echo lang('admin_permalink_path_desc');?>
-							</div>
-							<div class="ms-4 mt-1">
-								<code class="small">/user/1</code>
-							</div>
-						</div>
+						</label>
 					</div>
-				</div>
 
-				<!-- .html 后缀风格 -->
-				<div class="form-check mb-3 ps-0">
-					<div class="x-card card" style="cursor:pointer;" onclick="document.getElementById('url_rewrite_on_4').checked=true; toggleRewriteRules();">
-						<div class="card-body py-3 px-4">
-							<div class="form-check">
-								<input class="form-check-input" type="radio" name="url_rewrite_on" id="url_rewrite_on_4" value="4" <?php echo $url_rewrite_on == 4 ? 'checked' : '';?> />
-								<label class="form-check-label fw-medium" for="url_rewrite_on_4">
-									.html <?php echo lang('admin_permalink_html_suffix');?>
-								</label>
+					<!-- 路径+html 风格 -->
+					<div class="col">
+						<label class="d-block" for="url_rewrite_on_5" style="cursor:pointer;">
+							<div class="card h-100 permalink-option-card" data-value="5">
+								<div class="card-body py-2 px-3">
+									<div class="form-check mb-1">
+										<input class="form-check-input" type="radio" name="url_rewrite_on" id="url_rewrite_on_5" value="5" <?php echo $url_rewrite_on == 5 ? 'checked' : '';?> />
+										<label class="form-check-label fw-medium small" for="url_rewrite_on_5">
+											<?php echo lang('admin_permalink_path_html');?>
+										</label>
+									</div>
+									<div class="text-body-secondary" style="font-size:0.75rem;line-height:1.3;min-height:2.6em;">
+										<?php echo lang('admin_permalink_path_html_desc');?>
+									</div>
+									<div class="mt-1"><code style="font-size:0.7rem;">/user/1.html</code></div>
+								</div>
 							</div>
-							<div class="ms-4 text-body-secondary small">
-								<?php echo lang('admin_permalink_html_suffix_desc');?>
-							</div>
-							<div class="ms-4 mt-1">
-								<code class="small">/user-1.html</code>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<!-- 自定义格式 -->
-				<div class="form-check mb-3 ps-0">
-					<div class="x-card card" style="cursor:pointer;" onclick="document.getElementById('url_rewrite_on_5').checked=true; toggleRewriteRules();">
-						<div class="card-body py-3 px-4">
-							<div class="form-check">
-								<input class="form-check-input" type="radio" name="url_rewrite_on" id="url_rewrite_on_5" value="5" <?php echo $url_rewrite_on == 5 ? 'checked' : '';?> />
-								<label class="form-check-label fw-medium" for="url_rewrite_on_5">
-									<?php echo lang('admin_permalink_custom');?>
-								</label>
-							</div>
-							<div class="ms-4 text-body-secondary small">
-								<?php echo lang('admin_permalink_custom_desc');?>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<!-- 自定义格式输入 -->
-				<div id="customFormatSection" class="ms-4 mb-3" style="<?php echo $url_rewrite_on == 5 ? '' : 'display:none;';?>">
-					<label class="form-label small fw-medium"><?php echo lang('admin_permalink_custom_format');?></label>
-					<input type="text" class="form-control form-control-sm" name="url_rewrite_custom" id="url_rewrite_custom" value="<?php echo htmlspecialchars($url_rewrite_custom);?>" style="max-width:400px;" placeholder="/{controller}-{action}-{id}.html" />
-					<div class="text-body-secondary small mt-1">
-						<?php echo lang('admin_permalink_custom_tags');?>: <code>{controller}</code> <code>{action}</code> <code>{id}</code> <code>{page}</code>
-					</div>
-					<div class="text-body-secondary small mt-2">
-						<?php echo lang('admin_permalink_custom_examples');?>:
-					</div>
-					<ul class="small text-body-secondary mt-1">
-						<li><code>/{controller}-{action}-{id}.html</code> → <code>/thread-create-1.html</code></li>
-						<li><code>/{controller}/{action}/{id}.html</code> → <code>/thread/create/1.html</code></li>
-						<li><code>/{controller}/{id}.html</code> → <code>/thread/1.html</code></li>
-						<li><code>/archives/{id}.html</code> → <code>/archives/1.html</code></li>
-					</ul>
-					<!-- 实时预览 -->
-					<div class="mt-2">
-						<span class="small fw-medium"><?php echo lang('admin_permalink_preview');?>:</span>
-						<code id="custom_preview" class="small"></code>
+						</label>
 					</div>
 				</div>
 			</div>
@@ -148,6 +129,7 @@
 								<th><?php echo lang('admin_permalink_rewrite');?></th>
 								<th><?php echo lang('admin_permalink_path');?></th>
 								<th>.html</th>
+								<th><?php echo lang('admin_permalink_path_html');?></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -157,6 +139,7 @@
 								<td><code>/thread-123.htm</code></td>
 								<td><code>/thread/123</code></td>
 								<td><code>/thread-123.html</code></td>
+								<td><code>/thread/123.html</code></td>
 							</tr>
 							<tr>
 								<td class="fw-medium"><?php echo lang('admin_permalink_user'); ?></td>
@@ -164,6 +147,7 @@
 								<td><code>/user-1.htm</code></td>
 								<td><code>/user/1</code></td>
 								<td><code>/user-1.html</code></td>
+								<td><code>/user/1.html</code></td>
 							</tr>
 							<tr>
 								<td class="fw-medium"><?php echo lang('admin_permalink_forum'); ?></td>
@@ -171,42 +155,50 @@
 								<td><code>/forum-7.htm</code></td>
 								<td><code>/forum/7</code></td>
 								<td><code>/forum-7.html</code></td>
+								<td><code>/forum/7.html</code></td>
 							</tr>
 						</tbody>
 					</table>
 				</div>
 			</div>
 
-			<!-- Rewrite 规则参考 -->
+			<!-- Rewrite 规则参考：可折叠，横向展示 -->
 			<div id="rewriteRulesSection" class="mb-4" style="<?php echo $url_rewrite_on > 0 ? '' : 'display:none;';?>">
-				<label class="form-label fw-medium"><?php echo lang('admin_permalink_rewrite_rules');?></label>
-				<p class="text-body-secondary small mb-3"><?php echo lang('admin_permalink_rewrite_rules_desc');?></p>
-
-				<!-- Nginx -->
-				<div class="mb-3">
-					<div class="d-flex justify-content-between align-items-center mb-1">
-						<span class="fw-medium small"><?php echo lang('admin_permalink_nginx_label');?></span>
-						<button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyRules('nginx_rules')">
-							<i class="ti ti-copy me-1"></i><?php echo lang('admin_permalink_copy');?>
-						</button>
-					</div>
-					<pre class="bg-body-secondary p-3 rounded small mb-0" id="nginx_rules"><?php echo htmlspecialchars($nginx_rules);?></pre>
+				<div class="d-flex align-items-center mb-2">
+					<a href="#rewriteRulesCollapse" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="rewriteRulesCollapse" class="text-decoration-none d-inline-flex align-items-center text-body fw-medium" id="rewriteToggleBtn">
+						<i class="ti ti-chevron-right me-1 transition-transform" id="rewriteToggleIcon"></i>
+						<?php echo lang('admin_permalink_rewrite_rules');?>
+					</a>
 				</div>
-
-				<!-- Apache -->
-				<div class="mb-3">
-					<div class="d-flex justify-content-between align-items-center mb-1">
-						<span class="fw-medium small"><?php echo lang('admin_permalink_apache_label');?></span>
-						<button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyRules('apache_rules')">
-							<i class="ti ti-copy me-1"></i><?php echo lang('admin_permalink_copy');?>
-						</button>
+				<p class="text-body-secondary small mb-2"><?php echo lang('admin_permalink_rewrite_rules_desc');?></p>
+				<div class="collapse" id="rewriteRulesCollapse">
+					<div class="row g-3">
+						<!-- Nginx -->
+						<div class="col-md-6">
+							<div class="d-flex justify-content-between align-items-center mb-1">
+								<span class="fw-medium small"><?php echo lang('admin_permalink_nginx_label');?></span>
+								<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="copyRules('nginx_rules')">
+									<i class="ti ti-copy me-1"></i><?php echo lang('admin_permalink_copy');?>
+								</button>
+							</div>
+							<pre class="bg-body-secondary p-3 rounded small mb-0" id="nginx_rules" style="max-height:340px;overflow:auto;"><?php echo htmlspecialchars($nginx_rules);?></pre>
+						</div>
+						<!-- Apache -->
+						<div class="col-md-6">
+							<div class="d-flex justify-content-between align-items-center mb-1">
+								<span class="fw-medium small"><?php echo lang('admin_permalink_apache_label');?></span>
+								<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="copyRules('apache_rules')">
+									<i class="ti ti-copy me-1"></i><?php echo lang('admin_permalink_copy');?>
+								</button>
+							</div>
+							<pre class="bg-body-secondary p-3 rounded small mb-0" id="apache_rules" style="max-height:340px;overflow:auto;"><?php echo htmlspecialchars($apache_rules);?></pre>
+						</div>
 					</div>
-					<pre class="bg-body-secondary p-3 rounded small mb-0" id="apache_rules"><?php echo htmlspecialchars($apache_rules);?></pre>
 				</div>
 			</div>
 
 			<!-- 警告提示 -->
-			<div class="mb-4">
+			<div class="mb-3">
 				<div class="alert alert-warning d-flex align-items-center py-2" role="alert">
 					<i class="ti ti-alert-triangle me-2"></i>
 					<small><?php echo lang('admin_permalink_warning');?></small>
@@ -238,44 +230,46 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-// 切换 URL 风格时显示/隐藏 rewrite 规则和自定义格式
+// 选中状态高亮
+function updateCardHighlight() {
+	document.querySelectorAll('.permalink-option-card').forEach(function(card) {
+		var radio = card.querySelector('input[type="radio"]');
+		if(radio.checked) {
+			card.classList.add('border-primary', 'bg-primary', 'bg-opacity-10');
+			card.classList.remove('border-body-secondary');
+		} else {
+			card.classList.remove('border-primary', 'bg-primary', 'bg-opacity-10');
+			card.classList.add('border-body-secondary');
+		}
+	});
+}
+
+// 切换 URL 风格时显示/隐藏 rewrite 规则
 function toggleRewriteRules() {
 	var val = document.querySelector('input[name="url_rewrite_on"]:checked').value;
 	var section = document.getElementById('rewriteRulesSection');
 	var skipSection = document.getElementById('skipDetectSection');
-	var customSection = document.getElementById('customFormatSection');
 	section.style.display = (val == '0') ? 'none' : '';
 	skipSection.style.display = (val == '0') ? 'none' : '';
-	customSection.style.display = (val == '5') ? '' : 'none';
-	updateCustomPreview();
+	updateCardHighlight();
 }
 
-// 更新自定义格式预览
-function updateCustomPreview() {
-	var input = document.getElementById('url_rewrite_custom');
-	var preview = document.getElementById('custom_preview');
-	if (!input || !preview) return;
-	var format = input.value || '/{controller}-{action}-{id}.html';
-	var url = format
-		.replace('{controller}', 'thread')
-		.replace('{action}', '123')
-		.replace('{id}', '123')
-		.replace('{page}', '2');
-	// 清理空标签
-	url = url.replace(/\{[\w]+\}/g, '');
-	url = url.replace(/--+/g, '-');
-	url = url.replace(/-\./g, '.');
-	url = url.replace(/\/-/g, '/');
-	preview.textContent = url;
-}
+// 绑定 radio change 事件
+document.querySelectorAll('input[name="url_rewrite_on"]').forEach(function(radio) {
+	radio.addEventListener('change', updateCardHighlight);
+});
+// 初始化高亮
+updateCardHighlight();
 
-// 自定义格式输入实时预览
-var customInput = document.getElementById('url_rewrite_custom');
-if (customInput) {
-	customInput.addEventListener('input', updateCustomPreview);
-}
-// 初始化预览
-updateCustomPreview();
+// Rewrite 规则折叠图标切换
+document.getElementById('rewriteRulesCollapse').addEventListener('show.bs.collapse', function() {
+	document.getElementById('rewriteToggleIcon').classList.remove('ti-chevron-right');
+	document.getElementById('rewriteToggleIcon').classList.add('ti-chevron-down');
+});
+document.getElementById('rewriteRulesCollapse').addEventListener('hide.bs.collapse', function() {
+	document.getElementById('rewriteToggleIcon').classList.remove('ti-chevron-down');
+	document.getElementById('rewriteToggleIcon').classList.add('ti-chevron-right');
+});
 
 // 复制 rewrite 规则
 function copyRules(elementId) {
@@ -297,7 +291,7 @@ function copyRules(elementId) {
 }
 
 function showCopyFeedback(elementId) {
-	var btn = document.querySelector('#' + elementId).closest('.mb-3').querySelector('button');
+	var btn = document.querySelector('#' + elementId).closest('.col-md-6').querySelector('button');
 	var originalText = btn.innerHTML;
 	btn.innerHTML = '<i class="ti ti-check me-1"></i><?php echo lang('admin_permalink_copied');?>';
 	btn.classList.remove('btn-outline-secondary');
@@ -330,5 +324,19 @@ jform.on('submit', function() {
 	return false;
 });
 </script>
+
+<style>
+.permalink-option-card {
+	transition: all 0.15s ease;
+	border-width: 1px;
+}
+.permalink-option-card:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+#rewriteToggleIcon {
+	transition: transform 0.2s ease;
+}
+</style>
 
 <!--{hook admin_setting_permalink_js.htm}-->

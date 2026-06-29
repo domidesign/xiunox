@@ -1,0 +1,2 @@
+# 禁止所有 Web 访问，保护配置文件安全
+Deny from all

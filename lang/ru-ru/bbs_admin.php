@@ -1102,7 +1102,6 @@ return array(
 	'admin_credits_event_be_commented'=>'Получен комментарий',
 	'admin_credits_event_favorite'=>'В избранное',
 	'admin_credits_event_be_favorited'=>'Добавлено в избранное другими',
-	'admin_credits_event_daily_login'=>'Ежедневный первый вход',
 	'admin_credits_event_unlike'=>'Снятие отметки «нравится»',
 	'admin_credits_event_unfavorite'=>'Удаление из избранного',
 	'admin_credits_rule_override_format'=>'Баллы/Монеты/Рубли',

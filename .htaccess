@@ -3,12 +3,18 @@
 
 RewriteEngine On
 
-# 确保请求的文件或目录存在时直接访问
+# 如需 HTTPS 强制跳转，请在 Web 服务器层面配置
+# 或取消以下注释启用：
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# 伪静态核心规则
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-
-# 将所有请求转发到 index.php，保留原始 REQUEST_URI
 RewriteRule ^(.*)$ index.php [L,QSA]
+
+# 传递 Authorization header（CGI/FastCGI 模式需要）
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
 
 # 禁止访问隐藏文件
 <FilesMatch "^\.">

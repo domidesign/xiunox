@@ -19,8 +19,9 @@ function url($url, $extra = array()) {
 
 	// admin 后台始终使用 ? 格式，不受 url_rewrite_on 影响
 	// 避免切换伪静态风格后后台链接失效
-	$request_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
-	$is_admin = (strpos($request_uri, '/admin/') === 0 || strpos($request_uri, '/admin?') === 0 || $request_uri === '/admin');
+	// 用 SCRIPT_NAME 检测 admin，兼容子目录安装（/demo/admin/）
+	$_script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/index.php';
+	$is_admin = (strpos($_script_name, '/admin') !== false);
 	$url_rewrite_on = $is_admin ? 0 : intval($conf['url_rewrite_on']);
 
 	$r = $path = $query = '';
@@ -44,23 +45,8 @@ function url($url, $extra = array()) {
 		// .html 后缀风格：thread-create-1 → thread-create-1.html
 		$r = $path . $query . '.html';
 	} elseif($url_rewrite_on == 5) {
-		// 自定义格式：根据 url_rewrite_custom 配置生成 URL
-		$custom = isset($conf['url_rewrite_custom']) ? $conf['url_rewrite_custom'] : '/{controller}-{action}-{id}.html';
-		// 解析 query：thread-create-1 → controller=thread, action=create, id=1
-		$parts = explode('-', $query);
-		$replace = array(
-			'{controller}' => isset($parts[0]) ? $parts[0] : '',
-			'{action}' => isset($parts[1]) ? $parts[1] : '',
-			'{id}' => isset($parts[2]) ? $parts[2] : '',
-			'{page}' => isset($parts[2]) ? $parts[2] : '',
-		);
-		$r = $path . str_replace(array_keys($replace), array_values($replace), $custom);
-		// 清理空的标签占位（如 action 为空时 /thread--1.html → /thread-1.html）
-		$r = preg_replace('#[-/]+#', '$0', $r); // 保留分隔符
-		$r = preg_replace('#\{[\w]+\}#', '', $r); // 移除未替换的标签
-		$r = preg_replace('#--+#', '-', $r); // 合并多余连字符
-		$r = preg_replace('#-\.#', '.', $r); // 修正 -.html → .html
-		$r = preg_replace('#/-#', '/', $r); // 修正 /- → /
+		// 路径+html 风格：thread-create-1 → thread/create/1.html
+		$r = $path . str_replace('-', '/', $query) . '.html';
 	}
 	// 附加参数
 	if($extra) {

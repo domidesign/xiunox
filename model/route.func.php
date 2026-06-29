@@ -219,6 +219,12 @@ function route_table() {
 			'admin_api_doc'                 => 'api-doc',
 			'admin_api_debug'               => 'api-debug',
 			'admin_api_token_delete'        => 'api-token_delete-{id}',
+			'admin_api_settings'            => 'api-settings',
+			'admin_api_app_create'          => 'api-app_create',
+			'admin_api_app_update'          => 'api-app_update',
+			'admin_api_app_delete'          => 'api-app_delete',
+			'admin_api_app_reset_secret'    => 'api-app_reset_secret',
+			'admin_api_settings_save'       => 'api-settings_save',
 
 			// ===== 后台 - 缓存与系统 =====
 			'admin_cache'                   => 'other-cache',
@@ -482,6 +488,12 @@ function admin_attach_batch_delete_url($query = array()) { return route_url('adm
 function admin_api_doc_url($query = array())               { return route_url('admin_api_doc', [], $query); }
 function admin_api_debug_url($query = array())             { return route_url('admin_api_debug', [], $query); }
 function admin_api_token_delete_url($id, $query = array()) { return route_url('admin_api_token_delete', ['id' => $id], $query); }
+function admin_api_settings_url($query = array())          { return route_url('admin_api_settings', [], $query); }
+function admin_api_app_create_url($query = array())        { return route_url('admin_api_app_create', [], $query); }
+function admin_api_app_update_url($query = array())        { return route_url('admin_api_app_update', [], $query); }
+function admin_api_app_delete_url($query = array())        { return route_url('admin_api_app_delete', [], $query); }
+function admin_api_app_reset_secret_url($query = array())  { return route_url('admin_api_app_reset_secret', [], $query); }
+function admin_api_settings_save_url($query = array())     { return route_url('admin_api_settings_save', [], $query); }
 
 // ----- 后台 - 缓存与系统 -----
 function admin_cache_url($query = array())                { return route_url('admin_cache', [], $query); }

@@ -1142,7 +1142,6 @@ return array(
 	'admin_credits_event_be_commented'=>'답글 받음',
 	'admin_credits_event_favorite'=>'즐겨찾기',
 	'admin_credits_event_be_favorited'=>'즐겨찾기 받음',
-	'admin_credits_event_daily_login'=>'매일 첫 로그인',
 	'admin_credits_rule_override_format'=>'포인트/골드/RMB',
 
 	// 아이콘 미리보기

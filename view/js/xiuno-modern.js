@@ -612,6 +612,10 @@
 
     XN.url = function (u) {
         var on = window.url_rewrite_on || 0;
+        // admin 后台始终使用 ? 格式（url_rewrite_on=0）
+        if(window.location.pathname.indexOf('/admin') !== -1) {
+            on = 0;
+        }
         var result;
         if (u.indexOf('/') !== -1) {
             var pos = u.lastIndexOf('/');
@@ -632,8 +636,8 @@
         } else if (on === 4) {
             result = path + query + '.html';
         } else if (on === 5) {
-            // 自定义规则 fallback
-            result = path + query + '.htm';
+            // on=5 路径+html 风格：thread-create-1 → thread/create/1.html
+            result = path + query.replace(/-/g, '/') + '.html';
         } else {
             result = path + query;
         }

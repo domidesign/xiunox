@@ -23,12 +23,12 @@ function thread_status_labels() {
 	$labels = kv_get('thread_status_labels');
 	if(empty($labels)) {
 		$labels = array(
-			'top' => array('icon' => 'ti-pin-filled', 'text' => '', 'color' => '#0d6efd', 'text_color' => '#ffffff', 'rank' => 1),
-			'digest' => array('icon' => 'ti-star-filled', 'text' => '', 'color' => '#ffc107', 'text_color' => '#000000', 'rank' => 2),
-			'closed' => array('icon' => 'ti-lock', 'text' => '', 'color' => '#6c757d', 'text_color' => '#ffffff', 'rank' => 3),
-			'image' => array('icon' => 'ti-photo', 'text' => '', 'color' => '#198754', 'text_color' => '#ffffff', 'rank' => 4),
-			'video' => array('icon' => 'ti-video', 'text' => '', 'color' => '#0dcaf0', 'text_color' => '#000000', 'rank' => 5),
-			'attachment' => array('icon' => 'ti-paperclip', 'text' => '', 'color' => '#6c757d', 'text_color' => '#ffffff', 'rank' => 6),
+			'top' => array('icon' => 'ti ti-pin-filled', 'text' => '', 'color' => '#0d6efd', 'text_color' => '#ffffff', 'rank' => 1),
+			'digest' => array('icon' => 'ti ti-star-filled', 'text' => '', 'color' => '#ffc107', 'text_color' => '#000000', 'rank' => 2),
+			'closed' => array('icon' => 'ti ti-lock', 'text' => '', 'color' => '#6c757d', 'text_color' => '#ffffff', 'rank' => 3),
+			'image' => array('icon' => 'ti ti-photo', 'text' => '', 'color' => '#198754', 'text_color' => '#ffffff', 'rank' => 4),
+			'video' => array('icon' => 'ti ti-video', 'text' => '', 'color' => '#0dcaf0', 'text_color' => '#000000', 'rank' => 5),
+			'attachment' => array('icon' => 'ti ti-paperclip', 'text' => '', 'color' => '#6c757d', 'text_color' => '#ffffff', 'rank' => 6),
 		);
 	} else {
 		if(is_string($labels)) {

@@ -23,6 +23,11 @@ function paginateResult(array $list, int $page, int $pagesize, int $total): arra
     ];
 }
 
+// 获取当前认证用户
+$rankAuthToken = ApiAuthService::getBearerToken();
+$rankAuthUser = $rankAuthToken ? $apiAuth->validateAccessToken($rankAuthToken) : null;
+$rankIsAdmin = $rankAuthUser && in_array(intval($rankAuthUser['gid']), [1, 2], true);
+
 // 解析查询参数
 $period = isset($_GET['period']) ? $_GET['period'] : 'week';
 $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
@@ -52,7 +57,7 @@ switch ($method) {
         } else {
             switch ($segments[1]) {
                 case 'threads':
-                    $result = $rankService->getHotThreads($period, $page, $page_size);
+                    $result = $rankService->getHotThreads($period, $page, $page_size, $rankIsAdmin);
                     $paginated = paginateResult($result['list'], $page, $page_size, $result['total']);
                     if (!empty($fields)) {
                         $paginated['list'] = filterFields($paginated['list'], $fields);

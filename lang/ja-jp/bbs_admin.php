@@ -1142,7 +1142,6 @@ return array(
 	'admin_credits_event_be_commented'=>'返信された',
 	'admin_credits_event_favorite'=>'お気に入り',
 	'admin_credits_event_be_favorited'=>'お気に入りされた',
-	'admin_credits_event_daily_login'=>'毎日初回ログイン',
 	'admin_credits_rule_override_format'=>'ポイント/コイン/人民元',
 
 	// アイコンプレビュー

@@ -24,10 +24,10 @@ $sec_can_delete_thread = $allowdelete ? TRUE : ($first['allowdelete'] && $sec_al
 <!--{hook thread_start.htm}-->
 
 <div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
-	<div class="d-none d-lg-block col-lg-2">
+	<div class="d-none d-xl-block col-xl-2">
 		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
 	</div>
-	<div class="col-lg-7" style="min-width:0">
+	<div class="col-xl-7" style="min-width:0">
 
 		<?php if(isset($thread['audit_status']) && $thread['audit_status'] != 1 && (!empty($uid) && ($uid == $thread['uid'] || $gid > 0 && $gid < 5))): ?>
 		<div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
@@ -156,7 +156,7 @@ $sec_can_delete_thread = $allowdelete ? TRUE : ($first['allowdelete'] && $sec_al
 							</div>
 						</div>
 
-				<div class="message break-all py-3" isfirst="1" style="line-height:1.8;">
+				<div class="message aie-content break-all py-3" isfirst="1" style="line-height:1.8;">
 					<?php if($page == 1) { ?>
 
 					<!--{hook thread_message_before.htm}-->
@@ -451,7 +451,7 @@ $sec_can_delete_thread = $allowdelete ? TRUE : ($first['allowdelete'] && $sec_al
 		</div>
 
 	</div>
-	<div class="d-none d-lg-block col-lg-3">
+	<div class="d-none d-xl-block col-xl-3">
 		<!-- 发帖按钮 -->
 
 		<!-- 1. 作者信息卡片 -->
@@ -568,46 +568,43 @@ $sec_can_delete_thread = $allowdelete ? TRUE : ($first['allowdelete'] && $sec_al
 </div>
 	<!--{hook thread_end.htm}-->
 
-	<!-- 代码高亮：Prism 按需加载，放在 #body 内确保 htmx swap 时随内容一起注入 -->
-	<link href="<?php echo $conf['view_url'];?>vendor/prismjs/themes/prism-tomorrow.min.css" rel="stylesheet">
-	<script src="<?php echo $conf['view_url'];?>vendor/prismjs/prism.min.js"></script>
-	<script src="<?php echo $conf['view_url'];?>vendor/prismjs/plugins/prism-autoloader.min.js"></script>
+	<!-- 代码高亮：highlight.js 单文件版，无 autoloader 路径问题，与 AIEditor 输出的 hljs 格式兼容 -->
+	<link href="<?php echo $conf['view_url'];?>vendor/highlightjs/styles/atom-one-dark.min.css<?php echo $conf['static_version'];?>" rel="stylesheet">
+	<script src="<?php echo $conf['view_url'];?>vendor/highlightjs/highlight.min.js<?php echo $conf['static_version'];?>"></script>
+	<link href="<?php echo $conf['view_url'];?>js/aieditor/style.css<?php echo $conf['static_version'];?>" rel="stylesheet">
 	<script>
 		(function () {
-			// 仅首次全局/每次局部刷新标记
-			window.__prismReady = false;
-			let retryCount = 0;
-			const maxRetry = 20; // 最多等待 1s(20*50ms)，防止死循环
-
-			function doHighlight(container = document) {
-				// 只配置一次路径
-				if (Prism.plugins?.autoloader) {
-					Prism.plugins.autoloader.languages_path = '<?php echo $conf['view_url'];?>vendor/prismjs/components/';
-				}
-				// 限定容器，不要全局 all
-				Prism.highlightAllUnder(container);
-				window.__prismReady = true;
+			// 代码高亮：highlight.js 11.x 内部用 data-highlighted="yes" 标记，重复调用自动跳过
+			function doHighlight(container) {
+				if (typeof hljs === 'undefined') return;
+				(container || document).querySelectorAll('pre code:not([data-highlighted])').forEach(function (el) {
+					hljs.highlightElement(el);
+				});
 			}
 
-			if (typeof Prism !== 'undefined') {
-				doHighlight();
-				return;
+			// 主题切换：正文 .message 同步 aie-theme-dark class
+			function syncThemeClass() {
+				var isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+				document.querySelectorAll('div.message.aie-content').forEach(function (el) {
+					el.classList.toggle('aie-theme-dark', isDark);
+				});
 			}
 
-			// 带最大重试的轮询
-			function wait() {
-				retryCount++;
-				if (retryCount > maxRetry) return;
+			// 首次加载
+			doHighlight(document);
+			syncThemeClass();
 
-				if (typeof Prism !== 'undefined') {
-					if (!window.__prismReady) {
-						doHighlight();
-					}
-					return; // 找到就终止轮询
-				}
-				setTimeout(wait, 50);
-			}
-			wait();
+			// 监听主题属性变化
+			new MutationObserver(syncThemeClass).observe(
+				document.documentElement,
+				{ attributes: true, attributeFilter: ['data-bs-theme'] }
+			);
+
+			// htmx 局部刷新后：高亮 + 同步主题
+			document.addEventListener('htmx:afterSwap', function (evt) {
+				doHighlight(evt.target);
+				syncThemeClass();
+			});
 		})();
 	</script>
 
@@ -821,7 +818,6 @@ $sec_can_delete_thread = $allowdelete ? TRUE : ($first['allowdelete'] && $sec_al
 				$(this).parent().css('position', 'relative');
 				$(this).before('<button class="btn btn-sm btn-outline-light position-absolute top-0 end-0 m-1  copy-code" title="<?php echo lang('copy');?>"><i class="ti ti-clipboard"></i></button>');
 			});
-			if (typeof Prism !== 'undefined') Prism.highlightAll();
 		});
 		$(document).on('click', '.copy-code', function () {
 			var code = $(this).next('code').text();

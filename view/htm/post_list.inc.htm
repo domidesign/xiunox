@@ -90,7 +90,7 @@
 							// 用户中心回帖列表：截断长内容，移除引用块
 							$_msg = $_post['message_fmt'];
 								if(!empty($is_user_post_list)) {
-									$_msg = preg_replace('#<blockquote\s+class="blockquote">.*?</blockquote>#is', '', $_msg);
+									$_msg = preg_replace('#<blockquote\s+class="blockquote"[^>]*>.*?</blockquote>#is', '', $_msg);
 									$_msg = xn_substr(trim(strip_tags($_msg, '<br><p><a><strong><em><code><span>')), 0, 200);
 									if(xn_strlen($_msg) >= 200) $_msg .= '...';
 								}
@@ -126,7 +126,7 @@
 								<div class="d-flex align-items-center gap-2">
 									<!--{hook post_list_inc_quote_before.htm}-->
 								<?php if($allowpost && (empty($thread['closed']) || $gid <= 5) && (empty($thread['audit_status']) || $thread['audit_status'] == 1 || $gid <= 5)) { ?>
-								<?php $_reply_quote_content = trim(strip_tags(preg_replace('#<blockquote\s+class="blockquote">.*?</blockquote>#is', '', $_post['message_fmt']))); ?>
+								<?php $_reply_quote_content = trim(strip_tags(preg_replace('#<blockquote\s+class="blockquote"[^>]*>.*?</blockquote>#is', '', $_post['message_fmt']))); ?>
 								<a href="javascript:void(0)" data-tid="<?php echo $_post['tid'];?>" data-pid="<?php echo $_post['pid'];?>" data-username="<?php echo $_post['username'];?>" data-content="<?php echo esc_html(mb_substr($_reply_quote_content, 0, 80));?>" class="text-body-secondary post_reply"><i class="ti ti-message-2"></i> <?php echo lang('reply');?></a>
 								<?php } ?>
 								<!--{hook post_list_inc_quote_after.htm}-->
@@ -158,8 +158,8 @@
 								<?php endif; ?>
 
 								<?php if($gid > 0 && $gid < 5 && isset($_post['audit_status']) && $_post['audit_status'] != 1): ?>
-								<a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_post['pid'];?>" data-audit-status="1" data-mod-url="<?php echo mod_audit_post_url();?>"><i class="ti ti-check"></i> <?php echo lang('audit_approve');?></a>
-								<a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_post['pid'];?>" data-audit-status="2" data-mod-url="<?php echo mod_audit_post_url();?>"><i class="ti ti-x"></i> <?php echo lang('audit_reject');?></a>
+								<a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_post['pid'];?>" data-audit-status="1" data-mod-url="<?php echo mod_audit_post_url();?>"><i class="ti ti-check"></i>  </a>
+								 
 								<?php endif; ?>
 
 								<!--{hook post_list_inc_floor_before.htm}-->
@@ -215,12 +215,12 @@
 											<span class="text-body-secondary small"><?php echo lang('colon_separator'); ?></span>
 											<?php } ?>
 										</div>
-										<div class="small"><?php echo preg_replace('#<blockquote\s+class="blockquote">.*?</blockquote>#is', '', $_reply['message_fmt']);?></div>
+										<div class="small"><?php echo preg_replace('#<blockquote\s+class="blockquote"[^>]*>.*?</blockquote>#is', '', $_reply['message_fmt']);?></div>
 										<div class="d-flex justify-content-between align-items-center mt-1">
 											<span class="date text-body-secondary" style="font-size:0.75em"><?php echo $_reply['create_date_fmt'];?></span>
 											<div class="d-flex align-items-center gap-2">
 												<?php if($allowpost && (empty($thread['closed']) || $gid <= 5) && (empty($thread['audit_status']) || $thread['audit_status'] == 1 || $gid <= 5)) { ?>
-											<?php $_reply_quote_content2 = trim(strip_tags(preg_replace('#<blockquote\s+class="blockquote">.*?</blockquote>#is', '', $_reply['message_fmt']))); ?>
+											<?php $_reply_quote_content2 = trim(strip_tags(preg_replace('#<blockquote\s+class="blockquote"[^>]*>.*?</blockquote>#is', '', $_reply['message_fmt']))); ?>
 											<a href="javascript:void(0)" data-tid="<?php echo $_reply['tid'];?>" data-pid="<?php echo $_reply['pid'];?>" data-username="<?php echo $_reply['username'];?>" data-content="<?php echo esc_html(mb_substr($_reply_quote_content2, 0, 80));?>" class="text-body-secondary post_reply" style="font-size:0.8em"><i class="ti ti-message-2"></i> <?php echo lang('reply');?></a>
 											<?php } ?>
 												<?php
@@ -235,8 +235,8 @@
 											<?php } ?>
 											<!--{hook post_list_inc_reply_delete_after.htm}-->
 											<?php if($gid > 0 && $gid < 5 && isset($_reply['audit_status']) && $_reply['audit_status'] != 1): ?>
-												<a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_reply['pid'];?>" data-audit-status="1" data-mod-url="<?php echo mod_audit_post_url();?>" style="font-size:0.8em"><i class="ti ti-check"></i> <?php echo lang('audit_approve');?></a>
-												<a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_reply['pid'];?>" data-audit-status="2" data-mod-url="<?php echo mod_audit_post_url();?>" style="font-size:0.8em"><i class="ti ti-x"></i> <?php echo lang('audit_reject');?></a>
+												<a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_reply['pid'];?>" data-audit-status="1" data-mod-url="<?php echo mod_audit_post_url();?>" style="font-size:0.8em"><i class="ti ti-check"></i>  </a>
+												<!-- <a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_reply['pid'];?>" data-audit-status="2" data-mod-url="<?php echo mod_audit_post_url();?>" style="font-size:0.8em"><i class="ti ti-x"></i> <?php echo lang('audit_reject');?></a> -->
 												<?php endif; ?>
 												<?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] != 1)) && (empty($uid) || $gid > 5)) { ?>
 												<!-- 关闭/审核中/驳回帖子：隐藏点赞按钮 -->

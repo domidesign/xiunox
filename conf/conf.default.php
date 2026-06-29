@@ -134,8 +134,15 @@ return array (
 	'upload_driver' => 'local',              // 上传存储驱动(local/oss)
 
 	// API 设置
-	'api_enabled' => 1,
+	'api_enabled' => 0,
 	'api_token_expire' => 30,                // API 令牌过期天数
+	'api_default_appid' => '',               // 默认应用ID（升级时自动生成）
+	'api_default_secret' => '',              // 默认应用密钥（升级时自动生成）
+	'api_rate_limit' => 1,                   // API 速率限制开关
+	'api_rate_limit_max' => 60,              // 未认证用户每分钟请求上限
+	'api_rate_limit_window' => 60,           // 速率限制窗口（秒）
+	'api_log' => 0,                          // API 日志开关
+	'api_cors_origin' => '*',                // CORS 允许来源
 
 	// 编辑器
 	'editor' => 'aieditor',

@@ -108,6 +108,119 @@ if($action == 'doc') {
 	$db->delete('api_token', ['id' => $id]);
 	message(0, lang('delete_successfully'));
 
+} elseif($action == 'settings') {
+
+	// hook admin_api_settings_start.php
+
+	include APP_PATH . 'lib/ApiAuthService.php';
+	$apiAuthService = new ApiAuthService($db, $conf['api_token_expire'] ?? 30);
+
+	if($method == 'GET') {
+		$apps = $apiAuthService->listApps();
+		$api_enabled = intval($conf['api_enabled'] ?? 1);
+		$api_rate_limit = intval($conf['api_rate_limit'] ?? 1);
+		$api_rate_limit_max = intval($conf['api_rate_limit_max'] ?? 60);
+		$api_rate_limit_window = intval($conf['api_rate_limit_window'] ?? 60);
+		$api_cors_origin = $conf['api_cors_origin'] ?? '*';
+		$api_token_expire = intval($conf['api_token_expire'] ?? 30);
+		include _include(ADMIN_PATH.'view/htm/api_settings.htm');
+	}
+
+} elseif($action == 'app_create') {
+
+	CsrfService::check();
+	if($method != 'POST') message(-1, 'Method not allowed');
+
+	include APP_PATH . 'lib/ApiAuthService.php';
+	$apiAuthService = new ApiAuthService($db, $conf['api_token_expire'] ?? 30);
+
+	$name = param('name', '');
+	$description = param('description', '');
+	$scope = param('scope', 'readonly');
+	$rate_limit = param('rate_limit', 120);
+
+	if(empty($name)) message(-1, '应用名称不能为空');
+
+	$app = $apiAuthService->createApp($name, $description, $scope, $uid);
+	message(0, $app);
+
+} elseif($action == 'app_update') {
+
+	CsrfService::check();
+	if($method != 'POST') message(-1, 'Method not allowed');
+
+	include APP_PATH . 'lib/ApiAuthService.php';
+	$apiAuthService = new ApiAuthService($db, $conf['api_token_expire'] ?? 30);
+
+	$id = param('id', 0);
+	if($id <= 0) message(-1, '应用ID无效');
+
+	$data = [];
+	$name = param('name', '');
+	if(!empty($name)) $data['name'] = $name;
+	$description = param('description', '');
+	$data['description'] = $description;
+	$scope = param('scope', '');
+	if(!empty($scope)) $data['scope'] = $scope;
+	$is_enabled = param('is_enabled', -1);
+	if($is_enabled !== -1) $data['is_enabled'] = intval($is_enabled);
+	$rate_limit = param('rate_limit', -1);
+	if($rate_limit !== -1) $data['rate_limit'] = intval($rate_limit);
+
+	$ok = $apiAuthService->updateApp($id, $data);
+	$ok ? message(0, lang('update_successfully')) : message(-1, lang('update_failed'));
+
+} elseif($action == 'app_delete') {
+
+	CsrfService::check();
+	if($method != 'POST') message(-1, 'Method not allowed');
+
+	include APP_PATH . 'lib/ApiAuthService.php';
+	$apiAuthService = new ApiAuthService($db, $conf['api_token_expire'] ?? 30);
+
+	$id = param('id', 0);
+	if($id <= 0) message(-1, '应用ID无效');
+
+	$ok = $apiAuthService->deleteApp($id);
+	$ok ? message(0, lang('delete_successfully')) : message(-1, lang('delete_failed'));
+
+} elseif($action == 'app_reset_secret') {
+
+	CsrfService::check();
+	if($method != 'POST') message(-1, 'Method not allowed');
+
+	include APP_PATH . 'lib/ApiAuthService.php';
+	$apiAuthService = new ApiAuthService($db, $conf['api_token_expire'] ?? 30);
+
+	$id = param('id', 0);
+	if($id <= 0) message(-1, '应用ID无效');
+
+	$result = $apiAuthService->regenerateSecret($id);
+	$result ? message(0, $result) : message(-1, '重置失败');
+
+} elseif($action == 'settings_save') {
+
+	CsrfService::check();
+	if($method != 'POST') message(-1, 'Method not allowed');
+
+	$api_enabled = param('api_enabled', 1);
+	$api_rate_limit = param('api_rate_limit', 1);
+	$api_rate_limit_max = param('api_rate_limit_max', 60);
+	$api_rate_limit_window = param('api_rate_limit_window', 60);
+	$api_cors_origin = param('api_cors_origin', '*');
+	$api_token_expire = param('api_token_expire', 30);
+
+	$changes = [
+		'api_enabled' => intval($api_enabled),
+		'api_rate_limit' => intval($api_rate_limit),
+		'api_rate_limit_max' => intval($api_rate_limit_max),
+		'api_rate_limit_window' => intval($api_rate_limit_window),
+		'api_cors_origin' => $api_cors_origin,
+		'api_token_expire' => intval($api_token_expire),
+	];
+
+	$r = file_replace_var(APP_PATH . 'conf/conf.php', $changes);
+	$r ? message(0, lang('update_successfully')) : message(-1, lang('update_failed'));
 }
 
 // hook admin_api_end.php

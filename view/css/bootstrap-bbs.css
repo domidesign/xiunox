@@ -805,8 +805,8 @@ a.hover-bg-body-secondary:hover {
 
     .message,
     .post-content {
-        font-size: 1rem;
-        line-height: 1.8;
+        font-size: 14px;
+        line-height: 20px;
     }
 
     .message img,
@@ -1442,15 +1442,17 @@ a.hover-bg-body-secondary:hover {
  
 
 /* ===== 帖子详情页 (thread) ===== */
+.message.aie-content{
+        height: auto;
+    min-height: unset;
+    padding: 0;
+}
 .message p {
     margin: 0.5rem 0;
     line-height: 1.8;
 }
 
-.message pre {
-    border-radius: 0.5rem;
-}
-
+ 
 .message blockquote {
     border-left: 3px solid var(--bs-primary);
     padding: 0.5rem 1rem;
@@ -1528,28 +1530,9 @@ a.hover-bg-body-secondary:hover {
     line-height: 1.8;
 }
 
-.message code {
-    background: #f1f3f5;
-    padding: 0.15rem 0.4rem;
-    border-radius: 0.25rem;
-    font-size: 0.9em;
-    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-}
-
-.message pre {
-    background: #f6f6f7;
-    padding: 1rem;
-    overflow-x: auto;
-    margin: 0.8rem 0;
-    border: 1px solid #e9ecef;
-}
-
-.message pre code {
-    background: none;
-    padding: 0;
-    font-size: 0.85rem;
-    line-height: 1.6;
-}
+ 
+ 
+ 
 
 .message hr {
     border: none;
@@ -1563,18 +1546,8 @@ a.hover-bg-body-secondary:hover {
     margin: 0.8rem 0;
 }
 
-.message th {
-    background: #f1f3f5;
-    font-weight: 600;
-    text-align: left;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid #dee2e6;
-}
-
-.message td {
-    padding: 0.5rem 0.75rem;
-    border: 1px solid #dee2e6;
-}
+ 
+ 
 
 .message img {
     max-width: 100%;
@@ -1852,6 +1825,6 @@ div.message .mention:hover {
         gap: 0.5rem;
 }
     #notice-dropdown {
-        max-width: calc(100vw - 24px);
+        max-width: calc(100vw - 84px);
     }
 }

@@ -367,7 +367,7 @@ if($action == 'create') {
 						<span class="text-body-secondary small">：</span>
 						<?php } ?>
 					</div>
-					<div class="small"><?php echo preg_replace('#<blockquote\s+class="blockquote">.*?</blockquote>#is', '', $post['message_fmt']);?></div>
+					<div class="small"><?php echo preg_replace('#<blockquote\s+class="blockquote"[^>]*>.*?</blockquote>#is', '', $post['message_fmt']);?></div>
 					<div class="d-flex justify-content-between align-items-center mt-1">
 						<span class="date text-body-secondary" style="font-size:0.75em"><?php echo $post['create_date_fmt'];?></span>
 						<div class="d-flex align-items-center gap-2">

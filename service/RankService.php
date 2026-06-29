@@ -25,10 +25,10 @@ class RankService {
      * @param int $pageSize 每页数量
      * @return array 包含 list 和 total
      */
-    public function getHotThreads(string $period, int $page, int $pageSize): array {
+    public function getHotThreads(string $period, int $page, int $pageSize, bool $isAdmin = false): array {
         // 缓存 5 分钟：不同用户组看到的权限过滤结果不同，按 gid 区分缓存
         global $gid;
-        $cacheKey = 'rank_hot_threads_' . $period . '_' . intval($page) . '_' . intval($pageSize) . '_gid' . intval($gid);
+        $cacheKey = 'rank_hot_threads_' . $period . '_' . intval($page) . '_' . intval($pageSize) . '_gid' . intval($gid) . ($isAdmin ? '_admin' : '');
         $cached = function_exists('cache_get') ? cache_get($cacheKey) : NULL;
         if($cached !== NULL && $cached !== FALSE) return $cached;
 
@@ -45,10 +45,10 @@ class RankService {
 
         $offset = ($page - 1) * $pageSize;
 
-        // 查询列表，按 views+posts 综合得分降序，只显示审核通过的帖子（排除待审和驳回）
+        // 查询列表，按 views+posts 综合得分降序，非管理员只显示审核通过的帖子
         // 多查一些用于版块权限过滤后仍能填满 pageSize
         $fetchSize = $pageSize * 3;
-        $whereAudit = ($timeCond ? ' AND' : ' WHERE') . ' t.audit_status = 1';
+        $whereAudit = $isAdmin ? '' : (($timeCond ? ' AND' : ' WHERE') . ' t.audit_status = 1');
         $sql = "SELECT t.tid, t.subject AS title, t.uid, t.posts AS replies, t.views, t.last_date, t.fid, t.audit_status,
                        IFNULL(NULLIF(u.nickname,''), u.username) AS username
                 FROM {$pre}thread t
@@ -87,8 +87,9 @@ class RankService {
             ];
         }, $list);
 
-        // 查询总数（排除待审帖子）
-        $countSql = "SELECT COUNT(*) AS total FROM {$pre}thread t{$timeCond}{$whereAudit}";
+        // 查询总数（非管理员排除待审帖子）
+        $countWhereAudit = $isAdmin ? '' : $whereAudit;
+        $countSql = "SELECT COUNT(*) AS total FROM {$pre}thread t{$timeCond}{$countWhereAudit}";
         $countRow = $this->db->sqlFindOne($countSql);
         $total = !empty($countRow) ? intval($countRow['total']) : 0;
 

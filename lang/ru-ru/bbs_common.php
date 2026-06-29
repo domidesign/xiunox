@@ -649,7 +649,6 @@ return array(
 	'credits_event_be_commented'=>'Получен комментарий',
 	'credits_event_favorite'=>'В избранное',
 	'credits_event_be_favorited'=>'Добавлено в избранное другими',
-	'credits_event_daily_login'=>'Ежедневный первый вход',
 	'credits_event_follow'=>'Подписка',
 	'credits_event_be_followed'=>'Подписка на вас',
 	'credits_event_mention'=>'Упоминание другого',

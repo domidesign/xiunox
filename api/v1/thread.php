@@ -23,6 +23,14 @@ function paginateResult(array $list, int $page, int $pagesize, int $total): arra
     ];
 }
 
+// 获取当前认证用户
+$threadAuthToken = ApiAuthService::getBearerToken();
+$threadAuthUser = $threadAuthToken ? $apiAuth->validateAccessToken($threadAuthToken) : null;
+$threadIsAdmin = $threadAuthUser && in_array(intval($threadAuthUser['gid']), [1, 2], true);
+
+// 构建审核条件：非管理员只看 audit_status=1
+$threadAuditCond = $threadIsAdmin ? [] : ['audit_status' => 1];
+
 $seg1 = $segments[1] ?? '';
 $seg2 = $segments[2] ?? '';
 
@@ -37,7 +45,9 @@ if ($seg1 === 'hot') {
     if ($pagesize < 1) $pagesize = 1;
     $since = time() - $days * 86400;
 
-    $sql = "SELECT tid, fid, uid, subject, views, posts, likes, create_date FROM " . $db->table('thread') . " WHERE create_date >= {$since} AND closed = 0 ORDER BY views DESC, posts DESC LIMIT {$pagesize}";
+    // 非管理员增加审核过滤条件
+    $auditWhere = $threadIsAdmin ? '' : ' AND audit_status = 1';
+    $sql = "SELECT tid, fid, uid, subject, views, posts, likes, create_date FROM " . $db->table('thread') . " WHERE create_date >= {$since} AND closed = 0{$auditWhere} ORDER BY views DESC, posts DESC LIMIT {$pagesize}";
     $list = db_sql_find($sql);
 
     // 补充版块名称和用户信息
@@ -117,6 +127,10 @@ if ($seg1 === 'hot') {
             case 'GET':
                 $thread = $threadService->getThreadById($tid);
                 if (!$thread) {
+                    ApiResponse::notFound('Thread not found');
+                }
+                // 非管理员、非作者不可查看未审核通过的帖子
+                if (!$threadIsAdmin && intval($thread['audit_status']) !== 1 && intval($thread['uid']) !== intval($threadAuthUser['uid'] ?? 0)) {
                     ApiResponse::notFound('Thread not found');
                 }
                 $fields = $_GET['fields'] ?? '';
@@ -264,6 +278,13 @@ if ($seg1 === 'hot') {
             if (!empty($idsParam)) {
                 $ids = is_string($idsParam) ? array_map('trim', explode(',', $idsParam)) : $idsParam;
                 $list = $threadService->getThreadsByIds($ids);
+                // 非管理员过滤未审核通过的帖子
+                if (!$threadIsAdmin && !empty($list)) {
+                    $list = array_filter($list, function($t) use ($threadAuthUser) {
+                        return intval($t['audit_status']) === 1 || intval($t['uid']) === intval($threadAuthUser['uid'] ?? 0);
+                    });
+                    $list = array_values($list);
+                }
                 $result = ['list' => $list, 'total' => count($list)];
                 $fields = $_GET['fields'] ?? '';
                 if (!empty($fields)) {
@@ -275,7 +296,7 @@ if ($seg1 === 'hot') {
             $page = intval($_GET['page'] ?? 1);
             $pagesize = intval($_GET['pagesize'] ?? 20);
 
-            $cond = [];
+            $cond = array_merge([], $threadAuditCond);
 
             $fid = intval($_GET['fid'] ?? 0);
             if ($fid > 0) {
@@ -309,7 +330,8 @@ if ($seg1 === 'hot') {
             $total = $db->count('thread', $cond);
 
             if (!empty($searchSql)) {
-                $where = !empty($cond) ? ' AND ' . $searchSql : ' WHERE ' . $searchSql;
+                $auditSql = $threadIsAdmin ? '' : ' AND audit_status = 1';
+                $where = !empty($cond) ? ' AND ' . $searchSql . $auditSql : ' WHERE ' . $searchSql . $auditSql;
                 $list = $db->query("SELECT * FROM " . $db->table('thread') . $where . " ORDER BY tid DESC LIMIT " . (($page - 1) * $pagesize) . ",{$pagesize}")->fetchAll();
                 $totalRow = $db->query("SELECT COUNT(*) AS total FROM " . $db->table('thread') . $where)->fetchOne();
                 $total = $totalRow ? $totalRow['total'] : 0;

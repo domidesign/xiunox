@@ -38,7 +38,8 @@ $header['description'] = esc_attr($header['description'] ?? '');
 	<meta http-equiv="Cache-Control" content="no-siteapp"/>
 	
 	<meta name="csrf-token" content="<?php echo isset($header['csrf_token']) ? $header['csrf_token'] : '';?>">
-	
+	<meta name="api-app-id" content="<?php echo $conf['api_default_appid'] ?? ''; ?>">
+
 	<title><?php echo $header['title'];?></title>
 	
 	<!--{hook header_link_before.htm}-->

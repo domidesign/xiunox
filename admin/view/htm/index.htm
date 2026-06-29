@@ -4,7 +4,7 @@
 
 <?php if(!empty($install_dir_exists)) { ?>
 <div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
-    <i class="ti ti-alert-triangle fs-4 me-2"></i>
+    <i class="ti ti-alert-triangle fs-4 me-2 d-none d-md-block"></i>
     <div>
         <strong><?php echo lang('admin_security_warning');?>：</strong><?php echo str_replace('{dir}', '<code>install/</code>', lang('admin_install_dir_not_deleted'));?>
         <br><?php echo str_replace('{dir}', '<code>install/</code>', lang('admin_please_delete_dir'));?>（<?php echo lang('admin_path_label');?>：<code><?php echo APP_PATH.'install/'; ?></code>）

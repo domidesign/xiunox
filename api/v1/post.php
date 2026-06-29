@@ -23,6 +23,14 @@ function paginateResult(array $list, int $page, int $pagesize, int $total): arra
     ];
 }
 
+// 获取当前认证用户
+$postAuthToken = ApiAuthService::getBearerToken();
+$postAuthUser = $postAuthToken ? $apiAuth->validateAccessToken($postAuthToken) : null;
+$postIsAdmin = $postAuthUser && in_array(intval($postAuthUser['gid']), [1, 2], true);
+
+// 构建审核条件：非管理员只看 audit_status=1
+$postAuditCond = $postIsAdmin ? [] : ['audit_status' => 1];
+
 $id = intval($segments[1] ?? 0);
 $isBatch = ($segments[1] ?? '') === 'batch';
 
@@ -31,6 +39,10 @@ switch ($method) {
         if ($id > 0) {
             $post = $postService->getPostById($id);
             if (!$post) {
+                ApiResponse::notFound('Post not found');
+            }
+            // 非管理员、非作者不可查看未审核通过的回帖
+            if (!$postIsAdmin && intval($post['audit_status']) !== 1 && intval($post['uid']) !== intval($postAuthUser['uid'] ?? 0)) {
                 ApiResponse::notFound('Post not found');
             }
             $fields = $_GET['fields'] ?? '';
@@ -44,14 +56,17 @@ switch ($method) {
             $fields = $_GET['fields'] ?? '';
 
             if ($tid > 0) {
-                $list = $postService->getPostListByTid($tid, $page, $pagesize);
-                $total = $db->count('post', ['tid' => $tid]);
+                $cond = array_merge(['tid' => $tid], $postAuditCond);
+                $list = $db->find('post', $cond, ['pid' => 1], $page, $pagesize, 'pid');
+                $total = $db->count('post', $cond);
             } elseif ($uid > 0) {
-                $list = $postService->getPostListByUid($uid, $page, $pagesize);
-                $total = $db->count('post', ['uid' => $uid]);
+                $cond = array_merge(['uid' => $uid], $postAuditCond);
+                $list = $db->find('post', $cond, [], $page, $pagesize, 'pid');
+                $total = $db->count('post', $cond);
             } else {
-                $list = $postService->getPostList($page, $pagesize);
-                $total = $db->count('post');
+                $cond = array_merge([], $postAuditCond);
+                $list = $db->find('post', $cond, [], $page, $pagesize, 'pid');
+                $total = $db->count('post', $cond);
             }
 
             if (!empty($fields)) {

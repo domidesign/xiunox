@@ -717,7 +717,6 @@ return array(
 	'credits_event_be_commented'=>'댓글 받음',
 	'credits_event_favorite'=>'즐겨찾기',
 	'credits_event_be_favorited'=>'즐겨찾기 됨',
-	'credits_event_daily_login'=>'매일 첫 로그인',
 
 	// 기타 누락 키
 	'no_more_data_tip'=>'더 이상 데이터가 없습니다',

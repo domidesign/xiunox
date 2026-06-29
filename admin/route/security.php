@@ -234,7 +234,7 @@ if($action == '' || $action == 'post_limit') {
             admin_log_create('security_badword', 'security', '', '从文件导入敏感词 ' . $count . ' 个');
             message(0, '成功导入 ' . $count . ' 个敏感词');
         } elseif($word_action == 'clear') {
-            $r = SensitiveWordFilter::clear_all();
+            $r = SensitiveWordFilter::clear_words();
             if($r) {
                 admin_log_create('security_badword', 'security', '', '清空敏感词库');
                 message(0, '已清空');

@@ -696,6 +696,14 @@ if(empty($action)) {
 		$credits_rules = CreditsRuleService::getAllGlobalRules();
 	}
 
+	// 前端只显示已启用的规则
+	if(!empty($credits_rules)) {
+		$credits_rules = array_filter($credits_rules, function($rule) {
+			return !empty($rule['enabled']);
+		});
+		$credits_rules = array_values($credits_rules);
+	}
+
 	// htmx 请求只返回规则表格片段
 	if(is_htmx_request()) {
 		include _include(APP_PATH.'view/htm/credits_rules_table.inc.htm');

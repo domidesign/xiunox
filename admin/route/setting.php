@@ -593,7 +593,6 @@ if($action == 'base') {
 		// hook admin_setting_permalink_get_start.php
 
 		$url_rewrite_on = isset($conf['url_rewrite_on']) ? intval($conf['url_rewrite_on']) : 0;
-		$url_rewrite_custom = isset($conf['url_rewrite_custom']) ? $conf['url_rewrite_custom'] : '/{controller}-{action}-{id}.html';
 
 		// 生成各风格的示例 URL
 		$example_thread_url = url('thread-123.htm');
@@ -627,6 +626,7 @@ if($action == 'base') {
 		// Nginx rewrite 规则
 		// 宝塔面板用户：复制"宝塔伪静态"内容到网站设置→伪静态
 		// 自建 Nginx 用户：复制"完整配置"内容到 nginx.conf 的 server 块内
+		// 注意：后台 URL 始终使用 ? 格式（./?setting-permalink.htm），不需要伪静态规则
 		$nginx_rules = '# ========== 宝塔面板 / 伪静态配置 ==========
 # 复制以下内容到 宝塔面板→网站→设置→伪静态
 # 注意：不要包含 server 块，只放 location 指令
@@ -636,12 +636,7 @@ if($action == 'base') {
 # 导致 Xiuno 自定义错误页无法显示，此行覆盖宝塔默认配置
 error_page 404 =404 /index.php;
 
-# 后台伪静态（必须放在前台之前）
-location /admin/ {
-    try_files $uri $uri/ /admin/index.php$is_args$args;
-}
-
-# 前台伪静态
+# 前台伪静态（后台使用 ? 格式，无需伪静态规则）
 location / {
     try_files $uri $uri/ /index.php$is_args$args;
 }
@@ -650,29 +645,16 @@ location / {
 # 以下为完整 server 块参考，自建 Nginx 用户按需修改
 # 宝塔面板用户请忽略此部分
 
-# HTTP 强制跳转 HTTPS
+# 自建 Nginx 完整 server 块参考（自建用户按需修改，宝塔用户忽略）
 #server {
 #    listen 80;
 #    server_name your-domain.com;
-#    return 301 https://$host$request_uri;
-#}
 #
-#server {
-#    listen 443 ssl http2;
-#    server_name your-domain.com;
-#
-#    ssl_certificate     /path/to/cert.pem;
-#    ssl_certificate_key /path/to/key.pem;
-#
-#    # HSTS
-#    add_header Strict-Transport-Security "max-age=31536000" always;
+#    # 如需 HTTPS，请自行配置 SSL 证书并添加 HTTP→HTTPS 跳转
+#    # 建议在宝塔面板或其他管理工具中一键开启 HTTPS
 #
 #    root /path/to/xiuno;
 #    index index.php index.html;
-#
-#    location /admin/ {
-#        try_files $uri $uri/ /admin/index.php$is_args$args;
-#    }
 #
 #    location / {
 #        try_files $uri $uri/ /index.php$is_args$args;
@@ -695,19 +677,18 @@ location / {
 #    }
 #}';
 
-		// Apache rewrite 规则（HTTPS 优化）
-		// 根目录 .htaccess 和 admin/.htaccess 已内置，Apache 用户无需额外配置
+		// Apache rewrite 规则
+		// 根目录 .htaccess 已内置，Apache 用户无需额外配置
+		// 后台 URL 使用 ? 格式，不需要伪静态规则
 		$apache_rules = '# 根目录 .htaccess（已内置，无需手动配置）
 RewriteEngine On
 
-# HTTP 强制跳转 HTTPS
-RewriteCond %{HTTPS} off
-RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# 如需 HTTPS 强制跳转，请在 Web 服务器层面配置
+# 或取消以下注释启用：
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-# HSTS 安全头（可选）
-Header always set Strict-Transport-Security "max-age=31536000"
-
-# 伪静态核心规则
+# 伪静态核心规则（仅前台需要，后台使用 ? 格式）
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.php [L,QSA]
@@ -715,14 +696,7 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 # 禁止访问隐藏文件
 <FilesMatch "^\.">
     Deny from all
-</FilesMatch>
-
-# ============================================
-# admin/.htaccess（已内置，无需手动配置）
-# ============================================
-# 后台伪静态规则与根目录相同，但转发到 admin/index.php
-# RewriteRule ^(.*)$ index.php [L,QSA]
-# 此文件已自动创建在 admin/ 目录下';
+</FilesMatch>';
 
 		$header['title'] = lang('admin_setting_permalink');
 		$header['mobile_title'] = lang('admin_setting_permalink');
@@ -736,21 +710,10 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 		CsrfService::check();
 
 		$url_rewrite_on = param('url_rewrite_on', 0);
-		$url_rewrite_custom = param('url_rewrite_custom', '', FALSE);
 		$skip_detect = param('skip_detect', 0);
 		// 只允许 0, 1, 3, 4, 5
 		if(!in_array($url_rewrite_on, array(0, 1, 3, 4, 5))) {
 			$url_rewrite_on = 0;
-		}
-		// 自定义格式验证
-		if($url_rewrite_on == 5) {
-			if(empty($url_rewrite_custom) || strpos($url_rewrite_custom, '{controller}') === FALSE) {
-				message(-1, lang('admin_permalink_custom_invalid'));
-			}
-			// 确保以 / 开头
-			if(substr($url_rewrite_custom, 0, 1) !== '/') {
-				$url_rewrite_custom = '/' . $url_rewrite_custom;
-			}
 		}
 
 		// hook admin_setting_permalink_post_start.php
@@ -760,9 +723,6 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 		// 保存新设置
 		$replace = array();
 		$replace['url_rewrite_on'] = $url_rewrite_on;
-		if($url_rewrite_on == 5) {
-			$replace['url_rewrite_custom'] = $url_rewrite_custom;
-		}
 		file_replace_var(APP_PATH.'conf/conf.php', $replace);
 
 		// 如果切换到需要 rewrite 的模式，检测 rewrite 是否生效
@@ -786,18 +746,8 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 			} elseif($url_rewrite_on == 4) {
 				$test_url = $base_url . 'index.html';
 			} elseif($url_rewrite_on == 5) {
-				// 自定义格式：用 controller=index 生成测试 URL
-				$custom = isset($conf['url_rewrite_custom']) ? $conf['url_rewrite_custom'] : $url_rewrite_custom;
-				$test_url = $base_url . ltrim(str_replace(
-					array('{controller}', '{action}', '{id}', '{page}'),
-					array('index', '', '', ''),
-					$custom
-				), '/');
-				// 清理空标签和多余分隔符
-				$test_url = preg_replace('#\{[\w]+\}#', '', $test_url);
-				$test_url = preg_replace('#--+#', '-', $test_url);
-				$test_url = preg_replace('#-\.#', '.', $test_url);
-				$test_url = preg_replace('#/-#', '/', $test_url);
+				// 路径+html 格式：index → /index.html
+				$test_url = $base_url . 'index.html';
 			}
 
 			// 发起 HTTP 请求检测（支持 HTTPS）

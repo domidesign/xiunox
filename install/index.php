@@ -250,6 +250,18 @@ if(empty($action)) {
 		$replace['auth_key'] = xn_rand(64);
 		$replace['attach_sign_key'] = bin2hex(random_bytes(16));
 		$replace['installed'] = 1;
+
+		// 创建默认 API 应用
+		$default_appid = bin2hex(random_bytes(8));
+		$default_secret = bin2hex(random_bytes(16));
+		$default_app_scope = 'full';
+		$default_app_time = $time;
+		$safe_appid = addslashes($default_appid);
+		$safe_secret = addslashes($default_secret);
+		db_exec("INSERT INTO `bbs_api_app` (appid, secret, name, description, scope, is_enabled, uid, rate_limit, created_at) VALUES ('$safe_appid', '$safe_secret', '默认应用', '系统自动创建的默认应用，用于前台页面', '$default_app_scope', 1, 0, 0, '$default_app_time')");
+		$replace['api_default_appid'] = $default_appid;
+		$replace['api_default_secret'] = $default_secret;
+
 		file_replace_var(APP_PATH.'conf/conf.php', $replace);
 
 		// 保存默认缓存配置（直接写入 kv 表，避免依赖 setting_set）
@@ -267,6 +279,17 @@ if(empty($action)) {
 		}
 		$setting['cache_config'] = $cache_config;
 		db_replace('kv', array('k'=>'setting', 'v'=>xn_json_encode($setting)));
+
+		// 写入帖子状态标签默认配置（图标使用 ti ti-xxx 完整格式，与 TablerIconPicker 返回值对齐）
+		$status_labels = array(
+			'top' => array('icon' => 'ti ti-pin-filled', 'text' => '', 'color' => '#0d6efd', 'text_color' => '#ffffff', 'rank' => 1),
+			'digest' => array('icon' => 'ti ti-star-filled', 'text' => '', 'color' => '#ffc107', 'text_color' => '#000000', 'rank' => 2),
+			'closed' => array('icon' => 'ti ti-lock', 'text' => '', 'color' => '#6c757d', 'text_color' => '#ffffff', 'rank' => 3),
+			'image' => array('icon' => 'ti ti-photo', 'text' => '', 'color' => '#198754', 'text_color' => '#ffffff', 'rank' => 4),
+			'video' => array('icon' => 'ti ti-video', 'text' => '', 'color' => '#0dcaf0', 'text_color' => '#000000', 'rank' => 5),
+			'attachment' => array('icon' => 'ti ti-paperclip', 'text' => '', 'color' => '#6c757d', 'text_color' => '#ffffff', 'rank' => 6),
+		);
+		db_replace('kv', array('k'=>'thread_status_labels', 'v'=>xn_json_encode($status_labels)));
 
 		// 处理语言包
 		group_update(0, array('name'=>lang('group_0')));

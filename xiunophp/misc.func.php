@@ -136,10 +136,11 @@ function param_force($val, $defval, $htmlspecialchars = TRUE, $addslashes = FALS
 					$v = $defval;
 				} else {
 					if(is_string($defval)) {
-						//$v = trim($v);
-						$addslashes AND !$get_magic_quotes_gpc && $v = addslashes((string)$v);
-						!$addslashes AND $get_magic_quotes_gpc && $v = stripslashes($v);
-						$htmlspecialchars AND $v = htmlspecialchars($v);
+					//$v = trim($v);
+					$v = (string)$v;
+					$addslashes AND !$get_magic_quotes_gpc && $v = addslashes($v);
+					!$addslashes AND $get_magic_quotes_gpc && $v = stripslashes($v);
+					$htmlspecialchars AND $v = htmlspecialchars($v);
 					} else {
 						$v = intval($v);
 					}
@@ -154,7 +155,8 @@ function param_force($val, $defval, $htmlspecialchars = TRUE, $addslashes = FALS
 		} else {
 			if(is_string($defval)) {
 				//$val = trim($val);
-				$addslashes AND !$get_magic_quotes_gpc && $val = addslashes((string)$val);
+				$val = (string)$val;
+				$addslashes AND !$get_magic_quotes_gpc && $val = addslashes($val);
 				!$addslashes AND $get_magic_quotes_gpc && $val = stripslashes($val);
 				$htmlspecialchars AND $val = htmlspecialchars($val);
 			} else {
@@ -1114,11 +1116,12 @@ function xn_url_parse($request_url) {
 		$behind = '';
 	}
 	
+	// 兼容微信等应用复制 URL 自动追加等号：index.htm= → index
+	// 必须在后缀检查之前执行，否则 .htm= 无法被正确识别
+	$front = rtrim($front, '=');
 	if(substr($front, -4) == '.htm') $front = substr($front, 0, -4);
 	// 兼容 .html 后缀风格（url_rewrite_on=4）
 	if(substr($front, -5) == '.html') $front = substr($front, 0, -5);
-	// 兼容微信等应用复制 URL 自动追加等号：index.htm= → index
-	$front = rtrim($front, '=');
 	$r = $front ? (array)explode('-', $front) : array();
 	
 	// 将后半部分合并
@@ -1145,19 +1148,26 @@ function xn_url_parse($request_url) {
 	// 是否开启 /user/login 这种格式的 URL
 	// admin 后台不使用路径风格解析，避免路由参数被覆盖
 	$conf = _SERVER('conf');
-	$is_admin_path = (!empty($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/admin') === 0);
+	// 用 SCRIPT_NAME 检测 admin，兼容子目录安装（/demo/admin/）
+	$_script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/index.php';
+	$is_admin_path = (strpos($_script_name, '/admin') !== false);
 	// 检测 URL 是否以 .html/.htm 结尾（非路径风格的旧格式 URL）
 	$_uri_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 	$_has_html_suffix = ($_uri_path && (substr($_uri_path, -5) === '.html' || substr($_uri_path, -4) === '.htm'));
-	if(!empty($conf['url_rewrite_on']) && $conf['url_rewrite_on'] == 3 && !$is_admin_path && !$_has_html_suffix) {
-		$r = xn_url_parse_path_format($_SERVER['REQUEST_URI']) + $r;
+	// 检测是否为真正的路径风格格式：路径中除根 / 外还包含 / 分隔符
+	// 如 /forum/4 是路径风格，/forum-4 是旧格式（用 - 连接）
+	$_script_dir = dirname($_script_name);
+	if($_script_dir === '\\' || $_script_dir === '.') $_script_dir = '/';
+	$_uri_rel = $_uri_path;
+	if($_script_dir !== '/' && strpos($_uri_path, $_script_dir) === 0) {
+		$_uri_rel = substr($_uri_path, strlen($_script_dir));
 	}
-	// 自定义格式解析（url_rewrite_on=5）
-	if(!empty($conf['url_rewrite_on']) && $conf['url_rewrite_on'] == 5 && !$is_admin_path && !$_has_html_suffix) {
-		$custom_r = xn_url_parse_custom_format($_SERVER['REQUEST_URI'], $conf);
-		if($custom_r) {
-			$r = $custom_r + $r;
-		}
+	$_is_path_format = (substr_count(trim($_uri_rel, '/'), '/') >= 1);
+	// url_rewrite_on=2（?分隔路径风格）、3（路径风格）、5（路径+html）都需要路径格式解析
+	// 移除 !$_has_html_suffix 限制：url_rewrite_on=5 的 URL 带 .html 后缀，但 xn_url_parse_path_format 内部会处理
+	$_url_rw = intval(isset($conf['url_rewrite_on']) ? $conf['url_rewrite_on'] : 0);
+	if(!empty($_url_rw) && ($_url_rw == 2 || $_url_rw == 3 || $_url_rw == 5) && !$is_admin_path && $_is_path_format) {
+		$r = xn_url_parse_path_format($_SERVER['REQUEST_URI']) + $r;
 	}
 
 	isset($r[0]) AND $r[0] == 'index.php' AND $r[0] = 'index';
@@ -1168,7 +1178,8 @@ function xn_url_parse($request_url) {
 function xn_url_add_arg($url, $k, $v) {
 	$pos = strpos($url, '.htm');
 	if($pos === FALSE) {
-		return strpos($url, '?') === FALSE ? $url."&$k=$v" :  $url."?$k=$v";
+		// 无 ? 时用 ? 拼接，有 ? 时用 & 拼接
+		return strpos($url, '?') === FALSE ? $url."?$k=$v" : $url."&$k=$v";
 	} else {
 		return substr($url, 0, $pos).'-'.$v.substr($url, $pos);
 	}
@@ -1185,6 +1196,8 @@ function xn_url_add_arg($url, $k, $v) {
  */
 function xn_url_parse_path_format($s) {
 	$get = array();
+	// 兼容微信等应用复制 URL 自动追加等号
+	$s = rtrim($s, '=');
 	substr($s, 0, 1) == '/' AND $s = substr($s, 1);
 	// 兼容 .html/.htm 后缀：去掉后缀再解析路径
 	// 如 /user-21.html → user/21，/my.html → my
@@ -1207,9 +1220,14 @@ function xn_url_parse_path_format($s) {
  * 自定义伪静态格式反向解析
  * 将自定义格式的 URL 解析为路由参数数组
  *
- * @param string $request_uri 请求 URI，如 /thread/create/1.html
+ * 限制使用范围：仅支持 {controller} 和 {id} 两个标签，{action} 已废弃
+ * 智能映射 id 到正确位置：
+ *   - 格式含 {action}（兼容旧配置）：id 放在 r[2]
+ *   - 格式不含 {action}（推荐）：id 放在 r[1]（2 段 URL）或 r[2]（3 段 URL 由 url() 生成时已用末段）
+ *
+ * @param string $request_uri 请求 URI，如 /thread/1.html
  * @param array $conf 配置数组
- * @return array 路由参数，如 [0 => 'thread', 1 => 'create', 2 => '1']
+ * @return array 路由参数，如 [0 => 'thread', 1 => '1']
  */
 function xn_url_parse_custom_format($request_uri, $conf) {
 	$custom = isset($conf['url_rewrite_custom']) ? $conf['url_rewrite_custom'] : '';
@@ -1221,16 +1239,23 @@ function xn_url_parse_custom_format($request_uri, $conf) {
 		$request_uri = substr($request_uri, 0, $pos);
 	}
 
+	// 兼容子目录安装：去除安装目录前缀后再匹配
+	$_script_dir = dirname(isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/index.php');
+	if($_script_dir === '\\' || $_script_dir === '.') $_script_dir = '/';
+	if($_script_dir !== '/' && strpos($request_uri, $_script_dir) === 0) {
+		$request_uri = substr($request_uri, strlen($_script_dir) - 1);
+	}
+
 	// 将自定义格式转为正则表达式
 	// {controller} → (?P<controller>[a-zA-Z_][a-zA-Z0-9_]*)
-	// {action} → (?P<action>[a-zA-Z_][a-zA-Z0-9_]*)
-	// {id} → (?P<id>[0-9]+)
+	// {action} → (?P<action>[a-zA-Z0-9_]+) 兼容旧配置，已不推荐使用
+	// {id} → (?P<id>[a-zA-Z0-9_]+) 放宽以支持字符串（如 user-login 中的 login）
 	// {page} → (?P<page>[0-9]+)
 	$pattern = $custom;
 	$pattern = preg_quote($pattern, '#');
 	$pattern = str_replace(preg_quote('{controller}', '#'), '(?P<controller>[a-zA-Z_][a-zA-Z0-9_]*)', $pattern);
-	$pattern = str_replace(preg_quote('{action}', '#'), '(?P<action>[a-zA-Z_][a-zA-Z0-9_]*)', $pattern);
-	$pattern = str_replace(preg_quote('{id}', '#'), '(?P<id>[0-9]+)', $pattern);
+	$pattern = str_replace(preg_quote('{action}', '#'), '(?P<action>[a-zA-Z0-9_]+)', $pattern);
+	$pattern = str_replace(preg_quote('{id}', '#'), '(?P<id>[a-zA-Z0-9_]+)', $pattern);
 	$pattern = str_replace(preg_quote('{page}', '#'), '(?P<page>[0-9]+)', $pattern);
 	$pattern = '#' . $pattern . '$#';
 
@@ -1239,15 +1264,20 @@ function xn_url_parse_custom_format($request_uri, $conf) {
 	}
 
 	// 将匹配结果转为路由参数数组
+	// 根据 {action} 是否存在智能映射 id 位置，保证生成/解析双向一致
+	$_has_action_tag = (strpos($custom, '{action}') !== false);
 	$r = array();
 	if(!empty($matches['controller'])) $r[0] = $matches['controller'];
-	if(!empty($matches['action'])) $r[1] = $matches['action'];
-	if(!empty($matches['id'])) $r[2] = $matches['id'];
-	if(!empty($matches['page'])) {
-		// page 可能是第 2 或第 3 个参数
-		if(!isset($r[2])) {
-			$r[2] = $matches['page'];
-		}
+	if($_has_action_tag) {
+		// 兼容旧格式：{controller}-{action}-{id}.html → r[1]=action, r[2]=id
+		if(!empty($matches['action'])) $r[1] = $matches['action'];
+		if(!empty($matches['id'])) $r[2] = $matches['id'];
+		if(!empty($matches['page']) && !isset($r[2])) $r[2] = $matches['page'];
+	} else {
+		// 推荐格式：{controller}-{id}.html → r[1]=id
+		// 因为 url() 生成 2 段 URL（如 user-login）时把第二段映射到 {id}
+		if(!empty($matches['id'])) $r[1] = $matches['id'];
+		if(!empty($matches['page']) && !isset($r[1])) $r[1] = $matches['page'];
 	}
 
 	return $r;
@@ -1464,6 +1494,18 @@ function http_404() {
 }
 
 // 无权限访问
+function http_status($code) {
+	$statuses = array(
+		400 => 'Bad Request',
+		403 => 'Forbidden',
+		404 => 'Not Found',
+		500 => 'Internal Server Error',
+	);
+	$msg = isset($statuses[$code]) ? $statuses[$code] : 'Unknown';
+	header('HTTP/1.1 '.$code.' '.$msg);
+	header('Status: '.$code.' '.$msg);
+}
+
 function http_403() {
 	if(function_exists('error_page')) {
 		error_page(403);
@@ -1484,7 +1526,7 @@ function http_location($url) {
 function http_referer() {
 	$len = strlen(http_url_path());
 	$referer = param('referer');
-	empty($referer) AND $referer = _SERVER('HTTP_REFERER');
+	empty($referer) AND $referer = (string)_SERVER('HTTP_REFERER');
 	if(empty($referer)) $referer = '';
 	$referer2 = substr($referer, $len);
 	if(strpos($referer, url('user-login')) !== FALSE || strpos($referer, url('user-logout')) !== FALSE || strpos($referer, url('user-create')) !== FALSE) {

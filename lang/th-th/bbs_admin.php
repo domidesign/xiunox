@@ -1102,7 +1102,6 @@ return array(
 	'admin_credits_event_be_commented'=>'ถูกแสดงความคิดเห็น',
 	'admin_credits_event_favorite'=>'บันทึก',
 	'admin_credits_event_be_favorited'=>'ถูกบันทึก',
-	'admin_credits_event_daily_login'=>'เข้าสู่ระบบครั้งแรกประจำวัน',
 	'admin_credits_event_unlike'=>'ยกเลิกถูกใจ',
 	'admin_credits_event_unfavorite'=>'ยกเลิกบันทึก',
 	'admin_credits_rule_override_format'=>'เครดิต/เหรียญ/RMB',

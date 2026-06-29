@@ -649,7 +649,6 @@ return array(
 	'credits_event_be_commented'=>'ถูกแสดงความคิดเห็น',
 	'credits_event_favorite'=>'บันทึก',
 	'credits_event_be_favorited'=>'ถูกบันทึก',
-	'credits_event_daily_login'=>'เข้าสู่ระบบครั้งแรกประจำวัน',
 	'credits_event_follow'=>'ติดตาม',
 	'credits_event_be_followed'=>'ถูกติดตาม',
 	'credits_event_mention'=>'กล่าวถึงผู้อื่น',

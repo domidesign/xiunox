@@ -159,9 +159,19 @@ if(!empty($conf['url_rewrite_on'])) {
     // 如 url_rewrite_on=3（路径风格）时，访问 /user-21.html 应跳转到 /user/21
     // 如 url_rewrite_on=4（.html后缀）时，访问 /user/21 应跳转到 /user-21.html
     // 注意：admin 后台不参与跨格式重定向
-    $is_admin_request = (!empty($request_uri) && strpos($request_uri, '/admin') === 0);
+    // 用 SCRIPT_NAME 检测 admin，兼容子目录安装
+    $_script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/index.php';
+    $is_admin_request = (strpos($_script_name, '/admin') !== false);
     $uri_path = parse_url($request_uri, PHP_URL_PATH);
     $has_html_suffix = ($uri_path && (substr($uri_path, -5) === '.html' || substr($uri_path, -4) === '.htm'));
+    // 计算去掉安装前缀后的相对路径，用于判断是否为路径风格
+    $_script_dir = dirname($_script_name);
+    if($_script_dir === '\\' || $_script_dir === '.') $_script_dir = '/';
+    $uri_rel = $uri_path;
+    if($_script_dir !== '/' && strpos($uri_path, $_script_dir) === 0) {
+        $uri_rel = substr($uri_path, strlen($_script_dir));
+    }
+    $is_path_format_redirect = (substr_count(trim($uri_rel, '/'), '/') >= 1);
     $path_base = http_url_path();
     $need_redirect = false;
     $redirect_url = '';
@@ -206,6 +216,51 @@ if(!empty($conf['url_rewrite_on'])) {
             if($qs) $redirect_url .= '?' . $qs;
             $need_redirect = true;
         }
+    } elseif(!$is_admin_request && $conf['url_rewrite_on'] == 1 && !$has_html_suffix && $is_path_format_redirect) {
+        // .htm 格式，但 URL 是路径风格 → 跳转到 .htm 格式
+        // /user/21 → /user-21.htm, /my → /my.htm
+        $clean = trim($uri_rel, '/');
+        $parts = explode('/', $clean);
+        $controller = $parts[0] ?? '';
+        if($controller && preg_match('#^[a-zA-Z_][a-zA-Z0-9_]*$#', $controller)) {
+            $redirect_url = '/' . implode('-', $parts) . '.htm';
+            $qs = parse_url($request_uri, PHP_URL_QUERY);
+            if($qs) $redirect_url .= '?' . $qs;
+            $need_redirect = true;
+        }
+    } elseif(!$is_admin_request && $conf['url_rewrite_on'] == 5 && !$has_html_suffix) {
+        // 路径+html 格式，但 URL 没有 .html 后缀（路径风格 /user/1 或 .htm 格式 /user-1.htm）
+        // → 跳转到 /user/1.html
+        // /user/1 → user-1 → url('user-1') → /user/1.html
+        // /user-1.htm → user-1 → url('user-1') → /user/1.html
+        $clean = trim($uri_rel, '/');
+        // 去掉可能的 .htm 后缀
+        $clean = preg_replace('#\.htm$#', '', $clean);
+        $parts = explode('/', $clean);
+        $controller = $parts[0] ?? '';
+        if($controller && preg_match('#^[a-zA-Z_][a-zA-Z0-9_]*$#', $controller)) {
+            // 将路径风格参数转为 - 连接格式，再用 url() 生成
+            $url_query = implode('-', $parts);
+            $redirect_url = url($url_query);
+            $qs = parse_url($request_uri, PHP_URL_QUERY);
+            if($qs) $redirect_url .= (strpos($redirect_url, '?') === FALSE ? '?' : '&') . $qs;
+            $need_redirect = true;
+        }
+    } elseif(!$is_admin_request && $conf['url_rewrite_on'] == 5 && $has_html_suffix && !$is_path_format_redirect) {
+        // 路径+html 格式，但 URL 是 .html 后缀的非路径风格（如 /user-1.html，url_rewrite_on=4 的格式）
+        // → 跳转到 /user/1.html
+        // /user-1.html → user-1 → url('user-1') → /user/1.html
+        $clean = trim($uri_rel, '/');
+        $clean = preg_replace('#\.html=?$#', '', $clean);
+        $parts = explode('-', $clean);
+        $controller = $parts[0] ?? '';
+        if($controller && preg_match('#^[a-zA-Z_][a-zA-Z0-9_]*$#', $controller)) {
+            $url_query = implode('-', $parts);
+            $redirect_url = url($url_query);
+            $qs = parse_url($request_uri, PHP_URL_QUERY);
+            if($qs) $redirect_url .= (strpos($redirect_url, '?') === FALSE ? '?' : '&') . $qs;
+            $need_redirect = true;
+        }
     }
 
     if($need_redirect && $redirect_url && $redirect_url !== $request_uri) {
@@ -220,7 +275,8 @@ if(!empty($conf['url_rewrite_on'])) {
 // 解决问题：1.末尾带斜杠显示首页 2.垃圾前缀+有效路由显示对应页面 3..html后加字符参数错误
 if(!empty($conf['url_rewrite_on'])) {
     $strict_request_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
-    if($strict_request_uri && strpos($strict_request_uri, '/api/v1/') !== 0 && strpos($strict_request_uri, '/admin') !== 0) {
+    $_strict_is_admin = (strpos($_script_name, '/admin') !== false);
+    if($strict_request_uri && strpos($strict_request_uri, '/api/v1/') !== 0 && !$_strict_is_admin) {
         $strict_uri_path = parse_url($strict_request_uri, PHP_URL_PATH);
         if($strict_uri_path && $strict_uri_path !== '/') {
             // 获取安装前缀（根目录为 '/'，子目录为 '/demo'）

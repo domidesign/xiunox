@@ -720,7 +720,6 @@ return array(
 	'credits_event_be_commented'=>'コメントされた',
 	'credits_event_favorite'=>'お気に入り',
 	'credits_event_be_favorited'=>'お気に入りされた',
-	'credits_event_daily_login'=>'毎日初回ログイン',
 
 	// その他の不足キー
 	'no_more_data_tip'=>'これ以上データはありません',

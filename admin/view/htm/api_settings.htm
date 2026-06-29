@@ -1,0 +1,505 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_api_settings_start.htm}-->
+
+<div class="mb-3">
+	<a href="<?php echo admin_api_doc_url();?>" class="btn btn-sm btn-outline-secondary"><i class="ti ti-book"></i> 文档</a>
+	<a href="<?php echo admin_api_settings_url();?>" class="btn btn-sm btn-primary"><i class="ti ti-settings"></i> 设置</a>
+</div>
+
+<!-- API 总开关 -->
+<div class="x-card card mb-4">
+	<div class="card-body">
+		<h6 class="fw-semibold mb-3"><i class="ti ti-toggle-left me-1"></i>API 总开关</h6>
+		<div class="form-check form-switch">
+			<input class="form-check-input" type="checkbox" role="switch" id="apiEnabledSwitch" <?php echo $api_enabled ? 'checked' : '';?> onchange="saveSettings()">
+			<label class="form-check-label" for="apiEnabledSwitch"><?php echo $api_enabled ? 'API 已开启' : 'API 已关闭';?></label>
+		</div>
+	</div>
+</div>
+
+<!-- 应用管理 -->
+<div class="x-card card mb-4">
+	<div class="card-body">
+		<div class="d-flex justify-content-between align-items-center mb-3">
+			<h6 class="fw-semibold mb-0"><i class="ti ti-apps me-1"></i>应用管理</h6>
+			<button class="btn btn-sm btn-primary" onclick="showCreateModal()"><i class="ti ti-plus"></i> 创建应用</button>
+		</div>
+
+		<div class="table-responsive">
+			<table class="table table-hover align-middle">
+				<thead>
+					<tr>
+						<th style="width:140px">AppID</th>
+						<th>名称</th>
+						<th style="width:100px">权限范围</th>
+						<th style="width:100px">速率限制</th>
+						<th style="width:80px">状态</th>
+						<th style="width:140px">创建时间</th>
+						<th style="width:180px">操作</th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php if(empty($apps)): ?>
+					<tr><td colspan="7" class="text-center text-body-secondary">暂无应用，点击上方按钮创建</td></tr>
+					<?php else: ?>
+					<?php foreach($apps as $app): ?>
+					<tr id="app-row-<?php echo $app['id'];?>">
+						<td><code style="font-size:0.8rem"><?php echo esc_html($app['appid']);?></code></td>
+						<td><?php echo esc_html($app['name']);?></td>
+						<td>
+							<?php
+							$scopeLabels = ['readonly' => '只读', 'readwrite' => '读写', 'full' => '完全'];
+							$scopeColors = ['readonly' => 'info', 'readwrite' => 'warning', 'full' => 'danger'];
+							$scope = $app['scope'] ?? 'readonly';
+							?>
+							<span class="badge bg-<?php echo $scopeColors[$scope] ?? 'secondary';?>"><?php echo $scopeLabels[$scope] ?? $scope;?></span>
+						</td>
+						<td><?php echo intval($app['rate_limit']);?>/min</td>
+						<td>
+							<?php if(!empty($app['is_enabled'])): ?>
+							<span class="badge bg-success">启用</span>
+							<?php else: ?>
+							<span class="badge bg-secondary">禁用</span>
+							<?php endif; ?>
+						</td>
+						<td class="small text-body-secondary"><?php echo date('Y-m-d H:i', $app['created_at']);?></td>
+						<td>
+							<button class="btn btn-sm btn-ghost" onclick="showEditModal(<?php echo $app['id'];?>, '<?php echo esc_html($app['name']);?>', '<?php echo esc_html($app['description'] ?? '');?>', '<?php echo $app['scope'];?>', <?php echo intval($app['is_enabled']);?>, <?php echo intval($app['rate_limit']);?>)"><i class="ti ti-edit"></i> 编辑</button>
+							<button class="btn btn-sm btn-ghost text-warning" onclick="resetSecret(<?php echo $app['id'];?>, '<?php echo esc_html($app['name']);?>')"><i class="ti ti-refresh"></i> 重置密钥</button>
+							<button class="btn btn-sm btn-ghost text-danger" onclick="deleteApp(<?php echo $app['id'];?>, '<?php echo esc_html($app['name']);?>')"><i class="ti ti-trash"></i> 删除</button>
+						</td>
+					</tr>
+					<?php endforeach; ?>
+					<?php endif; ?>
+				</tbody>
+			</table>
+		</div>
+	</div>
+</div>
+
+<!-- 速率限制配置 -->
+<div class="x-card card mb-4">
+	<div class="card-body">
+		<h6 class="fw-semibold mb-3"><i class="ti ti-speed-limit me-1"></i>速率限制配置</h6>
+		<div class="row g-3">
+			<div class="col-md-4">
+				<label class="form-label">启用速率限制</label>
+				<div class="form-check form-switch">
+					<input class="form-check-input" type="checkbox" role="switch" id="apiRateLimitSwitch" <?php echo $api_rate_limit ? 'checked' : '';?>>
+					<label class="form-check-label" for="apiRateLimitSwitch"><?php echo $api_rate_limit ? '已开启' : '已关闭';?></label>
+				</div>
+			</div>
+			<div class="col-md-4">
+				<label class="form-label" for="apiRateLimitMax">最大请求数</label>
+				<input type="number" class="form-control form-control-sm" id="apiRateLimitMax" value="<?php echo $api_rate_limit_max;?>" min="1" max="10000">
+				<div class="form-text">每个时间窗口内允许的最大请求数</div>
+			</div>
+			<div class="col-md-4">
+				<label class="form-label" for="apiRateLimitWindow">时间窗口（秒）</label>
+				<input type="number" class="form-control form-control-sm" id="apiRateLimitWindow" value="<?php echo $api_rate_limit_window;?>" min="1" max="3600">
+				<div class="form-text">速率限制的统计时间窗口</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- CORS 配置 -->
+<div class="x-card card mb-4">
+	<div class="card-body">
+		<h6 class="fw-semibold mb-3"><i class="ti ti-world me-1"></i>CORS 配置</h6>
+		<div class="row g-3">
+			<div class="col-md-6">
+				<label class="form-label" for="apiCorsOrigin">允许的来源（Access-Control-Allow-Origin）</label>
+				<input type="text" class="form-control form-control-sm" id="apiCorsOrigin" value="<?php echo esc_html($api_cors_origin);?>" placeholder="* 或 https://example.com">
+				<div class="form-text">使用 * 允许所有来源，或指定域名（多个用逗号分隔）</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Token 配置 -->
+<div class="x-card card mb-4">
+	<div class="card-body">
+		<h6 class="fw-semibold mb-3"><i class="ti ti-key me-1"></i>Token 配置</h6>
+		<div class="row g-3">
+			<div class="col-md-4">
+				<label class="form-label" for="apiTokenExpire">Token 有效期（天）</label>
+				<input type="number" class="form-control form-control-sm" id="apiTokenExpire" value="<?php echo $api_token_expire;?>" min="1" max="365">
+				<div class="form-text">Refresh Token 的有效天数</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- 保存按钮 -->
+<div class="mb-4">
+	<button type="button" class="btn btn-primary rounded-pill" onclick="saveSettings()"><i class="ti ti-device-floppy"></i> 保存配置</button>
+</div>
+
+<!-- 创建应用 Modal -->
+<div class="modal fade" id="createAppModal" tabindex="-1" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title"><i class="ti ti-plus"></i> 创建应用</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+			</div>
+			<div class="modal-body">
+				<?php echo CsrfService::input(); ?>
+				<div class="mb-3">
+					<label class="form-label">应用名称 <span class="text-danger">*</span></label>
+					<input type="text" class="form-control form-control-sm" id="createAppName" placeholder="请输入应用名称" required>
+				</div>
+				<div class="mb-3">
+					<label class="form-label">应用描述</label>
+					<textarea class="form-control form-control-sm" id="createAppDesc" rows="2" placeholder="应用用途说明"></textarea>
+				</div>
+				<div class="mb-3">
+					<label class="form-label">权限范围</label>
+					<select class="form-select form-select-sm" id="createAppScope">
+						<option value="readonly">只读 - 仅允许 GET 请求</option>
+						<option value="readwrite">读写 - 允许读写操作</option>
+						<option value="full">完全 - 允许所有操作</option>
+					</select>
+				</div>
+				<div class="mb-3">
+					<label class="form-label">速率限制（请求/分钟）</label>
+					<input type="number" class="form-control form-control-sm" id="createAppRateLimit" value="120" min="0">
+					<div class="form-text">0 表示不限制</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
+				<button type="button" class="btn btn-sm btn-primary" onclick="createApp()">创建</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- 编辑应用 Modal -->
+<div class="modal fade" id="editAppModal" tabindex="-1" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title"><i class="ti ti-edit"></i> 编辑应用</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+			</div>
+			<div class="modal-body">
+				<?php echo CsrfService::input(); ?>
+				<input type="hidden" id="editAppId">
+				<div class="mb-3">
+					<label class="form-label">应用名称</label>
+					<input type="text" class="form-control form-control-sm" id="editAppName">
+				</div>
+				<div class="mb-3">
+					<label class="form-label">应用描述</label>
+					<textarea class="form-control form-control-sm" id="editAppDesc" rows="2"></textarea>
+				</div>
+				<div class="mb-3">
+					<label class="form-label">权限范围</label>
+					<select class="form-select form-select-sm" id="editAppScope">
+						<option value="readonly">只读 - 仅允许 GET 请求</option>
+						<option value="readwrite">读写 - 允许读写操作</option>
+						<option value="full">完全 - 允许所有操作</option>
+					</select>
+				</div>
+				<div class="mb-3">
+					<label class="form-label">状态</label>
+					<div class="form-check form-switch">
+						<input class="form-check-input" type="checkbox" role="switch" id="editAppEnabled" checked>
+						<label class="form-check-label" for="editAppEnabled">启用应用</label>
+					</div>
+				</div>
+				<div class="mb-3">
+					<label class="form-label">速率限制（请求/分钟）</label>
+					<input type="number" class="form-control form-control-sm" id="editAppRateLimit" value="120" min="0">
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
+				<button type="button" class="btn btn-sm btn-primary" onclick="updateApp()">保存</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- 新建应用结果 Modal -->
+<div class="modal fade" id="appResultModal" tabindex="-1" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title"><i class="ti ti-check"></i> 应用创建成功</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+			</div>
+			<div class="modal-body">
+				<div class="alert alert-warning mb-3">
+					<i class="ti ti-alert-triangle"></i> 请妥善保管以下凭据，密钥仅在此处显示一次！
+				</div>
+				<div class="mb-2">
+					<label class="form-label fw-semibold">AppID</label>
+					<div class="input-group input-group-sm">
+						<input type="text" class="form-control" id="resultAppId" readonly>
+						<button class="btn btn-outline-secondary" onclick="copyField('resultAppId')"><i class="ti ti-clipboard"></i></button>
+					</div>
+				</div>
+				<div class="mb-2">
+					<label class="form-label fw-semibold">Secret</label>
+					<div class="input-group input-group-sm">
+						<input type="text" class="form-control" id="resultAppSecret" readonly>
+						<button class="btn btn-outline-secondary" onclick="copyField('resultAppSecret')"><i class="ti ti-clipboard"></i></button>
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">我已保存凭据</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- 重置密钥结果 Modal -->
+<div class="modal fade" id="resetResultModal" tabindex="-1" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title"><i class="ti ti-refresh"></i> 密钥已重置</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+			</div>
+			<div class="modal-body">
+				<div class="alert alert-warning mb-3">
+					<i class="ti ti-alert-triangle"></i> 新密钥仅在此处显示一次，请立即保存！
+				</div>
+				<div class="mb-2">
+					<label class="form-label fw-semibold">AppID</label>
+					<div class="input-group input-group-sm">
+						<input type="text" class="form-control" id="resetResultAppId" readonly>
+						<button class="btn btn-outline-secondary" onclick="copyField('resetResultAppId')"><i class="ti ti-clipboard"></i></button>
+					</div>
+				</div>
+				<div class="mb-2">
+					<label class="form-label fw-semibold">新 Secret</label>
+					<div class="input-group input-group-sm">
+						<input type="text" class="form-control" id="resetResultSecret" readonly>
+						<button class="btn btn-outline-secondary" onclick="copyField('resetResultSecret')"><i class="ti ti-clipboard"></i></button>
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">我已保存新密钥</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!--{hook admin_api_settings_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+function getCsrfToken() {
+	return document.querySelector('meta[name="csrf-token"]')?.content || '';
+}
+
+function saveSettings() {
+	var data = {
+		api_enabled: document.getElementById('apiEnabledSwitch').checked ? 1 : 0,
+		api_rate_limit: document.getElementById('apiRateLimitSwitch').checked ? 1 : 0,
+		api_rate_limit_max: parseInt(document.getElementById('apiRateLimitMax').value) || 60,
+		api_rate_limit_window: parseInt(document.getElementById('apiRateLimitWindow').value) || 60,
+		api_cors_origin: document.getElementById('apiCorsOrigin').value.trim() || '*',
+		api_token_expire: parseInt(document.getElementById('apiTokenExpire').value) || 30,
+		csrf_token: getCsrfToken()
+	};
+
+	fetch('<?php echo admin_api_settings_save_url();?>', {
+		method: 'POST',
+		headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
+		body: new URLSearchParams(data).toString()
+	})
+	.then(function(r) { return r.json(); })
+	.then(function(json) {
+		if (parseInt(json.code) === 0) {
+			XN.toast('保存成功', 'success');
+			var switchEl = document.getElementById('apiEnabledSwitch');
+			switchEl.nextElementSibling.textContent = switchEl.checked ? 'API 已开启' : 'API 已关闭';
+		} else {
+			XN.toast(json.message || '保存失败', 'danger');
+		}
+	})
+	.catch(function(err) {
+		XN.toast('请求失败', 'danger');
+	});
+}
+
+function showCreateModal() {
+	document.getElementById('createAppName').value = '';
+	document.getElementById('createAppDesc').value = '';
+	document.getElementById('createAppScope').value = 'readonly';
+	document.getElementById('createAppRateLimit').value = '120';
+	var modal = new bootstrap.Modal(document.getElementById('createAppModal'));
+	modal.show();
+}
+
+function createApp() {
+	var name = document.getElementById('createAppName').value.trim();
+	if (!name) {
+		XN.toast('应用名称不能为空', 'danger');
+		return;
+	}
+
+	var data = {
+		name: name,
+		description: document.getElementById('createAppDesc').value.trim(),
+		scope: document.getElementById('createAppScope').value,
+		rate_limit: parseInt(document.getElementById('createAppRateLimit').value) || 120,
+		csrf_token: getCsrfToken()
+	};
+
+	fetch('<?php echo admin_api_app_create_url();?>', {
+		method: 'POST',
+		headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
+		body: new URLSearchParams(data).toString()
+	})
+	.then(function(r) { return r.json(); })
+	.then(function(json) {
+		if (parseInt(json.code) === 0) {
+			var app = json.message;
+			var createModal = bootstrap.Modal.getInstance(document.getElementById('createAppModal'));
+			createModal.hide();
+
+			document.getElementById('resultAppId').value = app.appid;
+			document.getElementById('resultAppSecret').value = app.secret;
+			var resultModal = new bootstrap.Modal(document.getElementById('appResultModal'));
+			resultModal.show();
+
+			setTimeout(function() { location.reload(); }, 3000);
+		} else {
+			XN.toast(json.message || '创建失败', 'danger');
+		}
+	})
+	.catch(function(err) {
+		XN.toast('请求失败', 'danger');
+	});
+}
+
+function showEditModal(id, name, description, scope, isEnabled, rateLimit) {
+	document.getElementById('editAppId').value = id;
+	document.getElementById('editAppName').value = name;
+	document.getElementById('editAppDesc').value = description;
+	document.getElementById('editAppScope').value = scope;
+	document.getElementById('editAppEnabled').checked = isEnabled === 1;
+	document.getElementById('editAppRateLimit').value = rateLimit;
+	var modal = new bootstrap.Modal(document.getElementById('editAppModal'));
+	modal.show();
+}
+
+function updateApp() {
+	var id = parseInt(document.getElementById('editAppId').value);
+	if (id <= 0) {
+		XN.toast('应用ID无效', 'danger');
+		return;
+	}
+
+	var data = {
+		id: id,
+		name: document.getElementById('editAppName').value.trim(),
+		description: document.getElementById('editAppDesc').value.trim(),
+		scope: document.getElementById('editAppScope').value,
+		is_enabled: document.getElementById('editAppEnabled').checked ? 1 : 0,
+		rate_limit: parseInt(document.getElementById('editAppRateLimit').value) || 120,
+		csrf_token: getCsrfToken()
+	};
+
+	fetch('<?php echo admin_api_app_update_url();?>', {
+		method: 'POST',
+		headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
+		body: new URLSearchParams(data).toString()
+	})
+	.then(function(r) { return r.json(); })
+	.then(function(json) {
+		if (parseInt(json.code) === 0) {
+			XN.toast('更新成功', 'success');
+			var modal = bootstrap.Modal.getInstance(document.getElementById('editAppModal'));
+			modal.hide();
+			setTimeout(function() { location.reload(); }, 500);
+		} else {
+			XN.toast(json.message || '更新失败', 'danger');
+		}
+	})
+	.catch(function(err) {
+		XN.toast('请求失败', 'danger');
+	});
+}
+
+function deleteApp(id, name) {
+	if (!confirm('确定要删除应用「' + name + '」吗？此操作不可恢复。')) return;
+
+	var data = {
+		id: id,
+		csrf_token: getCsrfToken()
+	};
+
+	fetch('<?php echo admin_api_app_delete_url();?>', {
+		method: 'POST',
+		headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
+		body: new URLSearchParams(data).toString()
+	})
+	.then(function(r) { return r.json(); })
+	.then(function(json) {
+		if (parseInt(json.code) === 0) {
+			XN.toast('删除成功', 'success');
+			var row = document.getElementById('app-row-' + id);
+			if (row) row.remove();
+		} else {
+			XN.toast(json.message || '删除失败', 'danger');
+		}
+	})
+	.catch(function(err) {
+		XN.toast('请求失败', 'danger');
+	});
+}
+
+function resetSecret(id, name) {
+	if (!confirm('确定要重置应用「' + name + '」的密钥吗？旧密钥将立即失效。')) return;
+
+	var data = {
+		id: id,
+		csrf_token: getCsrfToken()
+	};
+
+	fetch('<?php echo admin_api_app_reset_secret_url();?>', {
+		method: 'POST',
+		headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
+		body: new URLSearchParams(data).toString()
+	})
+	.then(function(r) { return r.json(); })
+	.then(function(json) {
+		if (parseInt(json.code) === 0) {
+			var result = json.message;
+			document.getElementById('resetResultAppId').value = result.appid;
+			document.getElementById('resetResultSecret').value = result.secret;
+			var modal = new bootstrap.Modal(document.getElementById('resetResultModal'));
+			modal.show();
+		} else {
+			XN.toast(json.message || '重置失败', 'danger');
+		}
+	})
+	.catch(function(err) {
+		XN.toast('请求失败', 'danger');
+	});
+}
+
+function copyField(fieldId) {
+	var el = document.getElementById(fieldId);
+	if (!el) return;
+	navigator.clipboard.writeText(el.value).then(function() {
+		XN.toast('已复制', 'success');
+	});
+}
+
+/* 速率限制开关标签联动 */
+document.getElementById('apiRateLimitSwitch').addEventListener('change', function() {
+	this.nextElementSibling.textContent = this.checked ? '已开启' : '已关闭';
+});
+</script>

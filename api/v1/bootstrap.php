@@ -42,6 +42,80 @@ $uri = $_SERVER['REQUEST_URI'];
 $method = $_SERVER['REQUEST_METHOD'];
 $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 
+// API 总开关检查
+if (empty($conf['api_enabled'])) {
+    http_response_code(503);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['code' => 503, 'msg' => 'API is disabled', 'data' => null], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// 应用凭据验证（Stripe 双 key 模式）
+// - 服务端调用：X-App-Id + X-App-Secret（完整认证，scope 生效）
+// - 浏览器/客户端调用：仅 X-App-Id（公开标识，安全靠 Bearer token，限流更严）
+$appId = $_SERVER['HTTP_X_APP_ID'] ?? '';
+$appSecret = $_SERVER['HTTP_X_APP_SECRET'] ?? '';
+
+if (empty($appId)) {
+    http_response_code(401);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['code' => 401, 'msg' => 'X-App-Id header is required', 'data' => null], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// 根据是否携带 secret 区分认证模式
+$apiAppServerAuth = !empty($appSecret);
+if ($apiAppServerAuth) {
+    // 服务端模式：验证 appid + secret
+    $apiApp = $apiAuth->validateApp($appId, $appSecret);
+    if (!$apiApp) {
+        http_response_code(401);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['code' => 401, 'msg' => 'Invalid app credentials', 'data' => null], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+} else {
+    // 客户端模式：仅验证 appid 存在且启用（secret 不暴露给浏览器）
+    $apiApp = $apiAuth->validateAppPublic($appId);
+    if (!$apiApp) {
+        http_response_code(401);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['code' => 401, 'msg' => 'Invalid app id', 'data' => null], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
+if (empty($apiApp['is_enabled'])) {
+    http_response_code(401);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['code' => 401, 'msg' => 'App is disabled', 'data' => null], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// 服务端模式：应用权限范围检查（客户端模式不做 scope 限制，安全靠 Bearer token）
+if ($apiAppServerAuth && !$apiAuth->checkAppScope($apiApp, $method)) {
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['code' => 403, 'msg' => 'Insufficient app scope', 'data' => null], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// 应用级速率限制
+// 客户端模式（无 secret）使用更严格的默认限制
+if ($apiAppServerAuth) {
+    $appRateLimitOk = $apiAuth->checkAppRateLimit($apiApp);
+} else {
+    $appRateLimitOk = $apiAuth->checkAppPublicRateLimit($appId);
+}
+if (!$appRateLimitOk) {
+    http_response_code(429);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['code' => 429, 'msg' => 'App rate limit exceeded', 'data' => null], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+global $apiApp, $apiAppServerAuth;
+
 $rateLimitEnabled = ($conf['api_rate_limit'] ?? 1) == 1;
 if ($rateLimitEnabled) {
     $earlyAuthUser = null;
@@ -84,7 +158,7 @@ if ($method === 'OPTIONS') {
     http_response_code(204);
     $allowOrigin = $conf['api_cors_origin'] ?? '*';
     $allowMethods = 'GET, POST, PUT, DELETE, OPTIONS';
-    $allowHeaders = 'Content-Type, Authorization, X-CSRF-Token';
+    $allowHeaders = 'Content-Type, Authorization, X-CSRF-Token, X-App-Id, X-App-Secret';
     header("Access-Control-Allow-Origin: {$allowOrigin}");
     header("Access-Control-Allow-Methods: {$allowMethods}");
     header("Access-Control-Allow-Headers: {$allowHeaders}");

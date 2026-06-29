@@ -390,14 +390,6 @@ if(empty($action)) {
 
 		// hook user_login_post_end.php
 
-		// 积分规则：每日首次登录获得积分（双重检查：路由层 + CreditsRuleService 层）
-		if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
-		$_todayStart = strtotime(date('Y-m-d'));
-		$_loginCount = db_count('credits_log', array('uid' => $uid, 'reason' => 'daily_login', 'create_date>' => $_todayStart));
-		if($_loginCount == 0) {
-			CreditsRuleService::applyRule('daily_login', $uid);
-		}
-
 		// 设置 token，下次自动登陆。
 
 		$referer = user_http_referer();

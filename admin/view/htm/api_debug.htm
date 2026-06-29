@@ -2,6 +2,11 @@
 
 <!--{hook admin_api_debug_start.htm}-->
 
+<div class="mb-3">
+    <a href="<?php echo admin_api_doc_url();?>" class="btn btn-sm btn-outline-secondary"><i class="ti ti-book"></i> 文档</a>
+    <a href="<?php echo admin_api_settings_url();?>" class="btn btn-sm btn-outline-secondary"><i class="ti ti-settings"></i> 设置</a>
+</div>
+
 <style>
 .debug-history-item { padding: 0.35rem 0.75rem; cursor: pointer; font-size: 0.8125rem; border-bottom: 1px solid var(--bs-border-color); display: flex; align-items: center; gap: 0.5rem; }
 .debug-history-item:hover { background: var(--bs-gray-200); }

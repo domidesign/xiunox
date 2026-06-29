@@ -27,6 +27,16 @@ function get_env(&$env, &$write) {
 	$env['gd']['need'] = lang('recommended');
 	$env['gd']['status'] = extension_loaded('gd') ? 1 : 2;
 
+	// HTTPS 检测：建议使用 HTTPS 以保障数据传输安全
+	$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+		|| (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
+		|| (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+	$env['https']['name'] = 'HTTPS';
+	$env['https']['must'] = FALSE;
+	$env['https']['current'] = $is_https ? lang('supported') : lang('not_supported');
+	$env['https']['need'] = lang('recommended');
+	$env['https']['status'] = $is_https ? 1 : 2;
+
 	// 目录可写
 	$writedir = array(
 		'../conf/',

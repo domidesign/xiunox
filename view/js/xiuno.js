@@ -515,6 +515,10 @@ xn.param = function(key) {
 
 xn.url = function(u, url_rewrite) {
 	var on = window.url_rewrite_on || url_rewrite;
+	// admin 后台始终使用 ? 格式（url_rewrite_on=0）
+	if(window.location.pathname.indexOf('/admin') !== -1) {
+		on = 0;
+	}
 	if(xn.strpos(u, '/') != -1) {
 		var path = xn.substr(u, 0, xn.strrpos(u, '/') + 1);
 		var query = xn.substr(u, xn.strrpos(u, '/') + 1);
@@ -534,8 +538,8 @@ xn.url = function(u, url_rewrite) {
 	} else if(on == 4) {
 		r = path + query + '.html';
 	} else if(on == 5) {
-		// on=5 自定义规则前端无法获取，fallback 到 on=1 的 .htm 格式
-		r = path + query + '.htm';
+		// on=5 路径+html 风格：thread-create-1 → thread/create/1.html
+		r = path + xn.str_replace('-', '/', query) + '.html';
 	}
 	return r;
 };
@@ -544,7 +548,8 @@ xn.url = function(u, url_rewrite) {
 xn.url_add_arg = function(url, k, v) {
 	var pos = xn.strpos(url, '.htm');
 	if(pos === false) {
-		return xn.strpos(url, '?') === false ? url + "&" + k + "=" + v :  url + "?" + k + "=" + v;
+		// 无 ? 时用 ? 拼接，有 ? 时用 & 拼接
+		return xn.strpos(url, '?') === false ? url + "?" + k + "=" + v : url + "&" + k + "=" + v;
 	} else {
 		return xn.substr(url, 0, pos) + '-' + v + xn.substr(url, pos);
 	}

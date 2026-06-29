@@ -591,7 +591,6 @@ INSERT INTO bbs_credits_rule_global (event, label, credits_change, golds_change,
 ('be_commented', '被回复', 0, 0, 0, 1),
 ('favorite', '收藏', 0, 0, 0, 1),
 ('be_favorited', '被收藏', 0, 0, 0, 1),
-('daily_login', '每日首次登录', 0, 0, 0, 1),
 ('unlike', '取消点赞', 0, 0, 0, 1),
 ('unfavorite', '取消收藏', 0, 0, 0, 1);
 
@@ -625,6 +624,23 @@ CREATE TABLE bbs_api_token (
   KEY uid_type (uid, type),
   KEY expires_at (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='API令牌';
+
+# API 应用认证
+DROP TABLE IF EXISTS bbs_api_app;
+CREATE TABLE bbs_api_app (
+  id int(11) unsigned NOT NULL AUTO_INCREMENT,
+  appid varchar(32) NOT NULL COMMENT '应用ID',
+  secret varchar(64) NOT NULL COMMENT '应用密钥',
+  name varchar(100) NOT NULL COMMENT '应用名称',
+  description varchar(255) DEFAULT '' COMMENT '应用描述',
+  scope varchar(20) NOT NULL DEFAULT 'readonly' COMMENT '权限范围: readonly/readwrite/full',
+  is_enabled tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+  uid int(11) unsigned NOT NULL DEFAULT 0 COMMENT '创建者UID',
+  rate_limit int(11) unsigned NOT NULL DEFAULT 120 COMMENT '每分钟请求上限(0=不限)',
+  created_at int(11) unsigned NOT NULL DEFAULT 0 COMMENT '创建时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY appid (appid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='API应用表';
 
 # API 日志
 DROP TABLE IF EXISTS bbs_api_log;

@@ -33,8 +33,9 @@
 	<script src="../view/js/async.js<?php echo $static_version;?>"></script>
 	<script src="../view/js/form.js<?php echo $static_version;?>"></script>
 	<script>
-	var debug = DEBUG = <?php echo DEBUG; ?>;
-	var url_rewrite_on = <?php echo $conf['url_rewrite_on'];?>;
+	var debug = DEBUG = 0;
+	// 后台始终使用 ? 格式，不受伪静态设置影响，避免搜索等链接 404
+	var url_rewrite_on = 0;
 	var fid = <?php echo $fid;?>;
 	</script>
 	<script src="../view/js/bbs.js<?php echo $static_version;?>"></script>

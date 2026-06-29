@@ -23,8 +23,50 @@ function paginateResult(array $list, int $page, int $pagesize, int $total): arra
     ];
 }
 
-function stripSensitiveFields(array &$user): void {
-    unset($user['password'], $user['salt'], $user['password_hash']);
+// 用户信息白名单字段（未认证可获取）
+function getUserPublicFields(): array {
+    return ['uid', 'username', 'nickname', 'display_name', 'avatar_url', 'gid', 'groupname', 'threads', 'posts', 'follows', 'followeds', 'fans'];
+}
+
+// 扩展字段（认证后额外返回，不含 email/mobile）
+function getUserExtendedFields(): array {
+    return ['signature', 'create_date', 'login_date', 'credits', 'golds', 'rmbs', 'favorites', 'avatar'];
+}
+
+// 根据认证状态过滤用户信息
+function sanitizeUserData(array $user, ?array $authUser = null, bool $isSelf = false, bool $isAdmin = false): array {
+    global $conf;
+    // 始终移除的字段
+    unset($user['password'], $user['salt'], $user['password_hash'], $user['login_attempts'], $user['banned_until'], $user['last_login_ip'], $user['last_login_time'], $user['ai_config']);
+
+    if ($authUser === null) {
+        // 未认证：只返回白名单字段
+        $publicKeys = array_flip(getUserPublicFields());
+        // 保留 uid（即使不在白名单中也要保留）
+        $result = array_intersect_key($user, $publicKeys);
+        // 确保 avatar_url 存在（如果没有则从 avatar 字段生成）
+        if (!isset($result['avatar_url']) && isset($user['avatar'])) {
+            $result['avatar_url'] = $user['avatar'] > 0
+                ? $conf['upload_url'] . 'avatar/' . substr(sprintf("%09d", $user['uid']), 0, 3) . '/' . $user['uid'] . '.png?' . $user['avatar']
+                : '/view/img/avatar.png';
+        }
+        return $result;
+    }
+
+    // 已认证：返回白名单 + 扩展字段
+    $allowedKeys = array_flip(array_merge(getUserPublicFields(), getUserExtendedFields()));
+
+    // 本人可看 email
+    if ($isSelf) {
+        $allowedKeys['email'] = true;
+    }
+
+    // 管理员额外看 create_ip
+    if ($isAdmin) {
+        $allowedKeys['create_ip'] = true;
+    }
+
+    return array_intersect_key($user, $allowedKeys);
 }
 
 $seg1 = $segments[1] ?? '';
@@ -38,10 +80,18 @@ switch ($method) {
         // 支持 ids 参数获取多个用户
         $idsParam = $_GET['ids'] ?? '';
         if (!empty($idsParam)) {
+            // 批量获取用户需认证
+            $token = ApiAuthService::getBearerToken();
+            $authUser = $token ? $apiAuth->validateAccessToken($token) : null;
+            if (!$authUser) {
+                ApiResponse::unauthorized();
+            }
             $ids = is_string($idsParam) ? array_map('trim', explode(',', $idsParam)) : $idsParam;
             $users = $userService->getUsersByIds($ids);
             foreach ($users as &$u) {
-                stripSensitiveFields($u);
+                $isSelf = intval($u['uid']) === intval($authUser['uid']);
+                $isAdmin = intval($authUser['gid']) === 1;
+                $u = sanitizeUserData($u, $authUser, $isSelf, $isAdmin);
             }
             unset($u);
             if (!empty($fields)) {
@@ -49,12 +99,20 @@ switch ($method) {
             }
             ApiResponse::success(['list' => $users, 'total' => count($users)]);
         } elseif ($seg1 === '') {
+            // 用户列表需认证
+            $token = ApiAuthService::getBearerToken();
+            $authUser = $token ? $apiAuth->validateAccessToken($token) : null;
+            if (!$authUser) {
+                ApiResponse::unauthorized();
+            }
             $page = max(1, intval($_GET['page'] ?? 1));
             $pagesize = min(100, max(1, intval($_GET['pagesize'] ?? 20)));
             $users = $userService->getUserList($page, $pagesize);
             $total = $userService->getUserCount();
             foreach ($users as &$u) {
-                stripSensitiveFields($u);
+                $isSelf = intval($u['uid']) === intval($authUser['uid']);
+                $isAdmin = intval($authUser['gid']) === 1;
+                $u = sanitizeUserData($u, $authUser, $isSelf, $isAdmin);
             }
             unset($u);
             $result = paginateResult($users, $page, $pagesize, $total);
@@ -70,7 +128,7 @@ switch ($method) {
             if (!$authUser) {
                 ApiResponse::unauthorized();
             }
-            stripSensitiveFields($authUser);
+            $authUser = sanitizeUserData($authUser, $authUser, true, intval($authUser['gid']) === 1);
             if (!empty($fields)) {
                 $authUser = filterFields($authUser, $fields);
             }
@@ -82,7 +140,12 @@ switch ($method) {
             if (!$user) {
                 ApiResponse::notFound('User not found');
             }
-            stripSensitiveFields($user);
+            // 根据认证状态脱敏
+            $token = ApiAuthService::getBearerToken();
+            $authUser = $token ? $apiAuth->validateAccessToken($token) : null;
+            $isSelf = $authUser && intval($authUser['uid']) === $uid;
+            $isAdmin = $authUser && intval($authUser['gid']) === 1;
+            $user = sanitizeUserData($user, $authUser, $isSelf, $isAdmin);
             if (!empty($fields)) {
                 $user = filterFields($user, $fields);
             }
@@ -139,7 +202,7 @@ switch ($method) {
             foreach ($following as $fuid) {
                 $u = user_read_cache($fuid);
                 if ($u) {
-                    stripSensitiveFields($u);
+                    $u = sanitizeUserData($u, null); // 未认证级别脱敏，following是Public端点
                     $list[] = $u;
                 }
             }
@@ -162,7 +225,7 @@ switch ($method) {
             foreach ($followers as $fuid) {
                 $u = user_read_cache($fuid);
                 if ($u) {
-                    stripSensitiveFields($u);
+                    $u = sanitizeUserData($u, null); // 未认证级别脱敏，followers是Public端点
                     $list[] = $u;
                 }
             }
@@ -294,7 +357,7 @@ switch ($method) {
             $userService->updateUser($uid, $update);
         }
         $freshUser = $userService->getUserById($uid);
-        stripSensitiveFields($freshUser);
+        $freshUser = sanitizeUserData($freshUser, $authUser, true, intval($authUser['gid']) === 1);
         ApiResponse::success($freshUser);
         break;
 

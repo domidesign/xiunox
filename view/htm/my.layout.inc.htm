@@ -5,7 +5,7 @@
 ?>
 <div class="row g-4">
 	<!-- 左侧导航栏 -->
-	<div class="d-none d-lg-block col-lg-2">
+	<div class="d-none d-xl-block col-xl-2">
 		<div class="x-card card overflow-hidden">
 			<!--{hook my_sidebar_nav_before.htm}-->
 			<ul class="side-nav">
@@ -113,9 +113,9 @@
 	</div>
 
 	<!-- 右侧内容区 -->
-	<div class="col-lg-8" style="min-width:0">
+	<div class="col-xl-8" style="min-width:0">
 		<!-- 移动端 Tab 导航 -->
-	<ul class="nav nav-tabs mb-3 d-lg-none" id="settingsTabMobile" role="tablist">
+	<ul class="nav nav-tabs mb-3 d-xl-none" id="settingsTabMobile" role="tablist">
 		<li class="nav-item" role="presentation">
 			<a href="<?php echo my_profile_url();?>" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'profile') echo ' active'; ?>"><?php echo lang('my_basic_profile');?></a>
 		</li>

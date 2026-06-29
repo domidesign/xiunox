@@ -3,10 +3,10 @@
 <!--{hook more_start.htm}-->
 
 <div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
-	<div class="d-none d-lg-block col-lg-2">
+	<div class="d-none d-xl-block col-xl-2">
 		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
 	</div>
-	<div class="col-lg-7" style="min-width:0">
+	<div class="col-xl-7" style="min-width:0">
 
 		<div class="x-card card">
 			<div class="card-body">
@@ -15,7 +15,7 @@
 				<?php if(!empty($_discover_items)) { ?>
 				<div class="row g-3">
 					<?php foreach($_discover_items as $_item) { ?>
-					<div class="col-4 col-sm-3 col-md-3 col-lg-3">
+					<div class="col-4 col-sm-3 col-md-3 col-xl-3">
 						<a href="<?php echo $_item['url'];?>" class="text-decoration-none d-flex flex-column align-items-center py-3 px-2 rounded-3 discover-item" <?php if(!empty($_item['url']) && (strpos($_item['url'], 'http') === 0 || strpos($_item['url'], '//') === 0)) echo 'target="_blank"'; ?>>
 							<div class="discover-icon-wrap mb-2">
 								<i class="ti <?php echo !empty($_item['icon']) ? esc_html($_item['icon']) : 'ti-link';?>"></i>
@@ -38,7 +38,7 @@
 		</div>
 
 	</div>
-	<div class="col-lg-3 d-none d-lg-block">
+	<div class="col-xl-3 d-none d-xl-block">
 		<?php include _include(APP_PATH.'view/htm/sidebar_right.inc.htm');?>
 	</div>
 </div>

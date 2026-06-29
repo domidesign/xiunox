@@ -59,7 +59,8 @@ function smtp_init($confile) {
 		'ssl'=>0,  // 0=无加密, 1=SSL, 2=TLS
 	));
 	if(!is_file($confile)) {
-		touch($confile);
+		// 文件不存在时返回默认空配置，不自动创建文件
+		// 用户在后台配置SMTP后会自动创建
 		return $list;
 	} else {
 		$arr = include $confile;

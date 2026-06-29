@@ -381,7 +381,7 @@ function post_find_by_tid($tid, $page = 1, $pagesize = 50, $orderby = array('pid
 // <blockquote class="blockquote">
 function user_post_message_format(&$s) {
 	if(xn_strlen($s) < 100) return;
-	$s = preg_replace('#<blockquote\s+class="blockquote">.*?</blockquote>#is', '', $s);
+	$s = preg_replace('#<blockquote\s+class="blockquote"[^>]*>.*?</blockquote>#is', '', $s);
 	$s = str_ireplace(array('<br>', '<br />', '<br/>', '</p>', '</tr>', '</div>', '</li>', '</dd>'. '</dt>'), "\r\n", $s);
 	$s = str_ireplace(array('&nbsp;'), " ", $s);
 	$s = strip_tags($s);
@@ -640,6 +640,23 @@ function post_format(&$post) {
 	$post['group_icon_class'] = esc_attr($post['group_icon_class'] ?? '');
 	$post['user_avatar_url'] = esc_attr($post['user_avatar_url'] ?? '');
 
+	// 引用块检查：如果被引用的帖子已被删除，替换引用块为"该评论已被删除"
+	if(!empty($post['quotepid']) && $post['quotepid'] > 0 && strpos($post['message_fmt'], 'blockquote') !== false) {
+		static $_quote_deleted_cache = array();
+		$_qpid = intval($post['quotepid']);
+		if(!isset($_quote_deleted_cache[$_qpid])) {
+			$_quoted_post = post__read($_qpid);
+			$_quote_deleted_cache[$_qpid] = empty($_quoted_post);
+		}
+		if($_quote_deleted_cache[$_qpid]) {
+			$post['message_fmt'] = preg_replace(
+				'#<blockquote\s+class="blockquote"[^>]*>.*?</blockquote>#is',
+				'<blockquote class="blockquote text-body-secondary"><em>'.lang('quote_deleted').'</em></blockquote>',
+				$post['message_fmt']
+			);
+		}
+	}
+
 	// hook model_post_format_end.php
 
 }
@@ -698,7 +715,7 @@ function post_brief($s, $len = 100) {
 // 对内容进行引用
 function post_quote($quotepid) {
 	$quotepost = post__read($quotepid);
-	if(empty($quotepost)) return '';
+	if(empty($quotepost)) return '<blockquote class="blockquote text-body-secondary"><em>'.lang('quote_deleted').'</em></blockquote>';
 	$uid = $quotepost['uid'];
 	$s = $quotepost['message'];
 	
@@ -707,7 +724,7 @@ function post_quote($quotepid) {
 	$s = post_brief($s, 100);
 	$userhref = url("user-$uid");
 	$user = user_read_cache($uid);
-	$r = '<blockquote class="blockquote">
+	$r = '<blockquote class="blockquote" data-quotepid="'.$quotepid.'">
 		<a href="'.$userhref.'" class="d-inline-flex align-items-center gap-1 text-body-secondary small user">
 			<img class="avatar-sm rounded-circle" src="'.$user['avatar_url'].'" onerror="this.onerror=null;this.src=\'/view/img/avatar.png\'">
 			'.$user['display_name'].'

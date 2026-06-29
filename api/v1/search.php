@@ -28,24 +28,40 @@ if (mb_strlen($q) < 2) {
 $page = max(1, $page);
 $pagesize = min(50, max(1, $pagesize));
 
+// 搜索需登录检查
+$searchAuthToken = ApiAuthService::getBearerToken();
+$searchAuthUser = $searchAuthToken ? $apiAuth->validateAccessToken($searchAuthToken) : null;
+if (!empty($conf['security_search_require_login']) && !$searchAuthUser) {
+    ApiResponse::unauthorized();
+}
+
+// 审核条件：非管理员只搜 audit_status=1
+$searchIsAdmin = $searchAuthUser && in_array(intval($searchAuthUser['gid']), [1, 2], true);
+$searchAuditCond = $searchIsAdmin ? [] : ['audit_status' => 1];
+
 $like = '%' . $q . '%';
 
 switch ($type) {
     case 'thread':
-        $list = $db->find('thread', ['subject' => ['LIKE' => $like]], ['tid' => -1], $page, $pagesize, 'tid');
-        $total = $db->count('thread', ['subject' => ['LIKE' => $like]]);
+        $cond = array_merge(['subject' => ['LIKE' => $like]], $searchAuditCond);
+        $list = $db->find('thread', $cond, ['tid' => -1], $page, $pagesize, 'tid');
+        $total = $db->count('thread', $cond);
         break;
 
     case 'post':
-        $list = $db->find('post', ['message' => ['LIKE' => $like]], ['pid' => -1], $page, $pagesize, 'pid');
-        $total = $db->count('post', ['message' => ['LIKE' => $like]]);
+        $cond = array_merge(['message' => ['LIKE' => $like]], $searchAuditCond);
+        $list = $db->find('post', $cond, ['pid' => -1], $page, $pagesize, 'pid');
+        $total = $db->count('post', $cond);
         break;
 
     case 'user':
+        if (!$searchAuthUser) {
+            ApiResponse::unauthorized();
+        }
         $list = $db->find('user', ['username' => ['LIKE' => $like]], ['uid' => -1], $page, $pagesize, 'uid');
         $total = $db->count('user', ['username' => ['LIKE' => $like]]);
         foreach ($list as &$u) {
-            unset($u['password'], $u['salt'], $u['password_hash']);
+            unset($u['password'], $u['salt'], $u['password_hash'], $u['login_attempts'], $u['banned_until'], $u['last_login_ip'], $u['last_login_time'], $u['ai_config'], $u['email'], $u['create_ip']);
         }
         unset($u);
         break;

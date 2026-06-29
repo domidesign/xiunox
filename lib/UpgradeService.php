@@ -358,7 +358,6 @@ class UpgradeService {
                 ['be_commented', '被回复'],
                 ['favorite', '收藏'],
                 ['be_favorited', '被收藏'],
-                ['daily_login', '每日首次登录'],
             ];
             foreach ($builtinRules as $rule) {
                 $this->execSql("INSERT IGNORE INTO `{$tablepre}credits_rule_global` (`event`, `label`, `credits_change`, `golds_change`, `rmbs_change`, `enabled`) VALUES ('{$rule[0]}', '{$rule[1]}', 0, 0, 0, 1)");
@@ -460,6 +459,75 @@ class UpgradeService {
         return [
             'ok' => $allOk,
             'message' => $allOk ? "API v1 表升级完成（{$doneCount} 项新增）" : '部分升级失败',
+            'results' => $results,
+        ];
+    }
+
+    /**
+     * 创建 API 应用表，自动生成默认应用凭据
+     */
+    public function upgradeApiAppTable(): array {
+        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $results = [];
+
+        // 创建 api_app 表
+        $r = $this->createTable('api_app', "CREATE TABLE `{$tablepre}api_app` (
+          `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+          `appid` varchar(32) NOT NULL COMMENT '应用ID',
+          `secret` varchar(64) NOT NULL COMMENT '应用密钥',
+          `name` varchar(100) NOT NULL COMMENT '应用名称',
+          `description` varchar(255) DEFAULT '' COMMENT '应用描述',
+          `scope` varchar(20) NOT NULL DEFAULT 'readonly' COMMENT '权限范围: readonly/readwrite/full',
+          `is_enabled` tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+          `uid` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '创建者UID',
+          `rate_limit` int(11) unsigned NOT NULL DEFAULT 120 COMMENT '每分钟请求上限(0=不限)',
+          `created_at` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '创建时间',
+          PRIMARY KEY (`id`),
+          UNIQUE KEY `appid` (`appid`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='API应用表'", $tablepre);
+        $results[] = ['name' => 'api_app', 'ok' => $r['ok'], 'message' => $r['message']];
+
+        // 表为新创建时，自动插入默认应用
+        if ($r['message'] === '完成') {
+            $appid = bin2hex(random_bytes(8));
+            $secret = bin2hex(random_bytes(16));
+            $now = time();
+
+            $insertSql = "INSERT INTO `{$tablepre}api_app` (`appid`, `secret`, `name`, `description`, `scope`, `is_enabled`, `uid`, `rate_limit`, `created_at`)
+                VALUES ('{$appid}', '{$secret}', '默认应用', '系统自动创建的默认应用，用于前台页面', 'full', 1, 0, 0, {$now})";
+            $ir = $this->execSql($insertSql);
+            $results[] = ['name' => 'api_app.default_app', 'ok' => $ir['ok'], 'message' => $ir['ok'] ? '默认应用已创建' : $ir['message']];
+
+            // 将默认应用凭据写入 conf.php
+            if ($ir['ok'] && function_exists('file_replace_var')) {
+                $confFile = APP_PATH . 'conf/conf.php';
+                if (is_writable($confFile)) {
+                    $changes = [];
+                    if (!isset($this->conf['api_default_appid'])) {
+                        $changes['api_default_appid'] = $appid;
+                    }
+                    if (!isset($this->conf['api_default_secret'])) {
+                        $changes['api_default_secret'] = $secret;
+                    }
+                    if (!empty($changes)) {
+                        $wr = file_replace_var($confFile, $changes);
+                        if ($wr) {
+                            $results[] = ['name' => 'api_app.conf_update', 'ok' => true, 'message' => '已写入 ' . count($changes) . ' 项配置到 conf.php'];
+                        } else {
+                            $results[] = ['name' => 'api_app.conf_update', 'ok' => false, 'message' => '写入 conf.php 失败'];
+                        }
+                    }
+                } else {
+                    $results[] = ['name' => 'api_app.conf_update', 'ok' => false, 'message' => 'conf/conf.php 不可写'];
+                }
+            }
+        }
+
+        $allOk = !in_array(false, array_column($results, 'ok'), true);
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        return [
+            'ok' => $allOk,
+            'message' => $allOk ? "API 应用认证表升级完成（{$doneCount} 项操作）" : '部分升级失败',
             'results' => $results,
         ];
     }
@@ -1421,6 +1489,7 @@ class UpgradeService {
             ['id' => 'social_tables', 'name' => '社交功能表升级', 'description' => '新增点赞、收藏、关注、通知表，添加版块分区、帖子互动、用户社交字段'],
             ['id' => 'migrate', 'name' => '数据库迁移', 'description' => '添加附件扩展字段、API 令牌表等'],
             ['id' => 'api_v1', 'name' => 'API v1 表升级', 'description' => 'api_token 双令牌字段、帖子点赞/收藏/举报表'],
+            ['id' => 'api_app', 'name' => 'API 应用认证表', 'description' => '创建 API 应用表，自动生成默认应用凭据'],
             ['id' => 'credits_system', 'name' => '积分系统', 'description' => '创建积分日志表，添加积分系统配置项'],
             ['id' => 'credits_rule', 'name' => '积分规则引擎', 'description' => '创建积分规则表，初始化内置事件规则'],
             ['id' => 'search_indexes', 'name' => '全文搜索索引', 'description' => '为帖子标题和内容添加 FULLTEXT 索引（支持中文分词搜索）'],
@@ -1454,6 +1523,7 @@ class UpgradeService {
             case 'social_tables': return $this->upgradeSocialTables();
             case 'migrate': return $this->migrateDatabase();
             case 'api_v1': return $this->upgradeApiV1Tables();
+            case 'api_app': return $this->upgradeApiAppTable();
             case 'credits_system': return $this->upgradeCreditsSystem();
             case 'credits_rule': return $this->upgradeCreditsRuleTables();
             case 'search_indexes': return $this->upgradeSearchIndexes();

@@ -3,10 +3,10 @@
 <!--{hook forum_followers_start.htm}-->
 
 <div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
-	<div class="d-none d-lg-block col-lg-2">
+	<div class="d-none d-xl-block col-xl-2">
 		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
 	</div>
-	<div class="col-lg-7 main" style="min-width:0">
+	<div class="col-xl-7 main" style="min-width:0">
 		<div class="x-card card  ">
 			<div class="card-body">
 				<div class="d-flex justify-content-between align-items-center mb-3">
@@ -17,7 +17,7 @@
 				<?php if(!empty($_all_members)) { ?>
 				<div class="row g-3">
 					<?php foreach($_all_members as $_m) { ?>
-					<div class="col-6 col-md-4 col-lg-3">
+					<div class="col-6 col-md-4 col-xl-3">
 						<div class="d-flex align-items-center gap-2 p-2 rounded-1" style="background:var(--bs-tertiary-bg)">
 							<a href="<?php echo user_url($_m['uid']);?>" class="flex-shrink-0" tabindex="-1">
 							<img src="<?php echo $_m['avatar_url'];?>" class="rounded-circle" width="40" height="40" alt="<?php echo esc_html($_m['display_name']);?>" onerror="this.src='/view/img/avatar.png'">
@@ -50,7 +50,7 @@
 		</nav>
 		<?php } ?>
 	</div>
-	<div class="d-none d-lg-block col-lg-3 aside">
+	<div class="d-none d-xl-block col-xl-3 aside">
 		<div class="x-card card card-forum-info  mb-3">
 			<div class="card-body">
 				<div class="d-flex align-items-center gap-3">
