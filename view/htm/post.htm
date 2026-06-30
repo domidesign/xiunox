@@ -102,20 +102,43 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 					<input type="hidden" name="quotepid" value="<?php echo $quotepid;?>" />
 
 					<!--{hook post_fid_before.htm}-->
-					<?php if($isfirst) { ?>
-					<?php $forum_count = count($forumlist_allowthread); ?>
-					<div class="mb-3">
-						<!--{hook post_fid_select_before.htm}-->
-						<select class="form-select me-1 w-100 post-fid-select " name="fid"<?php echo $forum_count > 1 ? ' required' : '';?>>
-							<?php if($forum_count > 1): ?>
-							<option value="" disabled selected><?php echo lang('please_select_forum');?></option>
-							<?php endif; ?>
-							<?php foreach ($forumlist_allowthread as $forum) { ?>
-							<option value="<?php echo $forum['fid']; ?>"<?php echo $forum_count == 1 ? ' selected' : '';?>><?php echo esc_html($forum['name']); ?></option>
-							<?php } ?>
-						</select>
-						<!--{hook post_fid_select_after.htm}-->
-					</div>
+				<?php if($isfirst) { ?>
+				<?php
+				$forum_count = count($forumlist_allowthread);
+				$has_categories = !empty($forum_categories);
+				$has_orphan = !empty($forum_orphan);
+				// 仅当存在分区且版块数>1时启用两级联动
+				$show_two_level = $has_categories && $forum_count > 1;
+				?>
+				<div class="mb-3">
+					<!--{hook post_fid_select_before.htm}-->
+					<?php if($show_two_level): ?>
+					<!-- 两级联动：先选分区，再选版块 -->
+					<select class="form-select me-1 w-100 mb-2 post-fid-category-select" name="fid_category" id="fidCategory">
+						<option value="0"<?php echo $current_fid_category == 0 ? ' selected' : '';?>><?php echo lang('all_categories');?></option>
+						<?php foreach($forum_categories as $cat): ?>
+						<option value="<?php echo $cat['fid'];?>"<?php echo $current_fid_category == $cat['fid'] ? ' selected' : '';?>><?php echo esc_html($cat['name']);?></option>
+						<?php endforeach; ?>
+						<?php if($has_orphan): ?>
+						<option value="-1"<?php echo $current_fid_category == -1 ? ' selected' : '';?>><?php echo lang('uncategorized');?></option>
+						<?php endif; ?>
+					</select>
+					<select class="form-select me-1 w-100 post-fid-select" name="fid" id="fid" required>
+						<!-- options 由 JS 动态填充 -->
+					</select>
+					<?php else: ?>
+					<!-- 单级选择：版块数<=1 或无分区 -->
+					<select class="form-select me-1 w-100 post-fid-select " name="fid"<?php echo $forum_count > 1 ? ' required' : '';?>>
+						<?php if($forum_count > 1): ?>
+						<option value="" disabled selected><?php echo lang('please_select_forum');?></option>
+						<?php endif; ?>
+						<?php foreach ($forumlist_allowthread as $forum) { ?>
+						<option value="<?php echo $forum['fid']; ?>"<?php echo $forum_count == 1 ? ' selected' : '';?>><?php echo esc_html($forum['name']); ?></option>
+						<?php } ?>
+					</select>
+					<?php endif; ?>
+					<!--{hook post_fid_select_after.htm}-->
+				</div>
 					<!--{hook post_subject_before.htm}-->
 					<div class="mb-3">
 						<input type="text" class="form-control w-100 post-input " placeholder="<?php echo lang('subject');?>" name="subject" value="<?php echo $form_subject;?>" id="subject" maxlength="<?php echo $sec_subject_max_length;?>">
@@ -449,9 +472,66 @@ function addAttachmentCard(msg) {
 }
 
 <?php if (isset($fid) && $fid): ?>
+<?php if(empty($show_two_level)): ?>
 jform.find('[name="fid"]').val(<?php echo $fid;?>);
-
+<?php endif; ?>
 $('li[data-active="fid-<?php echo $fid;?>"]').addClass('active');
+<?php endif; ?>
+
+<?php if(!empty($show_two_level)): ?>
+// 两级联动版块选择：分区变化时动态渲染版块 options
+(function() {
+	var categorySelect = document.getElementById('fidCategory');
+	var forumSelect = document.getElementById('fid');
+	if(!categorySelect || !forumSelect) return;
+
+	// 按分区分组的版块数据（fid 字段为字符串键，需转换为数字）
+	var forumByCategory = <?php echo xn_json_encode($forum_by_category);?>;
+	var forumOrphan = <?php echo xn_json_encode(array_values($forum_orphan));?>;
+	var allForums = <?php echo xn_json_encode(array_values($forumlist_allowthread));?>;
+	var currentFid = <?php echo intval($fid ?? 0);?>;
+	var currentCategory = <?php echo intval($current_fid_category);?>;
+	var pleaseSelectForum = '<?php echo lang('please_select_forum');?>';
+
+	// 渲染版块 options
+	function renderForums(categoryId) {
+		categoryId = parseInt(categoryId);
+		var forums = [];
+		if(categoryId === 0) {
+			forums = allForums;
+		} else if(categoryId === -1) {
+			forums = forumOrphan;
+		} else {
+			// forumByCategory 的键是字符串，需要兼容
+			forums = forumByCategory[categoryId] || forumByCategory[String(categoryId)] || [];
+		}
+
+		var html = '';
+		if(forums.length > 1) {
+			html += '<option value="" disabled selected>' + pleaseSelectForum + '</option>';
+		}
+		for(var i = 0; i < forums.length; i++) {
+			var f = forums[i];
+			var selected = (forums.length === 1 || parseInt(f.fid) === currentFid) ? ' selected' : '';
+			html += '<option value="' + f.fid + '"' + selected + '>' + f.name + '</option>';
+		}
+		forumSelect.innerHTML = html;
+
+		// 触发 change 事件，让积分检查逻辑能更新
+		if(typeof Event === 'function') {
+			forumSelect.dispatchEvent(new Event('change', {bubbles: true}));
+		}
+	}
+
+	// 初始化渲染
+	renderForums(currentCategory);
+
+	// 分区变化时重新渲染版块
+	categorySelect.addEventListener('change', function() {
+		currentFid = 0; // 切换分区时清空当前版块选择
+		renderForums(this.value);
+	});
+})();
 <?php endif; ?>
 
 // 引用帖子搜索（支持桌面端和手机端）

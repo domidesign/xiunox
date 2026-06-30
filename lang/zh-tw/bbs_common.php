@@ -670,6 +670,8 @@ return array(
 	'user_credits_log'=>'積分記錄',
 	'user_no_credits_log'=>'暫無積分記錄',
 	'please_select_forum'=>'請選擇版塊',
+	'all_categories'=>'全部分區',
+	'uncategorized'=>'未分類',
 	'digest_thread'=>'精華主題',
 	'digest_level'=>'精華等級',
 	'digest_0'=>'取消精華',

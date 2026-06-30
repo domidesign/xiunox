@@ -290,7 +290,8 @@ if($action == 'create') {
 		
 		$fid = param(2, 0);
 		$forum = $fid ? (isset($forumlist[$fid]) ? $forumlist[$fid] : forum_read($fid)) : array();
-		
+
+		// 可发帖版块（剔除分区 type=1）
 		$forumlist_allowthread = forum_list_access_filter($forumlist, $gid, 'allowthread');
 		foreach($forumlist_allowthread as $k=>$f) {
 			if(!empty($f['type'])) unset($forumlist_allowthread[$k]);
@@ -298,6 +299,29 @@ if($action == 'create') {
 		$forumarr = xn_json_encode(arrlist_key_values($forumlist_allowthread, 'fid', 'name'));
 		if(empty($forumlist_allowthread)) {
 			message(-1, lang('user_group_insufficient_privilege'));
+		}
+
+		// 两级联动：分区列表 + 按 fup 分组的版块列表
+		$forum_categories = array(); // 所有分区（type=1）
+		$forum_by_category = array(); // fup => array(版块列表)
+		$forum_orphan = array(); // 无父分区的版块
+		foreach($forumlist as $f) {
+			if(!empty($f['type']) && $f['type'] == 1) {
+				$forum_categories[$f['fid']] = $f;
+			}
+		}
+		foreach($forumlist_allowthread as $f) {
+			$fup = isset($f['fup']) ? intval($f['fup']) : 0;
+			if($fup > 0 && isset($forum_categories[$fup])) {
+				$forum_by_category[$fup][] = $f;
+			} else {
+				$forum_orphan[] = $f;
+			}
+		}
+		// 当前 fid 所属分区（用于回填第一级 select）
+		$current_fid_category = 0;
+		if($fid && isset($forumlist[$fid]) && empty($forumlist[$fid]['type'])) {
+			$current_fid_category = isset($forumlist[$fid]['fup']) ? intval($forumlist[$fid]['fup']) : 0;
 		}
 		
 		$header['title'] = lang('create_thread');

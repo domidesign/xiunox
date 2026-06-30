@@ -487,6 +487,8 @@ return array(
 	'thread_not_exists'=>'主题不存在',
 	'forum_not_exists'=>'版块不存在',
 	'please_select_forum'=>'请选择版块',
+	'all_categories'=>'全部分区',
+	'uncategorized'=>'未分类',
 	'please_input_subject'=>'请输入标题',
 	'please_input_message'=>'请输入内容',
 	'subject_too_short'=>'标题太短，至少需要{minlength}个字',

@@ -467,6 +467,8 @@ return array(
 	'thread_not_exists'=>'Thread does not exist',
 	'forum_not_exists'=>'Forum does not exist',
 	'please_select_forum'=>'Please select a forum',
+	'all_categories'=>'All Categories',
+	'uncategorized'=>'Uncategorized',
 	'please_input_subject'=>'Please input subject',
 	'please_input_message'=>'Please input message',
 	'subject_too_short'=>'Subject too short, minimum {minlength} characters',
