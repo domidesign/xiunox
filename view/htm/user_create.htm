@@ -78,9 +78,11 @@ $captcha_register_on = CaptchaService::is_enabled('register', $gid);
 				</div>
 				<?php endif; ?>
 
-				<div class="mb-3 mt-3">
-					<button type="submit" class="btn btn-primary w-100 " id="submit" data-loading-text="<?php echo lang('submiting');?>..." <?php if($conf['user_create_email_on']) { ?>disabled<?php } ?>><?php echo lang('next_step');?></button>
-				</div>
+			<!--{hook user_create_submit_before.htm}-->
+
+			<div class="mb-3 mt-3">
+				<button type="submit" class="btn btn-primary w-100 " id="submit" data-loading-text="<?php echo lang('submiting');?>..." <?php if($conf['user_create_email_on']) { ?>disabled<?php } ?>><?php echo lang('next_step');?></button>
+			</div>
 				<!--{hook user_create_submit_after.htm}-->
 
 				<div class="d-flex justify-content-between align-items-center">
