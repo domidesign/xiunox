@@ -26,6 +26,9 @@ return array(
 	'os' => 'OS',
 	'unix_like' => 'UNIX Like',
 	'php_version' => 'PHP Version',
+	'mysql_version' => 'MySQL Version',
+	'mysql_version_pending' => 'Detected after database connection',
+	'mysql_version_too_low' => 'MySQL version too low, cannot install',
 	
 	'step_2_title' => '2. Database settings',
 	'db_type' => 'Database type',

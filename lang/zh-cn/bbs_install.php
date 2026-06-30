@@ -26,6 +26,9 @@ return array(
 	'os' => '操作系统',
 	'unix_like' => '类 UNIX',
 	'php_version' => 'PHP 版本',
+	'mysql_version' => 'MySQL 版本',
+	'mysql_version_pending' => '连接数据库后检测',
+	'mysql_version_too_low' => 'MySQL 版本过低，无法安装',
 
 	'step_2_title' => '二、数据库设置',
 	'db_type' => '数据库类型',

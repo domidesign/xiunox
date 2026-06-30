@@ -26,6 +26,9 @@ return array(
 	'os' => '操作系統',
 	'unix_like' => '類 UNIX',
 	'php_version' => 'PHP 版本',
+	'mysql_version' => 'MySQL 版本',
+	'mysql_version_pending' => '連接數據庫後檢測',
+	'mysql_version_too_low' => 'MySQL 版本過低，無法安裝',
 	
 	'step_2_title' => '二、數據庫設置',
 	'db_type' => '數據庫類型',

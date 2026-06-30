@@ -1,4 +1,18 @@
 <?php
+// PHP 8.0+ 硬阻断：低于 8.0 直接终止，避免后续诡异报错
+if (version_compare(PHP_VERSION, '8.0.0', '<')) {
+	header('HTTP/1.1 500 Internal Server Error');
+	header('Content-Type: text/html; charset=utf-8');
+	echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>PHP 版本过低</title>';
+	echo '<style>body{font-family:-apple-system,sans-serif;padding:40px;line-height:1.6;color:#333;max-width:720px;margin:0 auto}h1{color:#dc3545;margin-top:0}code{background:#f8f9fa;padding:2px 6px;border-radius:3px;color:#c7254e}</style>';
+	echo '</head><body>';
+	echo '<h1>PHP 版本过低，无法安装</h1>';
+	echo '<p>Xiuno BBS 4.5+ 要求 PHP <strong>8.0</strong> 及以上版本。</p>';
+	echo '<p>当前 PHP 版本：<code>' . PHP_VERSION . '</code></p>';
+	echo '<p>请升级 PHP 至 8.0+ 后再运行安装程序。</p>';
+	echo '</body></html>';
+	exit;
+}
 
 define('DEBUG', 2);
 define('APP_PATH', realpath(dirname(__FILE__).'/../').'/');
@@ -221,6 +235,27 @@ if(empty($action)) {
 			}
 		}
 	}
+
+		// MySQL 服务端版本检测：要求 5.7+（5.7.6+ 才支持 ngram parser，FULLTEXT 中文分词需要）
+		// MariaDB 10.2+ 视为兼容（版本号 ≥ 10.2）
+		// 保留 db_sql_find_one：SELECT VERSION() 无表名，db_find_one 不支持
+		$mysql_version = db_sql_find_one('SELECT VERSION() AS v');
+		$mysql_ver = isset($mysql_version['v']) ? $mysql_version['v'] : '';
+		// MariaDB 版本号形如 "10.2.44-MariaDB"，MySQL 版本号形如 "5.7.43" / "8.0.35"
+		$is_mariadb = stripos($mysql_ver, 'mariadb') !== false;
+		$ver_num = preg_replace('/^(\d+\.\d+\.\d+).*$/', '$1', $mysql_ver);
+		$version_ok = false;
+		if ($is_mariadb) {
+			// MariaDB 10.2+ 兼容 MySQL 5.7 特性
+			$version_ok = version_compare($ver_num, '10.2.0', '>=');
+			$need_version = '10.2（MariaDB）';
+		} else {
+			$version_ok = version_compare($ver_num, '5.7.0', '>=');
+			$need_version = '5.7';
+		}
+		if (!$version_ok) {
+			message(-1, lang('mysql_version_too_low') . ' 当前: ' . $mysql_ver . '，需要: MySQL ' . $need_version . '+');
+		}
 
 		// 二次确认：检测数据库中是否已有指定前缀的表
 		if(empty($force)) {

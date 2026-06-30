@@ -21,6 +21,13 @@ function get_env(&$env, &$write) {
 	$env['pdo_mysql']['need'] = lang('required');
 	$env['pdo_mysql']['status'] = extension_loaded('pdo_mysql') ? 1 : 0;
 
+	// MySQL 服务端版本要求（实际版本在下一步数据库连接后检测）
+	$env['mysql_version']['name'] = lang('mysql_version');
+	$env['mysql_version']['must'] = TRUE;
+	$env['mysql_version']['current'] = lang('mysql_version_pending');
+	$env['mysql_version']['need'] = '5.7+';
+	$env['mysql_version']['status'] = 2; // 建议项，连接数据库后再实际校验
+
 	$env['gd']['name'] = 'GD';
 	$env['gd']['must'] = FALSE;
 	$env['gd']['current'] = extension_loaded('gd') ? lang('supported') : lang('not_supported');

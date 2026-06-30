@@ -3,6 +3,21 @@
  * Copyright (C) xiuno.com
  */
 
+// PHP 8.0+ 硬阻断：低于 8.0 直接终止，避免运行时各种诡异错误
+if (version_compare(PHP_VERSION, '8.0.0', '<')) {
+	header('HTTP/1.1 500 Internal Server Error');
+	header('Content-Type: text/html; charset=utf-8');
+	echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>PHP 版本过低</title>';
+	echo '<style>body{font-family:-apple-system,sans-serif;padding:40px;line-height:1.6;color:#333;max-width:720px;margin:0 auto}h1{color:#dc3545;margin-top:0}code{background:#f8f9fa;padding:2px 6px;border-radius:3px;color:#c7254e}</style>';
+	echo '</head><body>';
+	echo '<h1>PHP 版本过低，无法运行</h1>';
+	echo '<p>Xiuno BBS 4.5+ 要求 PHP <strong>8.0</strong> 及以上版本。</p>';
+	echo '<p>当前 PHP 版本：<code>' . PHP_VERSION . '</code></p>';
+	echo '<p>请升级 PHP 至 8.0+ 后再访问站点。</p>';
+	echo '</body></html>';
+	exit;
+}
+
 //xhprof_enable();
 
 //$_SERVER['REQUEST_URI'] = '/?user-login.htm';
@@ -32,7 +47,7 @@ $conf = (@include APP_PATH.'conf/conf.php') OR exit('<script>window.location="in
 !isset($conf['logo_mobile_url']) AND $conf['logo_mobile_url'] = '/view/img/logo.png';
 !isset($conf['logo_pc_url']) AND $conf['logo_pc_url'] = '/view/img/logo.png';
 !isset($conf['logo_water_url']) AND $conf['logo_water_url'] = '/view/img/water-small.png';
-$conf['version'] = 'X1.0.1';		// 定义版本号！避免手工修改 conf/conf.php
+$conf['version'] = '1.0.1';            // 定义版本号！避免手工修改 conf/conf.php
 
 // 转换为绝对路径，防止被包含时出错。
 substr($conf['log_path'], 0, 2) == './' AND $conf['log_path'] = APP_PATH.$conf['log_path']; 
