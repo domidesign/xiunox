@@ -16,8 +16,8 @@
 
 function_exists('ini_set') AND ini_set('display_errors', DEBUG ? '1' : '0');
 error_reporting(DEBUG ? E_ALL : 0);
-version_compare(PHP_VERSION, '5.3.0', '<') AND set_magic_quotes_runtime(0);
-$get_magic_quotes_gpc = (version_compare(PHP_VERSION, '5.4.0', '<') || function_exists('get_magic_quotes_gpc')) ? get_magic_quotes_gpc() : false;
+// PHP 8.0+ 已移除 set_magic_quotes_runtime() 和 get_magic_quotes_gpc()，此处保留 $get_magic_quotes_gpc = false 以兼容下方 param_force 中对魔术引号的判断
+$get_magic_quotes_gpc = false;
 $starttime = microtime(1);
 $time = time();
 

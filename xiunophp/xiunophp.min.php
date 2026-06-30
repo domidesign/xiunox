@@ -16,8 +16,8 @@
 
 function_exists('ini_set') AND ini_set('display_errors', DEBUG ? '1' : '0');
 error_reporting(DEBUG ? E_ALL : 0);
-version_compare(PHP_VERSION, '5.3.0', '<') AND set_magic_quotes_runtime(0);
-$get_magic_quotes_gpc = (version_compare(PHP_VERSION, '5.4.0', '<') || function_exists('get_magic_quotes_gpc')) ? get_magic_quotes_gpc() : false;
+// PHP 8.0+ 已移除 set_magic_quotes_runtime() 和 get_magic_quotes_gpc()，此处保留 $get_magic_quotes_gpc = false 以兼容下方 param_force 中对魔术引号的判断
+$get_magic_quotes_gpc = false;
 $starttime = microtime(1);
 $time = time();
 
@@ -2157,49 +2157,8 @@ function xn_urldecode($s) {
 }
 
 function xn_json_encode($data, $pretty = FALSE, $level = 0) {
-	if(version_compare(PHP_VERSION, '5.4.0') >= 0) {
-		return json_encode($data, JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE);
-	}
-
-	$tab = $pretty ? str_repeat("\t", $level) : '';
-	$tab2 = $pretty ? str_repeat("\t", $level + 1) : '';
-	$br = $pretty ? "\r\n" : '';
-	switch($type = gettype($data)) {
-		case 'NULL':
-			return 'null';
-		case 'boolean':
-			return ($data ? 'true' : 'false');
-		case 'integer':
-		case 'double':
-		case 'float':
-			return $data;
-		case 'string':
-			$data = '"'.str_replace(array('\\', '"'), array('\\\\', '\\"'), $data).'"';
-			$data = str_replace("\r", '\\r', $data);
-			$data = str_replace("\n", '\\n', $data);
-			$data = str_replace("\t", '\\t', $data);
-			return $data;
-		case 'object':
-			$data = get_object_vars($data);
-		case 'array':
-			$output_index_count = 0;
-			$output_indexed = array();
-			$output_associative = array();
-			foreach($data as $key => $value) {
-				$output_indexed[] = xn_json_encode($value, $pretty, $level + 1);
-				$output_associative[] = $tab2.'"'.$key.'":' . xn_json_encode($value, $pretty, $level + 1);
-				if ($output_index_count !== NULL && $output_index_count++ !== $key) {
-					$output_index_count = NULL;
-				}
-			}
-			if($output_index_count !== NULL) {
-				return '[' . implode(",$br", $output_indexed) . ']';
-			} else {
-				return "{{$br}" . implode(",$br", $output_associative) . "{$br}{$tab}}";
-			}
-		default:
-			return '';
-	}
+	// PHP 8.0+ 自带 json_encode 完全支持 JSON_UNESCAPED_UNICODE 等常量，无需再保留 5.3 兼容分支
+	return json_encode($data, JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE);
 }
 
 function xn_json_decode($json) {
