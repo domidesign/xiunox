@@ -9,7 +9,7 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 
 <?php
 	if($route == 'thread' && $action == 'create') {
-		$form_title = lang('thread_create');
+		$form_title = lang('create_thread');
 		$form_action = thread_create_url();
 		$form_submit_txt = lang('thread_create');
 		$form_subject = '';
@@ -92,10 +92,10 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 <div class="row g-3 g-lg-4">
 	<div class="col-12 col-lg post-form-wrap">
 		<div class="x-card card">
-			<div class="card-body">
-				<?php echo $form_title; ?>
-			</div>
-			<div class="card-body">
+		<div class="card-header bg-transparent border-bottom-0 py-2">
+			<h6 class="mb-0 fw-semibold"><i class="ti ti-message-plus me-1"></i><?php echo $form_title; ?></h6>
+		</div>
+		<div class="card-body">
 				<form hx-post="<?php echo $form_action;?>" hx-target="#post-msg" hx-swap="innerHTML" hx-encoding="multipart/form-data" hx-confirm=" " id="form">
 					<?php echo CsrfService::input(); ?>
 					<input type="hidden" name="doctype" value="0" />
@@ -110,11 +110,11 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 				// 仅当存在分区且版块数>1时启用两级联动
 				$show_two_level = $has_categories && $forum_count > 1;
 				?>
-				<div class="mb-3">
+				<div class="mb-3 d-flex align-items-center">
 					<!--{hook post_fid_select_before.htm}-->
 					<?php if($show_two_level): ?>
 					<!-- 两级联动：先选分区，再选版块 -->
-					<select class="form-select me-1 w-100 mb-2 post-fid-category-select" name="fid_category" id="fidCategory">
+					<select class="form-select me-1   post-fid-category-select" name="fid_category" id="fidCategory" style="max-width: 130px;">
 						<option value="0"<?php echo $current_fid_category == 0 ? ' selected' : '';?>><?php echo lang('all_categories');?></option>
 						<?php foreach($forum_categories as $cat): ?>
 						<option value="<?php echo $cat['fid'];?>"<?php echo $current_fid_category == $cat['fid'] ? ' selected' : '';?>><?php echo esc_html($cat['name']);?></option>
@@ -123,12 +123,12 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 						<option value="-1"<?php echo $current_fid_category == -1 ? ' selected' : '';?>><?php echo lang('uncategorized');?></option>
 						<?php endif; ?>
 					</select>
-					<select class="form-select me-1 w-100 post-fid-select" name="fid" id="fid" required>
+					<select class="form-select me-1   post-fid-select" name="fid" id="fid" required>
 						<!-- options 由 JS 动态填充 -->
 					</select>
 					<?php else: ?>
 					<!-- 单级选择：版块数<=1 或无分区 -->
-					<select class="form-select me-1 w-100 post-fid-select " name="fid"<?php echo $forum_count > 1 ? ' required' : '';?>>
+					<select class="form-select me-1 w-50 post-fid-select " name="fid"<?php echo $forum_count > 1 ? ' required' : '';?>>
 						<?php if($forum_count > 1): ?>
 						<option value="" disabled selected><?php echo lang('please_select_forum');?></option>
 						<?php endif; ?>
@@ -151,10 +151,10 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 
 					<div class="mb-3 position-relative" id="message-editor-wrap">
 					<textarea class="form-control w-100 post-input " placeholder="<?php echo lang('message');?>" name="message" id="message" style="min-height: 300px; height: auto;"><?php echo $form_message;?></textarea>
-					<div class="form-text text-body-secondary mt-1">
+					
+				</div><div class="form-text text-body-secondary mt-1">
 						<?php echo lang('char_requirement')." {$sec_current_min_length} ".lang('char_unit').lang('char_max_unit')." {$sec_current_max_length} ".lang('char_unit'); ?>
 					</div>
-				</div>
 
 					<!--{hook post_message_after.htm}-->
 
