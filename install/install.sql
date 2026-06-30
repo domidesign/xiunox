@@ -90,8 +90,8 @@ INSERT INTO `bbs_group` SET gid='105', name="五级用户组", creditsfrom='1000
 
 # 板块表，一级, runtime 中存放 forumlist 格式化以后的数据。
 DROP TABLE IF EXISTS bbs_forum;
-CREATE TABLE bbs_forum (				
-  fid int(11) unsigned NOT NULL auto_increment,		# fid
+CREATE TABLE bbs_forum (
+  fid smallint(5) unsigned NOT NULL auto_increment,	# fid
  # fup int(11) unsigned NOT NULL auto_increment,	# 上一级版块，二级版块作为插件
   name char(16) NOT NULL default '',			# 版块名称
   `rank` tinyint(3) unsigned NOT NULL default '0',	# 显示，倒序，数字越大越靠前
@@ -119,8 +119,8 @@ INSERT INTO bbs_forum SET fid='1', name='默认版块', brief='默认版块介�
 # 版块访问规则, forum.accesson 开启时生效, 记录行数： fid * gid
 DROP TABLE IF EXISTS bbs_forum_access;
 CREATE TABLE bbs_forum_access (				# 字段中文名
-  fid int(11) unsigned NOT NULL default '0',		# fid
-  gid int(11) unsigned NOT NULL default '0',		# fid
+  fid smallint(5) unsigned NOT NULL default '0',		# fid
+  gid smallint(5) unsigned NOT NULL default '0',		# fid
   allowread tinyint(1) unsigned NOT NULL default '0',	# 允许查看
   allowthread tinyint(1) unsigned NOT NULL default '0',	# 允许发主题
   allowpost tinyint(1) unsigned NOT NULL default '0',	# 允许回复
@@ -134,7 +134,7 @@ CREATE TABLE bbs_forum_access (				# 字段中文名
 # 论坛主题
 DROP TABLE IF EXISTS bbs_thread;
 CREATE TABLE bbs_thread (
-  fid smallint(6) NOT NULL default '0',			# 版块 id
+  fid smallint(5) unsigned NOT NULL default '0',			# 版块 id
   tid int(11) unsigned NOT NULL auto_increment,		# 主题id
   top tinyint(1) NOT NULL default '0',			# 置顶级别: 0: 普通主题, 1-3 置顶的顺序
   uid int(11) unsigned NOT NULL default '0',		# 用户id
@@ -174,7 +174,7 @@ CREATE TABLE bbs_thread (
 # 置顶主题
 DROP TABLE IF EXISTS bbs_thread_top;
 CREATE TABLE bbs_thread_top (
-  fid smallint(6) NOT NULL default '0',			# 查找板块置顶
+  fid smallint(5) unsigned NOT NULL default '0',			# 查找板块置顶
   tid int(11) unsigned NOT NULL default '0',		# tid
   top int(11) unsigned NOT NULL default '0',		# top: 0 是普通最新贴，> 0 置顶贴。
   PRIMARY KEY (tid),					#
@@ -185,7 +185,7 @@ CREATE TABLE bbs_thread_top (
 # 精华主题
 DROP TABLE IF EXISTS bbs_thread_digest;
 CREATE TABLE bbs_thread_digest (
-  fid smallint(6) NOT NULL DEFAULT '0',			# 版块 id
+  fid smallint(5) unsigned NOT NULL DEFAULT '0',			# 版块 id
   tid int(11) unsigned NOT NULL DEFAULT '0',		# 主题id
   uid int(11) unsigned NOT NULL DEFAULT '0',		# 用户id
   digest tinyint(6) NOT NULL DEFAULT '0',		# 精华级别: 1-3
@@ -274,7 +274,7 @@ DROP TABLE IF EXISTS bbs_session;
 CREATE TABLE bbs_session (
   sid char(32) NOT NULL default '0',			# 随机生成 id 不能重复 uniqueid() 13 位
   uid int(11) unsigned NOT NULL default '0',		# 用户id 未登录为 0，可以重复
-  fid tinyint(3) unsigned NOT NULL default '0',		# 所在的版块
+  fid smallint(5) unsigned NOT NULL default '0',		# 所在的版块
   url char(32) NOT NULL default '',			# 当前访问 url
   ip int(11) unsigned NOT NULL default '0',		# 用户ip
   useragent char(128) NOT NULL default '',		# 用户浏览器信息
@@ -437,7 +437,7 @@ CREATE TABLE bbs_user_follow (
 DROP TABLE IF EXISTS bbs_forum_follow;
 CREATE TABLE bbs_forum_follow (
   uid int(11) unsigned NOT NULL DEFAULT '0',
-  fid smallint(6) unsigned NOT NULL DEFAULT '0',
+  fid smallint(5) unsigned NOT NULL DEFAULT '0',
   create_date int(11) unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (uid, fid),
   KEY (fid)
@@ -597,7 +597,7 @@ INSERT INTO bbs_credits_rule_global (event, label, credits_change, golds_change,
 DROP TABLE IF EXISTS bbs_credits_rule_forum;
 CREATE TABLE bbs_credits_rule_forum (
   id int(11) unsigned NOT NULL AUTO_INCREMENT,
-  fid smallint(6) unsigned NOT NULL DEFAULT 0 COMMENT '版块ID',
+  fid smallint(5) unsigned NOT NULL DEFAULT 0 COMMENT '版块ID',
   event varchar(32) NOT NULL DEFAULT '' COMMENT '事件标识',
   credits_change int(11) NOT NULL DEFAULT 0 COMMENT '积分变化值',
   golds_change int(11) NOT NULL DEFAULT 0 COMMENT '金币变化值',

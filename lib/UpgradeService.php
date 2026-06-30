@@ -4,7 +4,7 @@ class UpgradeService {
     private $db;
     private array $conf;
     private string $backupPath;
-    private string $targetVersion = 'X1.0.1';
+    private string $targetVersion = '1.0.1';
 
     public function __construct($db, array $conf) {
         $this->db = $db;
@@ -213,7 +213,7 @@ class UpgradeService {
         $tables = [
             ['forum_follow', "CREATE TABLE `{$tablepre}forum_follow` (
               uid int(11) unsigned NOT NULL DEFAULT '0',
-              fid smallint(6) unsigned NOT NULL DEFAULT '0',
+              fid smallint(5) unsigned NOT NULL DEFAULT '0',
               create_date int(11) unsigned NOT NULL DEFAULT '0',
               PRIMARY KEY (uid, fid),
               KEY fid (fid)
@@ -334,7 +334,7 @@ class UpgradeService {
         // 创建版块规则覆盖表
         $r = $this->createTable('credits_rule_forum', "CREATE TABLE `{$tablepre}credits_rule_forum` (
           id int(11) unsigned NOT NULL AUTO_INCREMENT,
-          fid smallint(6) unsigned NOT NULL DEFAULT 0 COMMENT '版块ID',
+          fid smallint(5) unsigned NOT NULL DEFAULT 0 COMMENT '版块ID',
           event varchar(32) NOT NULL DEFAULT '' COMMENT '事件标识',
           credits_change int(11) NOT NULL DEFAULT 0 COMMENT '积分变化值',
           golds_change int(11) NOT NULL DEFAULT 0 COMMENT '金币变化值',
@@ -817,6 +817,62 @@ class UpgradeService {
         $sql = "SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$tablepre}{$table}' AND COLUMN_NAME = '{$column}'";
         $r = $this->db->sqlFindOne($sql);
         return !empty($r) ? strtolower($r['DATA_TYPE']) : '';
+    }
+
+    /**
+     * 统一 fid 字段类型为 smallint(5) unsigned
+     * 修复历史遗留的 fid 类型不一致（int/smallint(6)/tinyint(3) 混用），
+     * 避免 JOIN 时隐式类型转换导致索引失效。
+     * 使用 MODIFY COLUMN 幂等操作，重复执行无副作用。
+     */
+    public function upgradeFidFieldType(): array {
+        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $results = [];
+
+        // 安全检查：forum.fid 最大值不能超过 smallint 上限（65535）
+        if ($this->dbTableExists('forum', $tablepre)) {
+            // 保留 db_sql_find_one：聚合 MAX(fid) 无需 db_find_one
+            $maxRow = $this->db->sqlFindOne("SELECT MAX(fid) AS maxfid FROM `{$tablepre}forum`");
+            $maxFid = isset($maxRow['maxfid']) ? intval($maxRow['maxfid']) : 0;
+            if ($maxFid > 65535) {
+                return [
+                    'ok' => false,
+                    'message' => "forum.fid 最大值 {$maxFid} 超过 smallint 上限 65535，跳过 fid 类型统一以避免数据截断",
+                    'results' => [],
+                ];
+            }
+        }
+
+        // 需要统一 fid 类型的表 => 字段定义（不含字段名，由 MODIFY COLUMN `fid` 后拼接）
+        $targets = [
+            'forum'              => "smallint(5) unsigned NOT NULL AUTO_INCREMENT",
+            'forum_access'       => "smallint(5) unsigned NOT NULL DEFAULT '0'",
+            'thread'             => "smallint(5) unsigned NOT NULL DEFAULT '0'",
+            'thread_top'         => "smallint(5) unsigned NOT NULL DEFAULT '0'",
+            'thread_digest'      => "smallint(5) unsigned NOT NULL DEFAULT '0'",
+            'forum_follow'       => "smallint(5) unsigned NOT NULL DEFAULT '0'",
+            'credits_rule_forum' => "smallint(5) unsigned NOT NULL DEFAULT '0'",
+            'session'            => "smallint(5) unsigned NOT NULL DEFAULT '0'",
+        ];
+
+        foreach ($targets as $table => $colDef) {
+            if (!$this->dbTableExists($table, $tablepre)) {
+                $results[] = ['name' => "{$table}.fid", 'ok' => true, 'message' => '表不存在，跳过'];
+                continue;
+            }
+            $r = $this->execSql("ALTER TABLE `{$tablepre}{$table}` MODIFY COLUMN `fid` {$colDef}");
+            $results[] = [
+                'name'    => "{$table}.fid",
+                'ok'      => $r['ok'],
+                'message' => $r['ok'] ? '已统一为 smallint(5) unsigned' : $r['message'],
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'message' => 'fid 字段类型统一完成',
+            'results' => $results,
+        ];
     }
 
     private function dbTableExists(string $table, string $tablepre): bool {
@@ -1387,7 +1443,7 @@ class UpgradeService {
 
         // 创建精华帖索引表（thread_digest_change 依赖此表）
         $r = $this->createTable('thread_digest', "CREATE TABLE `{$tablepre}thread_digest` (
-          `fid` smallint(6) NOT NULL DEFAULT '0',
+          `fid` smallint(5) unsigned NOT NULL DEFAULT '0',
           `tid` int(11) unsigned NOT NULL DEFAULT '0',
           `uid` int(11) unsigned NOT NULL DEFAULT '0',
           `digest` tinyint(6) NOT NULL DEFAULT '0',
@@ -1514,6 +1570,7 @@ class UpgradeService {
             ['id' => 'user_group_resync', 'name' => '用户组重同步', 'description' => '修复存量用户组与积分不匹配（遍历所有积分用户组用户，按当前 credits 重新计算用户组）'],
             ['id' => 'recompile', 'name' => '插件重编译', 'description' => '清空缓存，重编译所有插件'],
             ['id' => 'perf_indexes', 'name' => '性能索引优化', 'description' => '为用户帖子列表、回帖列表等高频查询添加联合索引，消除全表扫描'],
+            ['id' => 'fid_field_type', 'name' => 'fid 字段类型统一', 'description' => '统一所有表的 fid 字段为 smallint(5) unsigned，避免 JOIN 隐式类型转换导致索引失效'],
         ];
     }
 
@@ -1548,6 +1605,7 @@ class UpgradeService {
             case 'user_group_resync': return $this->upgradeUserGroupResync();
             case 'recompile': return $this->recompilePlugins();
             case 'perf_indexes': return $this->upgradePerfIndexes();
+            case 'fid_field_type': return $this->upgradeFidFieldType();
             default: return ['ok' => false, 'message' => '未知步骤：' . $stepId];
         }
     }
