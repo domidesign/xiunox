@@ -8,10 +8,11 @@
 <?php $fid = G('fid');?>
 <?php $conf = G('conf');?>
 <?php $static_version = $conf['static_version'];?>
-				
+<?php $uid = G('uid'); $gid = G('gid');?>
+
 			<!--{hook footer_start.htm}-->
-		
-			<?php  echo xn_debug_info(); ?>
+
+			<?php if(!empty($uid) && !empty($gid) && $gid <= 2) echo xn_debug_info(); ?>
 	
 		</div>
 	</main>

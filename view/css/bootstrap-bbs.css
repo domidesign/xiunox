@@ -1830,4 +1830,8 @@ div.message .mention:hover {
     #notice-dropdown {
         max-width: calc(100vw - 84px);
     }
+    .aie-content table{
+        overflow-x: auto!important;
+        
+    }
 }

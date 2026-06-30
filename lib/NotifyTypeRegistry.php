@@ -451,6 +451,19 @@ class NotifyTypeRegistry {
             },
         ));
 
+        self::register('digest', array(
+            'tab'   => 'system',
+            'icon'  => 'star-filled',
+            'label' => self::lang_or('notify_type_label_digest', '帖子加精'),
+            'message_callback' => function($notify, $prefetched = array()) {
+                list(, , $subject_link) = self::compute_subject_context($notify, $prefetched);
+                $_action = self::lang_or('notify_action_digest', '将你的帖子设为精华');
+                $message = $notify['from_username'].' '.$_action;
+                if($subject_link) $message .= ' '.$subject_link;
+                return array('summary' => $_action, 'message' => $message);
+            },
+        ));
+
         self::register('report_auto_audit', array(
             'tab'   => 'system',
             'icon'  => 'flag',

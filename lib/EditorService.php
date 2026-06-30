@@ -487,6 +487,122 @@ class EditorService {
             // 暴露到全局，供侧边栏引用帖子等功能调用
             window.aiEditorInstance = aiEditorInstance;
 
+            // 粘贴 Markdown 自动转 HTML：在 capture 阶段拦截 paste 事件
+            // 核心判断：text/html 与 text/plain 长度比例
+            // - 网页富文本：HTML 含大量标签/样式/嵌套，比例通常 > 5（放行给内置 PasteExt）
+            // - Markdown 编辑器复制：HTML 只是 <pre><code> 简单包装，比例通常 < 2（走 insertMarkdown）
+            // - 纯 Markdown 文本：无 text/html（走 insertMarkdown）
+            container.addEventListener('paste', function(e) {
+                var cd = e.clipboardData || window.clipboardData;
+                if (!cd) return;
+
+                // 图片/文件粘贴不拦截，让 AIEditor 内置逻辑处理上传
+                var hasImage = false;
+                if (cd.files && cd.files.length > 0) {
+                    for (var i = 0; i < cd.files.length; i++) {
+                        if (cd.files[i].type.indexOf('image/') === 0) {
+                            hasImage = true;
+                            break;
+                        }
+                    }
+                }
+                if (hasImage) {
+                    console.log('[Editor Paste] 检测到图片，放行给内置逻辑处理');
+                    return;
+                }
+
+                var text = cd.getData('text/plain');
+                var html = cd.getData('text/html');
+                var textLen = text ? text.length : 0;
+                var htmlLen = html ? html.length : 0;
+                var ratio = textLen > 0 ? htmlLen / textLen : 0;
+                console.log('[Editor Paste] text/plain 长度:', textLen, 'text/html 长度:', htmlLen, '比例:', ratio.toFixed(2));
+
+                // 调试：打印 text/html 前 200 字符和提取的标签
+                if (html) {
+                    console.log('[Editor Paste] text/html 前 200 字符:', html.substring(0, 200));
+                    var tagMatches = html.match(/<(\w+)/g) || [];
+                    var tagSet = {};
+                    for (var i = 0; i < tagMatches.length; i++) {
+                        tagSet[tagMatches[i].substring(1).toLowerCase()] = true;
+                    }
+                    console.log('[Editor Paste] text/html 标签列表:', Object.keys(tagSet));
+                }
+
+                // 没有纯文本时不拦截
+                if (!text) {
+                    console.log('[Editor Paste] 无 text/plain，放行');
+                    return;
+                }
+
+                // 决策逻辑：
+                // 1. 无 text/html + text/plain 像 Markdown → insertMarkdown
+                // 2. 有 text/html 但比例 < 2（简单包装）+ text/plain 像 Markdown → insertMarkdown
+                // 3. 有 text/html 且比例 >= 2（富文本）→ 放行给内置 PasteExt
+                // 4. 其他 → 放行
+                function looksLikeMarkdown(str) {
+                    if (!str) return false;
+                    var patterns = [
+                        /^#{1,6}\s/m,           // 标题
+                        /^\s*[-*+]\s/m,         // 无序列表
+                        /^\s*\d+\.\s/m,         // 有序列表
+                        /^>\s/m,                // 引用
+                        /```/,                  // 代码块
+                        /`[^`]+`/,              // 行内代码
+                        /\*\*[^*]+\*\*/,        // 粗体
+                        /\[.+?\]\(.+?\)/,       // 链接
+                        /^---+$/m,              // 分割线
+                        /^\|.*\|/m              // 表格
+                    ];
+                    var matchCount = 0;
+                    for (var i = 0; i < patterns.length; i++) {
+                        if (patterns[i].test(str)) matchCount++;
+                    }
+                    return matchCount >= 2;
+                }
+
+                var isMarkdown = looksLikeMarkdown(text);
+                var shouldConvert = false;
+
+                if (!html) {
+                    // 无 text/html
+                    if (isMarkdown) {
+                        shouldConvert = true;
+                        console.log('[Editor Paste] 仅 text/plain 且像 Markdown，走 insertMarkdown');
+                    } else {
+                        console.log('[Editor Paste] 仅 text/plain 但非 Markdown，放行');
+                    }
+                } else {
+                    // 有 text/html，用比例判断
+                    if (ratio < 2 && isMarkdown) {
+                        shouldConvert = true;
+                        console.log('[Editor Paste] HTML 比例低 + 像 Markdown，走 insertMarkdown');
+                    } else {
+                        console.log('[Editor Paste] HTML 比例高或非 Markdown，放行给内置逻辑处理');
+                    }
+                }
+
+                if (!shouldConvert) return;
+
+                // 走 Markdown 转换路径
+                e.preventDefault();
+                e.stopImmediatePropagation();
+
+                try {
+                    aiEditorInstance.insertMarkdown(text);
+                    syncEditorContent();
+                    console.log('[Editor Paste] 已通过 insertMarkdown 插入，长度:', text.length);
+                } catch(err) {
+                    console.error('[Editor Paste] insertMarkdown 失败，回退到纯文本插入:', err);
+                    try {
+                        aiEditorInstance.insert(text);
+                        syncEditorContent();
+                    } catch(e2) {
+                        console.error('[Editor Paste] 回退插入也失败:', e2);
+                    }
+                }
+            }, true); // capture 阶段，优先级高于内置 PasteExt
+
             // AI 未配置完整时，给 AI 按钮绑定提示和跳转
             if (!aiConfigured) {
                 setTimeout(function() {

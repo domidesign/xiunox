@@ -61,7 +61,7 @@ function avatar_component_from_data($avatar_url, $size = 'md', $group_icon_class
     $icon_font = $sizes[$size]['icon_font'];
     $px = $sizes[$size]['px'];
 
-    // 确定图标和背景色：仅当有图标时才显示
+    // 确定图标和背景色：优先使用用户组配置，为空时回退到默认图标映射
     $show_icon = false;
     $icon = '';
     $bg = '';
@@ -69,6 +69,15 @@ function avatar_component_from_data($avatar_url, $size = 'md', $group_icon_class
         $show_icon = true;
         $icon = $group_icon_class;
         $bg = !empty($group_color) ? $group_color : '#6c757d';
+    } else {
+        // 回退到默认用户组图标映射（按 gid 匹配）
+        $defaults = $GLOBALS['avatar_group_defaults'];
+        $gidKey = intval($gid);
+        if (isset($defaults[$gidKey])) {
+            $show_icon = true;
+            $icon = $defaults[$gidKey]['icon'];
+            $bg = $defaults[$gidKey]['color'];
+        }
     }
 
     $s = '<div class="position-relative d-inline-block">';

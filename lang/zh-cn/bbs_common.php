@@ -681,6 +681,7 @@ return array(
 	'notify_type_label_audit_pending'=>'待审核',
 	'notify_type_label_audit_approve'=>'审核通过',
 	'notify_type_label_audit_reject'=>'审核驳回',
+	'notify_type_label_digest'=>'帖子加精',
 	// 审核通知摘要
 	'notify_summary_audit_pending'=>'内容正在审核中',
 	'notify_summary_audit_approve'=>'内容审核已通过',
@@ -771,6 +772,7 @@ return array(
 	'notify_action_reply'=>'回复了你的评论',
 	'notify_action_follow'=>'关注了你',
 	'notify_action_favorite'=>'收藏了你的帖子',
+	'notify_action_digest'=>'将你的帖子设为精华',
 	'notify_action_thread'=>'发布了新帖',
 	'notify_action_mention'=>'提及了你',
 	'notify_action_mention_thread'=>'在帖子中提及了你',

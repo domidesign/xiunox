@@ -19,7 +19,7 @@ $conf = (@include APP_PATH . 'conf/conf.php') OR exit(json_encode(['code' => 500
 // 兼容配置项
 !isset($conf['user_create_on']) AND $conf['user_create_on'] = 1;
 !isset($conf['cache_disable']) AND $conf['cache_disable'] = 0;
-$conf['version'] = '1.0.2';
+$conf['version'] = '1.0.1';
 
 // 转换为绝对路径
 substr($conf['log_path'], 0, 2) == './' AND $conf['log_path'] = APP_PATH . $conf['log_path'];

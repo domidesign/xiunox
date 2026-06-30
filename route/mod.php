@@ -317,6 +317,26 @@ if($action == 'top') {
 
 		// hook mod_digest_end.php
 
+		// 积分规则：仅设置精华时发放（digest>0），取消精华（digest=0）不扣减，避免反复加精/取消刷积分
+		if($digest > 0) {
+			if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
+			$_digest_uid_fid_pairs = array();
+			foreach($threadlist as $_thread) {
+				// 仅对实际通过权限检查且本次变更的 tid 发放积分
+				if(in_array($_thread['tid'], $digest_tids) && !empty($_thread['uid']) && intval($_thread['digest']) === 0) {
+					$_digest_uid_fid_pairs[] = array(intval($_thread['uid']), intval($_thread['fid']));
+				}
+			}
+			!empty($_digest_uid_fid_pairs) AND CreditsRuleService::applyRuleBatch('thread_digest', $_digest_uid_fid_pairs);
+
+			// 通知帖子作者：仅对从无精华变为有精华的帖子发送，避免同级别调整重复通知
+			foreach($threadlist as $_thread) {
+				if(in_array($_thread['tid'], $digest_tids) && !empty($_thread['uid']) && intval($_thread['digest']) === 0) {
+					notify_create($_thread['uid'], $uid, 'digest', $_thread['tid']);
+				}
+			}
+		}
+
 		header('Content-Type: application/json; charset=utf-8');
 		echo json_encode(array('code' => 0, 'message' => lang('set_completely'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
 		exit;

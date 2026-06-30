@@ -4,7 +4,7 @@ class UpgradeService {
     private $db;
     private array $conf;
     private string $backupPath;
-    private string $targetVersion = '1.0.2';
+    private string $targetVersion = '1.0.1';
 
     public function __construct($db, array $conf) {
         $this->db = $db;

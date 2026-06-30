@@ -656,6 +656,7 @@ return array(
 	'notify_type_label_audit_pending'=>'Pending Review',
 	'notify_type_label_audit_approve'=>'Approved',
 	'notify_type_label_audit_reject'=>'Rejected',
+	'notify_type_label_digest'=>'Thread Featured',
 	'notify_summary_audit_pending'=>'Content is under review',
 	'notify_summary_audit_approve'=>'Content has been approved',
 	'notify_summary_audit_reject'=>'Content has been rejected',
