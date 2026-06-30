@@ -22,7 +22,7 @@
 					<code><?php echo $conf['version'] ?? '0.0.0';?></code>
 					<i class="ti ti-arrow-right"></i>
 					<span class="fw-semibold"><?php echo lang('admin_upgrade_target_version');?></span>
-					<code>X1.0.1</code>
+				<code>1.0.2</code>
 				</div>
 			</div>
 
@@ -145,7 +145,7 @@ function finishUpgrade() {
 	btn.className = 'btn btn-success';
 
 	var logArea = document.getElementById('logArea');
-	logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i><?php echo lang('admin_upgrade_success_msg');?><b>1.0.1</b></div>';
+	logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i><?php echo lang('admin_upgrade_success_msg');?><b>1.0.2</b></div>';
 }
 
 function showUpgradeError(msg) {
