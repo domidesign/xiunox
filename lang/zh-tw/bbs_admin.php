@@ -1067,6 +1067,7 @@ return array(
 	'admin_gongan_url'=>'公安備案連結',
 	'admin_copyright_info'=>'版權資訊',
 	'admin_show_xiuno_copyright'=>'顯示 XIUNOX 版權',
+	'admin_copyright_lock_tip'=>'前後台版權資訊必須保留，不可關閉（MIT 協議要求）。如需去版權請聯繫 XIUNOX 取得商業授權',
 	'admin_custom_copyright'=>'自定義版權文字',
 	'admin_custom_copyright_placeholder'=>'例：© 2024 Your Site Name. All rights reserved.',
 	'admin_copyright_html_tip'=>'支持簡單 HTML。留空則不顯示自定義版權',

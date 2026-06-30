@@ -1184,6 +1184,7 @@ return array(
 	'admin_gongan_url'=>'Public Security Filing URL',
 	'admin_copyright_info'=>'Copyright Info',
 	'admin_show_xiuno_copyright'=>'Show XIUNOX Copyright',
+	'admin_copyright_lock_tip'=>'Frontend and backend copyright must be retained and cannot be disabled (MIT License requirement). Contact XIUNOX for commercial license to remove copyright',
 	'admin_custom_copyright'=>'Custom Copyright Text',
 	'admin_custom_copyright_placeholder'=>'e.g. © 2024 Your Site Name. All rights reserved.',
 	'admin_copyright_html_tip'=>'Supports simple HTML. Leave empty to hide custom copyright',

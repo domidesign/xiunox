@@ -1119,6 +1119,7 @@ return array(
 	'admin_gongan_url'=>'公安备案链接',
 	'admin_copyright_info'=>'版权信息',
 	'admin_show_xiuno_copyright'=>'显示 XIUNOX 版权',
+	'admin_copyright_lock_tip'=>'前后台版权信息必须保留，不可关闭（MIT 协议要求）。如需去版权请联系 XIUNOX 获取商业授权',
 	'admin_custom_copyright'=>'自定义版权文字',
 	'admin_custom_copyright_placeholder'=>'例：© 2024 Your Site Name. All rights reserved.',
 	'admin_copyright_html_tip'=>'支持简单 HTML。留空则不显示自定义版权',

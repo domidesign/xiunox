@@ -174,10 +174,8 @@
 					<!-- 版权信息 -->
 					<h6 class="fw-semibold mb-3"><i class="ti ti-copyright me-1"></i><?php echo lang('admin_copyright_info')?></h6>
 					<div class="mb-3">
-						<div class="form-check form-switch mb-2">
-							<input type="hidden" name="footer_show_powered" value="0">
-							<input type="checkbox" class="form-check-input" name="footer_show_powered" id="footerShowPowered" value="1" <?php echo $footer_show_powered ? 'checked' : '';?>>
-							<label class="form-check-label" for="footerShowPowered"><?php echo lang('admin_show_xiuno_copyright')?></label>
+						<div class="alert alert-info py-2 mb-2">
+							<i class="ti ti-info-circle me-1"></i><?php echo lang('admin_copyright_lock_tip')?>
 						</div>
 					</div>
 					<div class="mb-3">

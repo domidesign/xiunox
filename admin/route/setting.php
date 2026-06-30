@@ -488,7 +488,8 @@ if($action == 'base') {
 		$footer_gongan = param('footer_gongan', '');
 		$footer_gongan_url = param('footer_gongan_url', '');
 		$footer_copyright = param('footer_copyright', '', FALSE);
-		$footer_show_powered = param('footer_show_powered', 0);
+		// 版权显示强制开启，不允许用户关闭（MIT 协议要求保留版权声明）
+		$footer_show_powered = 1;
 
 		$replace['footer'] = array(
 		    'icp' => $footer_icp,
