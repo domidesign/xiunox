@@ -550,7 +550,7 @@ if(empty($action)) {
 
 	// hook user_logout_end.php
 
-	message(0, lang('logout_successfully'), array('redirect_url' => http_referer() ?: './'));
+	message(0, lang('logout_successfully'), array('redirect_url' => http_referer() ?: '/'));
 	//message(0, jump('退出成功', './', 1));
 
 // 重设密码第 1 步 | reset password first step

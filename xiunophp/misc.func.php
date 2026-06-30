@@ -1528,14 +1528,19 @@ function http_referer() {
 	$referer = param('referer');
 	empty($referer) AND $referer = (string)_SERVER('HTTP_REFERER');
 	if(empty($referer)) $referer = '';
+	// 安全过滤：只允许站内跳转，referer 必须以站点 URL 开头
+	// 防止外部 URL 跳转（XSS 风险 + 退出登录跳到外部域名导致 cookie 清除失效）
+	if($referer && strncmp($referer, http_url_path(), $len) !== 0) {
+		$referer = '/';
+	}
 	$referer2 = substr($referer, $len);
 	if(strpos($referer, url('user-login')) !== FALSE || strpos($referer, url('user-logout')) !== FALSE || strpos($referer, url('user-create')) !== FALSE) {
-		$referer = './';
+		$referer = '/';  // 首页绝对路径，避免 ./ 在路径风格下解析为 /user/
 	}
 	// 安全过滤，只支持站内跳转，不允许跳到外部，否则可能会被 XSS
 	// $referer = str_replace('\'', '', $referer);
 	if(!preg_match('#^\\??[\w\-/]+\.(htm|html)$#', $referer2) && !preg_match('#^[\w\/]*$#', $referer2)) {
-		$referer = './';
+		$referer = '/';
 	}
 	return $referer;
 }

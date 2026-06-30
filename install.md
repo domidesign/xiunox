@@ -1,5 +1,11 @@
 # XIUNOX 安装教程
 
+## 文档导航
+
+- **站长/运维**：第 1 → 2 → 3 → 4 → 6 → 8 章
+- **二次开发者**：第 1 → 9 → 5 → 2 → 6 章
+- **容器化部署**：第 1 → 7 → 4 → 8 章
+
 ## 目录
 
 - [1. 环境要求](#1-环境要求)
@@ -8,6 +14,9 @@
 - [4. 安装后配置](#4-安装后配置)
 - [5. 开发模式](#5-开发模式)
 - [6. 常见问题排查](#6-常见问题排查)
+- [7. Docker / docker-compose 部署](#7-docker--docker-compose-部署)
+- [8. 备份与恢复](#8-备份与恢复)
+- [9. 开发者本地搭建指南](#9-开发者本地搭建指南)
 
 ---
 
@@ -17,24 +26,64 @@
 
 | 项目 | 最低要求 | 推荐版本 |
 |------|----------|----------|
-| PHP | 8.0+ | 8.1 / 8.2 |
-| MySQL | 5.7+ | 8.0 |
-| MariaDB | 10.3+ | 10.6+ |
-| Web 服务器 | Nginx / Apache | Nginx 1.20+ |
+| PHP | 8.0+ | 8.5 |
+| MySQL | 5.7+ | 8.3 |
+| MariaDB | 10.3+ | 11.4 |
+| Web 服务器 | Nginx / Apache | Nginx 1.31+ |
 
 ### 1.2 PHP 扩展
 
-以下扩展为必需，缺少将导致安装失败或功能异常：
+以下扩展按重要性分三档，安装前请确认：
 
-- **pdo_mysql** — 数据库连接（必须）
-- **gd** — 图片处理，如验证码、缩略图（必须）
-- **mbstring** — 多字节字符串处理（必须）
-- **json** — JSON 编解码（PHP 8.0+ 已内置，无需额外安装）
+#### 必需（缺一不可）
 
-可通过以下命令检查 PHP 扩展是否已安装：
+| 扩展 | 用途 |
+|------|------|
+| **pdo_mysql** | 数据库连接，安装向导强制检测 |
+
+#### 强烈推荐（影响核心功能）
+
+| 扩展 | 用途 |
+|------|------|
+| **gd** | 验证码生成、图片缩略图、头像处理 |
+| **mbstring** | 多字节字符串处理（中文标题/内容截断、字符长度校验） |
+| **json** | JSON 编解码（PHP 8.0+ 已内置，无需额外安装） |
+| **zip** | 插件打包与解包、后台插件上传 |
+| **intl** | 多语言字符处理（国际化、字符转换、排序） |
+| **opcache** | PHP 字节码缓存，显著提升性能（PHP 8.5 推荐启用） |
+
+#### 可选（按需启用）
+
+| 扩展 | 用途 |
+|------|------|
+| **redis** | Redis 缓存驱动，中大型站点推荐 |
+| **memcached** | Memcached 缓存驱动 |
+| **yac** | 本地内存缓存（无锁、APCu 替代），单机部署轻量方案 |
+| **curl** | 外部 HTTP 请求（Webhook、OAuth、远程附件抓取） |
+| **fileinfo** | 上传文件类型检测（PHP 8.0+ 默认启用） |
+| **exif** | 图片 EXIF 元数据读取（拍摄方向、相机信息） |
+| **openssl** | HTTPS 请求、签名加密 |
+
+可通过以下命令检查全部扩展是否已安装：
 
 ```bash
-php -m | grep -E "pdo_mysql|gd|mbstring|json"
+php -m | grep -iE "pdo_mysql|gd|mbstring|json|zip|intl|opcache|redis|memcached|yac|curl|fileinfo|exif|openssl"
+```
+
+如发现缺失，可用以下命令安装（以 Ubuntu/Debian + PHP 8.5 为例）：
+
+```bash
+# 必需 + 强烈推荐扩展
+sudo apt install php8.5-fpm php8.5-mysql php8.5-gd php8.5-mbstring \
+                 php8.5-zip php8.5-intl php8.5-opcache
+
+# 可选扩展
+sudo apt install php8.5-redis php8.5-memcached php8.5-curl php8.5-exif
+
+# Yac 需通过 PECL 安装
+sudo pecl install yac
+echo "extension=yac.so" | sudo tee /etc/php/8.5/mods-available/yac.ini
+sudo phpenmod yac
 ```
 
 ### 1.3 目录权限
@@ -51,9 +100,25 @@ conf/      — 配置文件目录（安装时需要写入数据库配置）
 
 设置权限示例：
 
+#### 推荐方案：设置所有者（更安全）
+
+优先将目录所有者设置为 Web 服务器运行用户（避免使用 0777）：
+
+```bash
+# Nginx 用户
+sudo chown -R nginx:nginx upload/ plugin/ tmp/ log/ conf/
+
+# Apache 用户
+sudo chown -R www-data:www-data upload/ plugin/ tmp/ log/ conf/
+```
+
+#### 回退方案：宽松权限（仅当无法确定所有者时）
+
 ```bash
 chmod -R 0777 upload/ plugin/ tmp/ log/ conf/
 ```
+
+> **安全提示**：0777 允许任意用户写入，存在安全隐患。生产环境务必优先使用 chown 方案，仅在本地开发或无法确定 Web 服务器用户时才使用 0777。
 
 ---
 
@@ -180,7 +245,7 @@ server {
     }
 
     location ~ \.php$ {
-        fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+        fastcgi_pass unix:/run/php/php8.5-fpm.sock;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         include fastcgi_params;
@@ -207,6 +272,26 @@ server {
 ```bash
 nginx -t          # 检查配置语法
 nginx -s reload   # 重载配置
+```
+
+#### 3.1.3 PHP 8.5 OPcache 推荐配置
+
+在 `php.ini` 中启用并优化 OPcache，显著提升 PHP 性能：
+
+```ini
+[opcache]
+opcache.enable=1
+opcache.memory_consumption=128
+opcache.interned_strings_buffer=16
+opcache.max_accelerated_files=10000
+opcache.revalidate_freq=2
+opcache.fast_shutdown=1
+```
+
+修改后重启 PHP-FPM 使配置生效：
+
+```bash
+sudo systemctl restart php8.5-fpm
 ```
 
 ### 3.2 Apache 配置
@@ -301,6 +386,7 @@ sudo certbot --nginx -d www.domain.com
     'type' => 'redis',
     'host' => '127.0.0.1',
     'port' => 6379,
+    'password' => 'your_redis_password',  // Redis 6+ 启用 ACL 时必填
 ),
 ```
 
@@ -313,6 +399,14 @@ sudo certbot --nginx -d www.domain.com
     'port' => 11211,
 ),
 ```
+
+#### OPcache 与业务缓存的关系
+
+OPcache 缓存的是 PHP 字节码（opcode），与上述业务缓存（mysql/redis/memcached/yac）正交，二者可同时启用：
+- **OPcache**：加速 PHP 代码执行，对应用透明
+- **业务缓存**：缓存数据库查询结果、模板编译产物
+
+生产环境建议同时启用 OPcache + Redis，性能最优。
 
 ---
 
@@ -451,3 +545,485 @@ rm -rf tmp/*
    - `max_execution_time` — 脚本最大执行时间
 3. 修改后重启 PHP-FPM 或 Apache 使配置生效
 4. 检查磁盘空间是否充足：`df -h`
+
+---
+
+## 7. Docker / docker-compose 部署
+
+适合希望快速部署、不希望手动配置 PHP/Nginx/MySQL 环境的用户。以下方案通过 docker-compose 编排三个容器（PHP-FPM + Nginx + MySQL 8.3），一键启动完整论坛环境。
+
+### 7.1 目录结构
+
+在项目根目录创建以下文件：
+
+```
+xiunox-main/
+├── Dockerfile              # PHP-FPM 镜像构建
+├── docker-compose.yml      # 三容器编排
+├── docker/
+│   └── nginx.conf          # Nginx 容器配置
+└── ...（原有项目文件）
+```
+
+### 7.2 Dockerfile
+
+```dockerfile
+FROM php:8.5-fpm-alpine
+
+# 安装必需 + 推荐扩展
+RUN apk add --no-cache \
+    libpng-dev libjpeg-turbo-dev freetype-dev \
+    libzip-dev icu-dev oniguruma-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) \
+        pdo_mysql gd mbstring zip intl opcache bcmath
+
+# 安装可选扩展（按需取消注释）
+# RUN pecl install redis && docker-php-ext-enable redis
+# RUN pecl install yac && docker-php-ext-enable yac
+
+# 设置时区
+ENV TZ=Asia/Shanghai
+RUN apk add --no-cache tzdata && cp /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# 设置工作目录
+WORKDIR /var/www/html
+
+# 复制项目文件（.dockerignore 可排除 upload/ tmp/ log/ 等运行时目录）
+COPY . .
+
+# 设置目录权限
+RUN chown -R www-data:www-data upload/ plugin/ tmp/ log/ conf/
+
+EXPOSE 9000
+```
+
+### 7.3 docker-compose.yml
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: xiunox-app
+    volumes:
+      - ./:/var/www/html
+      - ./tmp:/var/www/html/tmp
+      - ./log:/var/www/html/log
+      - ./upload:/var/www/html/upload
+      - ./conf:/var/www/html/conf
+    depends_on:
+      - db
+    networks:
+      - xiunox-net
+
+  web:
+    image: nginx:1.30-alpine
+    container_name: xiunox-web
+    ports:
+      - "80:80"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - xiunox-net
+
+  db:
+    image: mysql:8.3
+    container_name: xiunox-db
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password_here
+      MYSQL_DATABASE: xiunobbs
+      MYSQL_USER: xiuno
+      MYSQL_PASSWORD: your_password_here
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - xiunox-net
+
+volumes:
+  mysql_data:
+
+networks:
+  xiunox-net:
+    driver: bridge
+```
+
+### 7.4 docker/nginx.conf
+
+```nginx
+server {
+    listen 80;
+    server_name localhost;
+    root /var/www/html;
+    index index.php index.html;
+
+    location / {
+        if (!-e $request_filename) {
+            rewrite ^/(.*)$ /index.php?$1 last;
+        }
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass app:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+        fastcgi_pass_header Authorization;
+        fastcgi_param HTTP_AUTHORIZATION $http_authorization;
+    }
+
+    location ~ /(conf|log|tmp)/ {
+        deny all;
+    }
+
+    location ~ /install/.*\.php$ {
+        deny all;
+    }
+}
+```
+
+### 7.5 一键启动
+
+```bash
+# 启动全部容器
+docker-compose up -d
+
+# 查看运行状态
+docker-compose ps
+
+# 查看日志
+docker-compose logs -f app
+```
+
+启动后访问 `http://localhost/install/` 进入安装向导。数据库配置填写：
+
+| 字段 | 填写值 |
+|------|--------|
+| 数据库主机 | `db`（容器名） |
+| 数据库名称 | `xiunobbs` |
+| 数据库用户名 | `xiuno` |
+| 数据库密码 | `your_password_here`（与 docker-compose.yml 一致） |
+
+### 7.6 数据持久化
+
+- **mysql_data** 命名卷：数据库文件持久化，删除容器后数据保留
+- **./upload、./conf、./tmp、./log**：绑定挂载到宿主机当前目录，直接在宿主机可见
+
+停止与清理：
+
+```bash
+# 停止容器（保留数据）
+docker-compose down
+
+# 停止并删除数据卷（⚠️ 会丢失数据库数据）
+docker-compose down -v
+```
+
+### 7.7 生产环境注意事项
+
+- 修改 docker-compose.yml 中的密码为强密码
+- 配置 HTTPS（可在 Nginx 配置中加 443 端口与证书）
+- 上线后将 `index.php` 中 `DEBUG` 设为 `0`
+- 删除 `install/` 目录
+
+---
+
+## 8. 备份与恢复
+
+### 8.1 数据库备份
+
+#### 手动备份
+
+```bash
+# 完整备份（含表结构 + 数据）
+mysqldump -u xiuno -p xiunobbs --default-character-set=utf8mb4 --single-transaction \
+  > backup_$(date +%Y%m%d_%H%M%S).sql
+
+# 压缩备份（推荐，节省空间）
+mysqldump -u xiuno -p xiunobbs --default-character-set=utf8mb4 --single-transaction \
+  | gzip > backup_$(date +%Y%m%d_%H%M%S).sql.gz
+```
+
+参数说明：
+- `--default-character-set=utf8mb4`：保证中文字符正确导出
+- `--single-transaction`：InnoDB 一致性快照，备份期间不锁表
+
+#### 定时备份（crontab）
+
+```bash
+# 编辑 crontab
+crontab -e
+
+# 每天凌晨 3 点备份数据库到 /backup/db/，保留 30 天
+0 3 * * * mysqldump -u xiuno -p'your_password' xiunobbs --default-character-set=utf8mb4 --single-transaction | gzip > /backup/db/xiuno_$(date +\%Y\%m\%d).sql.gz && find /backup/db/ -mtime +30 -delete
+```
+
+> **提示**：crontab 中 `%` 需转义为 `\%`，密码建议写入 `~/.my.cnf` 避免命令行暴露。
+
+### 8.2 文件备份
+
+以下目录包含用户数据与配置，需定期备份：
+
+| 目录 | 内容 | 备份频率 |
+|------|------|----------|
+| `upload/` | 用户上传的附件、图片 | 每日（或实时同步到对象存储） |
+| `conf/` | 站点配置（含 auth_key、数据库连接） | 每次修改后立即备份 |
+| `plugin/` | 已安装的插件文件 | 插件变更后备份 |
+| `view/htm/` | 自定义模板（若有修改） | 模板修改后备份 |
+
+打包备份示例：
+
+```bash
+# 打包关键目录
+tar -czf xiuno_files_$(date +%Y%m%d).tar.gz upload/ conf/ plugin/
+
+# 如有自定义模板
+tar -czf xiuno_files_$(date +%Y%m%d).tar.gz upload/ conf/ plugin/ view/htm/
+```
+
+### 8.3 完整恢复流程
+
+按以下顺序恢复，避免数据不一致：
+
+#### 步骤 1：恢复文件
+
+```bash
+# 解压文件备份到网站根目录
+cd /var/www/html
+tar -xzf /backup/xiuno_files_20260101.tar.gz
+
+# 设置目录权限
+chown -R www-data:www-data upload/ plugin/ tmp/ log/ conf/
+```
+
+#### 步骤 2：恢复数据库
+
+```bash
+# 解压（如为 gzip 压缩）
+gunzip < /backup/db/xiuno_20260101.sql.gz | mysql -u xiuno -p xiunobbs
+
+# 如为未压缩 SQL 文件
+mysql -u xiuno -p xiunobbs < /backup/db/xiuno_20260101.sql
+```
+
+#### 步骤 3：清理缓存
+
+```bash
+# 清理 tmp/ 编译缓存，强制重新编译模板
+rm -rf tmp/*
+```
+
+#### 步骤 4：验证
+
+1. 访问首页确认站点正常加载
+2. 登录后台检查「设置 → 基本」配置是否正确
+3. 抽查一篇帖子确认附件可访问
+4. 检查 `conf/conf.php` 中 `auth_key` 是否与备份一致
+
+### 8.4 跨版本迁移注意事项
+
+从旧版 Xiuno BBS（4.0.x）迁移到 XIUNOX 时，特别注意：
+
+#### 8.4.1 auth_key 必须保留
+
+`conf/conf.php` 中的 `auth_key` 用于加密用户密码、Cookie、API Token。**迁移时必须使用旧站的 auth_key**，否则：
+- 所有用户密码失效，无法登录
+- 所有已登录会话失效
+- API Token 全部作废
+
+```php
+// 旧站 conf.php 中的 auth_key 必须原样复制到新站
+'auth_key' => '原旧站的 auth_key 值',
+```
+
+#### 8.4.2 字符集统一
+
+- 数据库、表、连接字符集必须为 `utf8mb4`
+- 旧版若使用 `utf8`（即 `utf8mb3`），需先转换：
+
+```sql
+ALTER DATABASE xiunobbs CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- 转换每张表（可用脚本批量生成）
+ALTER TABLE bbs_thread CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+#### 8.4.3 存储引擎
+
+- 所有表应为 `InnoDB`（支持事务、外键、行锁）
+- 旧版若使用 MyISAM，转换：
+
+```sql
+ALTER TABLE bbs_thread ENGINE=InnoDB;
+```
+
+#### 8.4.4 升级后操作
+
+1. 访问 `/install/` 执行升级程序（会自动补齐新表与字段）
+2. 清理 `tmp/` 缓存
+3. 登录后台检查插件兼容性
+4. 重新生成 API Token（如启用 API）
+
+---
+
+## 9. 开发者本地搭建指南
+
+面向二次开发者，提供无需 Nginx 的本地启动方案，便于调试与修改代码。
+
+### 9.1 准备本地环境
+
+#### 9.1.1 安装 PHP 8.5
+
+```bash
+# macOS（Homebrew）
+brew install php@8.5
+
+# Ubuntu/Debian
+sudo apt install php8.5-cli php8.5-mysql php8.5-gd php8.5-mbstring php8.5-zip php8.5-intl
+
+# Windows：下载 https://windows.php.net/ 选择 8.5 Non Thread Safe
+```
+
+确认版本：
+
+```bash
+php -v
+# PHP 8.5.x (cli) ...
+```
+
+#### 9.1.2 准备数据库
+
+**方案 A：用 Docker 启动 MySQL（推荐）**
+
+```bash
+docker run -d --name xiuno-mysql \
+  -e MYSQL_ROOT_PASSWORD=root \
+  -e MYSQL_DATABASE=xiunobbs \
+  -p 3306:3306 \
+  mysql:8.3 --character-set-server=utf8mb4
+```
+
+**方案 B：使用本地 MySQL**
+
+```bash
+mysql -u root -p -e "CREATE DATABASE xiunobbs DEFAULT CHARACTER SET utf8mb4;"
+```
+
+### 9.2 获取代码与初始化
+
+```bash
+# clone 仓库
+git clone <仓库地址> xiunox
+cd xiunox
+
+# 设置目录权限（本地开发可直接用当前用户）
+chmod -R 0777 upload/ plugin/ tmp/ log/ conf/
+```
+
+### 9.3 启动 PHP 内置服务器
+
+无需 Nginx/Apache，直接用 PHP 内置服务器启动：
+
+```bash
+php -S localhost:8080 -t .
+```
+
+> **注意**：PHP 内置服务器不支持的 URL 重写，需将 `conf/conf.php` 中 `url_rewrite_on` 设为 `0`（兼容模式），避免 404。
+
+访问 `http://localhost:8080/install/` 执行安装向导。
+
+### 9.4 开启 DEBUG 模式
+
+修改 `index.php` 第 19 行：
+
+```php
+define('DEBUG', 2);  // 0: 线上; 1: 调试; 2: 插件开发（关闭缓存）
+```
+
+DEBUG 模式说明：
+
+| 值 | 模式 | 用途 |
+|----|------|------|
+| 0 | 线上模式 | 使用 `xiunophp.min.php`，开启缓存，性能最优 |
+| 1 | 调试模式 | 使用 `xiunophp.php`，开启缓存，显示错误信息 |
+| 2 | 插件开发模式 | 使用 `xiunophp.php`，**关闭模板编译缓存**，每次重新编译 |
+
+修改模板后若 DEBUG 未设为 2，需手动清理 `tmp/`：
+
+```bash
+rm -rf tmp/*
+```
+
+### 9.5 开发工具配置
+
+#### 9.5.1 VS Code 推荐扩展
+
+- **PHP Intelephense** — 代码补全、跳转定义
+- **PHP Debug** — Xdebug 调试集成
+- **PHP DocBlocker** — 注释生成
+
+#### 9.5.2 Xdebug 安装
+
+```bash
+# macOS
+pecl install xdebug
+
+# Ubuntu
+sudo apt install php8.5-xdebug
+```
+
+在 `php.ini` 添加：
+
+```ini
+[xdebug]
+zend_extension=xdebug
+xdebug.mode=debug
+xdebug.start_with_request=yes
+xdebug.client_host=127.0.0.1
+xdebug.client_port=9003
+```
+
+VS Code `launch.json`：
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Listen for Xdebug",
+      "type": "php",
+      "request": "launch",
+      "port": 9003,
+      "pathMappings": {
+        "/var/www/html": "${workspaceFolder}"
+      }
+    }
+  ]
+}
+```
+
+### 9.6 调试技巧
+
+- 查看变量：`var_dump($var); exit;` 或 `xn_log($var, 'debug')`
+- 查看日志：`tail -f log/php-error.php`
+- 查看数据库查询：DEBUG=1 时会在日志中记录慢查询
+- 修改路由后无需重启服务器（PHP 内置服务器自动加载）
+- 修改 `xiunophp/` 框架文件后需重启服务器（因为 DEBUG=0 时加载 min 版本）
+
+### 9.7 代码结构速查
+
+详见 [docs/README.md](docs/README.md) 了解项目分层：
+- `route/` — 前台路由
+- `admin/route/` — 后台路由
+- `api/v1/` — API 端点
+- `model/` — 数据访问层（单表 CRUD）
+- `service/` — 业务服务层（跨实体逻辑）
+- `lib/` — 基础工具服务
+- `xiunophp/` — 框架核心库

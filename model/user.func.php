@@ -556,15 +556,20 @@ function user_token_set($uid) {
 	global $time, $conf;
 	if(empty($uid)) return;
 	$token = user_token_gen($uid);
-	setcookie('bbs_token', $token, $time + 8640000, $conf['cookie_path']);
-	
+	// cookie_path 为空时默认用 /，确保 token 在全站有效
+	$_cookie_path = !empty($conf['cookie_path']) ? $conf['cookie_path'] : '/';
+	setcookie('bbs_token', $token, $time + 8640000, $_cookie_path);
+
 	// hook model_user_token_set_end.php
 }
 
 function user_token_clear() {
 	global $time, $conf;
-	setcookie('bbs_token', '', $time - 8640000, $conf['cookie_path']);
-	
+	// cookie_path 为空时必须用 /，否则 setcookie 会用当前请求目录作为 path
+	// 导致退出登录（/user/logout）只清除 /user 路径下的 cookie，根路径下的 token 仍存在
+	$_cookie_path = !empty($conf['cookie_path']) ? $conf['cookie_path'] : '/';
+	setcookie('bbs_token', '', $time - 8640000, $_cookie_path);
+
 	// hook model_user_token_clear_end.php
 }
 
@@ -606,14 +611,14 @@ function user_http_referer() {
 	$referer = str_replace(array('\"', '"', '<', '>', ' ', '*', "\t", "\r", "\n"), '', $referer); // 干掉特殊字符 strip special chars
 	
 	if(
-		!preg_match('#^(http|https)://[\w\-=/\.]+/[\w\-=.%\#?]*$#is', $referer) 
-		|| strpos($referer, 'user-login') !== FALSE 
-		|| strpos($referer, 'user-logout') !== FALSE 
-		|| strpos($referer, 'user-create') !== FALSE 
-		|| strpos($referer, 'user-setpw') !== FALSE 
+		!preg_match('#^(http|https)://[\w\-=/\.]+/[\w\-=/\.%\#?]*$#is', $referer)
+		|| strpos($referer, 'user-login') !== FALSE
+		|| strpos($referer, 'user-logout') !== FALSE
+		|| strpos($referer, 'user-create') !== FALSE
+		|| strpos($referer, 'user-setpw') !== FALSE
 		|| strpos($referer, 'user-resetpw_complete') !== FALSE
 	) {
-		$referer = './';
+		$referer = url('');  // 首页绝对路径，避免 ./ 在路径风格下解析为 /user/
 	}
 	// hook user_http_referer_end.php
 	return $referer;

@@ -3118,13 +3118,16 @@ function http_referer() {
 	$referer = param('referer');
 	empty($referer) AND $referer = (string)_SERVER('HTTP_REFERER');
 	if(empty($referer)) $referer = '';
+	if($referer && strncmp($referer, http_url_path(), $len) !== 0) {
+		$referer = '/';
+	}
 	$referer2 = substr($referer, $len);
 	if(strpos($referer, url('user-login')) !== FALSE || strpos($referer, url('user-logout')) !== FALSE || strpos($referer, url('user-create')) !== FALSE) {
-		$referer = './';
+		$referer = '/';
 	}
 
 	if(!preg_match('#^\\??[\w\-/]+\.(htm|html)$#', $referer2) && !preg_match('#^[\w\/]*$#', $referer2)) {
-		$referer = './';
+		$referer = '/';
 	}
 	return $referer;
 }

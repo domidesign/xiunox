@@ -764,8 +764,9 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 					curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 					curl_setopt($ch, CURLOPT_NOBODY, false);
 					$response = curl_exec($ch);
-					$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-					curl_close($ch);
+				$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+				// PHP 8.0+ curl_close() 已废弃且无效果，unset 释放资源
+				unset($ch);
 					// 2xx 或 3xx 响应码都说明 rewrite 生效
 					if($response !== FALSE && $http_code > 0 && $http_code < 500) {
 						$rewrite_ok = TRUE;
