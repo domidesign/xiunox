@@ -1,9 +1,9 @@
 <?php $step = 2; include INSTALL_PATH.'view/htm/header.inc.htm';?>
 
-<div class="x-card card">
+<div class="x-card card border-0">
 	<div class="card-body">
 		<h3 class="card-title mt-3"><?php echo lang('license_title');?></h3>
-		<hr />
+		 
 
 		<div class="row g-3">
 			<!-- 左侧：协议内容 + 阅读提示 -->
@@ -34,7 +34,7 @@ if (file_exists($licenseFile)) {
 
 			<!-- 右侧：操作区 -->
 			<div class="col-md-4">
-				<div class="border rounded-3 p-3 d-flex flex-column h-100" style="background:#f8f9fa;min-height:420px;">
+				<div class="  rounded-3 p-3 d-flex flex-column h-100" style="background:#f8f9fa;min-height:420px;">
 					<div class="flex-grow-1 d-flex flex-column justify-content-center">
 						<!-- 等待阅读状态 -->
 						<div id="status-waiting" class="text-center text-muted">
