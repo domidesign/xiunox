@@ -573,6 +573,7 @@ CREATE TABLE bbs_credits_rule_global (
   golds_change int(11) NOT NULL DEFAULT 0 COMMENT '金币变化值',
   rmbs_change int(11) NOT NULL DEFAULT 0 COMMENT '人民币变化值',
   enabled tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+  daily_limit INT NOT NULL DEFAULT 0 COMMENT '每日防刷限制次数，0使用全局设置',
   PRIMARY KEY (ruleid),
   UNIQUE KEY event (event)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='全局积分规则';
@@ -602,6 +603,7 @@ CREATE TABLE bbs_credits_rule_forum (
   golds_change int(11) NOT NULL DEFAULT 0 COMMENT '金币变化值',
   rmbs_change int(11) NOT NULL DEFAULT 0 COMMENT '人民币变化值',
   enabled tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+  daily_limit INT NOT NULL DEFAULT 0 COMMENT '每日防刷限制次数，0使用全局设置',
   PRIMARY KEY (id),
   UNIQUE KEY fid_event (fid, event)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='版块积分规则覆盖';

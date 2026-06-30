@@ -562,6 +562,7 @@ class CreditsRuleService {
 	 */
 	public static function saveGlobalRules(array $rules): array {
 		$updated = 0;
+		$failed = 0;
 		foreach ($rules as $rule) {
 			if (empty($rule['event'])) continue;
 			$data = array(
@@ -571,8 +572,15 @@ class CreditsRuleService {
 				'enabled' => intval($rule['enabled'] ?? 1),
 				'daily_limit' => intval($rule['daily_limit'] ?? 0),
 			);
-			db_update('credits_rule_global', array('event' => $rule['event']), $data);
-			$updated++;
+			$r = db_update('credits_rule_global', array('event' => $rule['event']), $data);
+			if ($r === FALSE) {
+				$failed++;
+			} else {
+				$updated++;
+			}
+		}
+		if ($failed > 0) {
+			return array('ok' => false, 'message' => "保存失败 {$failed} 条全局规则，可能缺少 daily_limit 字段，请先执行后台一键升级", 'updated' => $updated, 'failed' => $failed);
 		}
 		return array('ok' => true, 'message' => "已更新 {$updated} 条全局规则", 'updated' => $updated);
 	}
@@ -587,6 +595,7 @@ class CreditsRuleService {
 		if ($fid <= 0) return array('ok' => false, 'message' => '无效的版块ID');
 
 		$updated = 0;
+		$failed = 0;
 		foreach ($rules as $rule) {
 			if (empty($rule['event'])) continue;
 			$data = array(
@@ -601,11 +610,18 @@ class CreditsRuleService {
 			// 检查是否已存在
 			$exists = db_find_one('credits_rule_forum', array('fid' => $fid, 'event' => $rule['event']));
 			if (!empty($exists)) {
-				db_update('credits_rule_forum', array('fid' => $fid, 'event' => $rule['event']), $data);
+				$r = db_update('credits_rule_forum', array('fid' => $fid, 'event' => $rule['event']), $data);
 			} else {
-				db_insert('credits_rule_forum', $data);
+				$r = db_insert('credits_rule_forum', $data);
 			}
-			$updated++;
+			if ($r === FALSE) {
+				$failed++;
+			} else {
+				$updated++;
+			}
+		}
+		if ($failed > 0) {
+			return array('ok' => false, 'message' => "保存失败 {$failed} 条版块规则，可能缺少 daily_limit 字段，请先执行后台一键升级", 'updated' => $updated, 'failed' => $failed);
 		}
 		return array('ok' => true, 'message' => "已更新 {$updated} 条版块规则", 'updated' => $updated);
 	}

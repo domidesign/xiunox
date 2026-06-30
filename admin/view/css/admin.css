@@ -40,7 +40,8 @@ a {
 }
 .admin-wrapper {
     display: flex;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
 }
 
 .admin-main {
@@ -49,7 +50,9 @@ a {
     flex-direction: column;
     min-width: 0;
     margin-left: 150px;
- 
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
     transition: margin-left 0.15s ease;
 }
 
@@ -60,7 +63,7 @@ a {
 .admin-content {
     flex: 1;
     padding: 0.8rem;
-    overflow-x: auto;
+    overflow-x: hidden;
 }
 .admin-content .btn-group {
     margin-bottom:0!important;

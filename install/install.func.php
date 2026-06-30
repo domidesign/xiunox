@@ -52,10 +52,14 @@ function get_env(&$env, &$write) {
 	}
 }
 
-function install_sql_file($sqlfile) {
+function install_sql_file($sqlfile, $tablepre = 'bbs_') {
 	global $errno, $errstr;
 	$s = file_get_contents($sqlfile);
 	$s = str_replace(";\r\n", ";\n", $s);
+	// 替换表前缀：install.sql 中所有 bbs_ 表名前缀替换为用户指定前缀
+	if ($tablepre !== 'bbs_') {
+		$s = str_replace('bbs_', $tablepre, $s);
+	}
 	//$s = preg_replace('/#(.*?)\r\n/i', "", $s);
 	$arr = explode(";\n", $s);
 	$tolerant = false; // FULLTEXT_TOLERANT 标记：下一句失败不中断

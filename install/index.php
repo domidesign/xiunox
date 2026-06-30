@@ -108,16 +108,25 @@ if(empty($action)) {
 		$user = param('user');
 		$password = param('password', '', FALSE);
 		$force = param('force');
+		$tablepre = param('tablepre');
 
 		$adminemail = param('adminemail');
 		$adminuser = param('adminuser');
 		$adminpass = param('adminpass');
 
-		empty($host) AND message('host', lang('dbhost_is_empty'));
+		// 表前缀校验：只允许字母、数字、下划线，必须以字母开头
+		if (empty($tablepre)) {
+			$tablepre = 'bbs_';
+		}
+		if (!preg_match('/^[a-zA-Z][a-zA-Z0-9_]*_$/', $tablepre)) {
+			message('tablepre', lang('db_tablepre_invalid'));
+		}
+
+		empty($host) AND message('host', lang('db_host_is_empty'));
 		empty($name) AND message('name', lang('dbname_is_empty'));
 		empty($user) AND message('user', lang('dbuser_is_empty'));
 		empty($adminuser) AND message('adminuser', lang('admin_username_is_empty'));
-		empty($adminpass) AND message('adminpass', lang('admin_password_is_empty'));
+		empty($adminpass) AND message('adminpass', lang('admin_password_too_short'));
 		mb_strlen($adminpass) < 6 AND message('adminpass', lang('admin_password_too_short'));
 		empty($adminemail) AND message('adminemail', lang('admin_email_is_empty'));
 		!filter_var($adminemail, FILTER_VALIDATE_EMAIL) AND message('adminemail', lang('admin_email_invalid'));
@@ -135,11 +144,13 @@ if(empty($action)) {
 		$conf['db']['mysql']['master']['user'] = $user;
 		$conf['db']['mysql']['master']['password'] = $password;
 		$conf['db']['mysql']['master']['engine'] = $engine;
+		$conf['db']['mysql']['master']['tablepre'] = $tablepre;
 		$conf['db']['pdo_mysql']['master']['host'] = $host;
 		$conf['db']['pdo_mysql']['master']['name'] = $name;
 		$conf['db']['pdo_mysql']['master']['user'] = $user;
 		$conf['db']['pdo_mysql']['master']['password'] = $password;
 		$conf['db']['pdo_mysql']['master']['engine'] = $engine;
+		$conf['db']['pdo_mysql']['master']['tablepre'] = $tablepre;
 
 		$_SERVER['db'] = $db = db_new($conf['db']);
 		// 此处可能报错
@@ -211,9 +222,10 @@ if(empty($action)) {
 		}
 	}
 
-		// 二次确认：检测数据库中是否已有 bbs_ 前缀的表
+		// 二次确认：检测数据库中是否已有指定前缀的表
 		if(empty($force)) {
-			$tables = db_sql_find("SHOW TABLES LIKE 'bbs_%'");
+			$safe_tablepre_for_like = addslashes($tablepre);
+			$tables = db_sql_find("SHOW TABLES LIKE '{$safe_tablepre_for_like}%'");
 			if(!empty($tables)) {
 				header('Content-Type: application/json; charset=utf-8');
 				echo xn_json_encode(array('code'=>1, 'message'=>lang('db_already_exists_confirm')));
@@ -233,7 +245,7 @@ if(empty($action)) {
 
 		// 连接成功以后，开始建表，导数据。
 
-		install_sql_file(INSTALL_PATH.'install.sql');
+		install_sql_file(INSTALL_PATH.'install.sql', $tablepre);
 		
 		// 初始化
 		copy(APP_PATH.'conf/conf.default.php', APP_PATH.'conf/conf.php');
@@ -243,7 +255,7 @@ if(empty($action)) {
 		$safe_username = addslashes($adminuser);
 		$safe_email = addslashes($adminemail);
 		$safe_password_hash = addslashes($password_hash);
-		db_exec("UPDATE `bbs_user` SET username='$safe_username', email='$safe_email', `password`='', salt='', `password_hash`='$safe_password_hash', create_date='$time', create_ip='$longip' WHERE uid=1");
+		db_exec("UPDATE `{$tablepre}user` SET username='$safe_username', email='$safe_email', `password`='', salt='', `password_hash`='$safe_password_hash', create_date='$time', create_ip='$longip' WHERE uid=1");
 
 		$replace = array();
 		$replace['db'] = $conf['db'];
@@ -258,7 +270,7 @@ if(empty($action)) {
 		$default_app_time = $time;
 		$safe_appid = addslashes($default_appid);
 		$safe_secret = addslashes($default_secret);
-		db_exec("INSERT INTO `bbs_api_app` (appid, secret, name, description, scope, is_enabled, uid, rate_limit, created_at) VALUES ('$safe_appid', '$safe_secret', '默认应用', '系统自动创建的默认应用，用于前台页面', '$default_app_scope', 1, 0, 0, '$default_app_time')");
+		db_exec("INSERT INTO `{$tablepre}api_app` (appid, secret, name, description, scope, is_enabled, uid, rate_limit, created_at) VALUES ('$safe_appid', '$safe_secret', '默认应用', '系统自动创建的默认应用，用于前台页面', '$default_app_scope', 1, 0, 0, '$default_app_time')");
 		$replace['api_default_appid'] = $default_appid;
 		$replace['api_default_secret'] = $default_secret;
 
