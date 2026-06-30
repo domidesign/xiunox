@@ -14,11 +14,12 @@
 				<div>
 					<label class="form-label fs-6 mb-1"><?php echo lang('forum');?></label>
 					<select class="form-select form-select-sm" name="fid" id="fid">
-						<option value="0"></option>
-						<?php foreach ($forumlist as $forum) { ?>
-						<option value="<?php echo $forum['fid']; ?>"><?php echo esc_html($forum['name']); ?></option>
-						<?php } ?>
-					</select>
+					<option value="0"></option>
+					<?php foreach ($forumlist as $forum) { ?>
+					<?php if(!empty($forum['type'])) continue; // 过滤分区 ?>
+					<option value="<?php echo $forum['fid']; ?>"><?php echo esc_html($forum['name']); ?></option>
+					<?php } ?>
+				</select>
 				</div>
 				<div>
 					<label class="form-label fs-6 mb-1"><?php echo lang('keyword');?></label>
@@ -69,6 +70,7 @@
 			<select id="move_forum" class="form-select form-select-sm d-none" style="width:150px">
 				<option value=""><?php echo lang('admin_thread_please_select_forum');?></option>
 				<?php foreach ($forumlist as $forum) { ?>
+				<?php if(!empty($forum['type'])) continue; // 过滤分区，分区不能存放帖子 ?>
 				<option value="<?php echo $forum['fid']; ?>"><?php echo $forum['name']; ?></option>
 				<?php } ?>
 			</select>

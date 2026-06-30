@@ -1,4 +1,4 @@
-<?php if($gid > 0 && $gid < 5) { ?>
+<?php if($gid > 0 && $gid < 5 && (!empty($toplist) || !empty($threadlist))) { ?>
 <div class="admin-mod-bar">
 	<div class="admin-mod-bar-left">
 		<?php if(param(0) != 'thread') { ?>
