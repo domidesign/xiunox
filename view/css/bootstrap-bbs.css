@@ -1187,7 +1187,7 @@ a.hover-bg-body-secondary:hover {
     color: var(--bs-body-color);
     border: none;
     border-radius: 0;
-    padding: 0.5rem 1rem;
+    padding: 4px  8px;
     background: none;
     font-weight: normal;
     transition: color 0.15s ease;
