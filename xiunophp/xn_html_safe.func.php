@@ -1871,7 +1871,7 @@ function xn_html_purify($html, $config = array()) {
     }
     if (class_exists('HTMLPurifier', false)) {
         $purifierConfig = HTMLPurifier_Config::createDefault();
-        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,ins,mark,dl,dt,dd,iframe[src|width|height|frameborder|class|style]');
+        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style|data-type|data-params],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,ins,mark,dl,dt,dd,iframe[src|width|height|frameborder|class|style]');
         $purifierConfig->set('Attr.AllowedFrameTargets', array('_blank', '_self', '_parent', '_top'));
         $purifierConfig->set('Attr.AllowedRel', array('noopener', 'noreferrer', 'nofollow'));
         $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,height,border');
