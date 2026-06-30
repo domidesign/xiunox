@@ -54,6 +54,9 @@ XIUNOX is released under the MIT license. You are free to modify, create derivat
 	'license_read_hint' => 'Please scroll down to read the full agreement',
 	'license_countdown_text' => 'Please read the agreement carefully',
 	'license_ready' => 'Done reading, please check the box to agree',
+	'license_illegal_title' => 'Prohibited Use Declaration',
+	'license_illegal_content' => 'This software is strictly prohibited from being used to build illegal websites such as fraud, gambling, pornography, trojans, viruses, or pirated resources. Violations will be reported to authorities, and users bear full legal responsibility.',
+	'agree_no_illegal_use' => 'I promise not to use this software for any illegal purposes',
 	'install_title' => 'XIUNOX Installation Wizard',
 	'install_guide' => 'Installation Wizard',
 

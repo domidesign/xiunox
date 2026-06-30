@@ -20,10 +20,16 @@ if (file_exists($licenseFile)) {
 				</div>
 
 				<!-- 滚动提示：滑到底部后隐藏 -->
-				<div id="scroll-hint" class="d-flex align-items-center text-muted small mt-2">
-					<i class="ti ti-arrow-down me-1" style="font-size:1.1rem"></i>
-					<span><?php echo lang('license_read_hint');?></span>
-				</div>
+			<div id="scroll-hint" class="d-flex align-items-center text-muted small mt-2">
+				<i class="ti ti-arrow-down me-1" style="font-size:1.1rem"></i>
+				<span><?php echo lang('license_read_hint');?></span>
+			</div>
+
+			<!-- 违法用途免责声明 -->
+			<div class="alert alert-danger border-danger mt-2 mb-0" style="font-size:0.82rem;">
+				<div class="fw-bold mb-1"><i class="ti ti-alert-triangle me-1"></i><?php echo lang('license_illegal_title');?></div>
+				<div class="text-muted"><?php echo lang('license_illegal_content');?></div>
+			</div>
 			</div>
 
 			<!-- 右侧：操作区 -->
@@ -57,17 +63,23 @@ if (file_exists($licenseFile)) {
 					</div>
 
 					<!-- 底部：勾选 + 按钮 -->
-					<div class="border-top pt-3 mt-3">
-						<div class="form-check mb-3">
-							<input class="form-check-input" type="checkbox" id="agree_check" disabled>
-							<label class="form-check-label small" for="agree_check" id="agree_label">
-								<?php echo lang('agree_license_to_continue');?>
-							</label>
-						</div>
-						<button class="btn btn-primary w-100" id="btn_continue" disabled onclick="window.location='index.php?action=env'">
-							<?php echo lang('next_step');?>
-						</button>
+				<div class="border-top pt-3 mt-3">
+					<div class="form-check mb-2">
+						<input class="form-check-input" type="checkbox" id="agree_check" disabled>
+						<label class="form-check-label small" for="agree_check" id="agree_label">
+							<?php echo lang('agree_license_to_continue');?>
+						</label>
 					</div>
+					<div class="form-check mb-3">
+						<input class="form-check-input" type="checkbox" id="no_illegal_check" disabled>
+						<label class="form-check-label small" for="no_illegal_check" id="no_illegal_label">
+							<?php echo lang('agree_no_illegal_use');?>
+						</label>
+					</div>
+					<button class="btn btn-primary w-100" id="btn_continue" disabled onclick="window.location='index.php?action=env'">
+						<?php echo lang('next_step');?>
+					</button>
+				</div>
 				</div>
 			</div>
 		</div>
@@ -79,6 +91,7 @@ if (file_exists($licenseFile)) {
 	var box = document.getElementById('license-box');
 	var check = document.getElementById('agree_check');
 	var label = document.getElementById('agree_label');
+	var noIllegalCheck = document.getElementById('no_illegal_check');
 	var btn = document.getElementById('btn_continue');
 
 	var hintEl = document.getElementById('scroll-hint');
@@ -125,11 +138,12 @@ if (file_exists($licenseFile)) {
 			countdownRing.style.strokeDashoffset = (circumference * progress).toFixed(2);
 
 			if (elapsed >= totalSeconds) {
-				clearInterval(timer);
-				// 显示就绪
-				showStatus(statusReady);
-				check.disabled = false;
-			}
+			clearInterval(timer);
+			// 显示就绪
+			showStatus(statusReady);
+			check.disabled = false;
+			noIllegalCheck.disabled = false;
+		}
 		}, 1000);
 	}
 
@@ -149,10 +163,12 @@ if (file_exists($licenseFile)) {
 		}
 	});
 
-	// 勾选同意后启用按钮
-	check.addEventListener('change', function() {
-		btn.disabled = !check.checked;
-	});
+	// 两个勾选都满足后启用按钮
+	function updateButton() {
+		btn.disabled = !(check.checked && noIllegalCheck.checked);
+	}
+	check.addEventListener('change', updateButton);
+	noIllegalCheck.addEventListener('change', updateButton);
 })();
 </script>
 

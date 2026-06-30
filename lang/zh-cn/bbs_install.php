@@ -54,6 +54,9 @@ XIUNOX 采用 MIT 协议发布，您可以自由修改、派生版本、商用�
 	'license_read_hint' => '请下滑阅读完整协议内容',
 	'license_countdown_text' => '请认真阅读协议内容',
 	'license_ready' => '阅读完毕，请勾选同意',
+	'license_illegal_title' => '禁止违法用途声明',
+	'license_illegal_content' => '本软件严禁用于搭建诈骗、赌博、色情、木马、病毒、盗版资源等违法违规站点。一旦发现将立即举报给相关部门，使用者需自行承担法律责任。',
+	'agree_no_illegal_use' => '我承诺不将本软件用于任何违法违规用途',
 	'install_title' => 'XIUNOX 安装向导',
 	'install_guide' => '安装向导',
 
