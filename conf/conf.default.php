@@ -176,8 +176,8 @@ return array (
 	'security_email_code_daily_limit' => 5,  // 同一邮箱每日发送上限
 	'security_email_code_ip_hourly_limit' => 10, // 同一IP每小时发送上限
 
-	'version' => '1.0.1',
-	'static_version' => '?1.0',
+	'version' => '1.0.3',
+	'static_version' => '?1.0.3',
 	'installed' => 0,
 
 	// 显示设置
