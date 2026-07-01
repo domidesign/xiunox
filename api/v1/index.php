@@ -13,13 +13,16 @@
 !defined('APP_PATH') AND define('APP_PATH', dirname(__DIR__, 2) . '/');
 !defined('XIUNOPHP_PATH') AND define('XIUNOPHP_PATH', APP_PATH . 'xiunophp/');
 
+// 版本号唯一来源
+include APP_PATH . 'version.php';
+
 // 加载配置文件
 $conf = (@include APP_PATH . 'conf/conf.php') OR exit(json_encode(['code' => 500, 'msg' => 'Config not found', 'data' => null]));
 
 // 兼容配置项
 !isset($conf['user_create_on']) AND $conf['user_create_on'] = 1;
 !isset($conf['cache_disable']) AND $conf['cache_disable'] = 0;
-$conf['version'] = '1.0.1';
+$conf['version'] = XIUNOX_VERSION;
 
 // 转换为绝对路径
 substr($conf['log_path'], 0, 2) == './' AND $conf['log_path'] = APP_PATH . $conf['log_path'];

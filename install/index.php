@@ -18,6 +18,9 @@ define('DEBUG', 2);
 define('APP_PATH', realpath(dirname(__FILE__).'/../').'/');
 define('INSTALL_PATH', dirname(__FILE__).'/');
 
+// 版本号唯一来源
+include APP_PATH . 'version.php';
+
 define('MESSAGE_HTM_PATH', INSTALL_PATH.'view/htm/message.htm');
 
 // 切换到上一级目录，操作很方便。
