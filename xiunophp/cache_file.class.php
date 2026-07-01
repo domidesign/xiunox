@@ -12,7 +12,7 @@ class cache_file {
     public function __construct($conf = array()) {
         $this->conf = $conf;
         $this->cachepre = isset($conf['cachepre']) ? $conf['cachepre'] : 'pre_';
-        $this->cache_dir = isset($conf['cache_dir']) ? $conf['cache_dir'] : APP_PATH . 'tmp/cache/';
+        $this->cache_dir = !empty($conf['cache_dir']) ? $conf['cache_dir'] : APP_PATH . 'tmp/cache/';
     }
 
     public function connect() {
@@ -132,6 +132,42 @@ class cache_file {
     }
 
     /**
+     * 按前缀删除缓存键（生产安全）
+     * 遍历缓存目录，删除文件名匹配指定前缀的所有缓存文件，不依赖注册表
+     * @param string $prefix 键名前缀（不含 cachepre，会自动拼接）
+     * @return int 删除的键数量
+     */
+    public function deleteByPrefix($prefix) {
+        if(!$this->connect()) return 0;
+        $fullPrefix = $this->cachepre . $prefix;
+        $deleted = 0;
+        $this->rdeleteByPrefix($this->cache_dir, $fullPrefix, $deleted);
+        return $deleted;
+    }
+
+    /**
+     * 递归遍历目录删除匹配前缀的缓存文件
+     */
+    private function rdeleteByPrefix($dir, $prefix, &$deleted) {
+        if(!is_dir($dir)) return;
+        $entries = scandir($dir);
+        foreach($entries as $entry) {
+            if($entry == '.' || $entry == '..') continue;
+            $path = $dir . $entry;
+            if(is_dir($path)) {
+                $this->rdeleteByPrefix($path . '/', $prefix, $deleted);
+                // 如果目录已空则清理
+                @rmdir($path);
+            } else {
+                // 文件名格式：{cachepre}{key}.cache
+                if(strpos($entry, $prefix) === 0) {
+                    if(@unlink($path)) $deleted++;
+                }
+            }
+        }
+    }
+
+    /**
      * 递归删除目录及其内容
      */
     public function rmdir_recursive($dir) {
@@ -153,7 +189,9 @@ class cache_file {
     public function error($errno = 0, $errstr = '') {
         $this->errno = $errno;
         $this->errstr = $errstr;
-        DEBUG AND trigger_error('Cache Error:' . $this->errstr);
+        if(function_exists('xn_log')) {
+            xn_log('Cache Error: ' . $errstr, 'cache_error');
+        }
     }
 
     public function __destruct() {

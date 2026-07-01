@@ -394,7 +394,7 @@ return array(
 	'admin_clear_opcache'=>'OPcacheをクリア',
 	'admin_opcache_not_enabled'=>'（OPcacheは無効です）',
 
-	'admin_upgrade_title'=>'Xiuno 4.0 → 4.5+ ワンクリックアップグレード',
+	'admin_upgrade_title'=>'Xiuno 4.0 →X ワンクリックアップグレード',
 	'admin_upgrade_current_version'=>'現在のバージョン：',
 	'admin_upgrade_target_version'=>'対象バージョン：',
 	'admin_upgrade_waiting'=>'待機中',
@@ -1185,7 +1185,6 @@ return array(
 	'admin_cache_password'=>'パスワード',
 	'admin_cache_default_ttl'=>'データキャッシュデフォルトTTL',
 	'admin_cache_seconds'=>'秒',
-	'admin_cache_auto_warmup'=>'人気データの自動ウォームアップ',
 	'admin_cache_test_conn'=>'接続テスト',
 	'admin_cache_setting_saved'=>'キャッシュ設定を保存しました',
 	'admin_cache_select_type'=>'少なくとも1つのキャッシュタイプを選択してください',

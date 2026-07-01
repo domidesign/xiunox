@@ -84,6 +84,21 @@ class cache_mysql {
                 }
                 return TRUE;
         }
+        /**
+         * 按前缀删除缓存键（生产安全）
+         * 用 SQL LIKE 匹配删除所有以指定前缀开头的键，不依赖注册表
+         * @param string $prefix 键名前缀（不含 cachepre，会自动拼接）
+         * @return int 删除的键数量
+         */
+        public function deleteByPrefix($prefix) {
+                if(!$this->db) return 0;
+                $fullPrefix = $this->cachepre . $prefix;
+                $table = $this->db->tablepre . $this->table;
+                // 用 LIKE 删除匹配前缀的所有键，addslashes 防止 SQL 注入
+                $sql = "DELETE FROM `{$table}` WHERE k LIKE '" . addslashes($fullPrefix) . "%'";
+                $n = db_exec($sql, $this->db);
+                return $n === FALSE ? 0 : intval($n);
+        }
         public function error($errno, $errstr) {
         	$this->errno = $errno;
         	$this->errstr = $errstr;

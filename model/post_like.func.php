@@ -6,21 +6,15 @@ function post_like__create($arr) {
 	// hook model_post_like__create_start.php
 	global $db;
 	$tablepre = $db->tablepre;
-	// 使用 INSERT IGNORE 避免主键冲突
-	$keys = array();
-	$values = array();
-	foreach($arr as $k=>$v) {
-		$keys[] = '`'.addslashes($k).'`';
-		$values[] = "'".addslashes((string)$v)."'";
-	}
-	$sql = "INSERT IGNORE INTO {$tablepre}post_like (".implode(',', $keys).") VALUES (".implode(',', $values).")";
-	// 直接调用 PDO exec 获取受影响行数（db_exec 对 INSERT 会返回 lastInsertId，不适用此场景）
-	$r = 0;
-	error_log("[post_like__create DEBUG] sql=$sql wlink_exists=" . (isset($db->wlink) && $db->wlink ? 'yes' : 'no'));
-	if($db && isset($db->wlink) && $db->wlink) {
-		$r = $db->wlink->exec($sql);
-		error_log("[post_like__create DEBUG] exec_result=" . var_export($r, true) . " errorInfo=" . json_encode($db->wlink->errorInfo()));
-	}
+	// 使用 INSERT IGNORE 避免主键冲突；PDO 预处理防注入
+	list($sqladd, $params) = db_array_to_insert_sqladd($arr);
+	if(!$sqladd) return 0;
+	$sql = "INSERT IGNORE INTO {$tablepre}post_like $sqladd";
+	$stmt = $db->prepare($sql, $params);
+	if(!$stmt) return 0;
+	// 直接获取受影响行数（1=新增成功，0=已存在）
+	$r = intval($stmt->rowCount());
+	$stmt->closeCursor();
 	// hook model_post_like__create_end.php
 	return $r; // 1=新增成功，0=已存在
 }

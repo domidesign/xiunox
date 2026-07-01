@@ -111,7 +111,7 @@ function thread_top_find_cache() {
 	// hook model_thread_top_find_cache_start.php
 	global $conf;
 	$threadlist = cache_get('thread_top_list');
-	if($threadlist === NULL) {
+	if($threadlist === NULL || $threadlist === FALSE) {
 		$threadlist = thread_top_find();
 		// 缓存 300 秒（5 分钟），置顶变化时由 thread_top_cache_delete() 主动失效
 		cache_set('thread_top_list', $threadlist, 300);

@@ -138,6 +138,8 @@ if($action == 'like' || $action == 'unlike') {
 if($action == 'favorite') {
 	$tid = param(2, 0);
 	$is_htmx = is_htmx_request();
+	// 读取按钮上下文：thread（电脑端左侧栏）/ thread_mobile（手机端postbar）/ 默认thread
+	$fav_ctx = param('_ctx', 'thread');
 
 	if(!$uid) {
 		if($is_htmx) {
@@ -147,7 +149,7 @@ if($action == 'favorite') {
 			$is_favorited = FALSE;
 			$favorites_count = $thread ? intval($thread['favorites']) : 0;
 			header('Content-Type: text/html; charset=utf-8');
-			echo _render_favorite_btn($tid, $is_favorited, $favorites_count);
+			echo _render_favorite_btn($tid, $is_favorited, $favorites_count, $fav_ctx);
 			exit;
 		}
 		message(-1, lang('please_login'));
@@ -165,7 +167,7 @@ if($action == 'favorite') {
 			$is_favorited = !empty(thread_favorite_read($uid, $tid));
 			$favorites_count = intval($thread['favorites']);
 			header('Content-Type: text/html; charset=utf-8');
-			echo _render_favorite_btn($tid, $is_favorited, $favorites_count);
+			echo _render_favorite_btn($tid, $is_favorited, $favorites_count, $fav_ctx);
 			exit;
 		}
 		message(-1, lang('thread_has_already_closed'));
@@ -229,7 +231,7 @@ if($action == 'favorite') {
 			$favorites_count = ($r !== FALSE) ? max(0, $favorites_before - 1) : $favorites_before;
 		}
 		header('Content-Type: text/html; charset=utf-8');
-		echo _render_favorite_btn($tid, $is_favorited, $favorites_count);
+		echo _render_favorite_btn($tid, $is_favorited, $favorites_count, $fav_ctx);
 		// 积分变动提示（OOB toast）
 		if($fav_change_desc) {
 			echo '<div id="credits-toast" hx-swap-oob="true" data-change-desc="' . htmlspecialchars($fav_change_desc, ENT_QUOTES, 'UTF-8') . '"></div>';
@@ -325,7 +327,7 @@ if($action == 'create') {
 		}
 		
 		$header['title'] = lang('create_thread');
-		$header['mobile_title'] = $fid ? $forum['name'] : '';
+		$header['mobile_title'] = ($fid && !empty($forum['name'])) ? $forum['name'] : '';
 		$header['mobile_linke'] = forum_url($fid);
 		
 		// hook thread_create_get_end.php
@@ -674,7 +676,16 @@ if($action == 'create') {
 	}
 
 	// 查询回帖（排除首帖），排序由 sort 参数控制
-	$postlist = post__find(array('tid'=>$tid, 'isfirst'=>0), $_orderby, $page, $pagesize);
+	// 回帖列表 60s 短缓存，使用 CacheHelper::remember + 版本号机制
+	// post_create 时递增版本号，使旧缓存自动失效
+	$_postlist_version_key = 'thread_pl_v_' . $tid;
+	$_pl_version = CacheHelper::remember($_postlist_version_key, 86400, function() {
+		return 1;
+	});
+	$_postlist_cache_key = 'thread_pl_' . $tid . '_' . $sort . '_' . $page . '_v' . $_pl_version;
+	$postlist = CacheHelper::remember($_postlist_cache_key, 60, function() use ($tid, $_orderby, $page, $pagesize) {
+		return post__find(array('tid'=>$tid, 'isfirst'=>0), $_orderby, $page, $pagesize);
+	});
 	// 格式化回帖
 	if($postlist) {
 		$floor = ($page - 1) * $pagesize + 1;
@@ -765,13 +776,17 @@ if($action == 'create') {
 				$main_postlist[] = $_p;
 			}
 		}
-		// 置顶评论排在最前面
-		usort($main_postlist, function($a, $b) {
-			$a_top = !empty($a['is_top']) ? 1 : 0;
-			$b_top = !empty($b['is_top']) ? 1 : 0;
-			if($a_top != $b_top) return $b_top - $a_top;
-			return $a['pid'] - $b['pid'];
-		});
+		// 置顶评论排在最前面，非置顶评论保持原顺序（尊重用户选择的排序方式 hot/desc/asc）
+		$_top_posts = array();
+		$_normal_posts = array();
+		foreach($main_postlist as $_p) {
+			if(!empty($_p['is_top'])) {
+				$_top_posts[] = $_p;
+			} else {
+				$_normal_posts[] = $_p;
+			}
+		}
+		$main_postlist = array_merge($_top_posts, $_normal_posts);
 		$postlist = $main_postlist;
 	}
 	
@@ -793,7 +808,7 @@ if($action == 'create') {
 	
 	$header['title'] = $thread['subject'].'-'.$forum['name'].'-'.$conf['sitename']; 
 	//$header['mobile_title'] = lang('thread_detail');
-	$header['mobile_title'] = $forum['name'];;
+	$header['mobile_title'] = $forum['name'];
 	$header['mobile_link'] = forum_url($fid);
 	$header['keywords'] = ''; 
 	$header['description'] = $thread['subject'];

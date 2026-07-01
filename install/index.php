@@ -7,7 +7,7 @@ if (version_compare(PHP_VERSION, '8.0.0', '<')) {
 	echo '<style>body{font-family:-apple-system,sans-serif;padding:40px;line-height:1.6;color:#333;max-width:720px;margin:0 auto}h1{color:#dc3545;margin-top:0}code{background:#f8f9fa;padding:2px 6px;border-radius:3px;color:#c7254e}</style>';
 	echo '</head><body>';
 	echo '<h1>PHP 版本过低，无法安装</h1>';
-	echo '<p>Xiuno BBS 4.5+ 要求 PHP <strong>8.0</strong> 及以上版本。</p>';
+	echo '<p>XiunoX 要求 PHP <strong>8.0</strong> 及以上版本。</p>';
 	echo '<p>当前 PHP 版本：<code>' . PHP_VERSION . '</code></p>';
 	echo '<p>请升级 PHP 至 8.0+ 后再运行安装程序。</p>';
 	echo '</body></html>';
@@ -145,6 +145,20 @@ if(empty($action)) {
 		empty($adminemail) AND message('adminemail', lang('admin_email_is_empty'));
 		!filter_var($adminemail, FILTER_VALIDATE_EMAIL) AND message('adminemail', lang('admin_email_invalid'));
 
+		// 白名单校验，防 SQL 注入和 DSN 注入
+		// $host 允许冒号以兼容 host:port 格式，禁止分号防 DSN 注入
+		$valid_pattern = '/^[a-zA-Z0-9_\-\.]+$/';
+		$host_pattern = '/^[a-zA-Z0-9_\-\.:]+$/';
+		if (!preg_match($valid_pattern, $name)) {
+			message(-1, '数据库名只能包含字母、数字、下划线、连字符和点');
+		}
+		if (!preg_match($host_pattern, $host)) {
+			message(-1, '数据库主机地址只能包含字母、数字、下划线、连字符、点和冒号');
+		}
+		if (!preg_match($valid_pattern, $user)) {
+			message(-1, '数据库用户名只能包含字母、数字、下划线、连字符和点');
+		}
+
 
 
 		// 设置超时尽量短一些
@@ -184,7 +198,7 @@ if(empty($action)) {
 							PDO::ATTR_TIMEOUT => 5,
 						);
 						$link = new PDO("mysql:host=$host;port=$port", $user, $password, $attr);
-						$r = $link->exec("CREATE DATABASE `$name`");
+						$r = $link->exec("CREATE DATABASE `$name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 						if($r === FALSE) {
 							$error = $link->errorInfo();
 							$errno = $error[1];
@@ -210,7 +224,7 @@ if(empty($action)) {
 							//PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
 						);
 						$link = new PDO("mysql:host=$host;port=$port", $user, $password, $attr);
-						$r = $link->exec("CREATE DATABASE `$name`");
+						$r = $link->exec("CREATE DATABASE `$name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 						if($r === FALSE) {
 							$error = $link->errorInfo();
 							$errno = $error[1];
@@ -259,8 +273,8 @@ if(empty($action)) {
 
 		// 二次确认：检测数据库中是否已有指定前缀的表
 		if(empty($force)) {
-			$safe_tablepre_for_like = addslashes($tablepre);
-			$tables = db_sql_find("SHOW TABLES LIKE '{$safe_tablepre_for_like}%'");
+			// 保留 db_sql_find_prepared：SHOW TABLES LIKE 为元数据查询，无表名，db_find 不支持
+			$tables = db_sql_find_prepared("SHOW TABLES LIKE ?", array($tablepre.'%'));
 			if(!empty($tables)) {
 				header('Content-Type: application/json; charset=utf-8');
 				echo xn_json_encode(array('code'=>1, 'message'=>lang('db_already_exists_confirm')));
@@ -287,10 +301,15 @@ if(empty($action)) {
 
 		// 管理员密码（直接用 bcrypt(明文)，不经过 md5 预处理）
 		$password_hash = password_hash($adminpass, PASSWORD_DEFAULT);
-		$safe_username = addslashes($adminuser);
-		$safe_email = addslashes($adminemail);
-		$safe_password_hash = addslashes($password_hash);
-		db_exec("UPDATE `{$tablepre}user` SET username='$safe_username', email='$safe_email', `password`='', salt='', `password_hash`='$safe_password_hash', create_date='$time', create_ip='$longip' WHERE uid=1");
+		db_update('user', array('uid'=>1), array(
+			'username' => $adminuser,
+			'email' => $adminemail,
+			'password' => '',
+			'salt' => '',
+			'password_hash' => $password_hash,
+			'create_date' => $time,
+			'create_ip' => $longip,
+		));
 
 		$replace = array();
 		$replace['db'] = $conf['db'];
@@ -303,9 +322,17 @@ if(empty($action)) {
 		$default_secret = bin2hex(random_bytes(16));
 		$default_app_scope = 'full';
 		$default_app_time = $time;
-		$safe_appid = addslashes($default_appid);
-		$safe_secret = addslashes($default_secret);
-		db_exec("INSERT INTO `{$tablepre}api_app` (appid, secret, name, description, scope, is_enabled, uid, rate_limit, created_at) VALUES ('$safe_appid', '$safe_secret', '默认应用', '系统自动创建的默认应用，用于前台页面', '$default_app_scope', 1, 0, 0, '$default_app_time')");
+		db_insert('api_app', array(
+			'appid' => $default_appid,
+			'secret' => $default_secret,
+			'name' => '默认应用',
+			'description' => '系统自动创建的默认应用，用于前台页面',
+			'scope' => $default_app_scope,
+			'is_enabled' => 1,
+			'uid' => 0,
+			'rate_limit' => 0,
+			'created_at' => $default_app_time,
+		));
 		$replace['api_default_appid'] = $default_appid;
 		$replace['api_default_secret'] = $default_secret;
 
@@ -316,7 +343,6 @@ if(empty($action)) {
 			'enable' => 1,
 			'type' => 'mysql',
 			'default_ttl' => 3600,
-			'auto_warmup' => 0,
 		);
 		$existing = db_find_one('kv', array('k'=>'setting'));
 		if($existing) {

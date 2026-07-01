@@ -3,7 +3,7 @@
 /**
  * 附件统一上传服务类
  * 支持 FormData 文件上传、图片缩略图生成、视频信息提取
- * @since 4.5.0
+ * @since 1.0.2
  */
 class AttachmentService {
 

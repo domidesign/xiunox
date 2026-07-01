@@ -81,7 +81,9 @@ class cache_memcached {
        	public function error($errno = 0, $errstr = '') {
 		$this->errno = $errno;
 		$this->errstr = $errstr;
-		DEBUG AND trigger_error('Cache Error:'.$this->errstr);
+		if(function_exists('xn_log')) {
+			xn_log('Cache Error: ' . $errstr, 'cache_error');
+		}
 	}
         public function __destruct() {
 

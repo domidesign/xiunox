@@ -61,51 +61,16 @@ function modlog_create_batch($records) {
 	// hook model_modlog_create_batch_start.php
 	if(empty($records) || !is_array($records)) return 0;
 
-	global $db;
-	if(!$db) return 0;
-	$tablepre = $db->tablepre;
-
-	// 收集所有字段（取并集），保证不同字段集的记录也能批量插入
-	$allkeys = array();
+	// 循环 db_insert() 插入（PDO 预处理防注入，db_insert 自动处理变长字段集）
+	$inserted = 0;
 	foreach($records as $rec) {
 		if(empty($rec) || !is_array($rec)) continue;
-		foreach($rec as $k=>$v) {
-			$allkeys[$k] = true;
-		}
+		$r = db_insert('modlog', $rec);
+		if($r !== FALSE) $inserted++;
 	}
-	if(empty($allkeys)) return 0;
-	$keys = array_keys($allkeys);
-
-	// 构建字段列表
-	$keystr = implode(',', array_map(function($k) {
-		return '`'.addslashes((string)$k).'`';
-	}, $keys));
-
-	// 构建值列表
-	$values_parts = array();
-	foreach($records as $rec) {
-		if(empty($rec) || !is_array($rec)) continue;
-		$vals = array();
-		foreach($keys as $k) {
-			$v = isset($rec[$k]) ? $rec[$k] : '';
-			if(is_int($v) || is_float($v)) {
-				$vals[] = $v;
-			} else {
-				$vals[] = "'".addslashes((string)$v)."'";
-			}
-		}
-		$values_parts[] = '('.implode(',', $vals).')';
-	}
-
-	if(empty($values_parts)) return 0;
-
-	$valstr = implode(',', $values_parts);
-	$sql = "INSERT INTO {$tablepre}modlog ($keystr) VALUES $valstr";
-	$n = db_exec($sql);
 
 	// hook model_modlog_create_batch_end.php
-
-	return $n !== FALSE ? count($values_parts) : 0;
+	return $inserted;
 }
 
 function modlog_update($logid, $arr) {

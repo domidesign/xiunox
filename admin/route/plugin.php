@@ -175,6 +175,9 @@ if($action == 'local') {
 	
 	$installfile = APP_PATH."plugin/$dir/install.php";
 	if(is_file($installfile)) {
+		// 注入安全 IO 包装，限制插件文件操作范围
+		require_once APP_PATH . 'lib/xn_safe_io.php';
+		$plugin_dir = $dir;
 		include _include($installfile);
 	}
 	
@@ -225,6 +228,9 @@ if($action == 'local') {
 	
 	$unstallfile = APP_PATH."plugin/$dir/unstall.php";
 	if(is_file($unstallfile)) {
+		// 注入安全 IO 包装，限制插件文件操作范围
+		require_once APP_PATH . 'lib/xn_safe_io.php';
+		$plugin_dir = $dir;
 		include _include($unstallfile);
 	}
 	
@@ -300,6 +306,9 @@ if($action == 'local') {
 
 	$upgradefile = APP_PATH."plugin/$dir/upgrade.php";
 	if(is_file($upgradefile)) {
+		// 注入安全 IO 包装，限制插件文件操作范围
+		require_once APP_PATH . 'lib/xn_safe_io.php';
+		$plugin_dir = $dir;
 		include _include($upgradefile);
 	}
 	
@@ -321,6 +330,9 @@ if($action == 'local') {
 		sanitize_plugin_setting($_POST);
 	}
 	
+	// 注入安全 IO 包装，限制插件文件操作范围
+	require_once APP_PATH . 'lib/xn_safe_io.php';
+	$plugin_dir = $dir;
 	include _include(APP_PATH."plugin/$dir/setting.php");
 
 } elseif($action == 'scanner') {

@@ -1,7 +1,6 @@
-MIT License
+The MIT License (MIT)
 
-Copyright (c) 2026 XIUNOX
-Based on Xiuno BBS 4.0.4 (https://www.xiunobbs.com/)
+Copyright (c) 2015-2026 Xiuno BBS Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -10,63 +9,69 @@ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-
-================================================================================
-                          附加条款 — 版权保留要求
-================================================================================
-
-本软件基于 MIT 协议开源，允许自由使用、修改、分发与商用，但根据 MIT 协议
-"上述版权声明和本许可声明应包含在所有副本或实质性部分中"的要求，使用者
-必须遵守以下版权保留规定：
-
-1. 前台版权保留
-   前台页脚（footer）的 XIUNOX 版权标识（SVG 图片，文字为 "XIUNOX BASED ON XIUNO"）
-   必须完整保留，且链接必须指向 https://www.xiunox.org/ ，不得删除、隐藏、
-   篡改或使其不可见。
-
-2. 后台版权保留
-   后台页脚（admin footer）的 XIUNOX 版权标识（SVG 图片，文字为 "XIUNOX BASED ON XIUNO"）
-   必须完整保留，不得删除、隐藏或篡改。
-
-3. 禁止绕过
-   不得通过修改配置文件、模板文件、CSS 样式（如 display:none、visibility:hidden、
-   color 透明、字体大小为 0 等方式）或任何其他技术手段隐藏、遮挡或移除上述
-   前后台版权标识。
-
-4. 自定义版权
-   在保留上述前后台版权标识的前提下，允许在页脚添加自定义版权信息
-   （通过后台「设置 - 导航设置 - 页脚设置」配置）。
-
-5. 违约条款
-   若违反上述版权保留要求，授权自动终止，使用者应立即停止使用本软件并
-   删除所有副本。XIUNOX 保留追究法律责任的权利。
-
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 ================================================================================
-                          附加条款 — 禁止违法用途
-================================================================================
 
-本软件严禁用于搭建任何违法违规网站，包括但不限于：
+                              ADDITIONAL TERMS
 
-  - 诈骗、钓鱼、传销等欺诈类站点
-  - 赌博、博彩、私彩等赌博类站点
-  - 色情、淫秽、成人内容等违法站点
-  - 木马、病毒、恶意软件等危害网络安全的站点
-  - 盗版资源、侵权内容等侵犯知识产权的站点
-  - 其他违反中国法律法规或使用者所在地法律法规的站点
+                         DISCLAIMER AND RESTRICTIONS
 
-一旦发现违法违规使用行为，XIUNOX 将立即向相关部门举报，并配合调查取证。
-使用者需自行承担因违法使用而产生的一切法律责任，与 XIUNOX 及原作者无关。
+   本软件在 MIT License 协议基础上，附加以下免责声明和使用限制：
 
-================================================================================
+   一、免责声明
+
+   1. 本软件按"原样"提供，不作任何明示或暗示的保证，包括但不限于适销性、
+      特定用途的适用性和非侵权性。使用者需自行承担使用本软件的全部风险。
+
+   2. 软件作者及贡献者不对因使用本软件而产生的任何直接、间接、附带、特殊、
+      惩罚性或后果性损害承担责任，包括但不限于数据丢失、利润损失、业务中断等。
+
+   3. 使用者应自行确保使用本软件的行为符合所在国家/地区的法律法规。因违法
+      使用本软件而产生的一切后果，由使用者自行承担。
+
+   二、使用限制
+
+   本软件明确禁止用于以下用途：
+
+   1. 违反中华人民共和国法律法规的活动，包括但不限于：
+      - 制作、传播淫秽色情信息
+      - 组织网络赌博或开设赌场
+      - 实施电信网络诈骗
+      - 传播恶意软件（病毒、木马、勒索软件等）
+      - 未经授权传播受知识产权保护的作品
+      - 钓鱼攻击或其他网络犯罪活动
+
+   2. 危害国家安全和社会稳定的活动，包括但不限于：
+      - 煽动颠覆国家政权、推翻社会主义制度
+      - 煽动分裂国家、破坏国家统一
+      - 宣扬恐怖主义、极端主义
+      - 煽动民族仇恨、民族歧视
+      - 散布政治谣言、扰乱社会秩序
+
+   3. 侵害他人合法权益的活动，包括但不限于：
+      - 侵犯他人隐私权、肖像权、名誉权
+      - 传播仇恨言论或歧视性内容
+      - 骚扰、恐吓、威胁他人
+
+   三、违规处理
+
+   如发现本软件被用于上述禁止用途，软件作者保留在不事先通知的情况下采取
+   以下措施的权利：
+   1. 撤销使用许可
+   2. 要求立即停止使用并删除软件
+   3. 依法向有关主管部门举报
+
+   四、其他
+
+   本附加条款构成 MIT License 不可分割的一部分。如本附加条款与 MIT License
+   存在冲突，以本附加条款为准。本附加条款适用中华人民共和国法律解释。

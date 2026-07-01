@@ -1,0 +1,199 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_thread_recycle_start.htm}-->
+
+<div class="mb-3">
+	<?php echo admin_tab_active($menu['thread']['tab'], 'recycle');?>
+</div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form id="filter_form" onsubmit="return doFilter();">
+			<div class="d-flex flex-wrap gap-3 align-items-end">
+				<div>
+					<label class="form-label fs-6 mb-1"><?php echo lang('forum');?></label>
+					<select class="form-select form-select-sm" id="filter_fid">
+						<option value="0"></option>
+						<?php foreach ($forumlist as $forum) { ?>
+						<?php if(!empty($forum['type'])) continue; ?>
+						<option value="<?php echo $forum['fid']; ?>"<?php if($filter_fid == $forum['fid']) echo ' selected';?>><?php echo esc_html($forum['name']); ?></option>
+						<?php } ?>
+					</select>
+				</div>
+				<div>
+					<label class="form-label fs-6 mb-1"><?php echo lang('keyword');?></label>
+					<input class="form-control form-control-sm" type="text" id="filter_keyword" placeholder="<?php echo lang('keyword');?>" value="<?php echo esc_html($filter_keyword);?>" />
+				</div>
+				<div class="flex-shrink-0">
+					<button type="submit" class="btn btn-primary btn-sm rounded-pill"><i class="ti ti-search"></i> <?php echo lang('search');?></button>
+				</div>
+			</div>
+		</form>
+	</div>
+</div>
+
+<div class="x-card card mt-3">
+	<div class="card-body p-0">
+		<!-- 批量操作栏 -->
+		<div id="batch_toolbar" class="d-flex flex-wrap align-items-center gap-2 px-3 py-2 border-bottom">
+			<div class="form-check me-2">
+				<input type="checkbox" class="form-check-input" id="checkall" />
+				<label class="form-check-label small" for="checkall"><?php echo lang('admin_thread_select_all');?></label>
+			</div>
+			<span class="text-secondary small" id="selected_count">0 <?php echo lang('admin_thread_col_posts');?></span>
+			<div class="vr mx-1"></div>
+			<button type="button" class="btn btn-sm btn-outline-success" id="btn_restore" disabled><i class="ti ti-rotate"></i> <?php echo lang('admin_batch_restore');?></button>
+			<button type="button" class="btn btn-sm btn-outline-danger" id="btn_hard_delete" disabled data-confirm-text="<?php echo lang('admin_hard_delete_confirm');?>"><i class="ti ti-trash-x"></i> <?php echo lang('admin_batch_hard_delete');?></button>
+		</div>
+
+		<!-- 帖子列表 -->
+		<table class="table table-hover mb-0 align-middle" id="thread_table">
+			<thead class="table-light">
+				<tr>
+					<th style="width:40px;"></th>
+					<th><?php echo lang('admin_thread_col_subject');?></th>
+					<th style="width:100px;"><?php echo lang('admin_thread_col_author');?></th>
+					<th style="width:100px;"><?php echo lang('admin_thread_col_forum');?></th>
+					<th style="width:140px;"><?php echo lang('admin_deleted_time');?></th>
+					<th style="width:100px;"><?php echo lang('admin_deleted_by');?></th>
+					<th style="width:120px;" class="text-center"><?php echo lang('operation');?></th>
+				</tr>
+			</thead>
+			<tbody id="thread_list">
+			<?php if(!empty($threadlist)) { ?>
+				<?php foreach($threadlist as $thread) { ?>
+				<tr>
+					<td><input type="checkbox" class="form-check-input" name="modtid" value="<?php echo $thread['tid'];?>" /></td>
+					<td>
+						<a href="<?php echo frontend_thread_url($thread['tid']);?>" target="_blank"><?php echo esc_html($thread['subject']);?></a>
+					</td>
+					<td><?php echo esc_html($thread['username']);?></td>
+					<td><?php echo esc_html($thread['forumname']);?></td>
+					<td class="small text-secondary"><?php echo $thread['deleted_date_fmt'];?></td>
+					<td class="small"><?php echo esc_html($thread['deleted_by_name']);?></td>
+					<td class="text-center">
+						<button type="button" class="btn btn-sm btn-outline-success py-0 px-2" data-op="restore" data-tid="<?php echo $thread['tid'];?>" title="<?php echo lang('admin_thread_restore');?>"><i class="ti ti-rotate"></i></button>
+						<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" data-op="hard_delete" data-tid="<?php echo $thread['tid'];?>" data-confirm-text="<?php echo lang('admin_hard_delete_confirm');?>" title="<?php echo lang('admin_thread_hard_delete');?>"><i class="ti ti-trash-x"></i></button>
+					</td>
+				</tr>
+				<?php } ?>
+			<?php } else { ?>
+				<tr><td colspan="7" class="text-center py-4 text-secondary"><?php echo lang('admin_no_deleted_threads');?></td></tr>
+			<?php } ?>
+			</tbody>
+		</table>
+	</div>
+
+	<!-- 分页 -->
+	<?php if(!empty($pagination)) { ?>
+	<div class="card-footer d-flex justify-content-center py-2">
+		<nav><ul class="pagination pagination-sm mb-0"><?php echo $pagination;?></ul></nav>
+	</div>
+	<?php } ?>
+</div>
+
+<!--{hook admin_thread_recycle_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+var recycleUrl = '<?php echo admin_thread_recycle_url();?>';
+var csrf_token = '<?php echo CsrfService::getToken();?>';
+
+// 筛选跳转
+function doFilter() {
+	var fid = $('#filter_fid').val();
+	var keyword = $('#filter_keyword').val();
+	var url = recycleUrl;
+	var params = [];
+	if(fid && fid != '0') params.push('fid=' + encodeURIComponent(fid));
+	if(keyword) params.push('keyword=' + encodeURIComponent(keyword));
+	if(params.length > 0) url += '&' + params.join('&');
+	window.location.href = url;
+	return false;
+}
+
+// 全选/取消全选
+$('#checkall').on('change', function() {
+	var checked = $(this).prop('checked');
+	$('#thread_list input[name="modtid"]').prop('checked', checked);
+	updateBatchButtons();
+});
+
+// 复选框变化
+$('#thread_list').on('change', 'input[name="modtid"]', function() {
+	updateBatchButtons();
+});
+
+// 更新批量按钮状态
+function updateBatchButtons() {
+	var checked = $('#thread_list input[name="modtid"]:checked');
+	var total = $('#thread_list input[name="modtid"]');
+	var count = checked.length;
+	$('#selected_count').text(count + ' <?php echo lang("admin_thread_col_posts");?>');
+	$('#btn_restore').prop('disabled', count === 0);
+	$('#btn_hard_delete').prop('disabled', count === 0);
+	$('#checkall').prop('checked', total.length > 0 && count === total.length);
+}
+
+// 获取选中的 tid
+function getSelectedTids() {
+	var tids = [];
+	$('#thread_list input[name="modtid"]:checked').each(function() {
+		tids.push($(this).val());
+	});
+	return tids;
+}
+
+// 执行操作
+function doRecycleOp(op, tids, confirmMsg) {
+	if(!tids || tids.length === 0) {
+		showToast('<?php echo lang("admin_thread_no_selection");?>', 'warning');
+		return;
+	}
+
+	var doAction = function() {
+		var postdata = {
+			tids: tids.join(','),
+			op: op,
+			csrf_token: csrf_token
+		};
+		$.xpost(recycleUrl, postdata, function(code, message) {
+			if(parseInt(code) == 0) {
+				showToast(message, 'success');
+				setTimeout(function() { window.location.reload(); }, 800);
+			} else {
+				showToast(message || '<?php echo lang("admin_thread_batch_failed");?>', 'error');
+			}
+		});
+	};
+
+	if(confirmMsg) {
+		XN.confirm(confirmMsg, doAction);
+	} else {
+		doAction();
+	}
+}
+
+// 批量恢复
+$('#btn_restore').on('click', function() {
+	var tids = getSelectedTids();
+	doRecycleOp('restore', tids, '<?php echo lang("admin_thread_restore");?>？');
+});
+
+// 批量彻底删除
+$('#btn_hard_delete').on('click', function() {
+	var tids = getSelectedTids();
+	doRecycleOp('hard_delete', tids, $(this).data('confirm-text'));
+});
+
+// 单条操作
+$('#thread_list').on('click', 'button[data-op]', function() {
+	var op = $(this).data('op');
+	var tid = $(this).data('tid');
+	var confirmMsg = op === 'hard_delete' ? $(this).data('confirm-text') : '<?php echo lang("admin_thread_restore");?>？';
+	doRecycleOp(op, [tid], confirmMsg);
+});
+</script>
+
+<!--{hook admin_thread_recycle_js.htm}-->

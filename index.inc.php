@@ -10,6 +10,14 @@ include APP_PATH.'lib/CsrfService.php';
 include APP_PATH.'lib/EscapeService.php';
 include APP_PATH.'lib/EditorService.php';
 include APP_PATH.'lib/PermissionService.php';
+include_once APP_PATH.'lib/ServiceRegistry.php';
+
+// 将 xiunophp.php 已初始化的 db/cache/conf 注册进 ServiceRegistry
+// ServiceRegistry::set 内部会同步 $_SERVER['xxx']，旧代码无需改动
+// db/cache 由 xiunophp.php 创建并赋值到 $_SERVER，此处纳入注册表统一管理
+if(isset($_SERVER['conf'])) ServiceRegistry::set('conf', $_SERVER['conf']);
+if(isset($_SERVER['db'])) ServiceRegistry::set('db', $_SERVER['db']);
+if(isset($_SERVER['cache'])) ServiceRegistry::set('cache', $_SERVER['cache']);
 
 // 用户级语言切换：cookie > 浏览器 > 后台默认语言 > 站点配置
 $user_lang = _COOKIE('lang');
@@ -70,7 +78,7 @@ empty($uid) AND $uid = user_token_get() AND $_SESSION['uid'] = $uid;
 $user = user_read($uid);
 
 $gid = empty($user) ? 0 : intval($user['gid']);
-$group = isset($grouplist[$gid]) ? $grouplist[$gid] : $grouplist[0];
+$group = isset($grouplist[$gid]) ? $grouplist[$gid] : (isset($grouplist[0]) ? $grouplist[0] : array());
 
 // 版块 / Forum
 $fid = 0;

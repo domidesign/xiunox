@@ -303,24 +303,6 @@ function is_number_array($arr) {
 }*/
 
 
-/*
-// 此函数太耗费资源已经废弃。
-function xn_json_encode($json) {
-	if(version_compare(PHP_VERSION, '5.4.0') == 1) {
-		return json_encode($json, JSON_UNESCAPED_UNICODE);
-	} else {
-		$json = json_encode($json);
-		return ucs2_to_utf8($json);
-	}
-}
-// 此函数仅仅在工具中使用！不允许在主程序调用。不利于APC，并且可能有安全问题。
-function ucs2_to_utf8($s) {
-	$s = preg_replace("#\\\u([0-9a-f]+)#ie", "iconv('UCS-2', 'UTF-8', pack('H4', '\\1'))", $s);
-	return $s;
-}
-*/
-
-
 // ---------------------> encrypt function end
 
 function pagination_tpl($url, $text, $active = '') {
@@ -490,63 +472,80 @@ function humansize($num) {
 	}
 }
 
-// 不安全的获取 IP 方式，在开启 CDN 的时候，如果被人猜到真实 IP，则可以伪造。
+// 安全获取用户 IP：默认信任 REMOTE_ADDR，仅在 cdn_ip 白名单内才信任 X-Forwarded-For
+// 不信任其他易被伪造的客户端 IP 头（如 CDN-SRC-IP / CLIENTIP / CLIENT_IP）
 function ip() {
 	$conf = _SERVER('conf');
-	$ip = '127.0.0.1';
-	if(empty($conf['cdn_on'])) {
-		$ip = _SERVER('REMOTE_ADDR');
-	} else {
-		if(isset($_SERVER['HTTP_CDN_SRC_IP'])) {
-			$ip = $_SERVER['HTTP_CDN_SRC_IP'];
-		} elseif(isset($_SERVER['HTTP_CLIENTIP'])) {
-			$ip = $_SERVER['HTTP_CLIENTIP'];
-		} elseif(isset($_SERVER['HTTP_CLIENT_IP'])) {
-			$ip = $_SERVER['HTTP_CLIENT_IP'];
-		} elseif(isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-			$ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
-			$arr = array_filter(explode(',', $ip));
-			$ip = trim(end($arr));
-		} else {
-			$ip = _SERVER('REMOTE_ADDR');
-		}
-	}
-	return long2ip(ip2long($ip));
-}
+	$ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '127.0.0.1';
 
-// 安全获取用户IP，信任 CDN 发过来的 X-FORWARDED-FOR
-/*
-function ip() {
-	global $conf;
-	$ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '127.0.0.1'; // 如果有 CDN 的时候，为离服务器最近的 IP
+	// 本机地址（反向代理场景）：即使未配置 cdn_ip，也尝试从 X-Forwarded-For 获取真实 IP
+	$local_ips = array('127.0.0.1', '::1', '0.0.0.0');
+	$is_local = in_array($ip, $local_ips);
+
+	// 未配置 CDN 白名单或无 X-Forwarded-For 头
 	if(empty($conf['cdn_ip']) || empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-		return $ip;
-	} else {
-		// 判断 cdnip 合法性，严格过滤 HTTP_X_FORWARDED_FOR
-		// X-Forwarded-For: client1, proxy1, proxy2, ...
-		// 离服务器最最近的为最后一个 proxy2，应该在 $conf['cdn_ip'] 当中才安全可信
-		foreach($conf['cdn_ip'] as $cdnip) {
-			$pos1 = strrpos($cdnip, '.');
-			$pos2 = strrpos($ip, '.');
-			// 合法 CDN IP 段
-			if($ip == $cdnip || ($pos1 == $pos2 && substr($cdnip, $pos1) == '.*' && substr($cdnip, 0, $pos1) == substr($ip, 0, $pos2))) {
-				$userips = !empty($_SERVER['HTTP_X_FORWARDED_FOR']) ? $_SERVER['HTTP_X_FORWARDED_FOR'] : $_SERVER['HTTP_X_REAL_IP'];
-				if(empty($userips)) return $ip; // 此处 CDN 未转发 userip，有错误，可能需要记录日志
-				$arr = array_values(array_filter(explode(',', $userips)));
-				return long2ip(ip2long(end($arr)));
+		// 本机地址 + 有 X-Forwarded-For：自动信任（反向代理场景兼容）
+		if($is_local && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+			$arr = array_filter(array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])));
+			if(!empty($arr)) {
+				$real_ip = reset($arr);
+				return long2ip(ip2long($real_ip));
 			}
 		}
-		return $ip;
+		return long2ip(ip2long($ip));
 	}
+	// 校验 REMOTE_ADDR 是否在 cdn_ip 白名单内（支持单 IP 与 CIDR）
+	$is_trusted = $is_local; // 本机地址默认可信
+	$ip_long = ip2long($ip);
+	foreach($conf['cdn_ip'] as $cdnip) {
+		$cdnip = trim($cdnip);
+		if($cdnip === '' || $ip_long === false) continue;
+		if(strpos($cdnip, '/') !== false) {
+			// CIDR 格式：5.6.7.0/24
+			list($subnet, $mask) = explode('/', $cdnip, 2);
+			$subnet_long = ip2long($subnet);
+			$mask = intval($mask);
+			if($subnet_long !== false && $mask >= 0 && $mask <= 32) {
+				$mask_long = $mask == 0 ? 0 : (~((1 << (32 - $mask)) - 1) & 0xFFFFFFFF);
+				if(($ip_long & $mask_long) === ($subnet_long & $mask_long)) {
+					$is_trusted = true;
+					break;
+				}
+			}
+		} elseif($ip === $cdnip) {
+			// 单 IP 精确匹配
+			$is_trusted = true;
+			break;
+		}
+	}
+	if(!$is_trusted) {
+		return long2ip(ip2long($ip));
+	}
+	// 可信代理：取 X-Forwarded-For 第一个值（首跳，最远端用户 IP）
+	$arr = array_filter(array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])));
+	if(empty($arr)) return long2ip(ip2long($ip));
+	$real_ip = reset($arr);
+	return long2ip(ip2long($real_ip));
 }
-*/
 
 // 日志记录
-function xn_log($s, $file = 'error') {
+// $level: DEBUG/INFO/WARNING/ERROR，按 conf.log_level 过滤低级别日志
+function xn_log($s, $file = 'error', $level = 'WARNING') {
+	// DEBUG=0 时仅写文件名含 error 的日志（保留原逻辑）
 	if(DEBUG == 0 && strpos($file, 'error') === FALSE) return;
+
+	// 级别过滤：低于 conf.log_level 阈值的日志不写
+	static $levels = array('DEBUG' => 0, 'INFO' => 1, 'WARNING' => 2, 'ERROR' => 3);
+	$conf = _SERVER('conf');
+	$config_level = isset($conf['log_level']) ? $conf['log_level'] : 'WARNING';
+	if(isset($levels[$level]) && isset($levels[$config_level]) && $levels[$level] < $levels[$config_level]) {
+		return;
+	}
+	// 未知级别归一为 WARNING
+	$level = isset($levels[$level]) ? $level : 'WARNING';
+
 	$time = $_SERVER['time'];
 	$ip = $_SERVER['ip'];
-	$conf = _SERVER('conf');
 	$uid = intval(G('uid')); // xiunophp 未定义 $uid
 	$day = date('Ym', $time); // 按照月存放，否则 Ymd 目录太多。
 	$mtime = date('Y-m-d H:i:s'); // 默认值为 time()
@@ -555,8 +554,8 @@ function xn_log($s, $file = 'error') {
 	!is_dir($logpath) AND mkdir($logpath, 0777, true);
 
 	$s = str_replace(array("\r\n", "\n", "\t"), ' ', $s);
-	$s = "<?php exit;?>\t$mtime\t$ip\t$url\t$uid\t$s\r\n";
-	
+	$s = "<?php exit;?>\t[$level]\t$mtime\t$ip\t$url\t$uid\t$s\r\n";
+
 	@error_log($s, 3, $logpath."/$file.php");
 }
 
@@ -1476,7 +1475,15 @@ function http_403() {
 	}
 }
 
-function http_location($url) {
+function http_location($url, $allow_external = FALSE) {
+	// 默认仅允许站内跳转，防开放重定向
+	if(!$allow_external) {
+		$url_host = parse_url($url, PHP_URL_HOST);
+		$current_host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
+		if($url_host && $current_host && $url_host !== $current_host) {
+			$url = url('');
+		}
+	}
 	header('Location:'.$url);
 	exit;
 }

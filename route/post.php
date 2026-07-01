@@ -684,11 +684,21 @@ if($action == 'create') {
 		message(-1, $deleteCreditsCheck['message']);
 	}
 
-	if($isfirst) {
-		thread_delete($tid);
+	// 软删除配置检查
+	$sec_soft_delete = SecurityConfigService::get('security_soft_delete', 1);
+	if($sec_soft_delete) {
+		if($isfirst) {
+			thread_soft_delete($tid, $uid);
+		} else {
+			post_soft_delete($pid, $uid);
+		}
 	} else {
-		post_delete($pid);
-		//post_list_cache_delete($tid);
+		if($isfirst) {
+			thread_delete($tid);
+		} else {
+			post_delete($pid);
+			//post_list_cache_delete($tid);
+		}
 	}
 
 	// hook post_delete_end.php

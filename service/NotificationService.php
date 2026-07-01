@@ -7,7 +7,7 @@ if (!interface_exists('DatabaseInterface')) {
 
 /**
  * 通知服务类
- * @since 4.5.0
+ * @since 1.0.2
  */
 class NotificationService {
     private DatabaseInterface $db;

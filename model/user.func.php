@@ -178,7 +178,7 @@ function user_read_cache($uid) {
 	
 	if(!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql'))) {
 		$r = cache_get("user-$uid");
-		if($r === NULL) {
+		if($r === NULL || $r === FALSE) {
 			$r = user_read($uid);
 			cache_set("user-$uid", $r);
 		}
@@ -523,12 +523,13 @@ function user_token_get() {
 function user_token_get_do() {
 	global $time, $ip, $conf;
 	$token = param('bbs_token');
-	
+
 	// hook model_user_token_get_do_start.php
-	
+
 	if(empty($token)) return FALSE;
 	$tokenkey = md5(xn_key());
-	$s = xn_decrypt($token, $tokenkey);
+	$used_v2 = false;
+	$s = xn_decrypt($token, $tokenkey, $used_v2);
 	if(empty($s)) return FALSE;
 	$arr = explode("\t", $s);
 	if(count($arr) != 4) return FALSE;
@@ -543,12 +544,53 @@ function user_token_get_do() {
 			return 0;
 		}
 	}
-	
-	
-	
+
+	// 令牌迁移：若解密时回退到 XXTEA（旧格式），重签 v2 令牌并通过 setcookie 下发
+	if(!$used_v2) {
+		user_token_set($_uid);
+	}
+
 	// hook model_user_token_get_do_end.php
-	
-	return $_uid;	
+
+	return $_uid;
+}
+
+// 获取前台 Cookie 安全选项（与 admin_cookie_options / sess_start 保持一致，读取安全配置）
+// 补齐 secure / httponly / samesite 属性，防 Cookie 被窃取与 CSRF
+function user_cookie_options($expires = 0, $path = '/') {
+	global $conf;
+	$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+
+	// Cookie Secure：配置了 security_cookie_secure 则使用配置值，否则自动检测 HTTPS
+	if(isset($conf['security_cookie_secure']) && intval($conf['security_cookie_secure']) > 0) {
+		$cookie_secure = true;
+	} elseif(isset($conf['cookie_secure'])) {
+		$cookie_secure = intval($conf['cookie_secure']) > 0;
+	} else {
+		$cookie_secure = $is_https;
+	}
+
+	// Cookie HttpOnly：默认开启
+	$cookie_httponly = true;
+	if(isset($conf['security_cookie_httponly'])) {
+		$cookie_httponly = intval($conf['security_cookie_httponly']) > 0;
+	}
+
+	// Cookie SameSite：优先使用安全配置，否则自动检测
+	if(isset($conf['security_cookie_samesite']) && in_array($conf['security_cookie_samesite'], array('Lax', 'Strict', 'None'), true)) {
+		$samesite = $conf['security_cookie_samesite'];
+	} else {
+		$samesite = $is_https ? 'None' : 'Lax';
+	}
+
+	return array(
+		'expires' => $expires,
+		'path' => $path,
+		'domain' => '',
+		'secure' => $cookie_secure,
+		'httponly' => $cookie_httponly,
+		'samesite' => $samesite,
+	);
 }
 
 // 设置 token，防止 sid 过期后被删除
@@ -558,7 +600,7 @@ function user_token_set($uid) {
 	$token = user_token_gen($uid);
 	// cookie_path 为空时默认用 /，确保 token 在全站有效
 	$_cookie_path = !empty($conf['cookie_path']) ? $conf['cookie_path'] : '/';
-	setcookie('bbs_token', $token, $time + 8640000, $_cookie_path);
+	setcookie('bbs_token', $token, user_cookie_options($time + 8640000, $_cookie_path));
 
 	// hook model_user_token_set_end.php
 }
@@ -568,7 +610,7 @@ function user_token_clear() {
 	// cookie_path 为空时必须用 /，否则 setcookie 会用当前请求目录作为 path
 	// 导致退出登录（/user/logout）只清除 /user 路径下的 cookie，根路径下的 token 仍存在
 	$_cookie_path = !empty($conf['cookie_path']) ? $conf['cookie_path'] : '/';
-	setcookie('bbs_token', '', $time - 8640000, $_cookie_path);
+	setcookie('bbs_token', '', user_cookie_options($time - 8640000, $_cookie_path));
 
 	// hook model_user_token_clear_end.php
 }
@@ -605,13 +647,16 @@ function user_login_check() {
 // 获取用户来路
 function user_http_referer() {
 	// hook user_http_referer_start.php
-	$referer = param('referer'); // 优先从参数获取 | GET is priority
+	// 优先从参数获取（兼容 name="referer" 和 name="next" 两种表单字段名）
+	$referer = param('referer');
+	empty($referer) AND $referer = param('next');
 	empty($referer) AND $referer = array_value($_SERVER, 'HTTP_REFERER', '');
-	
+
 	$referer = str_replace(array('\"', '"', '<', '>', ' ', '*', "\t", "\r", "\n"), '', $referer); // 干掉特殊字符 strip special chars
-	
+
+	// URL 格式校验：允许 http(s)://host 或 http(s)://host/path?query#hash
 	if(
-		!preg_match('#^(http|https)://[\w\-=/\.]+/[\w\-=/\.%\#?]*$#is', $referer)
+		!preg_match('#^(https?://[\w\-=/\.]+(:\d+)?(/[\w\-=/\.%\#?]*)?)$#is', $referer)
 		|| strpos($referer, 'user-login') !== FALSE
 		|| strpos($referer, 'user-logout') !== FALSE
 		|| strpos($referer, 'user-create') !== FALSE
@@ -619,6 +664,13 @@ function user_http_referer() {
 		|| strpos($referer, 'user-resetpw_complete') !== FALSE
 	) {
 		$referer = url('');  // 首页绝对路径，避免 ./ 在路径风格下解析为 /user/
+	} else {
+		// host 白名单校验，仅允许站内跳转，防开放重定向
+		$referer_host = parse_url($referer, PHP_URL_HOST);
+		$current_host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
+		if ($referer_host && $current_host && $referer_host !== $current_host) {
+			$referer = url('');
+		}
 	}
 	// hook user_http_referer_end.php
 	return $referer;

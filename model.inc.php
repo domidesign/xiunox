@@ -7,6 +7,10 @@
 
 // hook model_inc_start.php
 
+// 服务注册表（核心服务类直接 include，绕过 tmp 缓存）
+// 使用 include_once 防止与 index.inc.php 重复加载导致类重声明
+include_once APP_PATH.'lib/ServiceRegistry.php';
+
 $include_model_files = array (
 	APP_PATH.'model/kv.func.php',
 	APP_PATH.'model/queue.func.php',
@@ -84,12 +88,13 @@ if(class_exists('CacheService', false)) {
         try {
             global $db;
             if(is_object($db)) {
-                $_SERVER['cache'] = new cache_mysql(array('db' => $db, 'cachepre' => 'bbs_'));
+                // 用 ServiceRegistry 统一注册，内部自动同步 $_SERVER 兼容旧代码
+                ServiceRegistry::set('cache', new cache_mysql(array('db' => $db, 'cachepre' => 'bbs_')));
             } else {
-                $_SERVER['cache'] = NULL;
+                ServiceRegistry::set('cache', NULL);
             }
         } catch(\Throwable $e2) {
-            $_SERVER['cache'] = NULL;
+            ServiceRegistry::set('cache', NULL);
         }
     }
 }

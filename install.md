@@ -29,7 +29,7 @@
 | PHP | 8.0+ | 8.5 |
 | MySQL | 5.7+ | 8.3 |
 | MariaDB | 10.3+ | 11.4 |
-| Web 服务器 | Nginx / Apache | Nginx 1.31+ |
+| Web 服务器 | Nginx / Apache | Nginx 1.30+ |
 
 ### 1.2 PHP 扩展
 

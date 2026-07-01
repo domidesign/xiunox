@@ -2,7 +2,41 @@
 
 <?php include _include(APP_PATH.'view/htm/my.layout.inc.htm');?>
 
-	<!-- 我的主题 -->
+	<!-- 整合页 Tab 导航（链接跳转） -->
+	<ul class="nav nav-tabs mb-3">
+		<li class="nav-item">
+			<a href="<?php echo my_thread_url();?>?tab=thread" class="nav-link<?php if($subtab == 'thread') echo ' active'; ?>"><?php echo lang('my_thread');?></a>
+		</li>
+		<li class="nav-item">
+			<a href="<?php echo my_thread_url();?>?tab=post" class="nav-link<?php if($subtab == 'post') echo ' active'; ?>"><?php echo lang('my_post');?></a>
+		</li>
+		<li class="nav-item">
+			<a href="<?php echo my_thread_url();?>?tab=like" class="nav-link<?php if($subtab == 'like') echo ' active'; ?>"><?php echo lang('my_like');?></a>
+		</li>
+		<li class="nav-item">
+			<a href="<?php echo my_thread_url();?>?tab=favorite" class="nav-link<?php if($subtab == 'favorite') echo ' active'; ?>"><?php echo lang('my_favorite');?></a>
+		</li>
+	</ul>
+
+	<?php if($subtab == 'post') { ?>
+	<!-- 我的回复 -->
+	<div class="x-card card">
+		<div class="card-body">
+			<?php if(!empty($postlist)) { ?>
+			<ul class="list-unstyled postlist mb-0">
+				<?php include _include(APP_PATH.'view/htm/post_list.inc.htm');?>
+			</ul>
+			<?php } else { ?>
+			<div class="text-center text-secondary py-8"><?php echo lang('no_thread_tip');?></div>
+			<?php } ?>
+
+			<?php if($pagination) { ?>
+			<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap mt-3"><?php echo $pagination;?></ul></nav>
+			<?php } ?>
+		</div>
+	</div>
+	<?php } else { ?>
+	<!-- 我的主题 / 点赞 / 收藏 -->
 	<div class="x-card card">
 		<div class="card-body">
 			<ul class="list-unstyled threadlist mb-0">
@@ -14,6 +48,7 @@
 			<?php } ?>
 		</div>
 	</div>
+	<?php } ?>
 
 </div>
 

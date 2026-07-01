@@ -24,6 +24,26 @@ if(empty($action) || $action == 'create') {
 
     $filetypes = include APP_PATH.'conf/attach.conf.php';
 
+    // 真实 MIME 类型白名单，与 conf/attach.conf.php 扩展名白名单对应
+    // 用于 finfo_file 校验，防止伪造扩展名上传恶意文件（如 .php 伪装成 .jpg）
+    $allowed_mimes = array(
+        'image/jpeg', 'image/pjpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/x-ms-bmp',
+        'video/mp4', 'video/webm', 'video/ogg', 'video/x-msvideo', 'video/avi', 'video/x-ms-wmv', 'video/x-ms-asf',
+        'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/x-ms-wma', 'audio/ogg',
+        'application/pdf', 'application/msword', 'application/vnd.ms-excel', 'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'application/zip', 'application/x-zip-compressed', 'application/gzip', 'application/x-gzip',
+        'application/x-tar', 'application/x-rar', 'application/x-rar-compressed', 'application/x-7z-compressed',
+        'application/x-bzip', 'application/x-bzip2',
+        'text/plain', 'text/x-c', 'text/x-c++src',
+        'application/vnd.rn-realmedia', 'application/vnd.rn-realmedia-vbr',
+        'application/x-font-ttf', 'font/ttf',
+        'application/x-bittorrent',
+        'application/vnd.ms-htmlhelp',
+    );
+
     // 判断是否为 FormData 文件上传
     $is_formdata = !empty($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK;
 
@@ -42,6 +62,15 @@ if(empty($action) || $action == 'create') {
             message(-1, lang('filetype_not_allowed'));
         }
 
+        // 真实 MIME 校验，防止伪造扩展名上传恶意文件
+        $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+        $real_mime = $finfo ? @finfo_file($finfo, $tmp_name) : false;
+        if($finfo) finfo_close($finfo);
+        // finfo_file 可能返回 false（如 magic 数据库缺失），此时跳过 MIME 校验，仅依赖扩展名校验
+        if($real_mime !== false && !in_array($real_mime, $allowed_mimes)) {
+            message(-1, lang('file_mime_not_allowed'));
+        }
+
         // 文件大小校验
         $max_size = AttachmentService::getMaxSize($filetype);
         if($size > $max_size) {
@@ -53,6 +82,12 @@ if(empty($action) || $action == 'create') {
         $tmpname = bin2hex(random_bytes(16)).'.'.$ext;
         $tmpfile = $conf['upload_path'].'tmp/'.$tmpname;
         $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
+
+        // 确保上传临时目录存在
+        $tmpdir = $conf['upload_path'].'tmp/';
+        if(!is_dir($tmpdir)) {
+            @mkdir($tmpdir, 0755, TRUE);
+        }
 
         // hook attach_create_save_before.php
 
@@ -150,9 +185,24 @@ if(empty($action) || $action == 'create') {
         $tmpfile = $conf['upload_path'].'tmp/'.$tmpname;
         $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
 
+        // 确保上传临时目录存在
+        $tmpdir = $conf['upload_path'].'tmp/';
+        if(!is_dir($tmpdir)) {
+            @mkdir($tmpdir, 0755, TRUE);
+        }
+
         // hook attach_create_save_before.php
 
         file_put_contents($tmpfile, $data) OR message(-1, lang('write_to_file_failed'));
+
+        // 真实 MIME 校验，防止伪造扩展名上传恶意文件
+        $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+        $real_mime = $finfo ? @finfo_file($finfo, $tmpfile) : false;
+        if($finfo) finfo_close($finfo);
+        if($real_mime !== false && !in_array($real_mime, $allowed_mimes)) {
+            is_file($tmpfile) AND unlink($tmpfile);
+            message(-1, lang('file_mime_not_allowed'));
+        }
 
         $thumb_url = '';
 
@@ -384,7 +434,8 @@ if(empty($action) || $action == 'create') {
 
         // hook attach_download_location_before.php
 
-        http_location($attachurl);
+        // 附件 URL 可能指向 CDN 外链，显式放行
+        http_location($attachurl, TRUE);
     }
 
 } elseif($action == 'fetch') {

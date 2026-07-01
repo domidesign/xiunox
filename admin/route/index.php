@@ -48,13 +48,12 @@ if($action == 'login') {
 	message(0, jump(lang('logout_successfully'), './'));
 
 } elseif ($action == 'phpinfo') {
-	
-	unset($_SERVER['conf']);
-	unset($_SERVER['db']);
-	unset($_SERVER['cache']);
-	phpinfo();
+
+	// 最小化输出，过滤敏感变量
+	unset($_COOKIE, $_ENV, $_SERVER['HTTP_COOKIE']);
+	phpinfo(INFO_CONFIGURATION | INFO_LICENSE);
 	exit;
-	
+
 } else {
 
 	// hook admin_index_empty_start.php

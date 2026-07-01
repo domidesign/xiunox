@@ -8,7 +8,7 @@ if (!interface_exists('DatabaseInterface')) {
 /**
  * CreditsService 积分服务
  * 管理用户积分的增加、扣减、查询和日志记录
- * @since 4.5.0
+ * @since 1.0.2
  */
 class CreditsService {
     private DatabaseInterface $db;

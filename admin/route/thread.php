@@ -110,9 +110,15 @@ if(empty($action) || $action == 'list') {
 
 	if(!empty($tids)) {
 		if($op == 'delete') {
-			// 删除涉及级联，保持循环
-			foreach($tids as $tid) {
-				thread_delete($tid);
+			include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+			$sec_soft_delete = SecurityConfigService::get('security_soft_delete', 1);
+			if($sec_soft_delete) {
+				thread_soft_delete_batch($tids, $uid);
+			} else {
+				// 删除涉及级联，保持循环
+				foreach($tids as $tid) {
+					thread_delete($tid);
+				}
 			}
 		} elseif($op == 'close') {
 			// 批量更新
@@ -158,10 +164,17 @@ if(empty($action) || $action == 'list') {
 
 	if(!empty($valid_tids)) {
 		if($op == 'delete') {
-			// 删除涉及级联，保持循环
-			foreach($valid_tids as $tid) {
-				thread_delete($tid);
-				$success_count++;
+			include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+			$sec_soft_delete = SecurityConfigService::get('security_soft_delete', 1);
+			if($sec_soft_delete) {
+				thread_soft_delete_batch($valid_tids, $uid);
+				$success_count = count($valid_tids);
+			} else {
+				// 删除涉及级联，保持循环
+				foreach($valid_tids as $tid) {
+					thread_delete($tid);
+					$success_count++;
+				}
 			}
 		} elseif($op == 'close') {
 			// 批量更新
@@ -230,6 +243,79 @@ if(empty($action) || $action == 'list') {
 	
 	// hook admin_thread_found_end.php
 	include _include(ADMIN_PATH."view/htm/thread_found.htm");
+
+// 回收站
+} elseif($action == 'recycle') {
+
+	$header['title'] = lang('admin_recycle_bin');
+	$header['mobile_title'] = lang('admin_recycle_bin');
+
+	if($method == 'GET') {
+		// 筛选条件
+		$filter_fid = param('fid', 0);
+		$filter_keyword = param('keyword', '');
+		$page = param('page', 1);
+		$pagesize = 20;
+
+		$cond = array();
+		$filter_fid AND $cond['fid'] = $filter_fid;
+		$filter_keyword AND $cond['subject'] = array('LIKE' => $filter_keyword);
+
+		$threadlist = thread_find_deleted($cond, array('deleted_date'=>-1), $page, $pagesize);
+		$total = db_count('thread', array_merge($cond, array('is_deleted'=>1)));
+		$pagination = pagination(admin_thread_recycle_url(array('fid'=>$filter_fid, 'keyword'=>$filter_keyword, 'page'=>'{page}')), $total, $page, $pagesize);
+
+		// 为每个帖子获取删除者用户名
+		if($threadlist) {
+			foreach($threadlist as &$thread) {
+				$thread['deleted_by_name'] = '';
+				if(!empty($thread['deleted_by'])) {
+					$deleted_user = user_read_cache($thread['deleted_by']);
+					$thread['deleted_by_name'] = isset($deleted_user['display_name']) ? $deleted_user['display_name'] : (isset($deleted_user['username']) ? $deleted_user['username'] : '');
+				}
+				$thread['deleted_date_fmt'] = !empty($thread['deleted_date']) ? humandate($thread['deleted_date']) : '';
+			}
+		}
+
+		include _include(ADMIN_PATH."view/htm/thread_recycle.htm");
+	} else {
+		CsrfService::check();
+
+		$op = param('op');
+		$tids_str = param('tids');
+		$tids = $tids_str ? explode(',', $tids_str) : array();
+
+		if(empty($tids)) {
+			message(-1, lang('admin_thread_no_selection'));
+		}
+
+		$valid_tids = array();
+		foreach($tids as $tid) {
+			$tid = intval($tid);
+			if($tid > 0) $valid_tids[] = $tid;
+		}
+
+		if(empty($valid_tids)) {
+			message(-1, lang('admin_thread_no_selection'));
+		}
+
+		$success_count = 0;
+		if($op == 'restore') {
+			thread_restore_batch($valid_tids);
+			$success_count = count($valid_tids);
+			admin_log_create('thread_restore', 'thread', $valid_tids, '恢复主题 ' . $success_count . ' 篇');
+		} elseif($op == 'hard_delete') {
+			foreach($valid_tids as $tid) {
+				thread_delete($tid);
+				$success_count++;
+			}
+			admin_log_create('thread_hard_delete', 'thread', $valid_tids, '彻底删除主题 ' . $success_count . ' 篇');
+		} else {
+			message(-1, '未知操作');
+		}
+
+		message(0, lang('admin_recycle_' . ($op == 'restore' ? 'restore' : 'hard_delete') . '_successfully', array('count'=>$success_count)));
+	}
 }
 
 // hook admin_thread_start.php

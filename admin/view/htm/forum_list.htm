@@ -21,6 +21,35 @@ foreach($forumlist as $_fid=>$_forum) {
 		$orphans[$_fid] = $_forum;
 	}
 }
+
+// 生成前台伪静态 URL（绕过 admin 强制 ? 格式）
+if(!function_exists('forum_frontend_url')) {
+	function forum_frontend_url($query) {
+		$conf = _SERVER('conf');
+		$url_rewrite_on = isset($conf['url_rewrite_on']) ? intval($conf['url_rewrite_on']) : 0;
+		// 复用 misc.func.php 中 url() 的前台伪静态逻辑
+		if($url_rewrite_on == 0) {
+			$r = '?' . $query . '.htm';
+		} elseif($url_rewrite_on == 1) {
+			$r = $query . '.htm';
+		} elseif($url_rewrite_on == 2) {
+			$r = '?' . str_replace('-', '/', $query);
+		} elseif($url_rewrite_on == 3) {
+			$r = str_replace('-', '/', $query);
+		} elseif($url_rewrite_on == 4) {
+			$r = $query . '.html';
+		} elseif($url_rewrite_on == 5) {
+			$r = str_replace('-', '/', $query) . '.html';
+		} else {
+			$r = '?' . $query . '.htm';
+		}
+		// 加 / 前缀使其成为绝对路径
+		if($r !== '' && $r[0] !== '/' && strpos($r, 'http') !== 0) {
+			$r = '/' . $r;
+		}
+		return $r;
+	}
+}
 ?>
 
 <div class=" ">
@@ -47,49 +76,78 @@ foreach($forumlist as $_fid=>$_forum) {
 
 		<?php foreach($categories as $_fid=>$_forum) { ?>
 		<!-- 分区卡片 -->
-		<div class="x-card  card   " rowid="<?php echo $_fid;?>">
+		<div class="x-card card mb-3" rowid="<?php echo $_fid;?>">
 			<div class="card-header border-0 d-flex align-items-center gap-2">
-				<!-- 分区图标 -->
-				<!-- <?php if(!empty($_forum['icon_url']) && (strpos($_forum['icon_url'], '.') !== false || strpos($_forum['icon_url'], '/') !== false)): ?>
-					<img src="<?php echo $_forum['icon_url'];?>" width="24" height="24" class="rounded-1">
-				<?php else: ?>
-					<i class="ti ti-category text-primary"></i>
-				<?php endif; ?> -->
-				<!-- 分区名称 -->
 				<span class="fw-semibold"><?php echo esc_html($_forum['name']);?></span>
-				<!-- 类型标签 -->
-				<span class="badge bg-primary bg-opacity-10 text-primary "><?php echo lang('admin_category');?></span>
-				<!-- 排序 -->
+				<span class="badge bg-primary bg-opacity-10 text-primary"><?php echo lang('admin_category');?></span>
 				<span class="badge bg-secondary bg-opacity-10 text-secondary"><?php echo lang('forum_rank');?>：<?php echo $_forum['rank'];?></span>
-				<!-- 操作按钮 -->
 				<div class="ms-auto d-flex gap-1">
-				<a class="row-action" href="<?php echo admin_forum_update_url($_fid);?>" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
-				<a class="row-action row_delete" href="javascript:void(0)" data-fid="<?php echo $_fid;?>" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
-			</div>
+					<a class="row-action" href="<?php echo admin_forum_update_url($_fid);?>" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
+					<a class="row-action row_delete" href="javascript:void(0)" data-fid="<?php echo $_fid;?>" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
+				</div>
 			</div>
 
 			<?php
 			$sub_forums = isset($sub_forums_map[$_fid]) ? $sub_forums_map[$_fid] : array();
 			if(!empty($sub_forums)) { ?>
-			<ul class="list-group list-group-flush">
-				<?php foreach($sub_forums as $sfid=>$sf) { ?>
-				<li class="list-group-item border-0 d-flex align-items-center gap-2 p-3 forum-row" rowid="<?php echo $sfid;?>">
-					<?php if(!empty($sf['icon_url'])): ?>
-						<img src="<?php echo $sf['icon_url'];?>" width="28" height="28" class="rounded-1 flex-shrink-0">
-					<?php elseif(!empty($sf['icon_class'])): ?>
-						<i class="<?php echo $sf['icon_class'];?> text-body-secondary flex-shrink-0"></i>
-					<?php else: ?>
-						<img src="/view/img/forum.png" width="28" height="28" class="rounded-1 flex-shrink-0">
-					<?php endif; ?>
-					<span class="fw-medium flex-grow-1"><?php echo esc_html($sf['name']);?></span>
-					<span class="badge bg-secondary bg-opacity-10 text-secondary"><?php echo lang('forum_rank');?>：<?php echo $sf['rank'];?></span>
-					<div class="ms-1 d-flex gap-1">
-						<a class="row-action" href="<?php echo admin_forum_update_url($sfid);?>" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
-						<a class="row-action row_delete" href="javascript:void(0)" data-fid="<?php echo $sfid;?>" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
-					</div>
-				</li>
-				<?php } ?>
-			</ul>
+			<div class="table-responsive">
+				<table class="table table-borderless table-hover align-middle mb-0">
+					<thead>
+						<tr class="text-body-secondary small">
+							<th style="width:8%"><?php echo lang('forum_id');?></th>
+							<th style="width:25%"><?php echo lang('forum_name');?></th>
+							<th style="width:28%"><?php echo lang('forum_url');?></th>
+							<th style="width:19%"><?php echo lang('forum_moderator');?></th>
+							<th style="width:10%"><?php echo lang('forum_rank');?></th>
+							<th style="width:10%" class="text-end"><?php echo lang('forum_op');?></th>
+						</tr>
+					</thead>
+					<tbody>
+					<?php foreach($sub_forums as $sfid=>$sf) {
+						$sf_url = forum_frontend_url('forum-'.$sfid);
+					?>
+						<tr class="forum-row" rowid="<?php echo $sfid;?>">
+							<td><span class="badge bg-secondary bg-opacity-10 text-secondary" style="font-size:0.75em"><?php echo $sfid;?></span></td>
+							<td>
+								<div class="d-flex align-items-center gap-2">
+									<?php if(!empty($sf['icon_url'])): ?>
+										<img src="<?php echo $sf['icon_url'];?>" width="28" height="28" class="rounded-1 flex-shrink-0">
+									<?php elseif(!empty($sf['icon_class'])): ?>
+										<i class="<?php echo $sf['icon_class'];?> text-body-secondary flex-shrink-0" style="font-size:1.4rem"></i>
+									<?php else: ?>
+										<img src="/view/img/forum.png" width="28" height="28" class="rounded-1 flex-shrink-0">
+									<?php endif; ?>
+									<a href="<?php echo $sf_url;?>" target="_blank" class="fw-medium text-decoration-none"><?php echo esc_html($sf['name']);?></a>
+								</div>
+							</td>
+							<td>
+								<a href="<?php echo $sf_url;?>" target="_blank" class="text-body-secondary text-decoration-none small font-monospace">
+									<i class="ti ti-link me-1"></i><?php echo esc_html($sf_url);?>
+								</a>
+							</td>
+							<td>
+								<?php if(!empty($sf['modlist'])): ?>
+									<span class="small">
+										<?php foreach($sf['modlist'] as $_mod) {
+											echo '<a href="'.forum_frontend_url('user-'.$_mod['uid']).'" target="_blank" class="text-body-secondary text-decoration-none"><i class="ti ti-user" style="font-size:0.85em"></i> '.esc_html($_mod['username']).'</a> ';
+										} ?>
+									</span>
+								<?php else: ?>
+									<span class="text-body-tertiary small">—</span>
+								<?php endif; ?>
+							</td>
+							<td><span class="badge bg-secondary bg-opacity-10 text-secondary"><?php echo $sf['rank'];?></span></td>
+							<td class="text-end">
+								<div class="d-flex gap-1 justify-content-end">
+									<a class="row-action" href="<?php echo admin_forum_update_url($sfid);?>" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
+									<a class="row-action row_delete" href="javascript:void(0)" data-fid="<?php echo $sfid;?>" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
+								</div>
+							</td>
+						</tr>
+					<?php } ?>
+					</tbody>
+				</table>
+			</div>
 			<?php } else { ?>
 			<div class="text-center py-3 text-body-secondary small"><?php echo lang('admin_no_sub_forums');?></div>
 			<?php } ?>
@@ -98,32 +156,70 @@ foreach($forumlist as $_fid=>$_forum) {
 
 		<?php if(!empty($orphans)) { ?>
 		<!-- 孤儿版块（无父分区的版块） -->
-		<div class="x-card  card ">
+		<div class="x-card card mb-3">
 			<div class="card-header border-0 d-flex align-items-center gap-2" style="background:var(--bs-warning-bg-subtle)">
 				<i class="ti ti-alert-triangle text-warning"></i>
 				<span class="fw-semibold"><?php echo lang('admin_uncategorized_forums')?></span>
 			</div>
-			<ul class="list-group list-group-flush">
-				<?php foreach($orphans as $_fid=>$_forum) {
-					if(!empty($_forum['type']) && $_forum['type'] == 1) continue;
-				?>
-				<li class="list-group-item border-0 d-flex align-items-center gap-2 p-3 forum-row" rowid="<?php echo $_fid;?>">
-					<?php if(!empty($_forum['icon_url'])): ?>
-						<img src="<?php echo $_forum['icon_url'];?>" width="28" height="28" class="rounded-1 flex-shrink-0">
-					<?php elseif(!empty($_forum['icon_class'])): ?>
-						<i class="<?php echo $_forum['icon_class'];?> text-body-secondary flex-shrink-0"></i>
-					<?php else: ?>
-						<img src="/view/img/forum.png" width="28" height="28" class="rounded-1 flex-shrink-0">
-					<?php endif; ?>
-					<span class="fw-medium flex-grow-1"><?php echo esc_html($_forum['name']);?></span>
-					<span class="badge bg-secondary bg-opacity-10 text-secondary"><?php echo lang('forum_rank');?>：<?php echo $_forum['rank'];?></span>
-					<div class="ms-1 d-flex gap-1">
-						<a class="row-action" href="<?php echo admin_forum_update_url($_fid);?>" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
-						<a class="row-action row_delete" href="javascript:void(0)" data-fid="<?php echo $_fid;?>" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
-					</div>
-				</li>
-				<?php } ?>
-			</ul>
+			<div class="table-responsive">
+				<table class="table table-borderless table-hover align-middle mb-0">
+					<thead>
+						<tr class="text-body-secondary small">
+							<th style="width:8%"><?php echo lang('forum_id');?></th>
+							<th style="width:25%"><?php echo lang('forum_name');?></th>
+							<th style="width:28%"><?php echo lang('forum_url');?></th>
+							<th style="width:19%"><?php echo lang('forum_moderator');?></th>
+							<th style="width:10%"><?php echo lang('forum_rank');?></th>
+							<th style="width:10%" class="text-end"><?php echo lang('forum_op');?></th>
+						</tr>
+					</thead>
+					<tbody>
+					<?php foreach($orphans as $_fid=>$_forum) {
+						if(!empty($_forum['type']) && $_forum['type'] == 1) continue;
+						$_forum_url = forum_frontend_url('forum-'.$_fid);
+					?>
+						<tr class="forum-row" rowid="<?php echo $_fid;?>">
+							<td><span class="badge bg-secondary bg-opacity-10 text-secondary" style="font-size:0.75em"><?php echo $_fid;?></span></td>
+							<td>
+								<div class="d-flex align-items-center gap-2">
+									<?php if(!empty($_forum['icon_url'])): ?>
+										<img src="<?php echo $_forum['icon_url'];?>" width="28" height="28" class="rounded-1 flex-shrink-0">
+									<?php elseif(!empty($_forum['icon_class'])): ?>
+										<i class="<?php echo $_forum['icon_class'];?> text-body-secondary flex-shrink-0" style="font-size:1.4rem"></i>
+									<?php else: ?>
+										<img src="/view/img/forum.png" width="28" height="28" class="rounded-1 flex-shrink-0">
+									<?php endif; ?>
+									<a href="<?php echo $_forum_url;?>" target="_blank" class="fw-medium text-decoration-none"><?php echo esc_html($_forum['name']);?></a>
+								</div>
+							</td>
+							<td>
+								<a href="<?php echo $_forum_url;?>" target="_blank" class="text-body-secondary text-decoration-none small font-monospace">
+									<i class="ti ti-link me-1"></i><?php echo esc_html($_forum_url);?>
+								</a>
+							</td>
+							<td>
+								<?php if(!empty($_forum['modlist'])): ?>
+									<span class="small">
+										<?php foreach($_forum['modlist'] as $_mod) {
+											echo '<a href="'.forum_frontend_url('user-'.$_mod['uid']).'" target="_blank" class="text-body-secondary text-decoration-none"><i class="ti ti-user" style="font-size:0.85em"></i> '.esc_html($_mod['username']).'</a> ';
+										} ?>
+									</span>
+								<?php else: ?>
+									<span class="text-body-tertiary small">—</span>
+								<?php endif; ?>
+							</td>
+							<td><span class="badge bg-secondary bg-opacity-10 text-secondary"><?php echo $_forum['rank'];?></span></td>
+							<td class="text-end">
+								<div class="d-flex gap-1 justify-content-end">
+									<a class="row-action" href="<?php echo admin_forum_update_url($_fid);?>" title="<?php echo lang('edit');?>" role="button"><i class="ti ti-pencil"></i></a>
+									<a class="row-action row_delete" href="javascript:void(0)" data-fid="<?php echo $_fid;?>" title="<?php echo lang('delete');?>" role="button"><i class="ti ti-trash"></i></a>
+								</div>
+							</td>
+						</tr>
+					<?php } ?>
+					</tbody>
+				</table>
+			</div>
 		</div>
 		<?php } ?>
 

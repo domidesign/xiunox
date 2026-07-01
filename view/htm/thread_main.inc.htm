@@ -1,0 +1,494 @@
+<?php if(isset($thread['audit_status']) && $thread['audit_status'] != 1 && (!empty($uid) && ($uid == $thread['uid'] || $gid > 0 && $gid < 5))): ?>
+<div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+    <i class="ti ti-clock-hour-4 me-2 fs-5"></i>
+    <div>
+        <strong>
+            <?php echo lang('thread_pending_audit');?>
+        </strong> —
+        <?php echo lang('thread_pending_audit_desc');?>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if(isset($thread['audit_status']) && $thread['audit_status'] == 2 && !empty($uid) && $uid == $thread['uid']): ?>
+<div class="alert alert-danger d-flex align-items-start mb-3" role="alert">
+    <i class="ti ti-circle-x me-2 fs-5 mt-1"></i>
+    <div class="flex-grow-1">
+        <strong><?php echo lang('thread_rejected');?></strong> —
+        <?php echo lang('thread_rejected_desc');?>
+        <?php if(!empty($thread['reject_reason'])): ?>
+        <div class="mt-1">
+            <strong><?php echo lang('thread_rejected_reason');?>：</strong><?php echo esc_html($thread['reject_reason']);?>
+        </div>
+        <?php endif; ?>
+        <?php
+            $_max_resubmit = 5;
+            $_cur_count = intval($thread['resubmit_count'] ?? 0);
+            $_remaining = $_max_resubmit - $_cur_count;
+        ?>
+        <div class="mt-1 small">
+            <?php if($_remaining > 0): ?>
+            <span class="badge bg-danger-subtle text-danger"><?php echo lang('thread_resubmit_count', array('count'=>$_cur_count, 'max'=>$_max_resubmit));?></span>
+            <span class="text-muted"><?php echo lang('thread_resubmit_remaining', array('n'=>$_remaining));?></span>
+            <?php else: ?>
+            <span class="badge bg-danger"><?php echo lang('thread_resubmit_locked');?></span>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<!--{hook thread_status_alert_after.htm}-->
+
+<div class="x-card card card-thread  ">
+    <div class="card-body">
+        <!--{hook thread_subject_before.htm}-->
+        <h4 class="break-all">
+            <!--{hook thread_subject_start.htm}-->
+            <?php if(!empty($thread['digest'])) { ?><span class="badge bg-warning text-dark me-1"><i
+                    class="ti ti-star-filled"></i>
+                <?php echo lang('digest');?>
+            </span>
+            <?php } ?>
+            <?php if(!empty($thread['closed'])) { ?><span class="badge bg-secondary me-1"><i
+                    class="ti ti-lock"></i>
+                <?php echo lang('closed');?>
+            </span>
+            <?php } ?>
+            <?php if(isset($thread['audit_status']) && $thread['audit_status'] != 1): ?>
+            <span class="badge bg-warning text-dark me-1"><i class="ti ti-clock-hour-4"></i>
+                <?php echo lang('pending_audit');?>
+            </span>
+            <?php endif; ?>
+            <!--{hook thread_subject_badge_after.htm}-->
+            <?php echo $thread['subject'];?>
+            <!--{hook thread_subject_end.htm}-->
+        </h4>
+        <!--{hook thread_subject_after.htm}-->
+        <div class="d-flex justify-content-between align-items-center small">
+            <div>
+                <!--{hook thread_username_before.htm}-->
+                <span class="username">
+                    <a href="<?php echo user_url($thread['uid']);?>" class="text-body-secondary fw-semibold">
+                        <?php echo $thread['username'];?>
+                    </a>
+                </span>
+                <?php if(!empty($thread['group_name'])): ?>
+                <span class="badge bg-primary bg-opacity-10 text-primary "  ><?php echo $thread['group_name'];?></span>
+                <?php endif; ?>
+                <span class="date text-body-secondary ms-2">
+                    <?php echo $thread['create_date_fmt'];?>
+                </span>
+                <!--{hook thread_info_end.htm}-->
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <!-- 版块图标+名称 -->
+                <a href="<?php echo forum_url($fid);?>" class="text-body-secondary text-decoration-none small d-inline-flex align-items-center gap-1">
+                    <?php if(!empty($forum['icon_url'])): ?>
+                    <img src="<?php echo $forum['icon_url'];?>" class="rounded" width="16" height="16"
+                        alt="<?php echo esc_html($forum['name']);?>" />
+                    <?php elseif(!empty($forum['icon_class'])): ?>
+                    <i class="<?php echo $forum['icon_class'];?>"></i>
+                    <?php else: ?>
+                    <img src="/view/img/forum.png" class="rounded" width="16" height="16" alt="<?php echo esc_html($forum['name']);?>" />
+                    <?php endif; ?>
+                    <span>
+                        <?php echo esc_html($forum['name']);?>
+                    </span>
+                </a>
+                <!--{hook thread_views_after.htm}-->
+                <!--{hook thread_update_before.htm}-->
+                <?php if($sec_can_edit_thread) { ?>
+                <a href="<?php echo post_update_url($thread['firstpid']);?>" class="btn btn-sm post_update" hx-boost="false"><i class="ti ti-pencil"></i></a>
+                <?php } ?>
+
+                <?php if($sec_can_delete_thread) { ?>
+                <a data-href="<?php echo post_delete_url($thread['firstpid']);?>"
+                    data-confirm-text="<?php echo lang('confirm_delete');?>"
+                    href="javascript:void(0);" class="btn btn-sm post_delete _confirm"
+                    isfirst="1"><i class="ti ti-trash"></i>
+                </a>
+                <?php } ?>
+                <!--{hook thread_delete_after.htm}-->
+                <?php if(isset($group['allowadmin']) && $group['allowadmin']) { ?>
+                <a href="javascript:void(0);" class="btn btn-sm btn-outline-info thread-announcement"
+                    data-tid="<?php echo $tid;?>"><i class="ti ti-megaphone"></i>
+                    <?php echo $thread['announcement'] ? lang('cancel_announcement') : lang('set_announcement');?>
+                </a>
+                <?php } ?>
+            </div>
+        </div>
+
+        <div class=" ">
+            <div class="message aie-content break-all py-3" isfirst="1" style="line-height:1.8">
+                <?php if($page == 1) { ?>
+
+                <!--{hook thread_message_before.htm}-->
+                <?php echo $first['message_fmt'];?>
+                <!--{hook thread_message_after.htm}-->
+
+                <?php echo post_file_list_html($first['filelist'], FALSE, $first['imagelist'], $first['videolist']);?>
+                <!--{hook thread_filelist_after.htm}-->
+
+                <?php if(!empty($author['signature'])): ?>
+                <!-- 作者个性签名（正文底部） -->
+                <!-- <div class="thread-signature mt-3 pt-2 ">
+                    <div class="bg-body-tertiary rounded-1 p-2 small text-body-secondary">
+                        <i class="ti ti-quote me-1"></i><?php echo $author['signature'];?>
+                    </div>
+                </div> -->
+                <?php endif; ?>
+
+                <?php } else { ?>
+
+                <!--{hook thread_message_more_before.htm}-->
+                <p><a href="<?php echo thread_url($tid);?>">
+                        <?php echo lang('view_thread_message');?>
+                    </a></p>
+                <!--{hook thread_message_more_after.htm}-->
+
+                <?php } ?>
+            </div>
+
+           
+
+        </div>
+
+        <!-- 正文底部互动操作区（点赞/收藏仅手机端，PC端用左侧栏；插件hook两端共享） -->
+        <!--{hook thread_message_actions_before.htm}-->
+        <?php if($page == 1): ?>
+        <div class="thread-actions d-flex align-items-center gap-2 pt-2  flex-wrap">
+            <?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] != 1)) && (empty($uid) || $gid > 5)) { ?>
+            <!-- 关闭/审核中：隐藏点赞/收藏 -->
+            <?php } elseif(empty($uid)) { ?>
+            <a href="<?php echo user_login_url();?>" class="thread-action-chip d-xl-none" title="<?php echo lang('like');?>">
+                <i class="ti ti-heart"></i><span><?php echo lang('like');?></span><?php if(!empty($first['likes'])): ?><span class="chip-count"><?php echo intval($first['likes']);?></span><?php endif; ?>
+            </a>
+            <a href="<?php echo user_login_url();?>" class="thread-action-chip d-xl-none" title="<?php echo lang('favorite');?>">
+                <i class="ti ti-star"></i><span><?php echo lang('favorite');?></span><?php if(!empty($thread['favorites'])): ?><span class="chip-count"><?php echo intval($thread['favorites']);?></span><?php endif; ?>
+            </a>
+            <?php } else { ?>
+            <span class="thread-action-chip thread-like-btn-mobile d-xl-none <?php echo !empty($thread['is_liked']) ? 'is-active' : '';?>"
+                hx-post="<?php echo !empty($thread['is_liked']) ? thread_unlike_url($tid, $thread['firstpid']) : thread_like_url($tid, $thread['firstpid']);?>"
+                hx-vals='{"_ctx":"thread_mobile"}' hx-target="this" hx-swap="outerHTML"
+                hx-disable="this" hx-confirm=" " role="button" title="<?php echo lang('like');?>">
+                <i class="ti <?php echo (!empty($thread['is_liked']) ? 'ti-heart-filled' : 'ti-heart'); ?>"></i><span><?php echo lang('like');?></span><?php if(!empty($first['likes'])): ?><span class="chip-count"><?php echo intval($first['likes']);?></span><?php endif; ?>
+            </span>
+            <span class="thread-action-chip thread-favorite-btn-mobile d-xl-none <?php echo !empty($thread['is_favorited']) ? 'is-active' : '';?>"
+                hx-post="<?php echo thread_favorite_url($tid);?>" hx-target="this" hx-swap="outerHTML"
+                hx-vals='{"_ctx":"thread_mobile"}' hx-disable="this" hx-confirm=" " role="button" title="<?php echo lang('favorite');?>">
+                <i class="ti <?php echo (!empty($thread['is_favorited']) ? 'ti-star-filled' : 'ti-star'); ?>"></i><span><?php echo lang('favorite');?></span><?php if(!empty($thread['favorites'])): ?><span class="chip-count"><?php echo intval($thread['favorites']);?></span><?php endif; ?>
+            </span>
+            <?php } ?>
+            <!--{hook thread_message_actions_after.htm}-->
+        </div>
+        <?php endif; ?>
+        <!--{hook thread_message_actions_end.htm}-->
+    </div>
+
+</div>
+    <!--{hook thread_plugin_before.htm}-->
+    <div class="d-flex align-items-center gap-3 flex-wrap m-2">
+        <!--{hook thread_plugin_body.htm}-->
+        <?php if($gid > 0 && $gid < 5) { ?>
+        <span class="ms-auto">
+            <input type="hidden" name="modtid" value="<?php echo $thread['tid']; ?>" />
+            <button class="btn btn-sm btn-outline-danger py-0 px-2 thread-mod-btn"
+                data-mod-url="<?php echo mod_delete_url();?>" data-mod-title="<?php echo lang('delete');?>"
+                data-mod-size="md" data-mod-tid="<?php echo $thread['tid'];?>"><i class="ti ti-trash"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-primary py-0 px-2 thread-mod-btn"
+                data-mod-url="<?php echo mod_move_url();?>" data-mod-title="<?php echo lang('move');?>" data-mod-size="md"
+                data-mod-tid="<?php echo $thread['tid'];?>"><i class="ti ti-category-2"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-primary py-0 px-2 thread-mod-btn"
+                data-mod-url="<?php echo mod_top_url();?>" data-mod-title="<?php echo lang('top');?>" data-mod-size="md"
+                data-mod-tid="<?php echo $thread['tid'];?>"><i class="ti ti-arrow-up"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-warning py-0 px-2 thread-mod-btn"
+                data-mod-url="<?php echo mod_close_url();?>" data-mod-title="<?php echo lang('close');?>" data-mod-size="md"
+                data-mod-tid="<?php echo $thread['tid'];?>"><i class="ti ti-lock"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-warning py-0 px-2 thread-mod-btn"
+                data-mod-url="<?php echo mod_digest_url();?>" data-mod-title="<?php echo lang('digest');?>"
+                data-mod-size="md" data-mod-tid="<?php echo $thread['tid'];?>"><i class="ti ti-star"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-info py-0 px-2 thread-mod-btn"
+                data-mod-url="<?php echo mod_announcement_url();?>" data-mod-title="<?php echo lang('announcement');?>"
+                data-mod-size="md" data-mod-tid="<?php echo $thread['tid'];?>"><i class="ti ti-bell"></i>
+            </button>
+            <?php if(isset($thread['audit_status']) && $thread['audit_status'] != 1): ?>
+            <button class="btn btn-sm btn-outline-success py-0 px-2 thread-mod-btn"
+                data-mod-url="<?php echo mod_audit_url();?>" data-mod-title="<?php echo lang('audit_approve');?>"
+                data-mod-size="md" data-mod-tid="<?php echo $thread['tid'];?>"><i class="ti ti-check"></i>
+            </button>
+            <?php endif; ?>
+        </span>
+        <?php } ?>
+    </div>
+    <!--{hook thread_plugin_after.htm}-->
+<!--{hook thread_postlist_before.htm}-->
+
+<div class="x-card card card-postlist mt-3 ">
+    <div class="card-body">
+        <div class="card-title">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <b>
+                        <?php echo lang('new_post');?>
+                    </b>
+                </div>
+                <!--{hook thread_post_list_title_middle.htm}-->
+                <!-- 评论排序 -->
+                <div class="btn-group btn-group-sm" role="group" id="post-sort-group">
+                    <a href="<?php echo url("thread-$tid-1$keywordurl");?>" class="btn <?php echo $sort == 'asc' ? ' btn-primary' : 'btn-outline-primary';?>" data-sort="asc" title="<?php echo lang('sort_ascending');?>">
+                        <i class="ti ti-sort-ascending-2"></i>
+                    </a>
+                    <a href="<?php echo url("thread-$tid-1$keywordurl");?>?sort=desc" class="btn <?php echo $sort == 'desc' ? ' btn-primary' : 'btn-outline-primary';?>" data-sort="desc" title="<?php echo lang('sort_descending');?>">
+                        <i class="ti ti-sort-descending-2"></i>
+                    </a>
+                    <a href="<?php echo url("thread-$tid-1$keywordurl");?>?sort=hot" class="btn <?php echo $sort == 'hot' ? ' btn-primary' : 'btn-outline-primary';?>" data-sort="hot" title="<?php echo lang('sort_by_likes');?>">
+                        <i class="ti ti-flame"></i>
+                    </a>
+                </div>
+
+                <!--{hook thread_post_list_title_right.htm}-->
+
+            </div>
+        </div>
+        <ul class="list-none postlist" id="postlist">
+            <?php include _include(APP_PATH.'view/htm/post_list.inc.htm'); ?>
+        </ul>
+        <!-- 积分变动 OOB 容器 -->
+        <div id="credits-toast" style="display:none"></div>
+        <?php if(!empty($user)) { ?>
+        <?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] != 1)) && ($gid == 0 || $gid > 5)) { ?>
+        <div class="post newpost d-flex mt-3 pt-3  ">
+            <div class="flex-fill text-center text-body-secondary py-3">
+                <i class="ti ti-lock fs-4"></i>
+                <p class="mb-0 mt-1">
+                    <?php echo lang('thread_has_already_closed');?>
+                </p>
+            </div>
+        </div>
+        <?php } else { ?>
+        <div class="post newpost d-flex mt-3 pt-3 d-none d-xl-flex">
+            <a href="<?php echo user_url($user['uid']);?>" class="me-3 flex-shrink-0" tabindex="-1">
+                <?php echo avatar_component($uid, 'md');?>
+            </a>
+            <div class="flex-fill" style="min-width:0">
+                <div class="d-flex justify-content-between small text-body-secondary">
+                    <div>
+                        <div>
+                            <?php echo $user['display_name'] ?? $user['username'];?>
+                            <?php if(!empty($user['groupname'])): ?>
+                            <span class="badge bg-primary bg-opacity-10 text-primary "  ><?php echo esc_html($user['groupname']);?></span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <form id="quick_reply_form" class="block d-none d-xl-block" hx-post="<?php echo post_create_url($tid, 1);?>"
+                        hx-target="#postlist" hx-swap="beforeend"
+                        hx-on:htmx:after:request="captchaRefresh('reply');"
+                        hx-on:htmx:response-error="captchaRefresh('reply');"
+                        hx-on:htmx:send-error="captchaRefresh('reply');"
+                        hx-confirm=" ">
+                        <?php echo CsrfService::input(); ?>
+                        <div id="reply-msg"></div>
+                        <input type="hidden" name="doctype" value="1" />
+                        <input type="hidden" name="quotepid" value="0" />
+                        <!--{hook thread_quick_reply_message_before.htm}-->
+                        <!-- 回复引用条：点击回复按钮时显示，可关闭 -->
+                        <div id="reply-quote-bar" class="d-none mb-2 p-2 rounded border" style="background:var(--bs-tertiary-bg,#f8f9fa);font-size:0.85rem">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div class="flex-fill text-body-secondary" style="min-width:0">
+                                    <span class="fw-medium text-body"><?php echo lang('reply_quote_prefix');?></span>
+                                    <span id="reply-quote-username" class="text-primary fw-medium"></span>
+                                    <span class="text-body-secondary">：</span>
+                                    <span id="reply-quote-content" class="text-body-secondary"></span>
+                                </div>
+                                <button type="button" id="reply-quote-close" class="btn btn-sm btn-ghost text-body-secondary py-0 px-1 flex-shrink-0" title="<?php echo lang('cancel_reply');?>">
+                                    <i class="ti ti-x"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="message mt-1">
+                            <textarea class="form-control w-100 " placeholder="<?php echo lang('message');?>"
+                                name="message" id="message"></textarea>
+                        </div>
+                        <!-- 表情选择器 -->
+                        <div class="mt-1 position-relative">
+                            <button type="button" class="btn btn-sm btn-ghost text-body-secondary py-0 px-1" id="emoji-toggle-btn" title="<?php echo lang('emoji_label');?>"><i class="ti ti-mood-happy"></i></button>
+                            <div id="emoji-picker-panel" class="d-none" style="position:absolute;bottom:100%;left:0;z-index:1050;background:var(--bs-body-bg,#fff);border:1px solid var(--bs-border-color,#dee2e6);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);padding:8px;width:320px;max-height:200px;overflow-y:auto">
+                                <div class="d-flex flex-wrap gap-1" id="emoji-grid"></div>
+                            </div>
+                        </div>
+                        <!--{hook thread_quick_reply_message_after.htm}-->
+                        <?php if(CaptchaService::is_enabled('reply', $gid)): ?>
+                        <div class="mt-2" id="captcha-reply" data-captcha-scene="reply">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="ti ti-shield-check"></i></span>
+                                <input type="text" name="captcha" class="form-control form-control-sm"
+                                    id="captcha-input-reply"
+                                    hx-on:input="document.getElementById('captcha-error-reply').textContent=''"
+                                    placeholder="<?php echo lang('please_input_captcha');?>" autocomplete="off"
+                                    required>
+                                <img id="captcha-img-reply" src="" hx-on:click="captchaRefresh('reply')"
+                                    style="cursor:pointer;height:31px;border-radius:0 20px 20px 0;display:none"
+                                    title="<?php echo lang('click_to_refresh');?>">
+                            </div>
+                            <span id="captcha-error-reply" class="text-danger small mt-1"></span>
+                        </div>
+                        <?php endif; ?>
+                        <div class="text-body-secondary mt-2 small">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <!--{hook thread_quick_reply_left_start.htm}-->
+                                    <button type="submit" class="btn btn-sm btn-primary " id="submit"
+                                        data-loading-text="<?php echo lang('submiting');?>...">
+                                        <?php echo lang('post_create');?>
+                                    </button>
+                                    <!--{hook thread_quick_reply_left_end.htm}-->
+                                </div>
+                                <div>
+                                    <!--{hook thread_quick_reply_right_start.htm}-->
+                                    <a class="ti ti-reply text-body-secondary text-decoration-none"
+                                        href="<?php echo post_create_url($tid);?>" id="advanced_reply"
+                                        hx-boost="false">
+                                        <?php echo lang('advanced_reply');?>
+                                    </a>
+                                    <!--{hook thread_quick_reply_right_end.htm}-->
+                                </div>
+                            </div>
+                        </div>
+                        <!--{hook thread_quick_reply_submit_after.htm}-->
+                    </form>
+                </div>
+            </div>
+        </div>
+        <?php } ?>
+        <?php } else { ?>
+        <div class="post newpost d-flex mt-3 pt-3  ">
+            <div class="flex-fill text-center text-body-secondary py-3">
+                <i class="ti ti-user fs-4"></i>
+                <p class="mb-0 mt-1">
+                    <?php echo lang('please_login_to_reply');?> <a href="<?php echo user_login_url();?>"
+                        class="text-primary">
+                        <?php echo lang('login');?>
+                    </a>
+                </p>
+            </div>
+        </div>
+        <?php } ?>
+    </div>
+    <!--{hook thread_postlist_after.htm}-->
+
+    <?php if($pagination) { ?>
+    <nav>
+        <ul class="pagination pagination-boxed my-4 justify-content-center flex-wrap">
+            <?php echo $pagination; ?>
+        </ul>
+    </nav>
+    <?php }?>
+
+    <!--{hook thread_page_after.htm}-->
+
+</div>
+
+<?php if($page == 1): ?>
+<!-- 帖子详情页隐藏全局bottom_nav（手机端postbar替代） -->
+<style>
+#mobileTabbar{display:none !important}
+/* 手机端postbar输入框：默认单行高度，focus时展开为多行textarea */
+#postbar-message{
+    height:32px;
+    resize:none;
+    overflow-y:auto;
+    transition:height 0.2s ease;
+    line-height:1.5;
+}
+#postbar-message:focus{
+    height:84px;
+}
+/* 正文底部互动按钮：浅色border+小圆角+图标+文字14px+数量 */
+.thread-action-chip{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    padding:4px 10px;
+    border:1px solid var(--bs-border-color,#dee2e6);
+    border-radius:6px;
+    font-size:14px;
+    color:var(--bs-secondary-color,#212529);
+    background:transparent;
+    text-decoration:none;
+    cursor:pointer;
+    transition:all .15s ease;
+    line-height:1.4;
+    white-space:nowrap;
+}
+.thread-action-chip:hover{
+    background:var(--bs-tertiary-bg,#f8f9fa);
+    border-color:var(--bs-secondary-color,#adb5bd);
+    color:var(--bs-body-color,#212529);
+}
+.thread-action-chip > i{font-size:16px;line-height:1}
+.thread-action-chip .chip-count{
+    color:var(--bs-secondary-color,#6c757d);
+    font-variant-numeric:tabular-nums;
+    font-size:13px;
+}
+.thread-action-chip.is-active{color:var(--bs-primary,#0d6efd);border-color:var(--bs-primary,#0d6efd)}
+.thread-action-chip.is-active .chip-count{color:var(--bs-primary,#0d6efd)}
+</style>
+<!-- 手机端底部postbar（fixed定位，仅移动端显示，含iPhone安全区域padding） -->
+<div class="thread-postbar d-xl-none fixed-bottom  bg-body" style="z-index:1030;padding:0.5rem 0.75rem;padding-bottom:calc(0.5rem + env(safe-area-inset-bottom, 0px))" id="thread-postbar">
+    <!--{hook thread_postbar_start.htm}-->
+    <!-- 引用回复条（默认隐藏，点击回复按钮时显示） -->
+    <div id="postbar-quote-bar" class="d-none mb-1 p-1 rounded border" style="background:var(--bs-tertiary-bg,#f8f9fa);font-size:0.75rem">
+        <div class="d-flex justify-content-between align-items-start gap-1">
+            <div class="flex-fill text-body-secondary" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                <span class="fw-medium text-body">回复</span>
+                <span id="postbar-quote-username" class="text-primary fw-medium"></span>
+                <span id="postbar-quote-content" class="text-body-secondary"></span>
+            </div>
+            <button type="button" id="postbar-quote-close" class="btn btn-sm btn-ghost p-0 lh-1 flex-shrink-0" title="取消回复" style="font-size:0.75rem">
+                <i class="ti ti-x"></i>
+            </button>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <!-- 用户头像 -->
+        <?php if(!empty($uid)): ?>
+        <a href="<?php echo user_url($uid);?>" class="flex-shrink-0" tabindex="-1">
+            <?php echo avatar_component($uid, 'sm');?>
+        </a>
+        <?php else: ?>
+        <a href="<?php echo user_login_url();?>" class="flex-shrink-0" tabindex="-1">
+            <?php echo avatar_component(0, 'sm');?>
+        </a>
+        <?php endif; ?>
+
+        <!-- 快速回复输入区（直接输入，点击发送） -->
+        <?php if(!empty($uid)): ?>
+        <?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] != 1)) && $gid > 5): ?>
+        <div class="flex-fill text-body-secondary small py-1"><?php echo lang('thread_has_already_closed');?></div>
+        <?php else: ?>
+        <textarea id="postbar-message" class="form-control-sm bg-body-tertiary rounded-1 border-0 px-2 py-1 flex-fill" style="min-width:0" placeholder="<?php echo lang('message');?>" autocomplete="off" rows="1"></textarea>
+        <button type="button" id="postbar-submit" class="btn btn-sm btn-primary flex-shrink-0 px-3" title="<?php echo lang('reply');?>">
+            <?php echo lang('reply');?>
+        </button>
+        <?php endif; ?>
+        <?php else: ?>
+        <a href="<?php echo user_login_url();?>" class="flex-fill form-control-sm bg-body-tertiary rounded-1 text-body-secondary border-0 px-2 py-1 text-decoration-none d-block" style="min-width:0">
+            <i class="ti ti-message-circle me-1"></i><?php echo lang('please_login_to_reply');?>
+        </a>
+        <?php endif; ?>
+
+        <!--{hook thread_postbar_end.htm}-->
+    </div>
+</div>
+<!-- 手机端postbar占位（避免fixed遮挡内容） -->
+<div class="d-xl-none" style="height:calc(3.5rem + env(safe-area-inset-bottom, 0px))"></div>
+<?php endif; ?>

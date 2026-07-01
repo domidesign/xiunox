@@ -2,7 +2,48 @@
 
 <?php include _include(APP_PATH.'view/htm/my.layout.inc.htm');?>
 
-	<!-- 我关注的 -->
+	<!-- 整合页 Tab 导航（链接跳转） -->
+	<ul class="nav nav-tabs mb-3">
+		<li class="nav-item">
+			<a href="<?php echo my_following_url();?>?tab=user" class="nav-link<?php if($subtab == 'user') echo ' active'; ?>"><?php echo lang('i_following');?></a>
+		</li>
+		<li class="nav-item">
+			<a href="<?php echo my_following_url();?>?tab=forum" class="nav-link<?php if($subtab == 'forum') echo ' active'; ?>"><?php echo lang('forum');?></a>
+		</li>
+		<li class="nav-item">
+			<a href="<?php echo my_following_url();?>?tab=follower" class="nav-link<?php if($subtab == 'follower') echo ' active'; ?>"><?php echo lang('follow_me');?></a>
+		</li>
+	</ul>
+
+	<?php if($subtab == 'forum') { ?>
+	<!-- 我关注的版块 -->
+	<div class="x-card card">
+		<div class="card-body">
+			<div class="d-flex flex-column gap-2">
+				<?php if(!empty($forumlist)) { foreach($forumlist as $f) { ?>
+				<div class="d-flex align-items-center gap-3 p-2 hover-bg-body-secondary rounded">
+					<div class="flex-fill">
+						<a href="<?php echo forum_url($f['fid']);?>" class="fw-medium text-decoration-none"><?php echo esc_html($f['name']);?></a>
+						<?php if(!empty($f['brief'])) { ?>
+						<div class="small text-body-secondary text-truncate" style="max-width:300px"><?php echo esc_html($f['brief']);?></div>
+						<?php } ?>
+					</div>
+					<div class="d-flex gap-3 align-items-center small text-body-secondary">
+						<span><i class="ti ti-message me-1"></i><?php echo intval($f['threads']);?></span>
+						<span><i class="ti ti-users me-1"></i><?php echo intval($f['follows']);?></span>
+					</div>
+				</div>
+				<?php } } else { ?>
+				<div class="text-center text-secondary py-8"><?php echo lang('no_data');?></div>
+				<?php } ?>
+			</div>
+			<?php if($pagination) { ?>
+			<nav><ul class="pagination pagination-boxed my-4 justify-content-center flex-wrap"><?php echo $pagination;?></ul></nav>
+			<?php } ?>
+		</div>
+	</div>
+	<?php } else { ?>
+	<!-- 关注用户 / 粉丝列表 -->
 	<div class="x-card card">
 		<div class="card-body">
 			<div class="d-flex flex-column gap-2">
@@ -38,7 +79,7 @@
 					<?php } ?>
 				</div>
 				<?php } } else { ?>
-				<div class="text-center text-secondary py-8"><?php echo lang('no_following');?></div>
+				<div class="text-center text-secondary py-8"><?php echo $subtab == 'user' ? lang('no_following') : lang('no_followers');?></div>
 				<?php } ?>
 			</div>
 			<?php if($pagination) { ?>
@@ -46,6 +87,7 @@
 			<?php } ?>
 		</div>
 	</div>
+	<?php } ?>
 
 </div>
 

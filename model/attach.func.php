@@ -203,7 +203,7 @@ function attach_format(&$attach) {
 
 function attach_count($cond = array()) {
 	// hook model_attach_count_start.php
-	$cond = db_cond_to_sqladd($cond);
+	// db_count 内部会调用 db_cond_to_sqladd 进行参数化处理，无需在此预处理
 	$n = db_count('attach', $cond);
 	// hook model_attach_count_end.php
 	return $n;
@@ -547,8 +547,9 @@ function attach_assoc_post($pid) {
 
 // 构建附件筛选 WHERE 条件（供 attach_admin_count 和 attach_admin_find 复用）
 // 注意：孤儿筛选需要 LEFT JOIN，通过 $joins 参数返回 JOIN SQL
-function attach_admin_build_where($filter = array(), &$joins = '') {
+function attach_admin_build_where($filter = array(), &$joins = '', &$params = array()) {
     $where = '';
+    $params = array();
 
     // 类型筛选：根据 filetype 或后缀归类
     if(!empty($filter['type_category'])) {
@@ -575,7 +576,8 @@ function attach_admin_build_where($filter = array(), &$joins = '') {
             if(!empty($exts)) {
                 $like_parts = array();
                 foreach($exts as $ext) {
-                    $like_parts[] = "a.orgfilename LIKE '%." . addslashes($ext) . "'";
+                    $like_parts[] = "a.orgfilename LIKE ?";
+                    $params[] = '%.' . $ext;
                 }
                 $where .= ($where ? ' AND ' : '') . '(' . implode(' OR ', $like_parts) . ')';
             } elseif($category === 'other') {
@@ -588,7 +590,8 @@ function attach_admin_build_where($filter = array(), &$joins = '') {
                 if(!empty($known_exts)) {
                     $like_parts = array();
                     foreach($known_exts as $ext) {
-                        $like_parts[] = "a.orgfilename NOT LIKE '%." . addslashes($ext) . "'";
+                        $like_parts[] = "a.orgfilename NOT LIKE ?";
+                        $params[] = '%.' . $ext;
                     }
                     $where .= ($where ? ' AND ' : '') . implode(' AND ', $like_parts);
                 }
@@ -615,8 +618,8 @@ function attach_admin_build_where($filter = array(), &$joins = '') {
 
     // 关键词搜索
     if(!empty($filter['keyword'])) {
-        $kw = addslashes($filter['keyword']);
-        $where .= ($where ? ' AND ' : '') . "a.orgfilename LIKE '%{$kw}%'";
+        $where .= ($where ? ' AND ' : '') . "a.orgfilename LIKE ?";
+        $params[] = '%' . $filter['keyword'] . '%';
     }
 
     return $where;
@@ -627,10 +630,11 @@ function attach_admin_count($filter = array()) {
     global $db;
     // hook model_attach_admin_count_start.php
     $joins = '';
-    $where = attach_admin_build_where($filter, $joins);
+    $params = array();
+    $where = attach_admin_build_where($filter, $joins, $params);
     $where_sql = $where ? " WHERE $where" : '';
     $sql = "SELECT COUNT(*) AS num FROM {$db->tablepre}attach a{$joins}{$where_sql}";
-    $arr = db_sql_find_one($sql);
+    $arr = db_sql_find_one_prepared($sql, $params);
     // hook model_attach_admin_count_end.php
     return !empty($arr) ? intval($arr['num']) : 0;
 }
@@ -650,16 +654,17 @@ function attach_admin_find($filter = array(), $orderby = array('aid'=>-1), $page
 
     // 构建筛选 WHERE 条件（复用 attach_admin_build_where）
     $joins = '';
-    $where = attach_admin_build_where($filter, $joins);
+    $params = array();
+    $where = attach_admin_build_where($filter, $joins, $params);
     $where_sql = $where ? " WHERE $where" : '';
 
     $page = max(1, intval($page));
     $pagesize = max(1, intval($pagesize));
     $offset = ($page - 1) * $pagesize;
 
-    // 使用原生 SQL 查询，支持复杂的 LIKE/OR/JOIN 条件
+    // 使用原生 SQL 查询，支持复杂的 LIKE/OR/JOIN 条件；PDO 预处理防注入
     $sql = "SELECT a.* FROM {$db->tablepre}attach a{$joins}{$where_sql} ORDER BY a.`{$order_key}` {$order_dir} LIMIT {$offset},{$pagesize}";
-    $attachlist = db_sql_find($sql);
+    $attachlist = db_sql_find_prepared($sql, $params);
 
     if($attachlist) {
         // 批量收集需要检查的 pid 和 tid，消除 N+1 查询

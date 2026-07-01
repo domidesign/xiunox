@@ -9,10 +9,10 @@ $search_disabled = ($search_require_login && (empty($uid) || $uid == 0));
 <!--{hook search_start.htm}-->
 
 <div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
-	<div class="d-none d-xl-block col-xl-2">
+	<div class="d-none d-lg-block col-lg-2 col-xl-2">
 		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
 	</div>
-	<div class="col-xl-7" style="min-width:0">
+	<div class="col-lg-10 col-xl-7" style="min-width:0">
 		<!--{hook search_main_start.htm}-->
 
 		<div class="py-3">
@@ -28,6 +28,82 @@ $search_disabled = ($search_require_login && (empty($uid) || $uid == 0));
 		</div>
 
 		<div id="searchResults">
+		<?php if(!$keyword_safe && !$search_disabled) { ?>
+		<!-- 搜索历史 -->
+		<div class="x-card card mt-3" id="searchHistoryCard">
+			<div class="card-body">
+				<div class="d-flex justify-content-between align-items-center mb-2">
+					<h6 class="mb-0"><i class="ti ti-history me-1"></i><?php echo lang('search_history');?></h6>
+					<button type="button" class="btn btn-sm btn-link text-muted p-0" id="clearHistoryBtn"><i class="ti ti-trash me-1"></i><?php echo lang('clear');?></button>
+				</div>
+				<div id="searchHistoryList" class="d-flex flex-wrap gap-2"></div>
+				<div id="searchHistoryEmpty" class="text-center text-muted py-3" style="display:none"><?php echo lang('no_search_history');?></div>
+			</div>
+		</div>
+		<script>
+		(function(){
+			var SEARCH_KEY = 'search_history';
+			var MAX_HISTORY = 10;
+			var searchUrl = '<?php echo search_url();?>';
+
+			function getHistory() {
+				try { return JSON.parse(localStorage.getItem(SEARCH_KEY) || '[]'); } catch(e) { return []; }
+			}
+			function saveHistory(keyword) {
+				keyword = (keyword || '').trim();
+				if(!keyword) return;
+				var history = getHistory();
+				history = history.filter(function(item) { return item !== keyword; });
+				history.unshift(keyword);
+				if(history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+				try { localStorage.setItem(SEARCH_KEY, JSON.stringify(history)); } catch(e) {}
+			}
+			function escapeHtml(s) {
+				return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+			}
+			function renderHistory() {
+				var history = getHistory();
+				var list = document.getElementById('searchHistoryList');
+				var empty = document.getElementById('searchHistoryEmpty');
+				if(!list) return;
+				if(history.length === 0) {
+					list.innerHTML = '';
+					if(empty) empty.style.display = '';
+					return;
+				}
+				if(empty) empty.style.display = 'none';
+				list.innerHTML = history.map(function(item) {
+					var href = searchUrl + '?keyword=' + encodeURIComponent(item);
+					return '<a href="' + href + '" class="badge bg-light text-decoration-none border text-body" style="font-size:0.85em;padding:0.4em 0.8em" hx-get="' + href + '" hx-target="#searchResults" hx-select="#searchResults" hx-swap="innerHTML" hx-push-url="true">' + escapeHtml(item) + '</a>';
+				}).join('');
+			}
+
+			// 搜索提交时保存关键词
+			var form = document.getElementById('searchForm');
+			if(form) {
+				form.addEventListener('htmx:beforeRequest', function(e) {
+					var input = form.querySelector('input[name="keyword"]');
+					if(input && input.value.trim()) saveHistory(input.value);
+				});
+				// 非 htmx 提交兜底
+				form.addEventListener('submit', function() {
+					var input = form.querySelector('input[name="keyword"]');
+					if(input && input.value.trim()) saveHistory(input.value);
+				});
+			}
+			// 清空历史
+			var clearBtn = document.getElementById('clearHistoryBtn');
+			if(clearBtn) {
+				clearBtn.addEventListener('click', function() {
+					try { localStorage.removeItem(SEARCH_KEY); } catch(e) {}
+					renderHistory();
+				});
+			}
+			// 初始渲染
+			renderHistory();
+		})();
+		</script>
+		<?php } ?>
 		<?php if($keyword_safe && $keyword_too_short) { ?>
 		<div class="x-card card mt-3">
 			<div class="card-body text-center py-5 text-body-secondary">
@@ -100,8 +176,8 @@ $search_disabled = ($search_require_login && (empty($uid) || $uid == 0));
 								<div class="flex-fill">
 									<a href="<?php echo user_url($u['uid']);?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['display_name'] ?? $u['username']);?></a>
 									<?php if(!empty($u['signature'])) { ?>
-									<div class="small text-body-secondary"><?php echo esc_html($u['signature']);?></div>
-									<?php } ?>
+								<div class="small text-body-secondary"><?php echo $u['signature'];?></div>
+								<?php } ?>
 								</div>
 								<?php if(!empty($uid) && $uid != $u['uid']) {
 									$_u_is_followed = !empty($u['is_followed']);

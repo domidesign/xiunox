@@ -157,6 +157,9 @@ CREATE TABLE bbs_thread (
   reject_reason varchar(255) NOT NULL DEFAULT '' COMMENT '驳回原因',
   is_announcement tinyint(1) unsigned NOT NULL DEFAULT '0' COMMENT '是否公告: 0否/1是',
   announcement_order int(11) unsigned NOT NULL DEFAULT '0' COMMENT '公告排序',
+  is_deleted tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否已删除: 0否/1是',
+  deleted_date int(11) unsigned NOT NULL DEFAULT 0 COMMENT '删除时间',
+  deleted_by int(11) unsigned NOT NULL DEFAULT 0 COMMENT '删除操作者uid',
   digest tinyint(1) NOT NULL DEFAULT 0 COMMENT '精华级别: 0否/1-3精华',
   digest_date int(11) unsigned NOT NULL DEFAULT 0 COMMENT '精华时间',
   firstpid int(11) unsigned NOT NULL default '0',	# 首贴 pid
@@ -168,7 +171,8 @@ CREATE TABLE bbs_thread (
   KEY (fid, lastpid),					# 顶贴时间排序，倒序
   KEY idx_uid_tid (uid, tid),				# 用户帖子列表
   KEY idx_uid_fid (uid, fid),				# 用户版块帖子
-  KEY idx_fid_audit_lastpid (fid, audit_status, lastpid)	# 版块列表含审核过滤
+  KEY idx_fid_audit_lastpid (fid, audit_status, lastpid),	# 版块列表含审核过滤
+  KEY idx_is_deleted (is_deleted)				# 软删除过滤
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 # 置顶主题
@@ -213,13 +217,17 @@ CREATE TABLE bbs_post (
   resubmit_count tinyint(3) NOT NULL DEFAULT '0' COMMENT '重新提交次数（含首次发布）',
   reject_reason varchar(255) NOT NULL DEFAULT '' COMMENT '驳回原因',
   is_top tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否置顶评论: 0否/1是',
+  is_deleted tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否已删除: 0否/1是',
+  deleted_date int(11) unsigned NOT NULL DEFAULT 0 COMMENT '删除时间',
+  deleted_by int(11) unsigned NOT NULL DEFAULT 0 COMMENT '删除操作者uid',
 
   message longtext NOT NULL,				# 内容，用户提示的原始数据
   message_fmt longtext NOT NULL,			# 内容，存放的过滤后的html内容，可以定期清理，减肥。
   PRIMARY KEY (pid),
   KEY (tid, pid),
   KEY (uid),						# 我的回帖，清理数据需要
-  KEY idx_uid_isfirst_pid (uid, isfirst, pid)		# 用户回帖列表
+  KEY idx_uid_isfirst_pid (uid, isfirst, pid),		# 用户回帖列表
+  KEY idx_is_deleted (is_deleted)				# 软删除过滤
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 # 编辑历史
 

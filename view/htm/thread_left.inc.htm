@@ -1,0 +1,43 @@
+<?php if($page == 1): ?>
+<!-- 帖子详情页左侧操作栏（替换全局导航） -->
+<div class="thread-action-bar" style="position:sticky;top:5rem">
+    <!--{hook thread_action_bar_top.htm}-->
+    <div class="d-flex flex-column align-items-center gap-3 py-3">
+        <?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] != 1)) && (empty($uid) || $gid > 5)) { ?>
+        <!-- 关闭/审核中：隐藏点赞/收藏 -->
+        <?php } elseif(empty($uid)) { ?>
+        <a href="<?php echo user_login_url();?>" class="thread-sidebar-btn text-body-secondary text-decoration-none" data-tip="<?php echo lang('like');?>">
+            <i class="ti ti-heart"></i>
+            <span class="thread-sidebar-badge bg-secondary" badge="<?php echo intval($first['likes']);?>"></span>
+        </a>
+        <a href="<?php echo user_login_url();?>" class="thread-sidebar-btn text-body-secondary text-decoration-none" data-tip="<?php echo lang('favorite');?>">
+            <i class="ti ti-star"></i>
+            <span class="thread-sidebar-badge bg-secondary" badge="<?php echo intval($thread['favorites']);?>"></span>
+        </a>
+        <?php } else { ?>
+        <span class="thread-like-btn thread-sidebar-btn cursor-pointer transition-colors"
+            hx-post="<?php echo !empty($thread['is_liked']) ? thread_unlike_url($tid, $thread['firstpid']) : thread_like_url($tid, $thread['firstpid']);?>"
+            hx-vals='{"_ctx":"thread"}' hx-target="this" hx-swap="outerHTML"
+            hx-disable="this" hx-confirm=" " role="button" data-tip="<?php echo lang('like');?>">
+            <i class="ti <?php echo (!empty($thread['is_liked']) ? 'ti-heart-filled text-primary' : 'ti-heart'); ?>"></i>
+            <span class="thread-sidebar-badge <?php echo (!empty($thread['is_liked']) ? 'bg-primary' : 'bg-secondary'); ?>" badge="<?php echo intval($first['likes']);?>"></span>
+        </span>
+        <span class="thread-favorite-btn thread-sidebar-btn cursor-pointer transition-colors"
+            hx-post="<?php echo thread_favorite_url($tid);?>" hx-target="this" hx-swap="outerHTML"
+            hx-vals='{"_ctx":"thread"}' hx-disable="this" hx-confirm=" " role="button" data-tip="<?php echo lang('favorite');?>">
+            <i class="ti <?php echo (!empty($thread['is_favorited']) ? 'ti-star-filled text-primary' : 'ti-star'); ?>"></i>
+            <span class="thread-sidebar-badge <?php echo (!empty($thread['is_favorited']) ? 'bg-primary' : 'bg-secondary'); ?>" badge="<?php echo intval($thread['favorites']);?>"></span>
+        </span>
+        <?php } ?>
+        <!-- 浏览数 -->
+        <span class="thread-sidebar-btn text-body-secondary" data-tip="<?php echo lang('views');?>">
+            <i class="ti ti-eye"></i>
+            <span class="thread-sidebar-badge bg-secondary" badge="<?php echo $thread['views'];?>"></span>
+        </span>
+        <!--{hook thread_action_bar_body.htm}-->
+        <!--{hook thread_action_bar_bottom.htm}-->
+    </div>
+</div>
+<?php else: ?>
+<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
+<?php endif; ?>

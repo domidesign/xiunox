@@ -42,7 +42,26 @@ $uri = $_SERVER['REQUEST_URI'];
 $method = $_SERVER['REQUEST_METHOD'];
 $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 
-// API 总开关检查
+// === 中间件层 1：CORS 处理（OPTIONS 预检直接返回，必须在鉴权之前，否则预检请求被 401 拒绝）===
+if ($method === 'OPTIONS') {
+    http_response_code(204);
+    $allowOrigin = $conf['api_cors_origin'] ?? '*';
+    $allowMethods = 'GET, POST, PUT, DELETE, OPTIONS';
+    $allowHeaders = 'Content-Type, Authorization, X-CSRF-Token, X-App-Id, X-App-Secret';
+    header("Access-Control-Allow-Origin: {$allowOrigin}");
+    header("Access-Control-Allow-Methods: {$allowMethods}");
+    header("Access-Control-Allow-Headers: {$allowHeaders}");
+    header('Access-Control-Max-Age: 86400');
+    exit;
+}
+
+$allowOrigin = $conf['api_cors_origin'] ?? '*';
+if ($allowOrigin !== '') {
+    header("Access-Control-Allow-Origin: {$allowOrigin}");
+    header('Access-Control-Allow-Credentials: true');
+}
+
+// === 中间件层 2：全局开关检查（api_enabled=0 直接 503）===
 if (empty($conf['api_enabled'])) {
     http_response_code(503);
     header('Content-Type: application/json; charset=utf-8');
@@ -50,7 +69,7 @@ if (empty($conf['api_enabled'])) {
     exit;
 }
 
-// 应用凭据验证（Stripe 双 key 模式）
+// === 中间件层 3：应用鉴权（Stripe 双 key 模式）===
 // - 服务端调用：X-App-Id + X-App-Secret（完整认证，scope 生效）
 // - 浏览器/客户端调用：仅 X-App-Id（公开标识，安全靠 Bearer token，限流更严）
 $appId = $_SERVER['HTTP_X_APP_ID'] ?? '';
@@ -92,7 +111,7 @@ if (empty($apiApp['is_enabled'])) {
     exit;
 }
 
-// 服务端模式：应用权限范围检查（客户端模式不做 scope 限制，安全靠 Bearer token）
+// === 中间件层 4：Scope 校验（仅服务端模式；客户端模式不做 scope 限制，安全靠 Bearer token）===
 if ($apiAppServerAuth && !$apiAuth->checkAppScope($apiApp, $method)) {
     http_response_code(403);
     header('Content-Type: application/json; charset=utf-8');
@@ -100,8 +119,8 @@ if ($apiAppServerAuth && !$apiAuth->checkAppScope($apiApp, $method)) {
     exit;
 }
 
-// 应用级速率限制
-// 客户端模式（无 secret）使用更严格的默认限制
+// === 中间件层 5：限流 ===
+// 应用级速率限制（客户端模式无 secret，使用更严格的默认限制）
 if ($apiAppServerAuth) {
     $appRateLimitOk = $apiAuth->checkAppRateLimit($apiApp);
 } else {
@@ -154,24 +173,7 @@ if ($rateLimitEnabled) {
     }
 }
 
-if ($method === 'OPTIONS') {
-    http_response_code(204);
-    $allowOrigin = $conf['api_cors_origin'] ?? '*';
-    $allowMethods = 'GET, POST, PUT, DELETE, OPTIONS';
-    $allowHeaders = 'Content-Type, Authorization, X-CSRF-Token, X-App-Id, X-App-Secret';
-    header("Access-Control-Allow-Origin: {$allowOrigin}");
-    header("Access-Control-Allow-Methods: {$allowMethods}");
-    header("Access-Control-Allow-Headers: {$allowHeaders}");
-    header('Access-Control-Max-Age: 86400');
-    exit;
-}
-
-$allowOrigin = $conf['api_cors_origin'] ?? '*';
-if ($allowOrigin !== '') {
-    header("Access-Control-Allow-Origin: {$allowOrigin}");
-    header('Access-Control-Allow-Credentials: true');
-}
-
+// === 路由分发 ===
 $path = parse_url($uri, PHP_URL_PATH);
 $path = preg_replace('#^/api/v1#', '', $path);
 $path = rtrim($path, '/') ?: '/';

@@ -6,6 +6,19 @@ include _include(XIUNOPHP_PATH.'xn_send_mail.func.php');
 
 $action = param(1);
 
+// 路径风格伪静态（url_rewrite_on=2/3/5）下，多段路由名（如 notify_read、notify_mark_read）
+// 的连字符被 url() 替换为斜杠，导致 xn_url_parse 解析时 param(1) 只取到第一段（如 'notify'），
+// param(2) 变成子路由名（如 'read'），nid 等参数偏移到 param(3)。
+// 此处将 $action 修正为完整的路由名，使后续 elseif 分支正确匹配；
+// 各分支内部再单独处理 nid 等参数的偏移取值。
+if($action === 'notify') {
+    $_sub = param(2, '');
+    $_notify_sub_routes = array('read', 'mark_read', 'unread', 'dropdown', 'list', 'unread_count');
+    if(in_array($_sub, $_notify_sub_routes)) {
+        $action = 'notify_' . $_sub;
+    }
+}
+
 // hook my_start.php
 
 $user = user_read($uid);
@@ -94,7 +107,17 @@ if(empty($action)) {
 		// hook my_profile_post_start.php
 
 		$nickname = param('nickname');
-		$signature = param('signature');
+		// 签名支持HTML：第三参数FALSE取消基础htmlspecialchars转义，由xn_signature_purify统一净化
+		$signature = param('signature', '', FALSE);
+
+		// 签名HTML净化：仅允许基础排版标签，过滤危险HTML
+		if ($signature !== '') {
+			$signature = xn_signature_purify($signature);
+			// 净化后长度检查（HTML标签占用字符，允许稍长）
+			if (mb_strlen(strip_tags($signature)) > 255) {
+				message('signature', lang('signature_length_too_long'));
+			}
+		}
 
 		!empty($nickname) AND mb_strlen($nickname) > 32 AND message('nickname', lang('nickname_length_too_long'));
 
@@ -752,23 +775,85 @@ if(empty($action)) {
 
 	// hook my_thread_start.php
 
+	// 整合页：我的主题 / 我的回复 / 我的点赞 / 我的收藏
 	$active_tab = 'thread';
+	$subtab = param('tab', 'thread');
+	$allowed_subtabs = array('thread', 'post', 'like', 'favorite');
+	if(!in_array($subtab, $allowed_subtabs)) {
+		$subtab = 'thread';
+	}
 	$page = param(2, 1);
 	$pagesize = 10;
-	// 与 user_thread 保持一致：直接查 thread 表，按审核状态过滤
-	$thread_cond = array('uid' => $uid);
-	if($gid == 0 || $gid > 2) {
-		$totalnum = thread_count(array('uid' => $uid, 'audit_status' => 1));
-		$thread_cond['audit_status'] = 1;
-	} else {
-		$totalnum = $user['threads'];
+	$threadlist = array();
+	$postlist = array();
+	$is_user_post_list = FALSE;
+
+	if($subtab == 'thread') {
+		// 我的主题：直接查 thread 表，按审核状态过滤
+		$thread_cond = array('uid' => $uid);
+		if($gid == 0 || $gid > 2) {
+			$totalnum = thread_count(array('uid' => $uid, 'audit_status' => 1));
+			$thread_cond['audit_status'] = 1;
+		} else {
+			$totalnum = $user['threads'];
+		}
+		$threadlist = thread_find($thread_cond, array('tid' => -1), $page, $pagesize);
+		thread_list_access_filter($threadlist, $gid);
+	} elseif($subtab == 'post') {
+		// 我的回复
+		$totalnum = $user['posts'];
+		$is_user_post_list = TRUE;
+		if(function_exists('post_find_by_uid')) {
+			$postlist = post_find_by_uid($uid, $page, $pagesize);
+		} else {
+			$postlist = post_find(array('uid'=>$uid, 'isfirst'=>0), array('pid'=>-1), $page, $pagesize);
+		}
+		post_list_access_filter($postlist, $gid);
+		// 为回帖添加帖子标题信息（批量查询，消除 N+1）
+		if($postlist) {
+			$_post_tids = array_unique(array_column($postlist, 'tid'));
+			$_post_threads = empty($_post_tids) ? array() : db_find('thread', array('tid'=>$_post_tids), array(), 1, count($_post_tids), 'tid');
+			foreach($postlist as &$_p) {
+				if(isset($_post_threads[$_p['tid']])) {
+					$_p['thread_subject'] = $_post_threads[$_p['tid']]['subject'];
+				}
+			}
+			unset($_p);
+		}
+	} elseif($subtab == 'like') {
+		// 我的点赞：按帖子去重查询，JOIN thread 表过滤已删除帖子
+		global $db;
+		$tablepre = $db->tablepre;
+		$offset = ($page - 1) * $pagesize;
+		// 联表查询，db_find 不支持 JOIN，保留 db_sql_find
+		$sql = "SELECT pl.tid, MAX(pl.create_date) AS last_like_time FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$uid' GROUP BY pl.tid ORDER BY last_like_time DESC LIMIT $offset, $pagesize";
+		$tid_rows = db_sql_find($sql);
+		if($tid_rows) {
+			$like_tids = array_column($tid_rows, 'tid');
+			$threadlist = thread_find_by_tids($like_tids);
+		}
+		// 去重后的总数（仅统计帖子仍存在的），保留 db_sql_find_one
+		$totalnum = db_sql_find_one("SELECT COUNT(DISTINCT pl.tid) AS cnt FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$uid'");
+		$totalnum = !empty($totalnum['cnt']) ? intval($totalnum['cnt']) : 0;
+		thread_list_access_filter($threadlist, $gid);
+	} elseif($subtab == 'favorite') {
+		// 我的收藏
+		$pagesize = 20;
+		$favlist = thread_favorite_find_by_uid($uid, $page, $pagesize);
+		$totalnum = $user['favorites'];
+		if($favlist) {
+			$fav_tids = array_column($favlist, 'tid');
+			$threadlist = thread_find_by_tids($fav_tids);
+		}
+		// 过滤待审帖子（收藏的他人待审帖子不可见）
+		thread_list_access_filter($threadlist, $gid);
 	}
-	$pagination = pagination(route_url('my_thread_page'), $totalnum, $page, $pagesize);
-	$threadlist = thread_find($thread_cond, array('tid' => -1), $page, $pagesize);
-	thread_list_access_filter($threadlist, $gid);
+
+	$pagination = pagination(route_url('my_thread_page', [], array('tab' => $subtab)), $totalnum, $page, $pagesize);
 
 	// hook my_thread_end.php
 
+	$header['title'] = lang('my_thread');
 	include _include(APP_PATH.'view/htm/my_thread.htm');
 
 
@@ -858,27 +943,71 @@ if(empty($action)) {
 
 } elseif($action == 'following') {
 
-	// 我关注的人（复制自 user.php following action，固定查当前登录用户）
+	// 整合页：我关注的用户 / 我关注的版块 / 关注我的粉丝
 	$active_tab = 'following';
+	$subtab = param('tab', 'user');
+	$allowed_subtabs = array('user', 'forum', 'follower');
+	if(!in_array($subtab, $allowed_subtabs)) {
+		$subtab = 'user';
+	}
 	$page = param(2, 1);
 	$pagesize = 10;
-	$followlist = user_follow_find_following($uid, $page, $pagesize);
 	$userlist = array();
-	if($followlist) {
-		$_follow_uids = array();
-		foreach($followlist as $f) { $_follow_uids[] = $f['follow_uid']; }
-		// 批量查询关注状态，消除 N+1
-		$_follow_status = !empty($uid) ? user_follow_read_batch($uid, $_follow_uids) : array();
-		foreach($followlist as $f) {
-			$u = user_read_cache($f['follow_uid']);
-			if(!empty($u)) {
-				$u['is_followed'] = !empty($_follow_status[$u['uid']]);
-				$userlist[$u['uid']] = $u;
+
+	if($subtab == 'user') {
+		// 我关注的用户
+		$followlist = user_follow_find_following($uid, $page, $pagesize);
+		if($followlist) {
+			$_follow_uids = array();
+			foreach($followlist as $f) { $_follow_uids[] = $f['follow_uid']; }
+			// 批量查询关注状态，消除 N+1
+			$_follow_status = !empty($uid) ? user_follow_read_batch($uid, $_follow_uids) : array();
+			foreach($followlist as $f) {
+				$u = user_read_cache($f['follow_uid']);
+				if(!empty($u)) {
+					$u['is_followed'] = !empty($_follow_status[$u['uid']]);
+					$userlist[$u['uid']] = $u;
+				}
 			}
 		}
+		$totalnum = $user['follows'];
+	} elseif($subtab == 'forum') {
+		// 我关注的版块
+		$followlist = forum_follow_find_by_uid($uid, $page, $pagesize);
+		$forumlist = array();
+		if($followlist) {
+			$_follow_fids = array();
+			foreach($followlist as $f) { $_follow_fids[] = $f['fid']; }
+			$_forums = db_find('forum', array('fid'=>$_follow_fids), array(), 1, count($_follow_fids), 'fid');
+			foreach($followlist as $f) {
+				if(!empty($_forums[$f['fid']])) {
+					$forumlist[$f['fid']] = $_forums[$f['fid']];
+					$forumlist[$f['fid']]['follow_create_date'] = $f['create_date'];
+				}
+			}
+		}
+		// 计算总关注版块数
+		$totalnum = db_count('forum_follow', array('uid'=>$uid));
+	} elseif($subtab == 'follower') {
+		// 关注我的粉丝
+		$followlist = user_follow_find_followers($uid, $page, $pagesize);
+		if($followlist) {
+			$_follower_uids = array();
+			foreach($followlist as $f) { $_follower_uids[] = $f['uid']; }
+			// 批量查询关注状态，消除 N+1
+			$_follow_status = !empty($uid) ? user_follow_read_batch($uid, $_follower_uids) : array();
+			foreach($followlist as $f) {
+				$u = user_read_cache($f['uid']);
+				if(!empty($u)) {
+					$u['is_followed'] = !empty($_follow_status[$u['uid']]);
+					$userlist[$u['uid']] = $u;
+				}
+			}
+		}
+		$totalnum = $user['followeds'];
 	}
-	$totalnum = $user['follows'];
-	$pagination = pagination(route_url('my_following_page'), $totalnum, $page, $pagesize);
+
+	$pagination = pagination(route_url('my_following_page', [], array('tab' => $subtab)), $totalnum, $page, $pagesize);
 
 	$header['title'] = lang('i_following');
 	include _include(APP_PATH.'view/htm/my_following.htm');
@@ -1040,7 +1169,11 @@ if(empty($action)) {
 		echo xn_json_encode(array('code' => '-1', 'message' => lang('please_login')));
 		exit;
 	}
+	// 路径风格伪静态下 nid 在 param(3)，否则在 param(2)
 	$nid = param(2, 0);
+	if(!is_numeric($nid)) {
+		$nid = param(3, 0);
+	}
 	if(empty($nid)) {
 		if(is_htmx_request()) {
 			header('HTTP/1.1 400 Bad Request');
@@ -1073,13 +1206,17 @@ if(empty($action)) {
 	$total_unread = notify_count_unread($uid);
 
 	if(is_htmx_request()) {
-		// htmx: 返回已读状态的 notify 卡片 HTML（OOB 替换）
+		// htmx: 返回已读状态的 notify 卡片 HTML（OOB 替换）+ HX-Trigger 更新顶部导航未读数
 		notify_format($notify);
 		$notify['is_read'] = 1;
 		include_once APP_PATH . 'lib/NotifyTypeRegistry.php';
 		NotifyTypeRegistry::init();
 		$icon_name = NotifyTypeRegistry::get_icon($notify['type']);
 		$type_label = isset($notify['type_label']) ? $notify['type_label'] : lang('notify_type_label_notice_other');
+
+		// 触发前端更新未读徽章
+		$trigger_data = array('noticeReadUpdated' => array('unread_count' => intval($total_unread)));
+		header('HX-Trigger: ' . json_encode($trigger_data, JSON_UNESCAPED_UNICODE));
 
 		header('Content-Type: text/html; charset=utf-8');
 		echo '<div class="notice-card p-3" id="notice-nid-' . $nid . '" data-nid="' . $nid . '" data-source="notify" hx-swap-oob="true">';
@@ -1303,6 +1440,10 @@ elseif($action == 'notify') {
 				$icon_name = NotifyTypeRegistry::get_icon($notify['type']);
 				$type_label = isset($notify['type_label']) ? $notify['type_label'] : lang('notify_type_label_notice_other');
 
+				// 触发前端更新未读徽章
+				$trigger_data = array('noticeReadUpdated' => array('unread_count' => intval($unread_count)));
+				header('HX-Trigger: ' . json_encode($trigger_data, JSON_UNESCAPED_UNICODE));
+
 				header('Content-Type: text/html; charset=utf-8');
 				echo '<div class="notice-card p-3" id="notice-nid-' . $nid . '" data-nid="' . $nid . '" data-source="notify" hx-swap-oob="true">';
 				echo '  <div class="notice-row-top mb-1">';
@@ -1326,12 +1467,18 @@ elseif($action == 'notify') {
 			$notify = notify__read($nid);
 			$notify['uid'] != $uid AND message(-1, lang('notice_my_error'));
 
+			$_was_unread = empty($notify['is_read']) ? 1 : 0;
 			$r = notify_delete($nid);
 			$r === FALSE AND message(-1, lang('notice_my_update_failed'));
 
 			if(is_htmx_request()) {
-				// htmx: 返回 HX-Trigger 事件，前端移除已删除的卡片
-				header('HX-Trigger: {"noticeDeleted": {"nid": ' . intval($nid) . '}}');
+				// htmx: 返回 HX-Trigger 事件，前端移除已删除的卡片 + 更新未读数
+				$_del_unread = $_was_unread ? notify_count_unread($uid) : 0;
+				$_del_trigger = array('noticeDeleted' => array('nid' => intval($nid)));
+				if($_was_unread) {
+					$_del_trigger['noticeReadUpdated'] = array('unread_count' => intval($_del_unread));
+				}
+				header('HX-Trigger: ' . json_encode($_del_trigger, JSON_UNESCAPED_UNICODE));
 				header('HTTP/1.1 204 No Content');
 				exit;
 			}
@@ -1375,8 +1522,11 @@ elseif($action == 'credits_check') {
 		'data' => $result,
 	), JSON_UNESCAPED_UNICODE);
 	exit;
-}
+} else {
+	// hook my_end.php
 
-// hook my_end.php
+	// 未匹配的 action 返回 404，避免 AJAX 请求收到空 body
+	http_404();
+}
 
 ?>

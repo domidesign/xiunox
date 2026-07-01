@@ -108,6 +108,11 @@ function thread__delete($tid) {
 function thread__find($cond = array(), $orderby = array(), $page = 1, $pagesize = 20) {
 	// hook model_thread__find_start.php
 
+	// 软删除过滤：自动排除已删除帖子
+	if(!isset($cond['is_deleted'])) {
+		$cond['is_deleted'] = 0;
+	}
+
 	// 合并原两次查询：原逻辑先查 tid 列表再按 tid IN 查完整数据
 	// 由于两次查询同表、同条件、同排序、同分页，直接一次查询获取全部字段
 	$threadlist = db_find('thread', $cond, $orderby, $page, $pagesize, 'tid');
@@ -242,6 +247,10 @@ function thread_inc_views($tid, $n = 1) {
 function thread_read($tid) {
 	// hook model_thread_read_start.php
 	$thread = thread__read($tid);
+	// 软删除过滤：已删除帖子对前台等同于不存在
+	if(!empty($thread) && !empty($thread['is_deleted'])) {
+		return array();
+	}
 	thread_format($thread);
 	// hook model_thread_read_end.php
 	return $thread;
@@ -281,8 +290,10 @@ function thread_delete($tid) {
 	if($r === FALSE) return FALSE;
 	
 	// 更新统计（待审帖子创建时未计入 threads，删除时也不应减少）
+	// 已软删除的帖子在软删除时已减过统计，彻底删除时不应再减
+	$is_deleted = isset($thread['is_deleted']) ? intval($thread['is_deleted']) : 0;
 	$audit_status = isset($thread['audit_status']) ? intval($thread['audit_status']) : 1;
-	if($audit_status == 1) {
+	if($audit_status == 1 && $is_deleted == 0) {
 		forum__update($fid, array('threads-'=>1));
 		user__update($uid, array('threads-'=>1));
 		runtime_set('threads-', 1);
@@ -328,12 +339,14 @@ function thread_delete_batch($tids) {
 	$r = db_delete('thread', array('tid'=>$valid_tids));
 	if($r === FALSE) return FALSE;
 
-	// 7. 汇总 forum 统计：按 fid 分组累计 threads 减量（待审帖子不计入）
+	// 7. 汇总 forum 统计：按 fid 分组累计 threads 减量（待审/已软删帖子不计入）
 	$forum_threads_dec = array();
 	$approved_count = 0;
 	foreach($threadlist as $thread) {
 		$_audit = isset($thread['audit_status']) ? intval($thread['audit_status']) : 1;
+		$_is_deleted = isset($thread['is_deleted']) ? intval($thread['is_deleted']) : 0;
 		if($_audit != 1) continue; // 待审帖子创建时未计入，删除时也不减少
+		if($_is_deleted == 1) continue; // 已软删帖子在软删时已减过统计，彻底删除时不再减
 		$approved_count++;
 		$fid = intval($thread['fid']);
 		if($fid == 0) continue;
@@ -344,11 +357,13 @@ function thread_delete_batch($tids) {
 		forum__update($fid, array('threads-'=>$dec));
 	}
 
-	// 8. 汇总 user 统计：按 uid 分组累计 threads 减量（待审帖子不计入）
+	// 8. 汇总 user 统计：按 uid 分组累计 threads 减量（待审/已软删帖子不计入）
 	$user_threads_dec = array();
 	foreach($threadlist as $thread) {
 		$_audit = isset($thread['audit_status']) ? intval($thread['audit_status']) : 1;
+		$_is_deleted = isset($thread['is_deleted']) ? intval($thread['is_deleted']) : 0;
 		if($_audit != 1) continue;
+		if($_is_deleted == 1) continue;
 		$u = intval($thread['uid']);
 		if($u == 0) continue;
 		if(!isset($user_threads_dec[$u])) $user_threads_dec[$u] = 0;
@@ -358,11 +373,296 @@ function thread_delete_batch($tids) {
 		user__update($u, array('threads-'=>$dec));
 	}
 
-	// 9. 全站统计（仅计审核通过的）
+	// 9. 全站统计（仅计审核通过且非软删的）
 	runtime_set('threads-', $approved_count);
 
 	// hook model_thread_delete_batch_end.php
 
+	return count($valid_tids);
+}
+
+// 软删除单个主题（标记 is_deleted=1，同时标记该主题下所有回帖）
+function thread_soft_delete($tid, $deleted_by) {
+	global $time;
+	$thread = thread__read($tid);
+	if(empty($thread) || intval($thread['is_deleted']) == 1) return TRUE;
+
+	$fid = $thread['fid'];
+	$uid = $thread['uid'];
+
+	// hook model_thread_soft_delete_start.php
+
+	// 标记主题为已删除
+	thread__update($tid, array('is_deleted'=>1, 'deleted_date'=>$time, 'deleted_by'=>intval($deleted_by)));
+
+	// 标记该主题下所有回帖为已删除
+	db_update('post', array('tid'=>$tid), array('is_deleted'=>1, 'deleted_date'=>$time, 'deleted_by'=>intval($deleted_by)));
+
+	// 删除 mythread 记录
+	$uid > 0 AND mythread_delete($uid, $tid);
+
+	// 减计统计（仅审核通过的帖子）
+	$audit_status = isset($thread['audit_status']) ? intval($thread['audit_status']) : 1;
+	if($audit_status == 1) {
+		forum__update($fid, array('threads-'=>1));
+		user__update($uid, array('threads-'=>1));
+		runtime_set('threads-', 1);
+	}
+
+	// 统计该主题下审核通过的非首帖数量，减计 posts
+	$postlist = post__find(array('tid'=>$tid), array(), 1, 1000000);
+	$non_first_count = 0;
+	$user_post_count = array();
+	if($postlist) {
+		foreach($postlist as $post) {
+			if($post['isfirst']) continue;
+			$_audit = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
+			if($_audit != 1) continue;
+			$non_first_count++;
+			if($post['uid']) {
+				if(!isset($user_post_count[$post['uid']])) $user_post_count[$post['uid']] = 0;
+				$user_post_count[$post['uid']]++;
+			}
+		}
+	}
+	$non_first_count AND runtime_set('posts-', $non_first_count);
+	foreach($user_post_count as $_uid => $cnt) {
+		user__update($_uid, array('posts-'=>$cnt));
+	}
+
+	// 清除 forum_list 缓存
+	forum_list_cache_delete();
+
+	// hook model_thread_soft_delete_end.php
+	return TRUE;
+}
+
+// 批量软删除多个主题
+function thread_soft_delete_batch($tids, $deleted_by) {
+	global $time;
+
+	// hook model_thread_soft_delete_batch_start.php
+
+	if(empty($tids) || !is_array($tids)) return 0;
+
+	$tids = array_map('intval', $tids);
+	$tids = array_unique($tids);
+	$tids = array_filter($tids);
+	if(empty($tids)) return 0;
+
+	// 1. 一次查询所有 thread
+	$threadlist = db_find('thread', array('tid'=>$tids), array(), 1, count($tids), 'tid');
+	if(empty($threadlist)) return 0;
+
+	$valid_tids = arrlist_values($threadlist, 'tid');
+
+	// 2. 对每个有效的 tid 设置软删除标记
+	foreach($valid_tids as $tid) {
+		thread__update($tid, array('is_deleted'=>1, 'deleted_date'=>$time, 'deleted_by'=>intval($deleted_by)));
+	}
+
+	// 3. 批量标记所有 post 为已删除
+	db_update('post', array('tid'=>$valid_tids), array('is_deleted'=>1, 'deleted_date'=>$time, 'deleted_by'=>intval($deleted_by)));
+
+	// 4. 批量删除 mythread
+	db_delete('mythread', array('tid'=>$valid_tids));
+
+	// 5. 汇总统计更新（按 fid/uid 分组累加）
+	$forum_threads_dec = array();
+	$user_threads_dec = array();
+	$approved_count = 0;
+	foreach($threadlist as $thread) {
+		$_audit = isset($thread['audit_status']) ? intval($thread['audit_status']) : 1;
+		if($_audit != 1) continue;
+		$approved_count++;
+		$fid = intval($thread['fid']);
+		if($fid > 0) {
+			if(!isset($forum_threads_dec[$fid])) $forum_threads_dec[$fid] = 0;
+			$forum_threads_dec[$fid]++;
+		}
+		$u = intval($thread['uid']);
+		if($u > 0) {
+			if(!isset($user_threads_dec[$u])) $user_threads_dec[$u] = 0;
+			$user_threads_dec[$u]++;
+		}
+	}
+	foreach($forum_threads_dec as $fid => $dec) {
+		forum__update($fid, array('threads-'=>$dec));
+	}
+	foreach($user_threads_dec as $u => $dec) {
+		user__update($u, array('threads-'=>$dec));
+	}
+	runtime_set('threads-', $approved_count);
+
+	// 6. 汇总 posts 统计（批量查询所有 post，按 uid 分组）
+	$postlist = db_find('post', array('tid'=>$valid_tids), array(), 1, 1000000, 'pid');
+	$non_first_count = 0;
+	$user_post_count = array();
+	if($postlist) {
+		foreach($postlist as $post) {
+			if($post['isfirst']) continue;
+			$_audit = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
+			if($_audit != 1) continue;
+			$non_first_count++;
+			if($post['uid']) {
+				if(!isset($user_post_count[$post['uid']])) $user_post_count[$post['uid']] = 0;
+				$user_post_count[$post['uid']]++;
+			}
+		}
+	}
+	$non_first_count AND runtime_set('posts-', $non_first_count);
+	foreach($user_post_count as $_uid => $cnt) {
+		user__update($_uid, array('posts-'=>$cnt));
+	}
+
+	// 7. 清除 forum_list 缓存
+	forum_list_cache_delete();
+
+	// hook model_thread_soft_delete_batch_end.php
+	return count($valid_tids);
+}
+
+// 恢复单个已软删除的主题
+function thread_restore($tid) {
+	$thread = thread__read($tid);
+	if(empty($thread) || intval($thread['is_deleted']) == 0) return TRUE;
+
+	$fid = $thread['fid'];
+	$uid = $thread['uid'];
+
+	// hook model_thread_restore_start.php
+
+	// 恢复主题
+	thread__update($tid, array('is_deleted'=>0, 'deleted_date'=>0, 'deleted_by'=>0));
+
+	// 恢复该主题下所有回帖
+	db_update('post', array('tid'=>$tid), array('is_deleted'=>0, 'deleted_date'=>0, 'deleted_by'=>0));
+
+	// 重建 mythread 记录
+	$uid > 0 AND mythread_create($uid, $tid);
+
+	// 补计统计（仅审核通过的帖子）
+	$audit_status = isset($thread['audit_status']) ? intval($thread['audit_status']) : 1;
+	if($audit_status == 1) {
+		forum__update($fid, array('threads+'=>1));
+		user__update($uid, array('threads+'=>1));
+		runtime_set('threads+', 1);
+	}
+
+	// 统计该主题下审核通过的非首帖数量（从已恢复的 post 中统计），补计 posts
+	$postlist = post__find(array('tid'=>$tid), array(), 1, 1000000);
+	$non_first_count = 0;
+	$user_post_count = array();
+	if($postlist) {
+		foreach($postlist as $post) {
+			if($post['isfirst']) continue;
+			$_audit = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
+			if($_audit != 1) continue;
+			$non_first_count++;
+			if($post['uid']) {
+				if(!isset($user_post_count[$post['uid']])) $user_post_count[$post['uid']] = 0;
+				$user_post_count[$post['uid']]++;
+			}
+		}
+	}
+	$non_first_count AND runtime_set('posts+', $non_first_count);
+	foreach($user_post_count as $_uid => $cnt) {
+		user__update($_uid, array('posts+'=>$cnt));
+	}
+
+	// 清除 forum_list 缓存
+	forum_list_cache_delete();
+
+	// hook model_thread_restore_end.php
+	return TRUE;
+}
+
+// 批量恢复多个已软删除的主题
+function thread_restore_batch($tids) {
+	// hook model_thread_restore_batch_start.php
+
+	if(empty($tids) || !is_array($tids)) return 0;
+
+	$tids = array_map('intval', $tids);
+	$tids = array_unique($tids);
+	$tids = array_filter($tids);
+	if(empty($tids)) return 0;
+
+	// 1. 一次查询所有 thread
+	$threadlist = db_find('thread', array('tid'=>$tids), array(), 1, count($tids), 'tid');
+	if(empty($threadlist)) return 0;
+
+	$valid_tids = arrlist_values($threadlist, 'tid');
+
+	// 2. 对每个有效的 tid 恢复
+	foreach($valid_tids as $tid) {
+		thread__update($tid, array('is_deleted'=>0, 'deleted_date'=>0, 'deleted_by'=>0));
+	}
+
+	// 3. 批量恢复所有 post
+	db_update('post', array('tid'=>$valid_tids), array('is_deleted'=>0, 'deleted_date'=>0, 'deleted_by'=>0));
+
+	// 4. 重建 mythread 记录
+	foreach($threadlist as $thread) {
+		$uid = intval($thread['uid']);
+		$tid = intval($thread['tid']);
+		if($uid > 0) {
+			mythread_create($uid, $tid);
+		}
+	}
+
+	// 5. 汇总统计更新（按 fid/uid 分组累加）
+	$forum_threads_inc = array();
+	$user_threads_inc = array();
+	$approved_count = 0;
+	foreach($threadlist as $thread) {
+		$_audit = isset($thread['audit_status']) ? intval($thread['audit_status']) : 1;
+		if($_audit != 1) continue;
+		$approved_count++;
+		$fid = intval($thread['fid']);
+		if($fid > 0) {
+			if(!isset($forum_threads_inc[$fid])) $forum_threads_inc[$fid] = 0;
+			$forum_threads_inc[$fid]++;
+		}
+		$u = intval($thread['uid']);
+		if($u > 0) {
+			if(!isset($user_threads_inc[$u])) $user_threads_inc[$u] = 0;
+			$user_threads_inc[$u]++;
+		}
+	}
+	foreach($forum_threads_inc as $fid => $inc) {
+		forum__update($fid, array('threads+'=>$inc));
+	}
+	foreach($user_threads_inc as $u => $inc) {
+		user__update($u, array('threads+'=>$inc));
+	}
+	runtime_set('threads+', $approved_count);
+
+	// 6. 汇总 posts 统计（批量查询所有 post，按 uid 分组）
+	$postlist = db_find('post', array('tid'=>$valid_tids), array(), 1, 1000000, 'pid');
+	$non_first_count = 0;
+	$user_post_count = array();
+	if($postlist) {
+		foreach($postlist as $post) {
+			if($post['isfirst']) continue;
+			$_audit = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
+			if($_audit != 1) continue;
+			$non_first_count++;
+			if($post['uid']) {
+				if(!isset($user_post_count[$post['uid']])) $user_post_count[$post['uid']] = 0;
+				$user_post_count[$post['uid']]++;
+			}
+		}
+	}
+	$non_first_count AND runtime_set('posts+', $non_first_count);
+	foreach($user_post_count as $_uid => $cnt) {
+		user__update($_uid, array('posts+'=>$cnt));
+	}
+
+	// 7. 清除 forum_list 缓存
+	forum_list_cache_delete();
+
+	// hook model_thread_restore_batch_end.php
 	return count($valid_tids);
 }
 
@@ -398,6 +698,7 @@ function thread__find_by_fid($fid, $page = 1, $pagesize = 20, $order = 'lastpid'
 	// hook model__thread_find_by_fid_start.php
 
 	$cond = array();
+	$cond['is_deleted'] = 0;
 	$fid AND $cond['fid'] = $fid;
 	// 非管理员查询时排除待审帖子，避免获取后过滤导致每页数量不足
 	if($gid == 0 || $gid > 2) {
@@ -447,7 +748,7 @@ function thread_find_by_fid($fid, $page = 1, $pagesize = 20, $order = 'lastpid')
 	// hook model_thread_find_by_fid_middle.php
 	
 	// 查找置顶帖
-	if($order == $conf['order_default'] && $page == 1) {
+	if($page == 1) { // 所有排序方式第一页都显示置顶帖，全局置顶在前
 		$toplist3 = thread_top_find(0);
 		$toplist1 = $fid ? thread_top_find($fid) : array();
 		$threadlist = $toplist3 + $toplist1 + $threadlist;
@@ -471,6 +772,7 @@ function thread_find_by_fids($fids, $page = 1, $pagesize = 20, $order = 'lastpid
 	// hook model_thread_find_by_fids_start.php
 
 	$cond = array('fid'=>$fids);
+	$cond['is_deleted'] = 0;
 	// 非管理员查询时排除待审帖子，避免获取后过滤导致每页数量不足
 	if($gid == 0 || $gid > 2) {
 		$cond['audit_status'] = array('!=' => 0);
@@ -505,7 +807,7 @@ function thread_find_by_fids($fids, $page = 1, $pagesize = 20, $order = 'lastpid
 // 默认搜索标题
 function thread_find_by_keyword($keyword) {
 	// hook model_thread_find_by_keyword_start.php
-	$threadlist = db_find('thread', array('subject'=>array('LIKE'=>$keyword)), array(), 1, 60);
+	$threadlist = db_find('thread', array('is_deleted'=>0, 'subject'=>array('LIKE'=>$keyword)), array(), 1, 60);
 	$threadlist = arrlist_multisort($threadlist, 'tid', FALSE); // 用 PHP 排序，mysql 排序消耗太大。
 	if($threadlist) {
 		// 批量预加载用户数据，消除 N+1 查询
@@ -659,7 +961,8 @@ function thread_find_by_tids($tids, $order = array()) {
 	//$start = ($page - 1) * $pagesize;
 	//$tids = array_slice($tids, $start, $pagesize);
 	if(!$tids) return array();
-	$threadlist = db_find('thread', array('tid'=>$tids), $order, 1, 1000, 'tid');
+	$cond = array('tid'=>$tids, 'is_deleted'=>0);
+	$threadlist = db_find('thread', $cond, $order, 1, 1000, 'tid');
 	if($threadlist) {
 		// 批量预加载用户数据，消除 N+1 查询
 		$uids = arrlist_values($threadlist, 'uid');
@@ -669,6 +972,26 @@ function thread_find_by_tids($tids, $order = array()) {
 		foreach($threadlist as &$thread) thread_format($thread);
 	}
 	// hook model_thread_find_by_tids_end.php
+	return $threadlist;
+}
+
+// 查找已删除帖子（回收站用）
+function thread_find_deleted($cond = array(), $orderby = array(), $page = 1, $pagesize = 20) {
+	// hook model_thread_find_deleted_start.php
+	$cond['is_deleted'] = 1;
+	if(empty($orderby)) {
+		$orderby = array('deleted_date'=>-1);
+	}
+	$threadlist = db_find('thread', $cond, $orderby, $page, $pagesize, 'tid');
+	if($threadlist) {
+		// 批量预加载用户数据
+		$uids = arrlist_values($threadlist, 'uid');
+		$deleted_by_uids = arrlist_values($threadlist, 'deleted_by');
+		user_preload(array_merge($uids, $deleted_by_uids));
+
+		foreach ($threadlist as &$thread) thread_format($thread);
+	}
+	// hook model_thread_find_deleted_end.php
 	return $threadlist;
 }
 

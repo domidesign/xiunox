@@ -142,7 +142,7 @@ function loadThreadResults(page) {
 	page = page || 1;
 	currentFoundPage = page;
 	var ps = parseInt(jpagesize.val()) || 100;
-	var url = '<?php echo route_url('admin_thread_found', []);?>'.replace('{page}', page) + '&pagesize=' + ps;
+	var url = <?php echo json_encode(route_url('admin_thread_found', ['page' => '__PAGE__']));?>.replace('__PAGE__', page) + '&pagesize=' + ps;
 	$.get(url, function(html) {
 		var $html = $('<div>').html(html.replace(/<script[\s\S]*?<\/script>/gi, ''));
 		var $tbody = $html.find('tbody');

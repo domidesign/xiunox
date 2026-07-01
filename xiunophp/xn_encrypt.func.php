@@ -34,14 +34,55 @@ function xn_safe_key() {
 	return $key;
 }
 
-function xn_encrypt($txt, $key = '') {
-	empty($key) AND $key = xn_key();
-	$encrypt = function_exists('xiuno_encrypt') ? xiuno_encrypt($txt, $key) : xxtea_encrypt($txt, $key);
-	return xn_urlencode(base64_encode($encrypt));
+// AES-256-GCM 加密（v2，替代 XXTEA）
+// 密钥派生：HKDF-SHA256，info='xiuno-token'，输出 32 字节
+// IV：12 字节随机数（GCM 标准）
+// 认证标签：16 字节
+// 密文格式：base64(iv[12] + ciphertext + tag[16])
+function xn_encrypt_v2($key, $data) {
+	$derived_key = hash_hkdf('sha256', $key, 0, 'xiuno-token');
+	$iv = random_bytes(12);
+	$tag = '';
+	$ciphertext = openssl_encrypt($data, 'aes-256-gcm', $derived_key, OPENSSL_RAW_DATA, $iv, $tag);
+	if($ciphertext === false) return false;
+	return base64_encode($iv . $ciphertext . $tag);
 }
 
-function xn_decrypt($txt, $key = '') {
+// AES-256-GCM 解密（v2）
+// 失败返回 false；GCM 自带认证标签校验，tag 不匹配则 openssl_decrypt 返回 false
+function xn_decrypt_v2($key, $payload) {
+	$raw = base64_decode($payload, true);
+	if($raw === false) return false;
+	// 最小长度：12(IV) + 16(tag) = 28 字节
+	if(strlen($raw) < 28) return false;
+	$derived_key = hash_hkdf('sha256', $key, 0, 'xiuno-token');
+	$iv = substr($raw, 0, 12);
+	$tag = substr($raw, -16);
+	$ciphertext = substr($raw, 12, -16);
+	$plaintext = openssl_decrypt($ciphertext, 'aes-256-gcm', $derived_key, OPENSSL_RAW_DATA, $iv, $tag);
+	if($plaintext === false) return false;
+	return $plaintext;
+}
+
+// 兼容入口：加密永远用 v2
+// 保留原签名 ($txt, $key) 以兼容所有调用方
+function xn_encrypt($txt, $key = '') {
 	empty($key) AND $key = xn_key();
+	return xn_encrypt_v2($key, $txt);
+}
+
+// 兼容入口：解密先试 v2，失败回退 XXTEA（迁移期兼容旧令牌）
+// 第三个可选参数 &$used_v2：true 表示 v2 解密成功，false 表示 fallback 到 XXTEA
+function xn_decrypt($txt, $key = '', &$used_v2 = false) {
+	empty($key) AND $key = xn_key();
+	// 先尝试 v2（密文为 raw base64，无需 xn_urldecode）
+	$v2_result = xn_decrypt_v2($key, $txt);
+	if($v2_result !== false) {
+		$used_v2 = true;
+		return $v2_result;
+	}
+	// 回退到 XXTEA 旧逻辑（旧令牌经 xn_urlencode 包装，需 xn_urldecode 还原）
+	$used_v2 = false;
 	$encrypt = base64_decode(xn_urldecode($txt));
 	$ret = function_exists('xiuno_decrypt') ? xiuno_decrypt($encrypt, $key) : xxtea_decrypt($encrypt, $key);
 	return $ret;

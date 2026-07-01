@@ -5,15 +5,14 @@
 function thread_favorite__create($arr) {
 	global $db;
 	$tablepre = $db->tablepre;
-	// 使用 INSERT IGNORE 避免主键冲突
-	$keys = array();
-	$values = array();
-	foreach($arr as $k=>$v) {
-		$keys[] = '`'.addslashes($k).'`';
-		$values[] = "'".addslashes((string)$v)."'";
-	}
-	$sql = "INSERT IGNORE INTO {$tablepre}thread_favorite (".implode(',', $keys).") VALUES (".implode(',', $values).")";
-	$r = db_exec($sql);
+	// 使用 INSERT IGNORE 避免主键冲突；PDO 预处理防注入
+	list($sqladd, $params) = db_array_to_insert_sqladd($arr);
+	if(!$sqladd) return FALSE;
+	$sql = "INSERT IGNORE INTO {$tablepre}thread_favorite $sqladd";
+	$stmt = $db->prepare($sql, $params);
+	if(!$stmt) return FALSE;
+	$r = intval($stmt->rowCount());
+	$stmt->closeCursor();
 	return $r; // 1=新增成功，0=已存在，FALSE=失败
 }
 

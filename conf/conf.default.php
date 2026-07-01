@@ -10,13 +10,13 @@
 */
 return array (
 	'db' => array (
-		'type' => 'pdo_mysql',	
+		'type' => 'pdo_mysql',
 		'mysql' => array (
 			'master' => array (
-				'host' => 'localhost',
-				'user' => 'root',
-				'password' => 'root',
-				'name' => 'test',
+				'host' => getenv('XIUNO_DB_HOST') ?: 'localhost',
+				'user' => getenv('XIUNO_DB_USER') ?: 'root',
+				'password' => getenv('XIUNO_DB_PASSWORD') ?: 'root',
+				'name' => getenv('XIUNO_DB_NAME') ?: 'test',
 				'tablepre' => 'bbs_',
 				'charset' => 'utf8mb4',
 				'engine' => 'innodb',
@@ -25,10 +25,10 @@ return array (
 		),
 		'pdo_mysql' => array (
 			'master' => array (
-				'host' => 'localhost',
-				'user' => 'root',
-				'password' => 'root',
-				'name' => 'test',
+				'host' => getenv('XIUNO_DB_HOST') ?: 'localhost',
+				'user' => getenv('XIUNO_DB_USER') ?: 'root',
+				'password' => getenv('XIUNO_DB_PASSWORD') ?: 'root',
+				'name' => getenv('XIUNO_DB_NAME') ?: 'test',
 				'tablepre' => 'bbs_',
 				'charset' => 'utf8mb4',
 				'engine' => 'innodb',
@@ -36,9 +36,27 @@ return array (
 			'slaves' => array (),
 		),
 	),
+	// 缓存配置：默认 file 驱动（无外部依赖，避免 DB 故障时缓存连带雪崩）
+	// 可选：file / redis / memcached / mysql
 	'cache' => array (
 		'enable' => true,
-		'type' => 'mysql',
+		'type' => 'file',
+		'file' => array (
+			'cache_dir' => '',  // 留空则使用 APP_PATH . 'tmp/cache/'
+			'cachepre' => 'bbs_',
+		),
+		'redis' => array (
+			'host' => '127.0.0.1',
+			'port' => 6379,
+			'password' => '',
+			'database' => 0,
+			'cachepre' => 'bbs_',
+		),
+		'memcached' => array (
+			'host' => '127.0.0.1',
+			'port' => 11211,
+			'cachepre' => 'bbs_',
+		),
 		'mysql' => array (
 			'cachepre' => 'bbs_',
 		),
@@ -58,14 +76,17 @@ return array (
 	
 	'sitename' => 'Xiuno BBS',
 	'sitebrief' => 'Site Brief',
-	'timezone' => 'Asia/Shanghai',	// 时区，默认中国
+	'timezone' => getenv('XIUNO_TIMEZONE') ?: 'Asia/Shanghai',	// 时区，默认中国
 	'lang' => 'zh-cn',
 	'runlevel' => 5,		// 0: 站点关闭; 1: 管理员可读写; 2: 会员可读;  3: 会员可读写; 4：所有人只读; 5: 所有人可读写
 	'runlevel_reason' => 'The site is under maintenance, please visit later.',
 	
 	'cookie_domain' => '',
 	'cookie_path' => '',
-	'auth_key' => 'efdkjfjiiiwurjdmclsldow753jsdj438',
+	// auth_key：安装时自动生成随机值，或通过环境变量 XIUNO_AUTH_KEY 设置
+	'auth_key' => getenv('XIUNO_AUTH_KEY') ?: '',
+	// 可信 CDN 代理 IP 白名单，开启 CDN 时必须配置，如 array('1.2.3.4', '5.6.7.0/24')
+	'cdn_ip' => array(),
 	
 	'pagesize' => 20,
 	'postlist_pagesize' => 100,
@@ -164,5 +185,23 @@ return array (
 	'default_lang' => '',                // 默认语言（空=跟随浏览器）
 	'mobile_nav_items' => array(),       // 手机底部导航（空=使用默认）
 	'mobile_nav_enable' => 0,            // 手机底部导航开关
+
+	// -------------------> 基础设施配置（Task 9 新增）
+	// 字符集（数据库连接 + SET NAMES）
+	'charset' => 'utf8mb4',
+	// 数据库从库列表（读写分离），默认空数组表示只用主库
+	'db_slaves' => array(),
+	// Session 处理器：file / redis / db
+	'session_handler' => 'file',
+	// Session Redis 配置（session_handler=redis 时生效）
+	// 字段名与 cache.redis 保持一致：password/database
+	'session_redis' => array(
+		'host' => '127.0.0.1',
+		'port' => 6379,
+		'password' => '',
+		'database' => 0,
+	),
+	// 日志级别：DEBUG / INFO / WARNING / ERROR（DEBUG=0 时只写 WARNING+）
+	'log_level' => 'WARNING',
 );
 ?>

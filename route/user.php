@@ -826,7 +826,8 @@ if(empty($action)) {
 		// 将 token 附加到 URL，跳转回去 | add token into URL, jump back
 		$url = xn_urldecode($return_url).'?token='.$s;
 		//$url = xn_url_add_arg($return_url, 'token', $s);
-		http_location($url);
+		// synlogin 跨站登录回跳，return_url 为外部应用地址，显式放行
+		http_location($url, TRUE);
 	}
 
 } elseif($action == 'follow') {

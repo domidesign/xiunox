@@ -5,7 +5,7 @@
 /**
  * CreditsRuleService 积分规则服务
  * 负责积分规则的查询、版块覆盖、插件钩子扩展
- * @since 4.5.0
+ * @since 1.0.2
  */
 class CreditsRuleService {
 

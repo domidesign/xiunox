@@ -105,10 +105,10 @@ if(empty($action) || $action == 'list') {
 		$input['brief'] = form_textarea('brief', '', '100%', 80);
 		$input['announcement'] = form_textarea('announcement', '', '100%', 80);
 
-		$type_options = array(0=>'版块', 1=>'分区');
+		$type_options = array(0=>lang('admin_forum'), 1=>lang('admin_category'));
 		$input['type'] = form_select('type', $type_options, 0);
 
-		$category_options = array(0=>'无');
+		$category_options = array(0=>lang('admin_option_none'));
 		foreach($categories as $cat) {
 			$category_options[$cat['fid']] = $cat['name'];
 		}
@@ -161,13 +161,13 @@ if(empty($action) || $action == 'list') {
 
 			// 验证文件大小
 			if($icon_file['size'] > $max_size) {
-				message(-1, '图标文件大小不能超过2MB');
+				message(-1, lang('forum_icon_too_large'));
 			}
 
 			// 验证文件类型
 			$ext = strtolower(pathinfo($icon_file['name'], PATHINFO_EXTENSION));
 			if(!in_array($ext, $allowed_exts)) {
-				message(-1, '图标仅支持 jpg/png/gif/webp 格式');
+				message(-1, lang('forum_icon_format_unsupported'));
 			}
 
 			// 创建上传目录
@@ -186,7 +186,7 @@ if(empty($action) || $action == 'list') {
 
 		forum_list_cache_delete();
 
-		admin_log_create('forum_create', 'forum', strval($fid), '创建版块：' . $name);
+		admin_log_create('forum_create', 'forum', strval($fid), lang('admin_log_forum_create') . $name);
 
 		// hook admin_forum_create_post_end.php
 
@@ -353,7 +353,7 @@ if(empty($action) || $action == 'list') {
 		
 		forum_list_cache_delete();
 
-		admin_log_create('forum_update', 'forum', strval($_fid), '更新版块：' . $name);
+		admin_log_create('forum_update', 'forum', strval($_fid), lang('admin_log_forum_update') . $name);
 
 		message(0, lang('edit_sucessfully'));	
 	}

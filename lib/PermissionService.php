@@ -2,41 +2,60 @@
 
 /**
  * 统一权限管理服务
- * @since 4.5.0
+ * @since 1.0.2
  */
 class PermissionService {
 
     // 核心权限项定义：key => [label, group]
     private static array $corePermissions = [
         // 普通用户权限
-        'allowread'       => ['允许阅读', 'user'],
-        'allowthread'     => ['允许发主题', 'user'],
-        'allowpost'       => ['允许回帖', 'user'],
-        'allowattach'     => ['允许上传附件', 'user'],
-        'allowdown'       => ['允许下载附件', 'user'],
+        'allowread'       => [NULL, 'user'],
+        'allowthread'     => [NULL, 'user'],
+        'allowpost'       => [NULL, 'user'],
+        'allowattach'     => [NULL, 'user'],
+        'allowdown'       => [NULL, 'user'],
         // 审核权限
-        'allow_direct_post'    => ['发帖免审', 'audit'],
-        'allow_direct_reply'   => ['回帖免审', 'audit'],
-        'allow_direct_profile' => ['资料免审', 'audit'],
+        'allow_direct_post'    => [NULL, 'audit'],
+        'allow_direct_reply'   => [NULL, 'audit'],
+        'allow_direct_profile' => [NULL, 'audit'],
         // 版主管理权限
-        'allowtop'        => ['允许置顶', 'mod'],
-        'allowupdate'     => ['允许编辑', 'mod'],
-        'allowdelete'     => ['允许删除', 'mod'],
-        'allowmove'       => ['允许移动', 'mod'],
-        'allowbanuser'    => ['允许封禁用户', 'mod'],
-        'allowdeleteuser' => ['允许删除用户', 'mod'],
-        'allowviewip'     => ['允许查看IP', 'mod'],
+        'allowtop'        => [NULL, 'mod'],
+        'allowupdate'     => [NULL, 'mod'],
+        'allowdelete'     => [NULL, 'mod'],
+        'allowmove'       => [NULL, 'mod'],
+        'allowbanuser'    => [NULL, 'mod'],
+        'allowdeleteuser' => [NULL, 'mod'],
+        'allowviewip'     => [NULL, 'mod'],
     ];
 
     // 插件注册的权限项
     private static array $pluginPermissions = [];
 
-    // 权限分组名称
-    private static array $groupLabels = [
-        'user'   => '普通用户权限',
-        'mod'    => '版主管理权限',
-        'audit'  => '审核权限',
-        'plugin' => '插件扩展权限',
+    // 权限分组名称（lang key => group key）
+    private static array $groupLangKeys = [
+        'user'   => 'perm_group_user',
+        'mod'    => 'perm_group_mod',
+        'audit'  => 'perm_group_audit',
+        'plugin' => 'perm_group_plugin',
+    ];
+
+    // 核心权限项 lang key 映射
+    private static array $corePermLangKeys = [
+        'allowread'       => 'perm_allow_read',
+        'allowthread'     => 'perm_allow_thread',
+        'allowpost'       => 'perm_allow_post',
+        'allowattach'     => 'perm_allow_attach',
+        'allowdown'       => 'perm_allow_download',
+        'allow_direct_post'    => 'perm_direct_post',
+        'allow_direct_reply'   => 'perm_direct_reply',
+        'allow_direct_profile' => 'perm_direct_profile',
+        'allowtop'        => 'perm_allow_top',
+        'allowupdate'     => 'perm_allow_update',
+        'allowdelete'     => 'perm_allow_delete',
+        'allowmove'       => 'perm_allow_move',
+        'allowbanuser'    => 'perm_allow_ban_user',
+        'allowdeleteuser' => 'perm_allow_delete_user',
+        'allowviewip'     => 'perm_allow_view_ip',
     ];
 
     /**
@@ -141,10 +160,12 @@ class PermissionService {
         $gid = intval($gid);
 
         $values = array();
+        $params = array();
         foreach($permissions as $key => $value) {
             $value = intval($value);
-            $key_escaped = addslashes((string)$key);
-            $values[] = "({$gid}, '{$key_escaped}', {$value})";
+            // 参数化绑定 permission_key，避免 addslashes 在多字节字符集下被宽字节绕过
+            $values[] = "({$gid}, ?, {$value})";
+            $params[] = (string)$key;
         }
 
         if(empty($values)) return TRUE;
@@ -152,7 +173,7 @@ class PermissionService {
         $sql = "INSERT INTO `{$tablepre}group_permission` (`gid`, `permission_key`, `value`) VALUES "
              . implode(',', $values)
              . " ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)";
-        db_exec($sql);
+        db_exec_prepared($sql, $params);
 
         return TRUE;
     }
@@ -162,7 +183,16 @@ class PermissionService {
      * @return array [key => ['label'=>..., 'group'=>..., 'plugin'=>...]]
      */
     public static function getAllRegisteredKeys(): array {
-        return array_merge(self::$corePermissions, self::$pluginPermissions);
+        $result = [];
+        foreach(self::$corePermissions as $key => $def) {
+            $lang_key = self::$corePermLangKeys[$key] ?? '';
+            $label = $lang_key ? lang($lang_key) : $def[0];
+            $result[$key] = [$label, $def[1]];
+        }
+        foreach(self::$pluginPermissions as $key => $def) {
+            $result[$key] = [$def['label'], $def['group']];
+        }
+        return $result;
     }
 
     /**
@@ -171,7 +201,8 @@ class PermissionService {
      * @return string
      */
     public static function getGroupLabel(string $group): string {
-        return self::$groupLabels[$group] ?? $group;
+        $lang_key = self::$groupLangKeys[$group] ?? '';
+        return $lang_key ? lang($lang_key) : $group;
     }
 
     /**
@@ -179,7 +210,11 @@ class PermissionService {
      * @return array [group => label]
      */
     public static function getGroups(): array {
-        return self::$groupLabels;
+        $result = [];
+        foreach(self::$groupLangKeys as $group => $lang_key) {
+            $result[$group] = lang($lang_key);
+        }
+        return $result;
     }
 
     /**

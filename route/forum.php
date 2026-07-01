@@ -177,6 +177,12 @@ if($orderby == 'digest') {
 // 热门帖子
 if($orderby == 'hot') {
     $threadlist = thread_find(array('fid'=>$fid), array('views'=>-1), $page, $pagesize);
+    // 第一页合并置顶帖（全局置顶在前，版块置顶在后）
+    if($page == 1) {
+        $toplist3 = thread_top_find(0);
+        $toplist1 = $fid ? thread_top_find($fid) : array();
+        $threadlist = $toplist3 + $toplist1 + $threadlist;
+    }
     $thread_list_from_default = 0;
 }
 
@@ -204,12 +210,22 @@ if($orderby == 'follow') {
 if($thread_list_from_default) {
 	// 非管理员只显示审核通过的帖子（排除待审和驳回）
 	if($gid == 0 || $gid > 2) {
-		$totalnum = thread_count(array('fid' => $fid, 'audit_status' => 1));
+		// 版块帖子总数 60s 短缓存，使用 CacheHelper::remember
+		$_forum_count_key = 'forum_tc_' . $fid . '_' . $gid;
+		$totalnum = CacheHelper::remember($_forum_count_key, 60, function() use ($fid) {
+			return thread_count(array('fid' => $fid, 'audit_status' => 1));
+		});
 	} else {
 		$totalnum = $forum['threads'];
 	}
 	$pagination = pagination(route_url('forum_page', array('fid'=>$fid), $extra), $totalnum, $page, $pagesize);
-	$threadlist = thread_find_by_fid($fid, $page, $pagesize, $orderby);
+
+	// 版块帖子列表 60s 短缓存，使用 CacheHelper::remember
+	// 缓存键包含 fid/orderby/page/gid，确保不同版块/排序/页码/用户组独立缓存
+	$_forum_list_key = 'forum_tl_' . $fid . '_' . $orderby . '_' . $page . '_' . $gid;
+	$threadlist = CacheHelper::remember($_forum_list_key, 60, function() use ($fid, $page, $pagesize, $orderby) {
+		return thread_find_by_fid($fid, $page, $pagesize, $orderby);
+	});
 	thread_list_access_filter($threadlist, $gid);
 }
 

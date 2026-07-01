@@ -2,7 +2,7 @@
 
 /**
  * 插件兼容性扫描服务
- * @since 4.5.0
+ * @since 1.0.2
  *
  * 依赖：
  * - PluginScannerRules.php    规则定义
@@ -52,32 +52,45 @@ class PluginScanner {
 
     /**
      * 安装前预扫描
-     * fatal 级别问题会阻止安装
+     * fatal / error 级别问题会阻止安装；force=1 分类检测到即阻止安装（不可跳过）
      */
     public function scanBeforeInstall(string $pluginDirName): array {
         $dir = APP_PATH . 'plugin/' . $pluginDirName;
         if (!is_dir($dir)) {
-            return ['can_install' => false, 'fatal' => [['category' => 'not_found', 'suggestion' => '插件目录不存在']], 'warning' => [], 'summary' => '插件目录不存在'];
+            return ['can_install' => false, 'fatal' => [['category' => 'not_found', 'suggestion' => '插件目录不存在']], 'error' => [], 'warning' => [], 'summary' => '插件目录不存在'];
         }
 
         $issues = $this->scanPluginDir($dir);
         $fatal = [];
+        $error = [];
         $warning = [];
         $mediumCount = 0;
+        $forceCategories = PluginScannerRules::getForceCategories();
+        $forceBlocked = [];
         foreach ($issues as $issue) {
+            // force=1 的分类检测到即阻止安装，不可被用户手动跳过
+            if (in_array($issue['category'], $forceCategories, true)) {
+                $forceBlocked[] = $issue;
+            }
             if ($issue['severity'] === 'fatal') $fatal[] = $issue;
+            elseif ($issue['severity'] === 'error') $error[] = $issue;
             elseif ($issue['severity'] === 'warning') $warning[] = $issue;
             elseif ($issue['severity'] === 'medium') $mediumCount++;
         }
 
+        // fatal、error、force 分类均阻止安装
+        $blocked = !empty($fatal) || !empty($error) || !empty($forceBlocked);
+
         $parts = [];
         if (!empty($fatal)) $parts[] = count($fatal) . ' 个致命问题';
+        if (!empty($error)) $parts[] = count($error) . ' 个错误';
         if (!empty($warning)) $parts[] = count($warning) . ' 个警告';
         if ($mediumCount > 0) $parts[] = $mediumCount . ' 个兼容建议';
 
         return [
-            'can_install' => empty($fatal),
+            'can_install' => !$blocked,
             'fatal' => $fatal,
+            'error' => $error,
             'warning' => $warning,
             'issues' => $issues,
             'total' => count($issues),
@@ -253,15 +266,45 @@ class PluginScanner {
                 }
             }
 
-            // conf.json 版本检查
+            // conf.json 版本检查：bbs_version 缺失或低于 1.0.2 升为 error 级（force=1 不可跳过）
             if (basename($file) === 'conf.json') {
                 $conf = @json_decode($content, true);
-                if ($conf && isset($conf['bbs_version']) && version_compare($conf['bbs_version'], '4.5', '<')) {
+                $confVersionSeverity = $this->severityLevels['conf_version'] ?? 'error';
+                if ($conf && !isset($conf['bbs_version'])) {
                     $issues[] = [
                         'file' => $shortPath, 'line' => 0, 'category' => 'conf_version',
-                        'match' => "bbs_version: {$conf['bbs_version']}", 'suggestion' => '插件声明版本 < 4.5，建议更新 bbs_version 字段',
-                        'severity' => 'info', 'context' => "bbs_version: {$conf['bbs_version']}",
+                        'match' => 'bbs_version: (missing)', 'suggestion' => '插件缺少 bbs_version 字段，必须声明兼容的 BBS 版本（>=1.0.2）',
+                        'severity' => $confVersionSeverity, 'context' => 'bbs_version 字段缺失',
                     ];
+                } elseif ($conf && isset($conf['bbs_version']) && version_compare($conf['bbs_version'], '1.0.2', '<')) {
+                    $issues[] = [
+                        'file' => $shortPath, 'line' => 0, 'category' => 'conf_version',
+                        'match' => "bbs_version: {$conf['bbs_version']}", 'suggestion' => '插件声明版本 < 1.0.2，必须更新 bbs_version 字段至 1.0.2 以上',
+                        'severity' => $confVersionSeverity, 'context' => "bbs_version: {$conf['bbs_version']}",
+                    ];
+                }
+
+                // capabilities 字段格式校验：必须为字符串数组，每项为 lowercase.dots 格式
+                // 用于插件声明所需权限（如 user.write、thread.delete），便于未来权限沙箱
+                if ($conf && isset($conf['capabilities'])) {
+                    $caps = $conf['capabilities'];
+                    $valid = is_array($caps);
+                    if ($valid) {
+                        foreach ($caps as $cap) {
+                            if (!is_string($cap) || !preg_match('/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/', $cap)) {
+                                $valid = false;
+                                break;
+                            }
+                        }
+                    }
+                    if (!$valid) {
+                        $issues[] = [
+                            'file' => $shortPath, 'line' => 0, 'category' => 'capabilities_format',
+                            'match' => 'capabilities', 'suggestion' => 'capabilities 字段必须是字符串数组，每项为 lowercase.dots 格式（如 user.write、thread.create）',
+                            'severity' => $this->severityLevels['capabilities_format'] ?? 'warning',
+                            'context' => 'capabilities: ' . substr(json_encode($caps), 0, 120),
+                        ];
+                    }
                 }
             }
         }

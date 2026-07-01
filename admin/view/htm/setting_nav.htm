@@ -54,8 +54,8 @@
 									<th><?php echo lang('admin_col_name')?></th>
 									<th><?php echo lang('admin_col_slug'); ?></th>
 									<th><?php echo lang('admin_col_url'); ?></th>
-									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
 									<th style="width:50px"></th>
+									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
 								</tr>
 							</thead>
 							<tbody id="topNavBody"></tbody>
@@ -82,8 +82,8 @@
 									<th><?php echo lang('admin_col_name')?></th>
 									<th><?php echo lang('admin_col_slug'); ?></th>
 									<th><?php echo lang('admin_col_url'); ?></th>
-									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
 									<th style="width:50px"></th>
+									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
 								</tr>
 							</thead>
 							<tbody id="sideNavBody"></tbody>
@@ -115,9 +115,9 @@
 									<th style="width:140px"><?php echo lang('admin_col_icon_active');?></th>
 									<th><?php echo lang('admin_col_name')?></th>
 									<th><?php echo lang('admin_col_url'); ?></th>
-									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
 									<th style="width:80px" class="text-center"><?php echo lang('admin_mobile_nav_need_login')?></th>
 									<th style="width:50px"></th>
+									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
 								</tr>
 							</thead>
 							<tbody id="mobileNavBody"></tbody>
@@ -139,8 +139,8 @@
 									<th><?php echo lang('admin_col_name')?></th>
 									<th><?php echo lang('admin_col_slug'); ?></th>
 									<th><?php echo lang('admin_col_url'); ?></th>
-									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
 									<th style="width:50px"></th>
+									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
 								</tr>
 							</thead>
 							<tbody id="discoverBody"></tbody>
@@ -266,8 +266,8 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 			'<td><input type="text" class="form-control form-control-sm" name="' + prefix + '_name[]" value="' + nameVal + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
 			'<td><input type="text" class="form-control form-control-sm" name="' + prefix + '_slug[]" value="' + slugVal + '" placeholder="slug"></td>' +
 			'<td><input type="text" class="form-control form-control-sm" name="' + prefix + '_url[]" value="' + urlVal + '" placeholder="URL"></td>' +
-			'<td><input type="number" class="form-control form-control-sm text-center" name="' + prefix + '_rank[]" value="' + rankVal + '"></td>' +
-			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>';
+			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>' +
+			'<td><input type="number" class="form-control form-control-sm text-center" name="' + prefix + '_rank[]" value="' + rankVal + '"></td>';
 
 		var iconInput = tr.querySelector('input[name="' + prefix + '_icon[]"]');
 		var iconPreview = tr.querySelector('.icon-preview');
@@ -314,8 +314,8 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 			'<td><input type="text" class="form-control form-control-sm" name="nav_name[]" value="' + nameVal + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
 			'<td><input type="text" class="form-control form-control-sm" name="nav_slug[]" value="' + slugVal + '" placeholder="slug"></td>' +
 			'<td><input type="text" class="form-control form-control-sm" name="nav_url[]" value="' + urlVal + '" placeholder="URL"></td>' +
-			'<td><input type="number" class="form-control form-control-sm text-center" name="nav_rank[]" value="' + rankVal + '"></td>' +
-			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>';
+			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>' +
+			'<td><input type="number" class="form-control form-control-sm text-center" name="nav_rank[]" value="' + rankVal + '"></td>';
 
 		// 图标选择器
 		var iconInput = tr.querySelector('input[name="nav_icon[]"]');
@@ -360,8 +360,6 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 		var slugVal = item.slug || '';
 		var urlVal = item.url || '';
 		var rankVal = item.rank || 0;
-		var isTitle = typeVal === 'title';
-
 		tr.setAttribute('data-nav-type', typeVal);
 		tr.innerHTML =
 			'<td>' +
@@ -370,7 +368,7 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 					'<option value="title"' + (typeVal === 'title' ? ' selected' : '') + '><?php echo lang('admin_type_title');?></option>' +
 				'</select>' +
 			'</td>' +
-			'<td class="sidebar-icon-cell' + (isTitle ? ' d-none' : '') + '">' +
+			'<td>' +
 				'<div class="input-group input-group-sm">' +
 					'<span class="input-group-text p-0 px-2 icon-preview" style="min-width:32px;justify-content:center">' +
 						(iconVal ? '<i class="ti ' + iconVal + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
@@ -379,28 +377,10 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 				'</div>' +
 			'</td>' +
 			'<td><input type="text" class="form-control form-control-sm" name="sidebar_name[]" value="' + nameVal + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
-			'<td class="sidebar-slug-cell' + (isTitle ? ' d-none' : '') + '"><input type="text" class="form-control form-control-sm" name="sidebar_slug[]" value="' + slugVal + '" placeholder="slug"></td>' +
-			'<td class="sidebar-url-cell' + (isTitle ? ' d-none' : '') + '"><input type="text" class="form-control form-control-sm" name="sidebar_url[]" value="' + urlVal + '" placeholder="URL"></td>' +
-			'<td><input type="number" class="form-control form-control-sm text-center" name="sidebar_rank[]" value="' + rankVal + '"></td>' +
-			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>';
-
-		// 类型切换：标题时隐藏图标/Slug/URL
-		var typeSelect = tr.querySelector('.sidebar-type-select');
-		typeSelect.addEventListener('change', function() {
-			var isTitle = this.value === 'title';
-			var iconCell = tr.querySelector('.sidebar-icon-cell');
-			var slugCell = tr.querySelector('.sidebar-slug-cell');
-			var urlCell = tr.querySelector('.sidebar-url-cell');
-			if (isTitle) {
-				iconCell.classList.add('d-none');
-				slugCell.classList.add('d-none');
-				urlCell.classList.add('d-none');
-			} else {
-				iconCell.classList.remove('d-none');
-				slugCell.classList.remove('d-none');
-				urlCell.classList.remove('d-none');
-			}
-		});
+			'<td><input type="text" class="form-control form-control-sm" name="sidebar_slug[]" value="' + slugVal + '" placeholder="slug"></td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="sidebar_url[]" value="' + urlVal + '" placeholder="URL"></td>' +
+			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>' +
+			'<td><input type="number" class="form-control form-control-sm text-center" name="sidebar_rank[]" value="' + rankVal + '"></td>';
 
 		// 图标选择器
 		var iconInput = tr.querySelector('input[name="sidebar_icon[]"]');
@@ -458,9 +438,9 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 			iconPickerHtml('mobile_icon_active[]', iconActiveVal) +
 			'<td><input type="text" class="form-control form-control-sm" name="mobile_name[]" value="' + nameVal + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
 			'<td><input type="text" class="form-control form-control-sm" name="mobile_url[]" value="' + urlVal + '" placeholder="URL"></td>' +
-			'<td><input type="number" class="form-control form-control-sm text-center" name="mobile_rank[]" value="' + rankVal + '"></td>' +
 			'<td class="text-center"><div class="form-check form-switch d-inline-block"><input type="hidden" name="mobile_need_login[]" value="0"><input class="form-check-input" type="checkbox" name="mobile_need_login_chk[]" value="1"' + (needLoginVal ? ' checked' : '') + ' onchange="this.previousElementSibling.value=this.checked?\'1\':\'0\'"></div></td>' +
-			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>';
+			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>' +
+			'<td><input type="number" class="form-control form-control-sm text-center" name="mobile_rank[]" value="' + rankVal + '"></td>';
 
 		// 默认图标选择器
 		var iconInput = tr.querySelector('input[name="mobile_icon[]"]');

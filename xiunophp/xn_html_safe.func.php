@@ -1913,4 +1913,52 @@ function xn_html_purify($html, $config = array()) {
     return xn_html_safe($html);
 }
 
+/**
+ * 个性签名净化函数
+ * 仅允许基础排版标签：b/i/u/strong/em/br/p/span/a[href|title|target|rel]
+ * 禁止图片/视频/iframe/table/div/h1-h6/blockquote/pre/code等大块元素
+ * 用于用户个性签名的HTML过滤，比帖子正文更严格
+ */
+function xn_signature_purify($html) {
+    if (empty($html)) return '';
+    // 去除首尾空白
+    $html = trim($html);
+    if ($html === '') return '';
+
+    if (!class_exists('HTMLPurifier', false)) {
+        $purifierFile = APP_PATH . 'lib/HTMLPurifier/HTMLPurifier.auto.php';
+        if (is_file($purifierFile)) {
+            include_once $purifierFile;
+        }
+    }
+
+    // 基础排版白名单：仅允许内联排版标签，禁止块级/媒体/嵌入元素
+    $allowedTags = 'p[style],br,b,i,u,strong,em,a[href|title|target|rel],span[style|class],sub,sup,del,ins,mark,abbr[title],code';
+
+    if (class_exists('HTMLPurifier_HTML5Config')) {
+        $purifierConfig = HTMLPurifier_HTML5Config::createDefault();
+    } elseif (class_exists('HTMLPurifier_Config')) {
+        $purifierConfig = HTMLPurifier_Config::createDefault();
+    } else {
+        // HTMLPurifier 不可用时退化为 xn_html_safe
+        return xn_html_safe($html);
+    }
+
+    $purifierConfig->set('HTML.Allowed', $allowedTags);
+    $purifierConfig->set('Attr.AllowedFrameTargets', array('_blank', '_self'));
+    $purifierConfig->set('Attr.AllowedRel', array('noopener', 'noreferrer', 'nofollow'));
+    $purifierConfig->set('CSS.AllowedProperties', 'color,background-color,font-weight,font-style,text-decoration');
+    $purifierConfig->set('URI.AllowedSchemes', array('http' => true, 'https' => true, 'mailto' => true));
+    $purifierConfig->set('AutoFormat.RemoveEmpty', true);
+    $purifierConfig->set('AutoFormat.AutoParagraph', false);
+    $purifierConfig->set('Cache.SerializerPath', $GLOBALS['conf']['tmp_path'] ?? sys_get_temp_dir());
+    $purifierConfig->set('Attr.EnableID', false);
+    $purifierConfig->set('HTML.DefinitionID', 'xiuno-signature-safe');
+    $purifierConfig->set('HTML.DefinitionRev', 1);
+
+    $purifier = new HTMLPurifier($purifierConfig);
+    $result = $purifier->purify($html);
+    return $result;
+}
+
 ?>

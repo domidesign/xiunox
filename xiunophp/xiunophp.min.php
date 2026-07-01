@@ -36,208 +36,6 @@ if(IN_CMD) {
 
 // hook xiunophp_include_before.php
 
-class db_mysql {
-
-	public $conf = array();
-	public $rconf = array();
-	public $wlink = NULL;
-	public $rlink = NULL;
-	public $link = NULL;
-	public $errno = 0;
-	public $errstr = '';
-	public $sqls = array();
-	public $tablepre = '';
-	public $innodb_first = TRUE;
-
-	public function __construct($conf) {
-		$this->conf = $conf;
-		$this->tablepre = $conf['master']['tablepre'];
-	}
-
-	public function connect() {
-		$this->wlink = $this->connect_master();
-		$this->rlink = $this->connect_slave();
-		return $this->wlink && $this->rlink;
-	}
-
-	public function connect_master() {
-		if($this->wlink) return $this->wlink;
-		$conf = $this->conf['master'];
-		if(!$this->wlink) $this->wlink = $this->real_connect($conf['host'], $conf['user'], $conf['password'], $conf['name'], $conf['charset'], $conf['engine']);
-		return $this->wlink;
-	}
-
-	public function connect_slave() {
-		if($this->rlink) return $this->rlink;
-		if(empty($this->conf['slaves'])) {
-			if($this->wlink === NULL) $this->wlink = $this->connect_master();
-			$this->rlink = $this->wlink;
-			$this->rconf = $this->conf['master'];
-		} else {
-
-			$arr = array_rand($this->conf['slaves'], 1);
-			$conf = $this->conf['slaves'][$arr[0]];
-			$this->rconf = $conf;
-			$this->rlink = $this->real_connect($conf['host'], $conf['user'], $conf['password'], $conf['name'], $conf['charset'], $conf['engine']);
-		}
-		return $this->rlink;
-	}
-
-	public function real_connect($host, $user, $password, $name, $charset = '', $engine = '') {
-		$link = @mysql_connect($host, $user, $password);
-		if(!$link) { $this->error(mysql_errno(), '连接数据库服务器失败:'.mysql_error()); return FALSE; }
-		if(!mysql_select_db($name, $link)) { $this->error(mysql_errno(), '选择数据库失败:'.mysql_error()); return FALSE; }
-
-		$charset AND $this->query("SET names $charset, sql_mode=''", $link);
-		return $link;
-	}
-	public function sql_find_one($sql) {
-		$query = $this->query($sql);
-		if(!$query) return $query;
-
-		$r = mysql_fetch_assoc($query);
-		if($r === FALSE) {
-
-			return NULL;
-		}
-		return $r;
-	}
-
-	public function sql_find($sql, $key = NULL) {
-		$query = $this->query($sql);
-		if(!$query) return $query;
-		$arrlist = array();
-		while($arr = mysql_fetch_assoc($query)) {
-			$key ? $arrlist[$arr[$key]] = $arr : $arrlist[] = $arr;
-		}
-		return $arrlist;
-	}
-
-	public function find($table, $cond = array(), $orderby = array(), $page = 1, $pagesize = 10, $key = '', $col = array()) {
-		$page = max(1, $page);
-		$cond = db_cond_to_sqladd($cond);
-		$orderby = db_orderby_to_sqladd($orderby);
-		$offset = ($page - 1) * $pagesize;
-		$cols = $col ? implode(',', $col) : '*';
-		return $this->sql_find("SELECT $cols FROM {$this->tablepre}$table $cond$orderby LIMIT $offset,$pagesize", $key);
-
-	}
-
-	public function find_one($table, $cond = array(), $orderby = array(), $col = array()) {
-		$cond = db_cond_to_sqladd($cond);
-		$orderby = db_orderby_to_sqladd($orderby);
-		$cols = $col ? implode(',', $col) : '*';
-		return $this->sql_find_one("SELECT $cols FROM {$this->tablepre}$table $cond$orderby LIMIT 1");
-	}
-
-	public function query($sql, $link = NULL) {
-		if(!$link) {
-			if(!$this->rlink && !$this->connect_slave()) return FALSE;;
-			$link = $this->link = $this->rlink;
-		}
-		$t1 = microtime(1);
-		$query = mysql_query($sql, $link);
-		$t2 = microtime(1);
-		if($query === FALSE) $this->error();
-
-		$t3 = substr($t2 - $t1, 0, 6);
-		DEBUG AND xn_log("[$t3]".$sql, 'db_sql');
-		if(count($this->sqls) < 1000) $this->sqls[] = "[$t3]".$sql;
-
-		return $query;
-	}
-
-	public function exec($sql, $link = NULL) {
-		if(!$link) {
-			if(!$this->wlink && !$this->connect_master()) return FALSE;
-			$link = $this->link = $this->wlink;
-		}
-		if(strtoupper(substr($sql, 0, 12) == 'CREATE TABLE')) {
-			$fulltext = strpos($sql, 'FULLTEXT(') !== FALSE;
-			$highversion = version_compare($this->version(), '5.6') >= 0;
-			if(!$fulltext || ($fulltext && $highversion)) {
-				$conf = $this->conf['master'];
-				if(strtolower($conf['engine']) != 'myisam') {
-					$this->innodb_first AND $this->is_support_innodb() AND $sql = str_ireplace('MyISAM', 'InnoDB', $sql);
-				}
-			}
-		}
-		$t1 = microtime(1);
-		$query = mysql_query($sql, $this->wlink);
-		$t2 = microtime(1);
-		$t3 = substr($t2 - $t1, 0, 6);
-
-		DEBUG AND xn_log("[$t3]".$sql, 'db_sql');
-		if(count($this->sqls) < 1000) $this->sqls[] = "[$t3]".$sql;
-
-		if($query !== FALSE) {
-			$pre = strtoupper(substr(trim($sql), 0, 7));
-			if($pre == 'INSERT ' || $pre == 'REPLACE') {
-				return mysql_insert_id($this->wlink);
-			} elseif($pre == 'UPDATE ' || $pre == 'DELETE ') {
-				return mysql_affected_rows($this->wlink);
-			}
-		} else {
-			$this->error();
-		}
-
-		return $query;
-	}
-
-	public function count($table, $cond = array()) {
-		$this->connect_slave();
-		if(empty($cond) && $this->rconf['engine'] == 'innodb') {
-			$dbname = $this->rconf['name'];
-			$sql = "SELECT TABLE_ROWS as num FROM information_schema.tables WHERE TABLE_SCHEMA='$dbname' AND TABLE_NAME='$table'";
-		} else {
-			$cond = db_cond_to_sqladd($cond);
-			$sql = "SELECT COUNT(*) AS num FROM `$table` $cond";
-		}
-		$arr = $this->sql_find_one($sql);
-		return !empty($arr) ? intval($arr['num']) : $arr;
-	}
-
-	public function maxid($table, $field, $cond = array()) {
-		$sqladd = db_cond_to_sqladd($cond);
-		$sql = "SELECT MAX($field) AS maxid FROM `$table` $sqladd";
-		$arr = $this->sql_find_one($sql);
-		return !empty($arr) ? intval($arr['maxid']) : $arr;
-	}
-
-	public function truncate($table) {
-		return $this->exec("TRUNCATE $table");
-	}
-
-	public function close() {
-		$r = mysql_close($this->wlink);
-		if($this->wlink != $this->rlink) {
-			$r = mysql_close($this->rlink);
-		}
-		return $r;
-	}
-
-	public function version() {
-		$r = $this->sql_find_one("SELECT VERSION() AS v");
-		return $r['v'];
-	}
-
-	public function error($errno = 0, $errstr = '') {
-		$this->errno = $errno ? $errno : ($this->link ? mysql_errno($this->link) : mysql_errno());
-		$this->errstr = $errstr ? $errstr : ($this->link ? mysql_error($this->link) : mysql_error());
-		DEBUG AND trigger_error('Database Error:'.$this->errstr);
-	}
-
-	public function is_support_innodb() {
-		$arrlist = $this->sql_find('SHOW ENGINES');
-		$arrlist2 = arrlist_key_values($arrlist, 'Engine', 'Support');
-		return isset($arrlist2['InnoDB']) AND $arrlist2['InnoDB'] == 'YES';
-	}
-
-	public function __destruct() {
-		if($this->wlink) $this->wlink = NULL;
-		if($this->rlink) $this->rlink = NULL;
-	}
-}
 
 if(!interface_exists('DatabaseInterface')) {
 	$iface = defined('APP_PATH') ? APP_PATH.'lib/DatabaseInterface.php' : dirname(__FILE__).'/../lib/DatabaseInterface.php';
@@ -309,30 +107,39 @@ class db_pdo_mysql implements DatabaseInterface {
 			$this->error($e->getCode(), '连接数据库服务器失败:'.$e->getMessage());
 			return FALSE;
 		}
+		// 字符集从配置读取，默认 utf8mb4（避免 charset 为空时跳过 SET NAMES）
+		if(!$charset) $charset = isset($this->conf['master']['charset']) ? $this->conf['master']['charset'] : 'utf8mb4';
 		$charset AND $link->query("SET names $charset, sql_mode=''");
 		return $link;
 	}
 
 	public function find(string $table, array $cond = [], array $orderby = [], int $page = 1, int $pagesize = 10, string $key = '', array $col = []): array {
 		$page = max(1, $page);
-		$cond = db_cond_to_sqladd($cond);
+		list($condSql, $condParams) = db_cond_to_sqladd($cond);
 		$orderby = db_orderby_to_sqladd($orderby);
 		$offset = ($page - 1) * $pagesize;
 		$cols = $col ? implode(',', $col) : '*';
-		$r = $this->sql_find("SELECT $cols FROM {$this->tablepre}$table $cond$orderby LIMIT $offset,$pagesize", $key);
-		return is_array($r) ? $r : [];
+		$sql = "SELECT $cols FROM {$this->tablepre}$table $condSql$orderby LIMIT $offset,$pagesize";
+		$stmt = $this->prepare($sql, $condParams);
+		if(!$stmt) return [];
+		$stmt->setFetchMode(PDO::FETCH_ASSOC);
+		$arrlist = $stmt->fetchAll();
+		$stmt->closeCursor();
+		$key AND $arrlist = arrlist_change_key($arrlist, $key);
+		return is_array($arrlist) ? $arrlist : [];
 	}
 
 	public function find_one($table, $cond = array(), $orderby = array(), $col = array()): ?array {
-		$cond = db_cond_to_sqladd($cond);
+		list($condSql, $condParams) = db_cond_to_sqladd($cond);
 		$orderby = db_orderby_to_sqladd($orderby);
 		$cols = $col ? implode(',', $col) : '*';
-		return $this->sql_find_one("SELECT $cols FROM {$this->tablepre}$table $cond$orderby LIMIT 1");
+		$sql = "SELECT $cols FROM {$this->tablepre}$table $condSql$orderby LIMIT 1";
+		return $this->prepare_one($sql, $condParams);
 	}
 
 	public function find_group(string $table, array $cond = [], array $groupby = [], array $having = [], array $orderby = [], int $page = 1, int $pagesize = 10, string $key = '', array $col = []): array {
 		$page = max(1, $page);
-		$condSql = db_cond_to_sqladd($cond);
+		list($condSql, $condParams) = db_cond_to_sqladd($cond);
 		$orderbySql = db_orderby_to_sqladd($orderby);
 		$offset = ($page - 1) * $pagesize;
 		$cols = $col ? implode(',', $col) : '*';
@@ -343,19 +150,26 @@ class db_pdo_mysql implements DatabaseInterface {
 		}
 
 		$havingSql = '';
+		$havingParams = array();
 		if (!empty($having)) {
-			$havingSql = db_cond_to_sqladd($having);
+			list($havingSql, $havingParams) = db_cond_to_sqladd($having);
 
 			$havingSql = str_replace(' WHERE ', ' HAVING ', $havingSql);
 		}
 
 		$sql = "SELECT $cols FROM {$this->tablepre}$table $condSql$groupbySql$havingSql$orderbySql LIMIT $offset,$pagesize";
-		$r = $this->sql_find($sql, $key);
-		return is_array($r) ? $r : [];
+		$params = array_merge($condParams, $havingParams);
+		$stmt = $this->prepare($sql, $params);
+		if(!$stmt) return [];
+		$stmt->setFetchMode(PDO::FETCH_ASSOC);
+		$arrlist = $stmt->fetchAll();
+		$stmt->closeCursor();
+		$key AND $arrlist = arrlist_change_key($arrlist, $key);
+		return is_array($arrlist) ? $arrlist : [];
 	}
 
 	public function find_one_group(string $table, array $cond = [], array $groupby = [], array $having = [], array $orderby = [], array $col = []): ?array {
-		$condSql = db_cond_to_sqladd($cond);
+		list($condSql, $condParams) = db_cond_to_sqladd($cond);
 		$orderbySql = db_orderby_to_sqladd($orderby);
 		$cols = $col ? implode(',', $col) : '*';
 
@@ -365,13 +179,15 @@ class db_pdo_mysql implements DatabaseInterface {
 		}
 
 		$havingSql = '';
+		$havingParams = array();
 		if (!empty($having)) {
-			$havingSql = db_cond_to_sqladd($having);
+			list($havingSql, $havingParams) = db_cond_to_sqladd($having);
 			$havingSql = str_replace(' WHERE ', ' HAVING ', $havingSql);
 		}
 
 		$sql = "SELECT $cols FROM {$this->tablepre}$table $condSql$groupbySql$havingSql$orderbySql LIMIT 1";
-		return $this->sql_find_one($sql);
+		$params = array_merge($condParams, $havingParams);
+		return $this->prepare_one($sql, $params);
 	}
 
 	public function findOne(string $table, array $cond = [], array $orderby = [], array $col = []): ?array {
@@ -438,40 +254,52 @@ class db_pdo_mysql implements DatabaseInterface {
 	}
 
 	public function insert(string $table, array $data): int {
-		$sqladd = db_array_to_insert_sqladd($data);
+		list($sqladd, $params) = db_array_to_insert_sqladd($data);
 		if(!$sqladd) return 0;
-		return $this->exec("INSERT INTO {$this->tablepre}$table $sqladd");
+		$sql = "INSERT INTO {$this->tablepre}$table $sqladd";
+		$stmt = $this->prepare($sql, $params);
+		if(!$stmt) return 0;
+		return intval($this->last_insert_id());
 	}
 
 	public function update(string $table, array $cond, array $data): int {
-		$condadd = db_cond_to_sqladd($cond);
-		$sqladd = db_array_to_update_sqladd($data);
+		list($condadd, $condParams) = db_cond_to_sqladd($cond);
+		list($sqladd, $updateParams) = db_array_to_update_sqladd($data);
 		if(!$sqladd) return 0;
-		return $this->exec("UPDATE {$this->tablepre}$table SET $sqladd $condadd");
+		$sql = "UPDATE {$this->tablepre}$table SET $sqladd $condadd";
+		$params = array_merge($updateParams, $condParams);
+		$stmt = $this->prepare($sql, $params);
+		if(!$stmt) return 0;
+		return intval($stmt->rowCount());
 	}
 
 	public function delete(string $table, array $cond): int {
-		$condadd = db_cond_to_sqladd($cond);
-		return $this->exec("DELETE FROM {$this->tablepre}$table $condadd");
+		list($condadd, $condParams) = db_cond_to_sqladd($cond);
+		$sql = "DELETE FROM {$this->tablepre}$table $condadd";
+		$stmt = $this->prepare($sql, $condParams);
+		if(!$stmt) return 0;
+		return intval($stmt->rowCount());
 	}
 
 	public function count(string $table, array $cond = []): int {
 		$this->connect_slave();
 		if(empty($cond) && $this->rconf['engine'] == 'innodb') {
 			$dbname = $this->rconf['name'];
+			// 联表查 information_schema 系统表，db_find 不支持，保留直接 sql_find_one
 			$sql = "SELECT TABLE_ROWS as num FROM information_schema.tables WHERE TABLE_SCHEMA='$dbname' AND TABLE_NAME='$table'";
+			$arr = $this->sql_find_one($sql);
 		} else {
-			$cond = db_cond_to_sqladd($cond);
-			$sql = "SELECT COUNT(*) AS num FROM `$table` $cond";
+			list($condSql, $condParams) = db_cond_to_sqladd($cond);
+			$sql = "SELECT COUNT(*) AS num FROM `$table` $condSql";
+			$arr = $this->prepare_one($sql, $condParams);
 		}
-		$arr = $this->sql_find_one($sql);
 		return !empty($arr) ? intval($arr['num']) : 0;
 	}
 
 	public function maxid(string $table, string $field, array $cond = []): int {
-		$sqladd = db_cond_to_sqladd($cond);
+		list($sqladd, $condParams) = db_cond_to_sqladd($cond);
 		$sql = "SELECT MAX($field) AS maxid FROM `$table` $sqladd";
-		$arr = $this->sql_find_one($sql);
+		$arr = $this->prepare_one($sql, $condParams);
 		return !empty($arr) ? intval($arr['maxid']) : 0;
 	}
 
@@ -480,7 +308,8 @@ class db_pdo_mysql implements DatabaseInterface {
 	}
 
 	public function quote(string $value): string {
-		if(!$this->rlink && !$this->connect_slave()) return addslashes((string)$value);
+		// 无连接时返回原始值（此场景查询必然失败，无需转义）
+		if(!$this->rlink && !$this->connect_slave()) return (string)$value;
 		return substr($this->rlink->quote($value), 1, -1);
 	}
 
@@ -518,6 +347,71 @@ class db_pdo_mysql implements DatabaseInterface {
 		if($query === FALSE) $this->error();
 		if(count($this->sqls) < 1000) $this->sqls[] = number_format($t2 - $t1, 4).' '.$sql;
 		return $query;
+	}
+
+	/**
+	 * PDO 预处理执行（写操作/读操作通用）
+	 * 自动选择 wlink（INSERT/UPDATE/DELETE/REPLACE）或 rlink（SELECT）
+	 * @param string $sql 带 ? 占位符的 SQL
+	 * @param array $params 绑定参数
+	 * @return PDOStatement|FALSE
+	 */
+	public function prepare($sql, $params = array()) {
+		$this->errno = 0;
+		$this->errstr = '';
+		$pre = strtoupper(substr(ltrim($sql), 0, 7));
+		$isWrite = ($pre == 'INSERT ' || $pre == 'UPDATE ' || $pre == 'DELETE ' || $pre == 'REPLACE' || strtoupper(substr(ltrim($sql), 0, 6)) == 'CREATE' || strtoupper(substr(ltrim($sql), 0, 4)) == 'DROP' || strtoupper(substr(ltrim($sql), 0, 8)) == 'TRUNCATE');
+		$this->link = NULL;
+		if($isWrite) {
+			if(!$this->wlink && !$this->connect_master()) return FALSE;
+			$link = $this->link = $this->wlink;
+		} else {
+			if(!$this->rlink && !$this->connect_slave()) return FALSE;
+			$link = $this->link = $this->rlink;
+		}
+		try {
+			$t1 = microtime(1);
+			$stmt = $link->prepare($sql);
+			if($stmt === FALSE) {
+				$this->error();
+				return FALSE;
+			}
+			$i = 1;
+			foreach($params as $v) {
+				if(is_int($v)) {
+					$stmt->bindValue($i, $v, PDO::PARAM_INT);
+				} elseif(is_bool($v)) {
+					$stmt->bindValue($i, $v, PDO::PARAM_BOOL);
+				} elseif(is_null($v)) {
+					$stmt->bindValue($i, $v, PDO::PARAM_NULL);
+				} else {
+					$stmt->bindValue($i, (string)$v, PDO::PARAM_STR);
+				}
+				$i++;
+			}
+			$stmt->execute();
+			$t2 = microtime(1);
+		} catch (Exception $e) {
+			$this->error($e->getCode(), $e->getMessage());
+			return FALSE;
+		}
+		if(count($this->sqls) < 1000) $this->sqls[] = '['.number_format($t2 - $t1, 4).']'.$sql.' ['.xn_json_encode($params).']';
+		return $stmt;
+	}
+
+	/**
+	 * PDO 预处理查询单条
+	 * @param string $sql 带 ? 占位符的 SQL
+	 * @param array $params 绑定参数
+	 * @return array|null
+	 */
+	public function prepare_one($sql, $params = array()) {
+		$stmt = $this->prepare($sql, $params);
+		if(!$stmt) return NULL;
+		$stmt->setFetchMode(PDO::FETCH_ASSOC);
+		$r = $stmt->fetch();
+		$stmt->closeCursor();
+		return $r === FALSE ? NULL : $r;
 	}
 
 	public function last_insert_id(): int {
@@ -629,19 +523,82 @@ class db_pdo_sqlite {
 
 	public function find($table, $cond = array(), $orderby = array(), $page = 1, $pagesize = 10, $key = '', $col = array()) {
 		$page = max(1, $page);
-		$cond = db_cond_to_sqladd($cond);
+		list($condSql, $condParams) = db_cond_to_sqladd($cond);
 		$orderby = db_orderby_to_sqladd($orderby);
 		$offset = ($page - 1) * $pagesize;
 		$cols = $col ? implode(',', $col) : '*';
-		return $this->sql_find("SELECT $cols FROM {$this->tablepre}$table $cond$orderby LIMIT $offset,$pagesize", $key);
-
+		$sql = "SELECT $cols FROM {$this->tablepre}$table $condSql$orderby LIMIT $offset,$pagesize";
+		$stmt = $this->prepare($sql, $condParams);
+		if(!$stmt) return FALSE;
+		$stmt->setFetchMode(PDO::FETCH_ASSOC);
+		$arrlist = $stmt->fetchAll();
+		$stmt->closeCursor();
+		$key AND $arrlist = arrlist_change_key($arrlist, $key);
+		return $arrlist;
 	}
 
 	public function find_one($table, $cond = array(), $orderby = array(), $col = array()) {
-		$cond = db_cond_to_sqladd($cond);
+		list($condSql, $condParams) = db_cond_to_sqladd($cond);
 		$orderby = db_orderby_to_sqladd($orderby);
 		$cols = $col ? implode(',', $col) : '*';
-		return $this->sql_find_one("SELECT $cols FROM {$this->tablepre}$table $cond$orderby LIMIT 1");
+		$sql = "SELECT $cols FROM {$this->tablepre}$table $condSql$orderby LIMIT 1";
+		return $this->prepare_one($sql, $condParams);
+	}
+
+	/**
+	 * PDO 预处理执行
+	 */
+	public function prepare($sql, $params = array()) {
+		$this->errno = 0;
+		$this->errstr = '';
+		$pre = strtoupper(substr(ltrim($sql), 0, 7));
+		$isWrite = ($pre == 'INSERT ' || $pre == 'UPDATE ' || $pre == 'DELETE ' || $pre == 'REPLACE' || strtoupper(substr(ltrim($sql), 0, 6)) == 'CREATE' || strtoupper(substr(ltrim($sql), 0, 4)) == 'DROP' || strtoupper(substr(ltrim($sql), 0, 8)) == 'TRUNCATE');
+		$this->link = NULL;
+		if($isWrite) {
+			if(!$this->wlink && !$this->connect_master()) return FALSE;
+			$link = $this->link = $this->wlink;
+		} else {
+			if(!$this->rlink && !$this->connect_slave()) return FALSE;
+			$link = $this->link = $this->rlink;
+		}
+		try {
+			$stmt = $link->prepare($sql);
+			if($stmt === FALSE) {
+				$this->error();
+				return FALSE;
+			}
+			$i = 1;
+			foreach($params as $v) {
+				if(is_int($v)) {
+					$stmt->bindValue($i, $v, PDO::PARAM_INT);
+				} elseif(is_bool($v)) {
+					$stmt->bindValue($i, $v, PDO::PARAM_BOOL);
+				} elseif(is_null($v)) {
+					$stmt->bindValue($i, $v, PDO::PARAM_NULL);
+				} else {
+					$stmt->bindValue($i, (string)$v, PDO::PARAM_STR);
+				}
+				$i++;
+			}
+			$stmt->execute();
+		} catch (Exception $e) {
+			$this->error($e->getCode(), $e->getMessage());
+			return FALSE;
+		}
+		if(count($this->sqls) < 1000) $this->sqls[] = $sql;
+		return $stmt;
+	}
+
+	/**
+	 * PDO 预处理查询单条
+	 */
+	public function prepare_one($sql, $params = array()) {
+		$stmt = $this->prepare($sql, $params);
+		if(!$stmt) return FALSE;
+		$stmt->setFetchMode(PDO::FETCH_ASSOC);
+		$r = $stmt->fetch();
+		$stmt->closeCursor();
+		return $r === FALSE ? NULL : $r;
 	}
 
 	public function query($sql) {
@@ -673,16 +630,16 @@ class db_pdo_sqlite {
 	}
 
 	public function count($table, $cond = array()) {
-		$cond = db_cond_to_sqladd($cond);
-		$sql = "SELECT COUNT(*) AS num FROM `$table` $cond";
-		$arr = $this->sql_find_one($sql);
+		list($condSql, $condParams) = db_cond_to_sqladd($cond);
+		$sql = "SELECT COUNT(*) AS num FROM `$table` $condSql";
+		$arr = $this->prepare_one($sql, $condParams);
 		return !empty($arr) ? intval($arr['num']) : $arr;
 	}
 
 	public function maxid($table, $field, $cond = array()) {
-		$sqladd = db_cond_to_sqladd($cond);
+		list($sqladd, $condParams) = db_cond_to_sqladd($cond);
 		$sql = "SELECT MAX($field) AS maxid FROM `$table` $sqladd";
-		$arr = $this->sql_find_one($sql);
+		$arr = $this->prepare_one($sql, $condParams);
 		return !empty($arr) ? intval($arr['maxid']) : $arr;
 	}
 
@@ -709,6 +666,196 @@ class db_pdo_sqlite {
 	public function __destruct() {
 		if($this->wlink) $this->wlink = NULL;
 		if($this->rlink) $this->rlink = NULL;
+	}
+}
+
+class cache_file {
+
+	public $conf = array();
+	public $cachepre = '';
+	public $errno = 0;
+	public $errstr = '';
+	// 缓存目录
+	public $cache_dir = '';
+
+	public function __construct($conf = array()) {
+		$this->conf = $conf;
+		$this->cachepre = isset($conf['cachepre']) ? $conf['cachepre'] : 'pre_';
+		$this->cache_dir = isset($conf['cache_dir']) ? $conf['cache_dir'] : APP_PATH . 'tmp/cache/';
+	}
+
+	public function connect() {
+		// 确保缓存目录存在
+		if(!is_dir($this->cache_dir)) {
+			if(!mkdir($this->cache_dir, 0755, TRUE)) {
+				return $this->error(-1, '创建缓存目录失败：' . $this->cache_dir);
+			}
+		}
+		return TRUE;
+	}
+
+	/**
+	 * 根据键名计算缓存文件路径
+	 * 使用 md5 前两字符作为一级目录，接下来两字符作为二级目录
+	 */
+	public function filepath($k) {
+		$hash = md5($k);
+		$dir1 = substr($hash, 0, 2);
+		$dir2 = substr($hash, 2, 2);
+		$path = $this->cache_dir . $dir1 . '/' . $dir2 . '/';
+		return $path . $k . '.cache';
+	}
+
+	/**
+	 * 确保文件所在目录存在
+	 */
+	public function ensure_dir($path) {
+		$dir = dirname($path);
+		if(!is_dir($dir)) {
+			if(!mkdir($dir, 0755, TRUE)) {
+				return $this->error(-1, '创建缓存子目录失败：' . $dir);
+			}
+		}
+		return TRUE;
+	}
+
+	public function set($k, $v, $life = 0) {
+		if(!$this->connect()) return FALSE;
+
+		// 拼接带前缀的键名
+		$key = $this->cachepre . $k;
+		$filepath = $this->filepath($key);
+
+		if(!$this->ensure_dir($filepath)) return FALSE;
+
+		// 计算过期时间戳，0 表示永不过期
+		$expiry = $life > 0 ? (time() + $life) : 0;
+
+		// 格式：EXPIRY_TIMESTAMP\nJSON_DATA
+		$data = $expiry . "\n" . xn_json_encode($v);
+
+		$r = file_put_contents($filepath, $data, LOCK_EX);
+		if($r === FALSE) {
+			return $this->error(-1, '写入缓存文件失败：' . $filepath);
+		}
+		@chmod($filepath, 0644);
+		return TRUE;
+	}
+
+	public function get($k) {
+		if(!$this->connect()) return FALSE;
+
+		$key = $this->cachepre . $k;
+		$filepath = $this->filepath($key);
+
+		if(!is_file($filepath)) return NULL;
+
+		$content = file_get_contents($filepath);
+		if($content === FALSE) {
+			return $this->error(-1, '读取缓存文件失败：' . $filepath);
+		}
+
+		// 解析过期时间戳和数据
+		$pos = strpos($content, "\n");
+		if($pos === FALSE) return NULL;
+
+		$expiry = (int)substr($content, 0, $pos);
+		$json_data = substr($content, $pos + 1);
+
+		// 检查是否过期（0 表示永不过期）
+		if($expiry > 0 && time() > $expiry) {
+			// 已过期，删除文件并返回 NULL
+			@unlink($filepath);
+			return NULL;
+		}
+
+		return xn_json_decode($json_data);
+	}
+
+	public function delete($k) {
+		if(!$this->connect()) return FALSE;
+
+		$key = $this->cachepre . $k;
+		$filepath = $this->filepath($key);
+
+		if(!is_file($filepath)) return TRUE;
+
+		$r = @unlink($filepath);
+		if(!$r) {
+			return $this->error(-1, '删除缓存文件失败：' . $filepath);
+		}
+		return TRUE;
+	}
+
+	public function truncate() {
+		if(!$this->connect()) return FALSE;
+
+		// 递归删除缓存目录下所有文件和子目录
+		$this->rmdir_recursive($this->cache_dir);
+
+		// 重新创建缓存目录
+		if(!mkdir($this->cache_dir, 0755, TRUE)) {
+			return $this->error(-1, '重建缓存目录失败：' . $this->cache_dir);
+		}
+		return TRUE;
+	}
+
+	/**
+	 * 按前缀删除缓存键（生产安全）
+	 * 遍历缓存目录，删除文件名匹配指定前缀的所有缓存文件，不依赖注册表
+	 */
+	public function deleteByPrefix($prefix) {
+		if(!$this->connect()) return 0;
+		$fullPrefix = $this->cachepre . $prefix;
+		$deleted = 0;
+		$this->rdeleteByPrefix($this->cache_dir, $fullPrefix, $deleted);
+		return $deleted;
+	}
+
+	private function rdeleteByPrefix($dir, $prefix, &$deleted) {
+		if(!is_dir($dir)) return;
+		$entries = scandir($dir);
+		foreach($entries as $entry) {
+			if($entry == '.' || $entry == '..') continue;
+			$path = $dir . $entry;
+			if(is_dir($path)) {
+				$this->rdeleteByPrefix($path . '/', $prefix, $deleted);
+				@rmdir($path);
+			} else {
+				if(strpos($entry, $prefix) === 0) {
+					if(@unlink($path)) $deleted++;
+				}
+			}
+		}
+	}
+
+	/**
+	 * 递归删除目录及其内容
+	 */
+	public function rmdir_recursive($dir) {
+		if(!is_dir($dir)) return;
+		$entries = scandir($dir);
+		foreach($entries as $entry) {
+			if($entry == '.' || $entry == '..') continue;
+			$path = $dir . $entry;
+			if(is_dir($path)) {
+				$this->rmdir_recursive($path . '/');
+				@rmdir($path);
+			} else {
+				@unlink($path);
+			}
+		}
+		@rmdir($dir);
+	}
+
+	public function error($errno = 0, $errstr = '') {
+		$this->errno = $errno;
+		$this->errstr = $errstr;
+		DEBUG AND trigger_error('Cache Error:' . $this->errstr);
+	}
+
+	public function __destruct() {
+
 	}
 }
 
@@ -872,6 +1019,18 @@ class cache_mysql {
                 }
                 return TRUE;
         }
+        /**
+         * 按前缀删除缓存键（生产安全）
+         * 用 SQL LIKE 匹配删除所有以指定前缀开头的键，不依赖注册表
+         */
+        public function deleteByPrefix($prefix) {
+                if(!$this->db) return 0;
+                $fullPrefix = $this->cachepre . $prefix;
+                $table = $this->db->tablepre . $this->table;
+                $sql = "DELETE FROM `{$table}` WHERE k LIKE '" . addslashes($fullPrefix) . "%'";
+                $n = db_exec($sql, $this->db);
+                return $n === FALSE ? 0 : intval($n);
+        }
         public function error($errno, $errstr) {
         	$this->errno = $errno;
         	$this->errstr = $errstr;
@@ -964,7 +1123,7 @@ function db_new($dbconf) {
 
 		switch ($dbconf['type']) {
 			case 'mysql':
-			xn_log('db.type=mysql is deprecated, auto-switching to pdo_mysql', 'deprecated');
+			xn_log('db type mysql deprecated, fallback to pdo_mysql', 'error');
 			$db = new db_pdo_mysql($dbconf['pdo_mysql']);
 			break;
 			case 'pdo_mysql':  $db = new db_pdo_mysql($dbconf['pdo_mysql']);	break;
@@ -1003,6 +1162,7 @@ function db_close($d = NULL) {
 	return $r;
 }
 
+// 保留 db_sql_find_one：复杂 SQL（JOIN/子查询）入口，调用方需自行参数化
 function db_sql_find_one($sql, $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
@@ -1014,6 +1174,7 @@ function db_sql_find_one($sql, $d = NULL) {
 	return $arr;
 }
 
+// 保留 db_sql_find：复杂 SQL（JOIN/子查询）入口，调用方需自行参数化
 function db_sql_find($sql, $key = NULL, $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
@@ -1025,6 +1186,7 @@ function db_sql_find($sql, $key = NULL, $d = NULL) {
 	return $arr;
 }
 
+// 保留 db_exec：复杂 SQL（DDL/CREATE TABLE 等）入口，调用方需自行参数化
 function db_exec($sql, $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
@@ -1043,6 +1205,67 @@ function db_exec($sql, $d = NULL) {
 	db_errno_errstr($n, $d, $sql);
 
 	return $n;
+}
+
+/**
+ * 预处理执行 SQL（写操作），返回影响行数或插入 ID
+ */
+function db_exec_prepared($sql, $params = array(), $d = NULL) {
+	$db = $_SERVER['db'];
+	$d = $d ? $d : $db;
+	if(!$d) return FALSE;
+
+	DEBUG AND xn_log($sql.' ['.xn_json_encode($params).']', 'db_exec');
+
+	$stmt = $d->prepare($sql, $params);
+	if(!$stmt) {
+		db_errno_errstr(FALSE, $d, $sql);
+		return FALSE;
+	}
+
+	// 判断是否 INSERT/REPLACE，返回 last_insert_id；否则返回 rowCount
+	$pre = strtoupper(substr(ltrim($sql), 0, 7));
+	if($pre == 'INSERT ' || $pre == 'REPLACE') {
+		$n = intval($d->last_insert_id());
+	} else {
+		$n = intval($stmt->rowCount());
+	}
+
+	db_errno_errstr($n, $d, $sql);
+	$stmt->closeCursor();
+	return $n;
+}
+
+/**
+ * 预处理查询多行
+ */
+function db_sql_find_prepared($sql, $params = array(), $key = NULL, $d = NULL) {
+	$db = $_SERVER['db'];
+	$d = $d ? $d : $db;
+	if(!$d) return array();
+	$stmt = $d->prepare($sql, $params);
+	if(!$stmt) {
+		db_errno_errstr(FALSE, $d, $sql);
+		return array();
+	}
+	$stmt->setFetchMode(PDO::FETCH_ASSOC);
+	$arrlist = $stmt->fetchAll();
+	$stmt->closeCursor();
+	$key AND $arrlist = arrlist_change_key($arrlist, $key);
+	db_errno_errstr($arrlist, $d, $sql);
+	return is_array($arrlist) ? $arrlist : array();
+}
+
+/**
+ * 预处理查询单行
+ */
+function db_sql_find_one_prepared($sql, $params = array(), $d = NULL) {
+	$db = $_SERVER['db'];
+	$d = $d ? $d : $db;
+	if(!$d) return FALSE;
+	$arr = $d->prepare_one($sql, $params);
+	db_errno_errstr($arr, $d, $sql);
+	return $arr;
 }
 
 function db_count($table, $cond = array(), $d = NULL) {
@@ -1084,9 +1307,9 @@ function db_insert($table, $arr, $d = NULL) {
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
 
-	$sqladd = db_array_to_insert_sqladd($arr);
+	list($sqladd, $params) = db_array_to_insert_sqladd($arr);
 	if(!$sqladd) return FALSE;
-	return db_exec("INSERT INTO {$d->tablepre}$table $sqladd", $d);
+	return db_exec_prepared("INSERT INTO {$d->tablepre}$table $sqladd", $params, $d);
 }
 
 function db_replace($table, $arr, $d = NULL) {
@@ -1094,9 +1317,9 @@ function db_replace($table, $arr, $d = NULL) {
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
 
-	$sqladd = db_array_to_insert_sqladd($arr);
+	list($sqladd, $params) = db_array_to_insert_sqladd($arr);
 	if(!$sqladd) return FALSE;
-	return db_exec("REPLACE INTO {$d->tablepre}$table $sqladd", $d);
+	return db_exec_prepared("REPLACE INTO {$d->tablepre}$table $sqladd", $params, $d);
 }
 
 function db_update($table, $cond, $update, $d = NULL) {
@@ -1104,10 +1327,11 @@ function db_update($table, $cond, $update, $d = NULL) {
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
 
-	$condadd = db_cond_to_sqladd($cond);
-	$sqladd = db_array_to_update_sqladd($update);
+	list($condadd, $condParams) = db_cond_to_sqladd($cond);
+	list($sqladd, $updateParams) = db_array_to_update_sqladd($update);
 	if(!$sqladd) return FALSE;
-	return db_exec("UPDATE {$d->tablepre}$table SET $sqladd $condadd", $d);
+	$params = array_merge($updateParams, $condParams);
+	return db_exec_prepared("UPDATE {$d->tablepre}$table SET $sqladd $condadd", $params, $d);
 }
 
 function db_delete($table, $cond, $d = NULL) {
@@ -1115,8 +1339,8 @@ function db_delete($table, $cond, $d = NULL) {
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
 
-	$condadd = db_cond_to_sqladd($cond);
-	return db_exec("DELETE FROM {$d->tablepre}$table $condadd", $d);
+	list($condadd, $condParams) = db_cond_to_sqladd($cond);
+	return db_exec_prepared("DELETE FROM {$d->tablepre}$table $condadd", $condParams, $d);
 }
 
 function db_truncate($table, $d = NULL) {
@@ -1132,9 +1356,9 @@ function db_read($table, $cond, $d = NULL) {
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
 
-	$sqladd = db_cond_to_sqladd($cond);
+	list($sqladd, $params) = db_cond_to_sqladd($cond);
 	$sql = "SELECT * FROM {$d->tablepre}$table $sqladd";
-	return db_sql_find_one($sql, $d);
+	return db_sql_find_one_prepared($sql, $params, $d);
 }
 
 function db_find($table, $cond = array(), $orderby = array(), $page = 1, $pagesize = 10, $key = '', $col = array(), $d = NULL) {
@@ -1195,6 +1419,7 @@ function db_errstr_safe($errno, $errstr) {
 
 function db_cond_to_sqladd($cond) {
 	$s = '';
+	$params = array();
 	if(!empty($cond)) {
 		$s = ' WHERE ';
 		foreach($cond as $k=>$v) {
@@ -1206,32 +1431,44 @@ function db_cond_to_sqladd($cond) {
 					$col = $m[1];
 					$op = $m[2];
 				}
-				$v = (is_int($v) || is_float($v)) ? $v : "'".addslashes((string)$v)."'";
-				$s .= "`$col`$op$v AND ";
+				// 字段名白名单校验，防字段名注入
+				if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $col)) {
+					continue;
+				}
+				$s .= "`$col`$op? AND ";
+				$params[] = $v;
 			} elseif(isset($v[0])) {
+				// OR 数组：array(1,2,3) -> (col=? OR col=? OR col=?)
+				if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $k)) {
+					continue;
+				}
 				$s .= '(';
 
 				foreach ($v as $v1) {
-					$v1 = (is_int($v1) || is_float($v1)) ? $v1 : "'".addslashes((string)$v1)."'";
-					$s .= "`$k`=$v1 OR ";
+					$s .= "`$k`=? OR ";
+					$params[] = $v1;
 				}
 				$s = substr($s, 0, -4);
 				$s .= ') AND ';
 
 			} else {
+				// 操作符数组：array('>' => 100, 'LIKE' => 'jack')
+				if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $k)) {
+					continue;
+				}
 				foreach($v as $k1=>$v1) {
 					if($k1 == 'LIKE') {
 						$k1 = ' LIKE ';
 						$v1="%$v1%";
 					}
-					$v1 = (is_int($v1) || is_float($v1)) ? $v1 : "'".addslashes((string)$v1)."'";
-					$s .= "`$k`$k1$v1 AND ";
+					$s .= "`$k`$k1? AND ";
+					$params[] = $v1;
 				}
 			}
 		}
 		$s = substr($s, 0, -4);
 	}
-	return $s;
+	return array($s, $params);
 }
 
 function db_orderby_to_sqladd($orderby) {
@@ -1249,51 +1486,64 @@ function db_orderby_to_sqladd($orderby) {
 
 function db_array_to_update_sqladd($arr) {
 	$s = '';
+	$params = array();
 	foreach($arr as $k=>$v) {
-		$v = addslashes((string)$v);
 		$op = substr($k, -1);
 		if($op == '+' || $op == '-') {
-			$k = substr($k, 0, -1);
-			$v = (is_int($v) || is_float($v)) ? $v : "'$v'";
-			$s .= "`$k`=$k$op$v,";
+			$col = substr($k, 0, -1);
+			// 字段名白名单校验
+			if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $col)) {
+				continue;
+			}
+			$s .= "`$col`=$col$op?,";
+			$params[] = $v;
 		} else {
-			$v = (is_int($v) || is_float($v)) ? $v : "'$v'";
-			$s .= "`$k`=$v,";
+			// 字段名白名单校验
+			if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $k)) {
+				continue;
+			}
+			$s .= "`$k`=?,";
+			$params[] = $v;
 		}
 	}
-	return substr($s, 0, -1);
+	return array(substr($s, 0, -1), $params);
 }
 
 function db_array_to_insert_sqladd($arr) {
 	$s = '';
 	$keys = array();
-	$values = array();
+	$placeholders = array();
+	$params = array();
 	foreach($arr as $k=>$v) {
-		$k = addslashes((string)$k);
-		$v = addslashes((string)$v);
+		// 字段名白名单校验
+		if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $k)) {
+			continue;
+		}
 		$keys[] = '`'.$k.'`';
-		$v = (is_int($v) || is_float($v)) ? $v : "'$v'";
-		$values[] = $v;
+		$placeholders[] = '?';
+		$params[] = $v;
 	}
 	$keystr = implode(',', $keys);
-	$valstr = implode(',', $values);
-	$sqladd = "($keystr) VALUES ($valstr)";
-	return $sqladd;
+	$phstr = implode(',', $placeholders);
+	$sqladd = "($keystr) VALUES ($phstr)";
+	return array($sqladd, $params);
 }
 
 function db_check_column_exists($table, $column) {
 	$db = $_SERVER['db'];
 	if(!$db) return FALSE;
-	$sql = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$db->tablepre}{$table}' AND COLUMN_NAME = '{$column}'";
-	$r = db_sql_find_one($sql);
+	// 联表查 INFORMATION_SCHEMA 系统表，db_find 不支持，保留 db_sql_find_one_prepared
+	$sql = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?";
+	$r = db_sql_find_one_prepared($sql, array($db->tablepre.$table, $column));
 	return !empty($r);
 }
 
 function db_check_table_exists($table) {
 	$db = $_SERVER['db'];
 	if(!$db) return FALSE;
-	$sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$db->tablepre}{$table}'";
-	$r = db_sql_find_one($sql);
+	// 联表查 INFORMATION_SCHEMA 系统表，db_find 不支持，保留 db_sql_find_one_prepared
+	$sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?";
+	$r = db_sql_find_one_prepared($sql, array($db->tablepre.$table));
 	return !empty($r);
 }
 
@@ -1845,14 +2095,55 @@ function xn_safe_key() {
 	return $key;
 }
 
-function xn_encrypt($txt, $key = '') {
-	empty($key) AND $key = xn_key();
-	$encrypt = function_exists('xiuno_encrypt') ? xiuno_encrypt($txt, $key) : xxtea_encrypt($txt, $key);
-	return xn_urlencode(base64_encode($encrypt));
+// AES-256-GCM 加密（v2，替代 XXTEA）
+// 密钥派生：HKDF-SHA256，info='xiuno-token'，输出 32 字节
+// IV：12 字节随机数（GCM 标准）
+// 认证标签：16 字节
+// 密文格式：base64(iv[12] + ciphertext + tag[16])
+function xn_encrypt_v2($key, $data) {
+	$derived_key = hash_hkdf('sha256', $key, 0, 'xiuno-token');
+	$iv = random_bytes(12);
+	$tag = '';
+	$ciphertext = openssl_encrypt($data, 'aes-256-gcm', $derived_key, OPENSSL_RAW_DATA, $iv, $tag);
+	if($ciphertext === false) return false;
+	return base64_encode($iv . $ciphertext . $tag);
 }
 
-function xn_decrypt($txt, $key = '') {
+// AES-256-GCM 解密（v2）
+// 失败返回 false；GCM 自带认证标签校验，tag 不匹配则 openssl_decrypt 返回 false
+function xn_decrypt_v2($key, $payload) {
+	$raw = base64_decode($payload, true);
+	if($raw === false) return false;
+	// 最小长度：12(IV) + 16(tag) = 28 字节
+	if(strlen($raw) < 28) return false;
+	$derived_key = hash_hkdf('sha256', $key, 0, 'xiuno-token');
+	$iv = substr($raw, 0, 12);
+	$tag = substr($raw, -16);
+	$ciphertext = substr($raw, 12, -16);
+	$plaintext = openssl_decrypt($ciphertext, 'aes-256-gcm', $derived_key, OPENSSL_RAW_DATA, $iv, $tag);
+	if($plaintext === false) return false;
+	return $plaintext;
+}
+
+// 兼容入口：加密永远用 v2
+// 保留原签名 ($txt, $key) 以兼容所有调用方
+function xn_encrypt($txt, $key = '') {
 	empty($key) AND $key = xn_key();
+	return xn_encrypt_v2($key, $txt);
+}
+
+// 兼容入口：解密先试 v2，失败回退 XXTEA（迁移期兼容旧令牌）
+// 第三个可选参数 &$used_v2：true 表示 v2 解密成功，false 表示 fallback 到 XXTEA
+function xn_decrypt($txt, $key = '', &$used_v2 = false) {
+	empty($key) AND $key = xn_key();
+	// 先尝试 v2（密文为 raw base64，无需 xn_urldecode）
+	$v2_result = xn_decrypt_v2($key, $txt);
+	if($v2_result !== false) {
+		$used_v2 = true;
+		return $v2_result;
+	}
+	// 回退到 XXTEA 旧逻辑（旧令牌经 xn_urlencode 包装，需 xn_urldecode 还原）
+	$used_v2 = false;
 	$encrypt = base64_decode(xn_urldecode($txt));
 	$ret = function_exists('xiuno_decrypt') ? xiuno_decrypt($encrypt, $key) : xxtea_decrypt($encrypt, $key);
 	return $ret;
@@ -2281,32 +2572,68 @@ function humansize($num) {
 
 function ip() {
 	$conf = _SERVER('conf');
-	$ip = '127.0.0.1';
-	if(empty($conf['cdn_on'])) {
-		$ip = _SERVER('REMOTE_ADDR');
-	} else {
-		if(isset($_SERVER['HTTP_CDN_SRC_IP'])) {
-			$ip = $_SERVER['HTTP_CDN_SRC_IP'];
-		} elseif(isset($_SERVER['HTTP_CLIENTIP'])) {
-			$ip = $_SERVER['HTTP_CLIENTIP'];
-		} elseif(isset($_SERVER['HTTP_CLIENT_IP'])) {
-			$ip = $_SERVER['HTTP_CLIENT_IP'];
-		} elseif(isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-			$ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
-			$arr = array_filter(explode(',', $ip));
-			$ip = trim(end($arr));
-		} else {
-			$ip = _SERVER('REMOTE_ADDR');
+	$ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '127.0.0.1';
+	$local_ips = array('127.0.0.1', '::1', '0.0.0.0');
+	$is_local = in_array($ip, $local_ips);
+	if(empty($conf['cdn_ip']) || empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+		if($is_local && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+			$arr = array_filter(array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])));
+			if(!empty($arr)) {
+				$real_ip = reset($arr);
+				return long2ip(ip2long($real_ip));
+			}
+		}
+		return long2ip(ip2long($ip));
+	}
+	$is_trusted = $is_local;
+	$ip_long = ip2long($ip);
+	foreach($conf['cdn_ip'] as $cdnip) {
+		$cdnip = trim($cdnip);
+		if($cdnip === '' || $ip_long === false) continue;
+		if(strpos($cdnip, '/') !== false) {
+			list($subnet, $mask) = explode('/', $cdnip, 2);
+			$subnet_long = ip2long($subnet);
+			$mask = intval($mask);
+			if($subnet_long !== false && $mask >= 0 && $mask <= 32) {
+				$mask_long = $mask == 0 ? 0 : (~((1 << (32 - $mask)) - 1) & 0xFFFFFFFF);
+				if(($ip_long & $mask_long) === ($subnet_long & $mask_long)) {
+					$is_trusted = true;
+					break;
+				}
+			}
+		} elseif($ip === $cdnip) {
+			$is_trusted = true;
+			break;
 		}
 	}
-	return long2ip(ip2long($ip));
+	if(!$is_trusted) {
+		return long2ip(ip2long($ip));
+	}
+	// 可信代理：取 X-Forwarded-For 第一个值（首跳，最远端用户 IP）
+	$arr = array_filter(array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])));
+	if(empty($arr)) return long2ip(ip2long($ip));
+	$real_ip = reset($arr);
+	return long2ip(ip2long($real_ip));
 }
 
-function xn_log($s, $file = 'error') {
+// 日志记录
+// $level: DEBUG/INFO/WARNING/ERROR，按 conf.log_level 过滤低级别日志
+function xn_log($s, $file = 'error', $level = 'WARNING') {
+	// DEBUG=0 时仅写文件名含 error 的日志（保留原逻辑）
 	if(DEBUG == 0 && strpos($file, 'error') === FALSE) return;
+
+	// 级别过滤：低于 conf.log_level 阈值的日志不写
+	static $levels = array('DEBUG' => 0, 'INFO' => 1, 'WARNING' => 2, 'ERROR' => 3);
+	$conf = _SERVER('conf');
+	$config_level = isset($conf['log_level']) ? $conf['log_level'] : 'WARNING';
+	if(isset($levels[$level]) && isset($levels[$config_level]) && $levels[$level] < $levels[$config_level]) {
+		return;
+	}
+	// 未知级别归一为 WARNING
+	$level = isset($levels[$level]) ? $level : 'WARNING';
+
 	$time = $_SERVER['time'];
 	$ip = $_SERVER['ip'];
-	$conf = _SERVER('conf');
 	$uid = intval(G('uid'));
 	$day = date('Ym', $time);
 	$mtime = date('Y-m-d H:i:s');
@@ -2315,7 +2642,7 @@ function xn_log($s, $file = 'error') {
 	!is_dir($logpath) AND mkdir($logpath, 0777, true);
 
 	$s = str_replace(array("\r\n", "\n", "\t"), ' ', $s);
-	$s = "<?php exit;?>\t$mtime\t$ip\t$url\t$uid\t$s\r\n";
+	$s = "<?php exit;?>\t[$level]\t$mtime\t$ip\t$url\t$uid\t$s\r\n";
 
 	@error_log($s, 3, $logpath."/$file.php");
 }
@@ -3067,7 +3394,15 @@ function http_403() {
 	}
 }
 
-function http_location($url) {
+function http_location($url, $allow_external = FALSE) {
+	// 默认仅允许站内跳转，防开放重定向
+	if(!$allow_external) {
+		$url_host = parse_url($url, PHP_URL_HOST);
+		$current_host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
+		if($url_host && $current_host && $url_host !== $current_host) {
+			$url = url('');
+		}
+	}
 	header('Location:'.$url);
 	exit;
 }
@@ -3137,6 +3472,18 @@ empty($conf) AND $conf = array('db'=>array(), 'cache'=>array(), 'tmp_path'=>'./'
 empty($conf['tmp_path']) AND $conf['tmp_path'] = ini_get('upload_tmp_dir');
 empty($conf['log_path']) AND $conf['log_path'] = './';
 
+// auth_key 安全检测：禁止使用已知硬编码值或空值运行
+$_auth_key = isset($conf['auth_key']) ? $conf['auth_key'] : '';
+if($_auth_key === ''
+	|| $_auth_key === 'efdkjfjiiiwurjdmclsldow753jsdj438'
+	|| strlen($_auth_key) < 32) {
+	// 仅在非安装路径、非后台路径下阻断
+	$_script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '';
+	if(strpos($_script_name, 'install/') === FALSE && strpos($_script_name, 'admin/') === FALSE) {
+		die('auth_key 未配置或强度不足，请运行安装程序（install/）或在 conf.php 中设置 32 位以上随机密钥。');
+	}
+}
+
 $ip = ip();
 $longip = ip2long($ip);
 $longip < 0 AND $longip = sprintf("%u", $longip); // fix 32 位 OS 下溢出的问题
@@ -3194,6 +3541,10 @@ $db = !empty($conf['db']) ? db_new($conf['db']) : NULL;
 
 // 缓存初始化通过 CacheService 管理（早期初始化，仅使用 conf 配置）
 include APP_PATH.'lib/CacheService.php';
+// 加载缓存辅助类（提供 remember/pluginKey/deleteByPrefix 等便捷 API）
+include APP_PATH.'lib/CacheHelper.php';
+// 每个请求结束时自动持久化缓存统计，供后台页面读取跨请求累积的命中率
+register_shutdown_function(array('CacheHelper', 'persistStats'));
 $cache = CacheService::earlyInit();
 
 // 对 key 进行安全保护，Xiuno 专用扩展
@@ -3201,5 +3552,10 @@ $cache = CacheService::earlyInit();
 
 $_SERVER['db'] = $db;
 $_SERVER['cache'] = $cache;
+
+// 全局错误处理器：在框架启动最早期注册，捕获未处理异常/fatal error，避免白屏
+// 覆盖 xiunophp 默认的 error_handle，统一由 ErrorHandler 兜底（BizException 200 / 系统 500）
+require_once APP_PATH.'lib/ErrorHandler.php';
+ErrorHandler::register();
 
 ?>

@@ -4,7 +4,7 @@
     --admin-sidebar-width: auto;
     --admin-sidebar-min-width: 140px;
     --admin-sidebar-max-width: 220px;
-    --admin-sidebar-bg: #1e293b;
+    --admin-sidebar-bg: #060606;
     --admin-transition: all 0.2s ease;
     --admin-radius: 0.375rem;
     --bs-btn-bg: var(--bs-primary);
@@ -56,9 +56,7 @@ a {
     transition: margin-left 0.15s ease;
 }
 
-[data-bs-theme="dark"] .admin-main {
-    background: #333;
-}
+ 
 
 .admin-content {
     flex: 1;
@@ -344,18 +342,7 @@ a {
     box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
 }
  
-[data-bs-theme="dark"] .sidenav-menu {
-    background: var(--admin-sidebar-bg);
-}
-
-[data-bs-theme="dark"] .admin-topnav {
-    background: var(--bs-body-bg);
-    border-color: var(--bs-border-color);
-}
-
-[data-bs-theme="dark"] .admin-table tbody tr:hover {
-    background: rgba(37, 99, 235, 0.15) !important;
-}
+ 
 
 @media (max-width: 991.98px) {
     .admin-main {

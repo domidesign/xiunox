@@ -38,7 +38,6 @@ if(IN_CMD) {
 
 // ----------------------------------------------------------> db cache class
 
-include XIUNOPHP_PATH.'db_mysql.class.php';
 include XIUNOPHP_PATH.'db_pdo_mysql.class.php';
 include XIUNOPHP_PATH.'db_pdo_sqlite.class.php';
 include XIUNOPHP_PATH.'cache_file.class.php';
@@ -60,6 +59,18 @@ include XIUNOPHP_PATH.'misc.func.php';
 empty($conf) AND $conf = array('db'=>array(), 'cache'=>array(), 'tmp_path'=>'./', 'log_path'=>'./', 'timezone'=>'Asia/Shanghai');
 empty($conf['tmp_path']) AND $conf['tmp_path'] = ini_get('upload_tmp_dir');
 empty($conf['log_path']) AND $conf['log_path'] = './';
+
+// auth_key 安全检测：禁止使用已知硬编码值或空值运行
+$_auth_key = isset($conf['auth_key']) ? $conf['auth_key'] : '';
+if($_auth_key === ''
+	|| $_auth_key === 'efdkjfjiiiwurjdmclsldow753jsdj438'
+	|| strlen($_auth_key) < 32) {
+	// 仅在非安装路径、非后台路径下阻断
+	$_script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '';
+	if(strpos($_script_name, 'install/') === FALSE && strpos($_script_name, 'admin/') === FALSE) {
+		die('auth_key 未配置或强度不足，请运行安装程序（install/）或在 conf.php 中设置 32 位以上随机密钥。');
+	}
+}
 
 $ip = ip();
 $longip = ip2long($ip);
@@ -116,8 +127,17 @@ $_SERVER['get_magic_quotes_gpc'] = $get_magic_quotes_gpc;
 $db = !empty($conf['db']) ? db_new($conf['db']) : NULL;
 //$db AND $db->errno AND xn_message(-1, $db->errstr); // 安装的时候检测过了，不必每次都检测。但是要考虑环境移植。
 
+// 字符集校验：强制 utf8mb4（db_pdo_mysql real_connect 时已 SET NAMES，此处仅校验配置）
+if($db && isset($conf['charset']) && $conf['charset'] !== 'utf8mb4') {
+	$conf['charset'] = 'utf8mb4';
+}
+
 // 缓存初始化通过 CacheService 管理（早期初始化，仅使用 conf 配置）
 include APP_PATH.'lib/CacheService.php';
+// 加载缓存辅助类（提供 remember/pluginKey/deleteByPrefix 等便捷 API）
+include APP_PATH.'lib/CacheHelper.php';
+// 每个请求结束时自动持久化缓存统计，供后台页面读取跨请求累积的命中率
+register_shutdown_function(array('CacheHelper', 'persistStats'));
 $cache = CacheService::earlyInit();
 
 // 对 key 进行安全保护，Xiuno 专用扩展
@@ -125,5 +145,10 @@ $cache = CacheService::earlyInit();
 
 $_SERVER['db'] = $db;
 $_SERVER['cache'] = $cache;
+
+// 全局错误处理器：在框架启动最早期注册，捕获未处理异常/fatal error，避免白屏
+// 覆盖 xiunophp 默认的 error_handle，统一由 ErrorHandler 兜底（BizException 200 / 系统 500）
+require_once APP_PATH.'lib/ErrorHandler.php';
+ErrorHandler::register();
 
 ?>

@@ -94,6 +94,7 @@ function notify_create_batch($records) {
 	global $time, $db;
 	if(empty($records) || !is_array($records)) return 0;
 	if(empty($db)) return 0;
+	$tablepre = $db->tablepre;
 
 	// 系统通知类型允许自己通知自己；其他类型不允许
 	$system_types = array('announcement', 'system', 'audit_pending');
@@ -158,32 +159,24 @@ function notify_create_batch($records) {
 
 	if(empty($to_insert)) return 0;
 
-	// ===== 第四步：单次 SQL 批量 INSERT =====
+	// ===== 第四步：循环 db_insert() 插入（PDO 预处理防注入） =====
 	// notify 表字段（与 notify_create 保持一致）
 	$fields = array('uid', 'from_uid', 'type', 'tid', 'pid', 'content', 'message', 'icon', 'url', 'reply_to_uid', 'parent_pid', 'create_date', 'is_read');
 
-	$tablepre = $db->tablepre;
-	$values_parts = array();
+	$inserted = 0;
 	foreach($to_insert as $rec) {
 		$row = array();
 		foreach($fields as $f) {
 			$v = isset($rec[$f]) ? $rec[$f] : '';
 			if($f === 'create_date' && empty($v)) $v = $time;
 			if($f === 'is_read' && empty($v)) $v = 0;
-			if(is_int($v) || is_float($v)) {
-				$row[] = $v;
-			} else {
-				$row[] = "'".addslashes((string)$v)."'";
-			}
+			$row[$f] = $v;
 		}
-		$values_parts[] = '('.implode(',', $row).')';
+		$r = db_insert('notify', $row);
+		if($r !== FALSE) $inserted++;
 	}
 
-	$field_str = '`'.implode('`,`', $fields).'`';
-	$sql = "INSERT INTO {$tablepre}notify ($field_str) VALUES ".implode(',', $values_parts);
-	$r = db_exec($sql);
-
-	if(!$r) return 0;
+	if($inserted == 0) return 0;
 
 	// ===== 第五步：批量更新 user.unread_notices 计数器 =====
 	// 统计每个 uid 在本批次中的通知数（同一 uid 可能有多条通知）
@@ -207,7 +200,7 @@ function notify_create_batch($records) {
 		db_exec("UPDATE {$tablepre}user SET unread_notices = unread_notices + $case_sql WHERE uid IN ($uid_in)");
 	}
 
-	return count($to_insert);
+	return $inserted;
 }
 
 function notify_read($nid) {

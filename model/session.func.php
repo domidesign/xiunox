@@ -276,13 +276,30 @@ function sess_start() {
 	ini_set('session.gc_probability', 1); 	// 垃圾回收概率 = gc_probability/gc_divisor
 	ini_set('session.gc_divisor', 500); 	// 垃圾回收时间 5 秒，在线人数 * 10 
 	
-	session_set_save_handler(new XiunoSessionHandler());
-	
+	// 根据 session_handler 配置选择存储驱动
+	// - file：PHP 默认文件存储（性能最佳，但不支持 online_count 等依赖 session 表的功能）
+	// - redis：Redis 存储（需 phpredis 扩展，连接失败自动回退 file）
+	// - db：数据库存储（默认，兼容 online_count/online_list 等业务功能）
+	$session_handler = isset($conf['session_handler']) ? $conf['session_handler'] : 'db';
+	switch($session_handler) {
+		case 'file':
+			// 使用 PHP 默认 file handler，不注册自定义 save handler
+			break;
+		case 'redis':
+			// 连接失败会回退到 PHP 默认 file handler
+			sess_init_redis_handler();
+			break;
+		case 'db':
+		default:
+			session_set_save_handler(new XiunoSessionHandler());
+			break;
+	}
+
 	// register_shutdown_function 会丢失当前目录，需要 chdir(APP_PATH)
-	
+
 	// 这个比须有，否则 ZEND 会提前释放 $db 资源
 	register_shutdown_function('session_write_close');
-	
+
 	session_start();
 	
 	$sid = session_id();
@@ -307,7 +324,7 @@ function online_find_cache() {
 
 function online_list_cache() {
 	$onlinelist = cache_get('online_list');
-	if($onlinelist === NULL) {
+	if($onlinelist === NULL || $onlinelist === FALSE) {
 		$onlinelist = db_find('session', array('uid'=>array('>'=>0)), array('last_date'=>-1), 1, 500);
 		foreach($onlinelist as &$online) {
 			$user = user_read_cache($online['uid']);
@@ -319,6 +336,56 @@ function online_list_cache() {
 		cache_set('online_list', $onlinelist, 300);
 	}
 	return $onlinelist;
+}
+
+/**
+ * 初始化 Redis Session Handler
+ * 通过 ini_set 设置 session.save_handler=redis + session.save_path=tcp://...
+ * phpredis 扩展会接管 session 存储，无需实现 SessionHandlerInterface
+ * 连接失败时静默回退到 PHP 默认 file handler
+ */
+function sess_init_redis_handler() {
+	global $conf;
+
+	// 检查 phpredis 扩展是否可用
+	if(!class_exists('Redis')) {
+		xn_log('Redis extension not available, fallback to file session', 'session_error');
+		return;
+	}
+
+	$cfg = isset($conf['session_redis']) ? $conf['session_redis'] : array();
+	$host = isset($cfg['host']) ? $cfg['host'] : '127.0.0.1';
+	$port = isset($cfg['port']) ? $cfg['port'] : 6379;
+	// 兼容新旧字段名：password（新）/ auth（旧）；database（新）/ db（旧）
+	$auth = isset($cfg['password']) ? $cfg['password'] : (isset($cfg['auth']) ? $cfg['auth'] : '');
+	$db = isset($cfg['database']) ? $cfg['database'] : (isset($cfg['db']) ? $cfg['db'] : 0);
+
+	// 预先测试连接，失败则回退 file handler
+	// 使用 Exception 而非 RedisException，避免扩展未加载时类不存在报错
+	try {
+		$redis = new Redis();
+		$connected = $redis->connect($host, intval($port), 2);
+		if(!$connected) {
+			throw new Exception('Redis connect returned false');
+		}
+		if($auth) $redis->auth($auth);
+		if($db) $redis->select(intval($db));
+		$redis->close();
+	} catch(Exception $e) {
+		xn_log('Redis connect failed: ' . $e->getMessage() . ', fallback to file session', 'session_error');
+		return;
+	}
+
+	// 注册 Redis session save handler
+	// phpredis 通过 session.save_handler=redis + session.save_path=tcp://host:port?auth=xxx&database=N 接管 session
+	$save_path = 'tcp://' . $host . ':' . intval($port);
+	$params = array();
+	if($auth) $params[] = 'auth=' . rawurlencode($auth);
+	if($db) $params[] = 'database=' . intval($db);
+	if($params) $save_path .= '?' . implode('&', $params);
+
+	ini_set('session.save_handler', 'redis');
+	ini_set('session.save_path', $save_path);
 }
 
 ?>

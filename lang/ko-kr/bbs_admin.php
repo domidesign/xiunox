@@ -394,7 +394,7 @@ return array(
 	'admin_clear_opcache'=>'OPcache 정리',
 	'admin_opcache_not_enabled'=>'(OPcache 미활성화)',
 
-	'admin_upgrade_title'=>'Xiuno 4.0 → 4.5+ 원클릭 업그레이드',
+	'admin_upgrade_title'=>'Xiuno 4.0 →X 원클릭 업그레이드',
 	'admin_upgrade_current_version'=>'현재 버전:',
 	'admin_upgrade_target_version'=>'대상 버전:',
 	'admin_upgrade_waiting'=>'대기',
@@ -1185,7 +1185,6 @@ return array(
 	'admin_cache_password'=>'비밀번호',
 	'admin_cache_default_ttl'=>'데이터 캐시 기본 TTL',
 	'admin_cache_seconds'=>'초',
-	'admin_cache_auto_warmup'=>'인기 데이터 자동 웜업',
 	'admin_cache_test_conn'=>'연결 테스트',
 	'admin_cache_setting_saved'=>'캐시 설정이 저장되었습니다',
 	'admin_cache_select_type'=>'최소 하나의 캐시 유형을 선택해주세요',

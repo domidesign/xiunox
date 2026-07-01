@@ -166,8 +166,15 @@ if($action == 'top') {
 				// hook mod_delete_log_create_before.php
 			}
 		}
-		// 批量删除主题（post/attach/mythread/favorite/thread 全部合并清理）
-		!empty($delete_tids) AND thread_delete_batch($delete_tids);
+		// 软删除配置检查
+		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+		$sec_soft_delete = SecurityConfigService::get('security_soft_delete', 1);
+		if($sec_soft_delete) {
+			!empty($delete_tids) AND thread_soft_delete_batch($delete_tids, $uid);
+		} else {
+			// 批量删除主题（post/attach/mythread/favorite/thread 全部合并清理）
+			!empty($delete_tids) AND thread_delete_batch($delete_tids);
+		}
 		// 批量插入版主日志，消除 N+1 INSERT
 		!empty($modlog_records) AND modlog_create_batch($modlog_records);
 

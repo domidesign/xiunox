@@ -6,7 +6,7 @@ function runtime_init() {
 	// hook model_runtime_init_start.php
 	global $conf;
 	$runtime = cache_get('runtime'); // 实时运行的数据，初始化！
-	if($runtime === NULL || !isset($runtime['users'])) {
+	if($runtime === NULL || $runtime === FALSE || !isset($runtime['users'])) {
 		$runtime = array();
 		$runtime['users'] = user_count();
 		$runtime['posts'] = post_count();

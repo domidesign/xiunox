@@ -3,7 +3,7 @@
 /**
  * 插件兼容性扫描 - 动态建议构建器
  * 根据实际匹配内容生成具体的迁移建议
- * @since 4.5.0
+ * @since 1.0.2
  */
 class PluginScannerSuggestion {
 

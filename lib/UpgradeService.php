@@ -1089,7 +1089,6 @@ class UpgradeService {
                 'enable' => isset($oldCache['enable']) ? intval($oldCache['enable']) : 1,
                 'type' => isset($oldCache['type']) ? $oldCache['type'] : 'mysql',
                 'default_ttl' => 3600,
-                'auto_warmup' => 0,
                 'file' => array('cachepre' => 'bbs_', 'cache_dir' => ''),
                 'redis' => array(
                     'host' => isset($oldCache['redis']['host']) ? $oldCache['redis']['host'] : '127.0.0.1',
@@ -1470,6 +1469,52 @@ class UpgradeService {
         ];
     }
 
+    /**
+     * 软删除字段：为 thread 和 post 表添加 is_deleted, deleted_date, deleted_by 字段及索引
+     */
+    public function upgradeSoftDeleteFields(): array {
+        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $results = [];
+
+        // thread 表添加软删除字段
+        $columns = [
+            ['thread', 'is_deleted', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `is_deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否已删除: 0否/1是' AFTER `announcement_order`"],
+            ['thread', 'deleted_date', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `deleted_date` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '删除时间' AFTER `is_deleted`"],
+            ['thread', 'deleted_by', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `deleted_by` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '删除操作者uid' AFTER `deleted_date`"],
+            ['post', 'is_deleted', "ALTER TABLE `{$tablepre}post` ADD COLUMN `is_deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否已删除: 0否/1是' AFTER `is_top`"],
+            ['post', 'deleted_date', "ALTER TABLE `{$tablepre}post` ADD COLUMN `deleted_date` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '删除时间' AFTER `is_deleted`"],
+            ['post', 'deleted_by', "ALTER TABLE `{$tablepre}post` ADD COLUMN `deleted_by` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '删除操作者uid' AFTER `deleted_date`"],
+        ];
+
+        foreach ($columns as $col) {
+            $r = $this->addColumn($col[0], $col[1], $col[2], $tablepre);
+            $results[] = ['name' => $col[0].'.'.$col[1], 'ok' => $r['ok'], 'message' => $r['message']];
+        }
+
+        // 添加 is_deleted 索引
+        $indexes = [
+            ['thread', 'idx_is_deleted', "ALTER TABLE `{$tablepre}thread` ADD INDEX `idx_is_deleted` (`is_deleted`)"],
+            ['post', 'idx_is_deleted', "ALTER TABLE `{$tablepre}post` ADD INDEX `idx_is_deleted` (`is_deleted`)"],
+        ];
+
+        foreach ($indexes as $idx) {
+            if (!$this->dbIndexExists($idx[0], $idx[1], $tablepre)) {
+                $r = $this->execSql($idx[2]);
+                $results[] = ['name' => $idx[0].'.'.$idx[1], 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+            } else {
+                $results[] = ['name' => $idx[0].'.'.$idx[1], 'ok' => true, 'message' => '已存在，跳过'];
+            }
+        }
+
+        $allOk = !in_array(false, array_column($results, 'ok'), true);
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        return [
+            'ok' => $allOk,
+            'message' => $allOk ? "软删除字段升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'results' => $results,
+        ];
+    }
+
     public function upgradeEmailLogTable(): array {
         $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
         $results = [];
@@ -1561,6 +1606,7 @@ class UpgradeService {
             ['id' => 'plugin_table', 'name' => '插件管理表', 'description' => '创建插件管理表，支持插件时间记录和排序'],
             ['id' => 'email_log', 'name' => '邮件发送日志表', 'description' => '创建邮件发送日志表，记录邮件发送状态、错误信息等'],
             ['id' => 'friendlink_digest', 'name' => '精华帖', 'description' => '添加帖子精华字段（digest, digest_date），创建精华帖索引表'],
+            ['id' => 'soft_delete', 'name' => '软删除字段', 'description' => '为 thread 和 post 表添加 is_deleted, deleted_date, deleted_by 字段及索引，支持软删除功能'],
             ['id' => 'cache_system', 'name' => '缓存系统优化', 'description' => '迁移旧缓存配置到 setting，清理过时驱动（xcache/apc/yac），初始化默认缓存配置'],
             ['id' => 'nickname_field', 'name' => '昵称字段迁移', 'description' => '将现有用户名复制到昵称字段，支持用户名不可修改、昵称可修改'],
             ['id' => 'notify_merge', 'name' => '通知系统合并', 'description' => '扩展 notify 表字段（message/icon/url 等），将 notice 表数据迁移到 notify 表，删除旧 notice 表'],
@@ -1596,6 +1642,7 @@ class UpgradeService {
             case 'plugin_table': return $this->upgradePluginTable();
             case 'email_log': return $this->upgradeEmailLogTable();
             case 'friendlink_digest': return $this->upgradeFriendlinkTable();
+            case 'soft_delete': return $this->upgradeSoftDeleteFields();
             case 'cache_system': return $this->upgradeCacheSystem();
             case 'nickname_field': return $this->upgradeNicknameField();
             case 'notify_merge': return $this->upgradeNotifyMerge();

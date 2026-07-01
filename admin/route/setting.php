@@ -595,35 +595,6 @@ if($action == 'base') {
 
 		$url_rewrite_on = isset($conf['url_rewrite_on']) ? intval($conf['url_rewrite_on']) : 0;
 
-		// 生成各风格的示例 URL
-		$example_thread_url = url('thread-123.htm');
-		$example_user_url = url('user-1.htm');
-		$example_forum_url = url('forum-7.htm');
-
-		// 保存当前配置的示例 URL 用于对比
-		$example_urls = array(
-			0 => array(
-				'thread' => '/?thread-123.htm',
-				'user' => '/?user-1.htm',
-				'forum' => '/?forum-7.htm',
-			),
-			1 => array(
-				'thread' => '/thread-123.htm',
-				'user' => '/user-1.htm',
-				'forum' => '/forum-7.htm',
-			),
-			3 => array(
-				'thread' => '/thread/123',
-				'user' => '/user/1',
-				'forum' => '/forum/7',
-			),
-			4 => array(
-				'thread' => '/thread-123.html',
-				'user' => '/user-1.html',
-				'forum' => '/forum-7.html',
-			),
-		);
-
 		// Nginx rewrite 规则
 		// 宝塔面板用户：复制"宝塔伪静态"内容到网站设置→伪静态
 		// 自建 Nginx 用户：复制"完整配置"内容到 nginx.conf 的 server 块内
@@ -761,9 +732,9 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 					curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 					curl_setopt($ch, CURLOPT_TIMEOUT, 5);
 					curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-					curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-					curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-					curl_setopt($ch, CURLOPT_NOBODY, false);
+				curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+				curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+				curl_setopt($ch, CURLOPT_NOBODY, false);
 					$response = curl_exec($ch);
 				$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 				// PHP 8.0+ curl_close() 已废弃且无效果，unset 释放资源
@@ -781,9 +752,9 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 							'follow_location' => 0,
 						),
 						'ssl' => array(
-							'verify_peer' => false,
-							'verify_peer_name' => false,
-						),
+						'verify_peer' => true,
+						'verify_peer_name' => true,
+					),
 					));
 					$response = @file_get_contents($test_url, false, $ctx);
 					if($response !== FALSE) {

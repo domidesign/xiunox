@@ -561,11 +561,6 @@ xn.url_add_arg = function(url, k, v) {
 
 /********************* 对 JQuery 进行扩展 ************************/
 
-$.location = function(url, seconds) {
-	if(seconds === undefined) seconds = 1;
-	setTimeout(function() {window.location='./';}, seconds * (debug ? 2000 : 1000));
-};
-
 // 二级数组排序
 /*Array.prototype.proto_sort = Array.prototype.sort;
 Array.prototype.sort = function(arg) {

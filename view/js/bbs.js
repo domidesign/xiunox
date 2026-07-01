@@ -481,7 +481,7 @@ if(typeof htmx !== 'undefined') {
 
 // ========== 通知页面：标记已读（htmx 事件驱动） ==========
 (function() {
-	// 更新顶部通知未读数（数字）
+	// 更新顶部通知未读数（数字+铃铛图标）
 	function updateNoticeBadge(count) {
 		var badge = document.getElementById('notice-badge');
 		if(!badge) return;
@@ -490,6 +490,19 @@ if(typeof htmx !== 'undefined') {
 			badge.innerHTML = '<span class=" badge rounded-pill bg-danger" style="font-size:0.65rem;line-height:1;padding:0.15em 0.4em">' + display + '</span>';
 		} else {
 			badge.innerHTML = '';
+		}
+		// 同步更新铃铛图标
+		var bellIcon = document.getElementById('notify-bell-icon');
+		if(bellIcon) {
+			if(count > 0) {
+				bellIcon.classList.remove('ti-bell');
+				bellIcon.classList.add('ti-bell-filled');
+				bellIcon.style.color = 'var(--bs-primary)';
+			} else {
+				bellIcon.classList.remove('ti-bell-filled');
+				bellIcon.classList.add('ti-bell');
+				bellIcon.style.color = '';
+			}
 		}
 	}
 
@@ -500,6 +513,12 @@ if(typeof htmx !== 'undefined') {
 		var btn = card.querySelector('.notice-mark-read');
 		if(btn) btn.remove();
 	}
+
+	// 监听后端 HX-Trigger 的 noticeReadUpdated 事件（单条标记已读后更新顶部导航徽章）
+	document.addEventListener('noticeReadUpdated', function(evt) {
+		var data = evt.detail && evt.detail[0] ? evt.detail[0] : {};
+		updateNoticeBadge(data.unread_count !== undefined ? data.unread_count : 0);
+	});
 
 	// 监听后端 HX-Trigger 的 noticeMarkAllRead 事件
 	document.addEventListener('noticeMarkAllRead', function(evt) {

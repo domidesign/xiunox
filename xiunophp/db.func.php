@@ -9,9 +9,9 @@ function db_new($dbconf) {
 		// 代码不仅仅是给人看的，更重要的是给编译器分析的，不要玩 $db = new $dbclass()，那样不利于优化和 opcache 。
 		switch ($dbconf['type']) {
 			case 'mysql':
-			xn_log('db.type=mysql is deprecated, auto-switching to pdo_mysql', 'deprecated');
-			$db = new db_pdo_mysql($dbconf['pdo_mysql']);
-			break;
+		xn_log('db type mysql deprecated, fallback to pdo_mysql', 'error');
+		$db = new db_pdo_mysql($dbconf['pdo_mysql']);
+		break;
 			case 'pdo_mysql':  $db = new db_pdo_mysql($dbconf['pdo_mysql']);	break;
 			case 'pdo_sqlite': $db = new db_pdo_sqlite($dbconf['pdo_sqlite']);	break;
 			case 'pdo_mongodb': $db = new db_pdo_mongodb($dbconf['pdo_mongodb']);	break;
@@ -49,25 +49,27 @@ function db_close($d = NULL) {
 	return $r;
 }
 
+// 保留 db_sql_find_one：复杂 SQL（JOIN/子查询）入口，调用方需自行参数化
 function db_sql_find_one($sql, $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
 	$arr = $d->sql_find_one($sql);
-	
+
 	db_errno_errstr($arr, $d, $sql);
-	
+
 	return $arr;
 }
 
+// 保留 db_sql_find：复杂 SQL（JOIN/子查询）入口，调用方需自行参数化
 function db_sql_find($sql, $key = NULL, $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
 	$arr = $d->sql_find($sql, $key);
-	
+
 	db_errno_errstr($arr, $d, $sql);
-	
+
 	return $arr;
 }
 
@@ -75,6 +77,7 @@ function db_sql_find($sql, $key = NULL, $d = NULL) {
 // 如果为 UPDATE 或者 DELETE，则返回 mysql_affected_rows();
 // 对于非自增的表，INSERT 后，返回的一直是 0
 // 判断是否执行成功: mysql_exec() === FALSE
+// 保留 db_exec：复杂 SQL（DDL/CREATE TABLE 等）入口，调用方需自行参数化
 function db_exec($sql, $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
@@ -93,6 +96,80 @@ function db_exec($sql, $d = NULL) {
 	db_errno_errstr($n, $d, $sql);
 
 	return $n;
+}
+
+/**
+ * 预处理执行 SQL（写操作），返回影响行数或插入 ID
+ * @param string $sql 带 ? 占位符的 SQL
+ * @param array $params 绑定参数
+ * @param object|null $d 数据库实例
+ * @return int|FALSE 成功返回影响行数或插入ID，失败返回 FALSE
+ */
+function db_exec_prepared($sql, $params = array(), $d = NULL) {
+	$db = $_SERVER['db'];
+	$d = $d ? $d : $db;
+	if(!$d) return FALSE;
+
+	DEBUG AND xn_log($sql.' ['.xn_json_encode($params).']', 'db_exec');
+
+	$stmt = $d->prepare($sql, $params);
+	if(!$stmt) {
+		db_errno_errstr(FALSE, $d, $sql);
+		return FALSE;
+	}
+
+	// 判断是否 INSERT/REPLACE，返回 last_insert_id；否则返回 rowCount
+	$pre = strtoupper(substr(ltrim($sql), 0, 7));
+	if($pre == 'INSERT ' || $pre == 'REPLACE') {
+		$n = intval($d->last_insert_id());
+	} else {
+		$n = intval($stmt->rowCount());
+	}
+
+	db_errno_errstr($n, $d, $sql);
+	$stmt->closeCursor();
+	return $n;
+}
+
+/**
+ * 预处理查询多行
+ * @param string $sql 带 ? 占位符的 SQL
+ * @param array $params 绑定参数
+ * @param string $key 返回数组的 key 字段
+ * @param object|null $d 数据库实例
+ * @return array
+ */
+function db_sql_find_prepared($sql, $params = array(), $key = NULL, $d = NULL) {
+	$db = $_SERVER['db'];
+	$d = $d ? $d : $db;
+	if(!$d) return array();
+	$stmt = $d->prepare($sql, $params);
+	if(!$stmt) {
+		db_errno_errstr(FALSE, $d, $sql);
+		return array();
+	}
+	$stmt->setFetchMode(PDO::FETCH_ASSOC);
+	$arrlist = $stmt->fetchAll();
+	$stmt->closeCursor();
+	$key AND $arrlist = arrlist_change_key($arrlist, $key);
+	db_errno_errstr($arrlist, $d, $sql);
+	return is_array($arrlist) ? $arrlist : array();
+}
+
+/**
+ * 预处理查询单行
+ * @param string $sql 带 ? 占位符的 SQL
+ * @param array $params 绑定参数
+ * @param object|null $d 数据库实例
+ * @return array|FALSE
+ */
+function db_sql_find_one_prepared($sql, $params = array(), $d = NULL) {
+	$db = $_SERVER['db'];
+	$d = $d ? $d : $db;
+	if(!$d) return FALSE;
+	$arr = $d->prepare_one($sql, $params);
+	db_errno_errstr($arr, $d, $sql);
+	return $arr;
 }
 
 function db_count($table, $cond = array(), $d = NULL) {
@@ -134,40 +211,41 @@ function db_insert($table, $arr, $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
-	
-	$sqladd = db_array_to_insert_sqladd($arr);
+
+	list($sqladd, $params) = db_array_to_insert_sqladd($arr);
 	if(!$sqladd) return FALSE;
-	return db_exec("INSERT INTO {$d->tablepre}$table $sqladd", $d);
+	return db_exec_prepared("INSERT INTO {$d->tablepre}$table $sqladd", $params, $d);
 }
 
 function db_replace($table, $arr, $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
-	
-	$sqladd = db_array_to_insert_sqladd($arr);
+
+	list($sqladd, $params) = db_array_to_insert_sqladd($arr);
 	if(!$sqladd) return FALSE;
-	return db_exec("REPLACE INTO {$d->tablepre}$table $sqladd", $d);
+	return db_exec_prepared("REPLACE INTO {$d->tablepre}$table $sqladd", $params, $d);
 }
 
 function db_update($table, $cond, $update, $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
-	
-	$condadd = db_cond_to_sqladd($cond);
-	$sqladd = db_array_to_update_sqladd($update);
+
+	list($condadd, $condParams) = db_cond_to_sqladd($cond);
+	list($sqladd, $updateParams) = db_array_to_update_sqladd($update);
 	if(!$sqladd) return FALSE;
-	return db_exec("UPDATE {$d->tablepre}$table SET $sqladd $condadd", $d);
+	$params = array_merge($updateParams, $condParams);
+	return db_exec_prepared("UPDATE {$d->tablepre}$table SET $sqladd $condadd", $params, $d);
 }
 
 function db_delete($table, $cond, $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
-	
-	$condadd = db_cond_to_sqladd($cond);
-	return db_exec("DELETE FROM {$d->tablepre}$table $condadd", $d);
+
+	list($condadd, $condParams) = db_cond_to_sqladd($cond);
+	return db_exec_prepared("DELETE FROM {$d->tablepre}$table $condadd", $condParams, $d);
 }
 
 function db_truncate($table, $d = NULL) {
@@ -182,10 +260,10 @@ function db_read($table, $cond, $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
-	
-	$sqladd = db_cond_to_sqladd($cond);
+
+	list($sqladd, $params) = db_cond_to_sqladd($cond);
 	$sql = "SELECT * FROM {$d->tablepre}$table $sqladd";
-	return db_sql_find_one($sql, $d);
+	return db_sql_find_one_prepared($sql, $params, $d);
 }
 
 function db_find($table, $cond = array(), $orderby = array(), $page = 1, $pagesize = 10, $key = '', $col = array(), $d = NULL) {
@@ -275,10 +353,12 @@ function db_errstr_safe($errno, $errstr) {
 //----------------------------------->  表结构和索引相关 end
 /*
 $cond = array('id'=>123, 'groupid'=>array('>'=>100, 'LIKE'=>'\'jack'));
-$s = db_cond_to_sqladd($cond);
+list($s, $params) = db_cond_to_sqladd($cond);
 echo $s;
+print_r($params);
 
-WHERE id=123 AND groupid>100 AND groupid LIKE '%\'jack%' 
+WHERE id=? AND groupid>? AND groupid LIKE ? 
+$params = [123, 100, "%'jack%"]
 
 // 格式：
 array('id'=>123, 'groupid'=>123)
@@ -287,8 +367,14 @@ array('id'=>array('>' => 100, '<' => 200))
 array('username'=>array('LIKE' => 'jack'))
 */
 
+/**
+ * 将条件数组转换为 SQL WHERE 子句（占位符 ? + 参数数组）
+ * @param array $cond 条件数组
+ * @return array 返回 array($sql, $params)，$sql 含 ? 占位符，$params 为绑定参数
+ */
 function db_cond_to_sqladd($cond) {
 	$s = '';
+	$params = array();
 	if(!empty($cond)) {
 		$s = ' WHERE ';
 		foreach($cond as $k=>$v) {
@@ -300,36 +386,42 @@ function db_cond_to_sqladd($cond) {
 					$col = $m[1];
 					$op = $m[2];
 				}
-				$v = (is_int($v) || is_float($v)) ? $v : "'".addslashes((string)$v)."'";
-				$s .= "`$col`$op$v AND ";
+				// 字段名白名单校验，防字段名注入
+				if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $col)) {
+					continue;
+				}
+				$s .= "`$col`$op? AND ";
+				$params[] = $v;
 			} elseif(isset($v[0])) {
+				// OR 数组：array(1,2,3) -> (col=? OR col=? OR col=?)
+				if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $k)) {
+					continue;
+				}
 				$s .= '(';
-				//$v = array_reverse($v);
 				foreach ($v as $v1) {
-					$v1 = (is_int($v1) || is_float($v1)) ? $v1 : "'".addslashes((string)$v1)."'";
-					$s .= "`$k`=$v1 OR ";
+					$s .= "`$k`=? OR ";
+					$params[] = $v1;
 				}
 				$s = substr($s, 0, -4);
 				$s .= ') AND ';
-				
-				/*
-				$ids = implode(',', $v);
-				$s .= "$k IN ($ids) AND ";
-				*/
 			} else {
+				// 操作符数组：array('>' => 100, 'LIKE' => 'jack')
+				if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $k)) {
+					continue;
+				}
 				foreach($v as $k1=>$v1) {
 					if($k1 == 'LIKE') {
 						$k1 = ' LIKE ';
-						$v1="%$v1%";
+						$v1 = "%$v1%";
 					}
-					$v1 = (is_int($v1) || is_float($v1)) ? $v1 : "'".addslashes((string)$v1)."'";
-					$s .= "`$k`$k1$v1 AND ";
+					$s .= "`$k`$k1? AND ";
+					$params[] = $v1;
 				}
 			}
 		}
 		$s = substr($s, 0, -4);
 	}
-	return $s;
+	return array($s, $params);
 }
 
 function db_orderby_to_sqladd($orderby) {
@@ -352,23 +444,38 @@ function db_orderby_to_sqladd($orderby) {
 		'stocks+'=>1,
 		'date'=>12345678900,
 	)
-	db_array_to_update_sqladd($arr);
+	list($s, $params) = db_array_to_update_sqladd($arr);
 */
+
+/**
+ * 将数据数组转换为 UPDATE SET 子句（占位符 ? + 参数数组）
+ * 支持 +/- 前缀的增量更新：'stocks+' => 1 -> `stocks`=`stocks`+?
+ * @param array $arr 数据数组
+ * @return array 返回 array($sql, $params)
+ */
 function db_array_to_update_sqladd($arr) {
 	$s = '';
+	$params = array();
 	foreach($arr as $k=>$v) {
-		$v = addslashes((string)$v);
 		$op = substr($k, -1);
 		if($op == '+' || $op == '-') {
-			$k = substr($k, 0, -1);
-			$v = (is_int($v) || is_float($v)) ? $v : "'$v'";
-			$s .= "`$k`=$k$op$v,";
+			$col = substr($k, 0, -1);
+			// 字段名白名单校验
+			if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $col)) {
+				continue;
+			}
+			$s .= "`$col`=$col$op?,";
+			$params[] = $v;
 		} else {
-			$v = (is_int($v) || is_float($v)) ? $v : "'$v'";
-			$s .= "`$k`=$v,";
+			// 字段名白名单校验
+			if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $k)) {
+				continue;
+			}
+			$s .= "`$k`=?,";
+			$params[] = $v;
 		}
 	}
-	return substr($s, 0, -1);
+	return array(substr($s, 0, -1), $params);
 }
 
 /*
@@ -376,38 +483,49 @@ function db_array_to_update_sqladd($arr) {
 		'name'=>'abc',
 		'date'=>12345678900,
 	)
-	db_array_to_insert_sqladd($arr);
+	list($s, $params) = db_array_to_insert_sqladd($arr);
 */
+
+/**
+ * 将数据数组转换为 INSERT VALUES 子句（占位符 ? + 参数数组）
+ * @param array $arr 数据数组
+ * @return array 返回 array($sql, $params)
+ */
 function db_array_to_insert_sqladd($arr) {
 	$s = '';
 	$keys = array();
-	$values = array();
+	$placeholders = array();
+	$params = array();
 	foreach($arr as $k=>$v) {
-		$k = addslashes((string)$k);
-		$v = addslashes((string)$v);
+		// 字段名白名单校验
+		if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $k)) {
+			continue;
+		}
 		$keys[] = '`'.$k.'`';
-		$v = (is_int($v) || is_float($v)) ? $v : "'$v'";
-		$values[] = $v;
+		$placeholders[] = '?';
+		$params[] = $v;
 	}
 	$keystr = implode(',', $keys);
-	$valstr = implode(',', $values);
-	$sqladd = "($keystr) VALUES ($valstr)";
-	return $sqladd;
+	$phstr = implode(',', $placeholders);
+	$sqladd = "($keystr) VALUES ($phstr)";
+	return array($sqladd, $params);
 }
 
 function db_check_column_exists($table, $column) {
 	$db = $_SERVER['db'];
 	if(!$db) return FALSE;
-	$sql = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$db->tablepre}{$table}' AND COLUMN_NAME = '{$column}'";
-	$r = db_sql_find_one($sql);
+	// 联表查 INFORMATION_SCHEMA 系统表，db_find 不支持，保留 db_sql_find_one_prepared
+	$sql = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?";
+	$r = db_sql_find_one_prepared($sql, array($db->tablepre.$table, $column));
 	return !empty($r);
 }
 
 function db_check_table_exists($table) {
 	$db = $_SERVER['db'];
 	if(!$db) return FALSE;
-	$sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$db->tablepre}{$table}'";
-	$r = db_sql_find_one($sql);
+	// 联表查 INFORMATION_SCHEMA 系统表，db_find 不支持，保留 db_sql_find_one_prepared
+	$sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?";
+	$r = db_sql_find_one_prepared($sql, array($db->tablepre.$table));
 	return !empty($r);
 }
 

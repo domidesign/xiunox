@@ -1,6 +1,6 @@
 <?php
 /**
- * Xiuno BBS 4.5+ 路由系统
+ * XiunoX 路由系统
  *
  * 提供集中式路由表 + 命名快捷函数，替代模板中硬编码的 url("xxx-$id") 写法。
  *
@@ -209,6 +209,7 @@ function route_table() {
 			'admin_thread_scan'             => 'thread-scan',
 			'admin_thread_found'            => 'thread-found-{page}',
 			'admin_thread_batch'            => 'thread-batch',
+			'admin_thread_recycle'          => 'thread-recycle',
 
 			// ===== 后台 - 附件 =====
 			'admin_attach_list'             => 'attach-list',
@@ -478,6 +479,7 @@ function admin_notice_list_url($type, $query = array())    { return route_url('a
 function admin_thread_scan_url($query = array())           { return route_url('admin_thread_scan', [], $query); }
 function admin_thread_found_url($page, $query = array())  { return route_url('admin_thread_found', ['page' => $page], $query); }
 function admin_thread_batch_url($query = array())         { return route_url('admin_thread_batch', [], $query); }
+function admin_thread_recycle_url($query = array())       { return route_url('admin_thread_recycle', [], $query); }
 
 // ----- 后台 - 附件 -----
 function admin_attach_list_url($query = array())          { return route_url('admin_attach_list', [], $query); }

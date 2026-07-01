@@ -130,6 +130,9 @@ class ReportService {
 
         xn_log("create_report 成功: uid={$uid}, target_type={$target_type}, target_id={$target_id}, reportid={$r}", 'report_error');
 
+        // 每次举报都通知管理员
+        self::notify_admins_new($target_type, $target_id, $reason_type, $reason_text, $uid);
+
         // 检查是否达到自动审核阈值
         $audited = self::handle_auto_audit($target_type, $target_id);
         xn_log("handle_auto_audit 结果: audited=" . ($audited ? '1' : '0') . ", target_type={$target_type}, target_id={$target_id}", 'report_error');
@@ -266,7 +269,7 @@ class ReportService {
         if (!empty($cache)) return;
         cache_set($notify_key, 1, 60);
 
-        $admins = db_find('user', ['gid' => 1], [], 1, 10);
+        $admins = db_find('user', ['gid' => [1, 2]], [], 1, 10);
         if (empty($admins)) return;
 
         $type_text = ['thread' => '帖子', 'post' => '评论', 'user' => '用户'];
@@ -278,18 +281,41 @@ class ReportService {
         }
         if (empty($admin_uids)) return;
 
-        $tablepre = $db->tablepre;
-        $target_id = intval($target_id);
-        $content_escaped = addslashes($message);
-        $values = array();
+        // 使用 notify_create 发送通知（确保兼容性）
         foreach ($admin_uids as $auid) {
-            $values[] = "({$auid}, 0, 'report_auto_audit', {$target_id}, 0, '{$content_escaped}', '', '', '', 0, 0, {$time}, 0)";
+            if (function_exists('notify_create')) {
+                notify_create($auid, 0, 'report_auto_audit', $target_id, 0, $message);
+            }
         }
-        $sql = "INSERT INTO `{$tablepre}notify` (`uid`, `from_uid`, `type`, `tid`, `pid`, `content`, `message`, `icon`, `url`, `reply_to_uid`, `parent_pid`, `create_date`, `is_read`) VALUES " . implode(',', $values);
-        db_exec($sql);
+    }
 
-        $uid_list = implode(',', $admin_uids);
-        db_exec("UPDATE `{$tablepre}user` SET unread_notices = unread_notices + 1 WHERE uid IN ({$uid_list})");
+    /**
+     * 每次举报都通知管理员（新增）
+     */
+    private static function notify_admins_new(string $target_type, int $target_id, string $reason_type, string $reason_text, int $reporter_uid): void {
+        global $time;
+
+        // 防刷：同一目标5秒内不重复通知
+        $notify_key = 'report_new_' . $target_type . '_' . $target_id;
+        $cache = cache_get($notify_key);
+        if (!empty($cache)) return;
+        cache_set($notify_key, 1, 5);
+
+        // 查询管理员和超级版主（gid=1,2）
+        $admins = db_find('user', ['gid' => [1, 2]], [], 1, 10);
+        if (empty($admins)) return;
+
+        $type_text = ['thread' => '帖子', 'post' => '评论', 'user' => '用户'];
+        $reason_text_short = self::REASON_TYPES[$reason_type] ?? $reason_type;
+        $message = "新举报：{$type_text[$target_type]}，原因：{$reason_text_short}";
+
+        foreach ($admins as $admin) {
+            $auid = intval($admin['uid']);
+            if ($auid === $reporter_uid) continue; // 不通知举报人自己
+            if (function_exists('notify_create')) {
+                notify_create($auid, $reporter_uid, 'report_new', $target_id, 0, $message);
+            }
+        }
     }
 
     /**

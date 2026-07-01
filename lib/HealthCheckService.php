@@ -1,11 +1,11 @@
 <?php
 class HealthCheckService {
 
-    // 核心数据表
-    private static $coreTables = array(
-        'bbs_user', 'bbs_thread', 'bbs_post', 'bbs_forum',
-        'bbs_attach', 'bbs_session', 'bbs_kv', 'bbs_cache',
-        'bbs_credits_log', 'bbs_admin_log',
+    // 核心数据表（不含前缀，运行时动态拼接）
+    private static $coreTableNames = array(
+        'user', 'thread', 'post', 'forum',
+        'attach', 'session', 'kv', 'cache',
+        'credits_log', 'admin_log',
     );
 
     // 必需扩展
@@ -275,9 +275,11 @@ class HealthCheckService {
         global $db, $conf;
         $results = array();
 
-        // 表前缀：兼容不同配置结构
-        $tablePre = 'bbs_';
-        if(isset($conf['db']['pdo_mysql']['master']['tablepre'])) {
+        // 表前缀：优先从 $db 对象获取运行时值，兼容不同配置结构
+        $tablePre = '';
+        if(is_object($db) && !empty($db->tablepre)) {
+            $tablePre = $db->tablepre;
+        } elseif(isset($conf['db']['pdo_mysql']['master']['tablepre'])) {
             $tablePre = $conf['db']['pdo_mysql']['master']['tablepre'];
         } elseif(isset($conf['db']['mysql']['master']['tablepre'])) {
             $tablePre = $conf['db']['mysql']['master']['tablepre'];
@@ -285,11 +287,17 @@ class HealthCheckService {
             $tablePre = $conf['db']['master']['tablepre'];
         }
 
+        // 动态拼接完整表名（含前缀）
+        $coreTables = array();
+        foreach(self::$coreTableNames as $tableName) {
+            $coreTables[] = $tablePre . $tableName;
+        }
+
         // 核心表存在性检查：使用 INFORMATION_SCHEMA 精确查询
-        foreach(self::$coreTables as $table) {
+        // 保留 db_sql_find_one_prepared：系统表查询，参数化绑定表名
+        foreach($coreTables as $table) {
             try {
-                $safeTable = addslashes($table);
-                $row = $db->sql_find_one("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$safeTable}'");
+                $row = db_sql_find_one_prepared("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?", array($table));
                 if(!empty($row)) {
                     $results[] = array(
                         'status' => 'pass',

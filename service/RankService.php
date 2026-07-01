@@ -8,7 +8,7 @@ if (!interface_exists('DatabaseInterface')) {
 /**
  * 排行榜服务类
  * 提供热帖排行、活跃用户、积分排行等功能
- * @since 4.5.0
+ * @since 1.0.2
  */
 class RankService {
     private DatabaseInterface $db;

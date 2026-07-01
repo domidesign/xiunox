@@ -43,11 +43,7 @@ html {
     border-radius: var(--bs-border-radius-sm);
 }
 
-.card-header {
-    border: none;
-    padding: 0;
-    margin-bottom: 12px;
-}
+
 
  
 
@@ -1190,7 +1186,7 @@ a.hover-bg-body-secondary:hover {
     color: var(--bs-body-color);
     border: none;
     border-radius: 0;
-    padding: 4px  8px;
+    padding: 4px  12px;
     background: none;
     font-weight: normal;
     transition: color 0.15s ease;
@@ -1566,6 +1562,82 @@ a.hover-bg-body-secondary:hover {
 
 .message a:hover {
     color: #0a58ca;
+}
+.debug {
+     max-width: 90vw;
+    overflow: hidden;
+}
+#postbar-submit{
+    height: 30px;
+}
+/* ===== 帖子详情页左侧栏圆形按钮 ===== */
+.thread-sidebar-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    margin-left: 90px;
+    background-color: var(--bs-body-bg);
+    background-position: 50%;
+    background-repeat: no-repeat;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px 0 rgba(var(--bs-body-color-rgb), .06);
+    text-decoration: none;
+    transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+.thread-sidebar-btn:hover {
+    box-shadow: 0 4px 8px 0 rgba(var(--bs-body-color-rgb), .12);
+    transform: translateY(-1px);
+}
+.thread-sidebar-btn .ti {
+    font-size: 20px;
+    line-height: 1;
+}
+.thread-sidebar-badge {
+    position: absolute;
+    top: 0;
+    left: 75%;
+    height: 17px;
+    line-height: 17px;
+    padding: 0 5px;
+    border-radius: 9px;
+    font-size: 11px;
+    text-align: center;
+    white-space: nowrap;
+    color: #fff;
+}
+.thread-sidebar-badge::after {
+    content: attr(badge);
+}
+/* 激活状态：图标和角标变为主色 */
+.thread-sidebar-btn .text-primary + .thread-sidebar-badge.bg-primary,
+.thread-sidebar-btn .thread-sidebar-badge.bg-primary {
+    background-color: var(--bs-primary) !important;
+}
+
+/* 左侧栏按钮悬浮提示 */
+.thread-sidebar-btn[data-tip]::before {
+    content: attr(data-tip);
+    position: absolute;
+    left: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: nowrap;
+    color: #fff;
+    background-color: var(--bs-body-color);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    z-index: 10;
+}
+.thread-sidebar-btn[data-tip]:hover::before {
+    opacity: 0.85;
 }
 
 /* ===== 发帖/编辑页 (post) ===== */

@@ -81,7 +81,7 @@ $_cols = count($_stats) > 0 ? min(count($_stats), 4) : 4;
         <!-- 用户签名独立区块 -->
         <div class="card-body py-2">
             <div class="bg-body-tertiary rounded-1 p-1 small text-body-secondary">
-                <?php echo esc_html($user['signature']); ?>
+                <?php echo $user['signature']; ?>
             </div>
         </div>
         <?php endif; ?>

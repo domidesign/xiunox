@@ -42,14 +42,26 @@
 					<div class="invalid-feedback"></div>
 				</div>
 				<div class="mb-3">
-					<label class="form-label fw-medium"><?php echo lang('signature');?></label>
-					<textarea class="form-control rounded-1" name="signature" rows="3" placeholder="<?php echo lang('signature_placeholder');?>"<?php echo $pending_signature ? ' disabled' : '';?>><?php echo esc_html($user['signature'] ?? '');?></textarea>
-					<?php if($pending_signature): ?><div class="form-text text-warning"><i class="ti ti-clock-hour-4 me-1"></i><?php echo lang('field_audit_pending');?></div><?php endif; ?>
-					<?php if(!$pending_signature && $signature_change_limit > 0): ?>
-					<div class="form-text text-body-secondary"><i class="ti ti-info-circle me-1"></i><?php echo lang('signature_remaining_tip', array('remaining'=>$signature_remaining, 'limit'=>$signature_change_limit));?></div>
-					<?php endif; ?>
-					<div class="invalid-feedback"></div>
+				<label class="form-label fw-medium d-flex justify-content-between align-items-center">
+					<span><?php echo lang('signature');?></span>
+					<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="sig-preview-toggle"><i class="ti ti-eye me-1"></i><?php echo lang('signature_preview');?></button>
+				</label>
+				<textarea class="form-control rounded-1" name="signature" id="signature_input" rows="3" placeholder="<?php echo lang('signature_placeholder');?>"<?php echo $pending_signature ? ' disabled' : '';?>><?php echo esc_html($user['signature'] ?? '');?></textarea>
+				<div class="form-text text-body-secondary"><i class="ti ti-info-circle me-1"></i><?php echo lang('signature_html_tip');?></div>
+			  
+				<?php if($pending_signature): ?><div class="form-text text-warning"><i class="ti ti-clock-hour-4 me-1"></i><?php echo lang('field_audit_pending');?></div><?php endif; ?>
+				<?php if(!$pending_signature && $signature_change_limit > 0): ?>
+				<div class="form-text text-body-secondary"><i class="ti ti-info-circle me-1"></i><?php echo lang('signature_remaining_tip', array('remaining'=>$signature_remaining, 'limit'=>$signature_change_limit));?></div>
+				<?php endif; ?>
+				<div class="invalid-feedback"></div>
+				<!-- 签名预览区域 -->
+				<div id="sig-preview-box" class="mt-2 d-none">
+					<div class="form-text text-body-secondary mb-1"><i class="ti ti-eye me-1"></i><?php echo lang('signature_preview');?></div>
+					<div class="border rounded-1 p-2 bg-body-tertiary small" id="sig-preview-content" style="min-height:2.5rem;max-height:8rem;overflow-y:auto">
+						<span class="text-body-tertiary"><?php echo lang('signature_preview_empty');?></span>
+					</div>
 				</div>
+			</div>
 					<div>
 						<button type="submit" class="btn btn-primary" id="profile_submit" data-loading-text="<?php echo lang('submiting');?>..."<?php echo (!empty($pending_profile_fields) && ($pending_nickname || $pending_signature)) ? ' disabled' : '';?>><?php echo lang('save_profile');?></button>
 					</div>
@@ -67,6 +79,44 @@
 <?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
+// 签名实时预览
+(function() {
+	var sigInput = document.getElementById('signature_input');
+	var sigToggle = document.getElementById('sig-preview-toggle');
+	var sigBox = document.getElementById('sig-preview-box');
+	var sigContent = document.getElementById('sig-preview-content');
+	var emptyText = '<?php echo lang('signature_preview_empty');?>';
+	var previewTimer = null;
+
+	function updatePreview() {
+		var val = sigInput.value.trim();
+		if (!val) {
+			sigContent.innerHTML = '<span class="text-body-tertiary">' + emptyText + '</span>';
+			return;
+		}
+		// 实时预览：直接渲染用户输入的HTML（提交时服务端会净化）
+		sigContent.innerHTML = val;
+	}
+
+	if (sigToggle) {
+		sigToggle.addEventListener('click', function() {
+			sigBox.classList.toggle('d-none');
+			if (!sigBox.classList.contains('d-none')) {
+				updatePreview();
+			}
+		});
+	}
+
+	if (sigInput) {
+		sigInput.addEventListener('input', function() {
+			if (sigBox && !sigBox.classList.contains('d-none')) {
+				clearTimeout(previewTimer);
+				previewTimer = setTimeout(updatePreview, 300);
+			}
+		});
+	}
+})();
+
 // 基本资料表单提交
 var profileForm = document.getElementById('profile_form');
 var profileSubmit = document.getElementById('profile_submit');
@@ -90,13 +140,13 @@ profileForm.addEventListener('htmx:afterRequest', function(e) {
 	try {
 		var res = JSON.parse(response.responseText);
 		if(parseInt(res.code) === 0) {
-			// 成功：更新签名展示
+			// 成功：更新签名展示（签名支持HTML，直接渲染服务端净化后的内容）
 			var sigDisplay = this.querySelector('.user-signature-display');
 			var sigInput = this.querySelector('[name="signature"]');
 			if(sigDisplay && sigInput) {
 				var newSig = sigInput.value.trim();
 				if(newSig) {
-					sigDisplay.innerHTML = '<i class="ti ti-quote me-1"></i>' + XN.escapeHtml(newSig);
+					sigDisplay.innerHTML = '<i class="ti ti-quote me-1"></i>' + newSig;
 					sigDisplay.style.display = '';
 				} else {
 					sigDisplay.style.display = 'none';

@@ -136,13 +136,12 @@ if($keyword_safe) {
     if(mb_strlen($keyword_safe) < 2) {
         $keyword_too_short = true;
     } elseif($search_type == 'thread') {
-        $keyword_escaped = addslashes($keyword_safe);
 
         // BOOLEAN MODE 关键词：转义特殊字符并用双引号包裹，实现精确短语匹配
         // ngram parser 下，双引号要求 ngram 片段按顺序连续出现，避免英文被过度分词导致误匹配
         $keyword_boolean_clean = preg_replace('/[+\-~<>()"\']/', ' ', $keyword_safe);
         $keyword_boolean_clean = trim(preg_replace('/\s+/', ' ', $keyword_boolean_clean));
-        $keyword_boolean = '"' . addslashes($keyword_boolean_clean) . '"';
+        $keyword_boolean = '"' . $keyword_boolean_clean . '"';
 
         // 搜索建议模式：只返回标题匹配
         if($suggest) {
@@ -150,7 +149,7 @@ if($keyword_safe) {
             $has_fulltext = search_ensure_fulltext('thread', 'subject', 'ft_subject');
 
             if($has_fulltext) {
-                $suggestlist = db_sql_find("SELECT tid, subject FROM bbs_thread WHERE MATCH(subject) AGAINST('{$keyword_boolean}' IN BOOLEAN MODE) ORDER BY tid DESC LIMIT 5");
+                $suggestlist = db_sql_find_prepared("SELECT tid, subject FROM {$db->tablepre}thread WHERE MATCH(subject) AGAINST(? IN BOOLEAN MODE) ORDER BY tid DESC LIMIT 5", array($keyword_boolean));
             }
             // FULLTEXT 失败时回退到 LIKE
             if(empty($suggestlist)) {
@@ -175,7 +174,7 @@ if($keyword_safe) {
             $has_fulltext = search_ensure_fulltext('thread', 'subject', 'ft_subject');
             $reflist = array();
             if($has_fulltext) {
-                $reflist = db_sql_find("SELECT tid, subject FROM bbs_thread WHERE MATCH(subject) AGAINST('{$keyword_boolean}' IN BOOLEAN MODE) ORDER BY tid DESC LIMIT 10");
+                $reflist = db_sql_find_prepared("SELECT tid, subject FROM {$db->tablepre}thread WHERE MATCH(subject) AGAINST(? IN BOOLEAN MODE) ORDER BY tid DESC LIMIT 10", array($keyword_boolean));
             }
             if(empty($reflist)) {
                 $reflist = db_find('thread', array('subject' => array('LIKE' => $keyword_safe)), array('tid' => -1), 1, 10, 'tid', array('tid', 'subject'));
@@ -230,13 +229,13 @@ if($keyword_safe) {
         if($use_fulltext) {
             // FULLTEXT 搜索：BOOLEAN MODE + 双引号实现精确短语匹配
             // 搜索标题（加入权限/审核过滤，LIMIT 限制避免无分页查询返回过多数据）
-            $thread_ids_from_subject = db_sql_find("SELECT tid, MATCH(subject) AGAINST('{$keyword_boolean}' IN BOOLEAN MODE) AS relevance FROM bbs_thread WHERE MATCH(subject) AGAINST('{$keyword_boolean}' IN BOOLEAN MODE)" . $fid_filter_sql . $audit_filter_sql . " LIMIT 100");
+            $thread_ids_from_subject = db_sql_find_prepared("SELECT tid, MATCH(subject) AGAINST(? IN BOOLEAN MODE) AS relevance FROM {$db->tablepre}thread WHERE MATCH(subject) AGAINST(? IN BOOLEAN MODE)" . $fid_filter_sql . $audit_filter_sql . " LIMIT 100", array($keyword_boolean, $keyword_boolean));
 
             // 搜索内容（只搜主帖 isfirst=1，JOIN thread 表过滤权限/审核，字段需加 t. 前缀避免歧义）
             if($fid_filter_sql_t || $audit_filter_sql_t) {
-                $thread_ids_from_content = db_sql_find("SELECT p.tid, MAX(MATCH(p.message) AGAINST('{$keyword_boolean}' IN BOOLEAN MODE)) AS relevance FROM bbs_post p JOIN bbs_thread t ON p.tid = t.tid WHERE MATCH(p.message) AGAINST('{$keyword_boolean}' IN BOOLEAN MODE) AND p.isfirst=1" . $fid_filter_sql_t . $audit_filter_sql_t . " GROUP BY p.tid LIMIT 100");
+                $thread_ids_from_content = db_sql_find_prepared("SELECT p.tid, MAX(MATCH(p.message) AGAINST(? IN BOOLEAN MODE)) AS relevance FROM {$db->tablepre}post p JOIN {$db->tablepre}thread t ON p.tid = t.tid WHERE MATCH(p.message) AGAINST(? IN BOOLEAN MODE) AND p.isfirst=1" . $fid_filter_sql_t . $audit_filter_sql_t . " GROUP BY p.tid LIMIT 100", array($keyword_boolean, $keyword_boolean));
             } else {
-                $thread_ids_from_content = db_sql_find("SELECT tid, MAX(MATCH(message) AGAINST('{$keyword_boolean}' IN BOOLEAN MODE)) AS relevance FROM bbs_post WHERE MATCH(message) AGAINST('{$keyword_boolean}' IN BOOLEAN MODE) AND isfirst=1 GROUP BY tid LIMIT 100");
+                $thread_ids_from_content = db_sql_find_prepared("SELECT tid, MAX(MATCH(message) AGAINST(? IN BOOLEAN MODE)) AS relevance FROM {$db->tablepre}post WHERE MATCH(message) AGAINST(? IN BOOLEAN MODE) AND isfirst=1 GROUP BY tid LIMIT 100", array($keyword_boolean, $keyword_boolean));
             }
 
             // 合并结果，取最高相关度
@@ -267,7 +266,7 @@ if($keyword_safe) {
             // 原查询：1) subject LIKE  2) 自己待审(subject)  3) post LIKE  4) thread过滤(post)  5) 自己待审(post)
             // 合并后：1) subject LIKE（含自己待审，OR 条件）  2) post LIKE JOIN thread（含自己待审，OR 条件）
             $merged = array();
-            $kw_escaped = addslashes($keyword_safe);
+            $kw_like = '%' . $keyword_safe . '%';
 
             // 构建权限/审核 SQL 片段
             // 管理员（gid=1,2）：subject 无限制；post 保持原逻辑 audit_status=1
@@ -298,8 +297,8 @@ if($keyword_safe) {
             }
 
             // 合并查询 1：subject LIKE（含自己待审帖子，OR 条件合并）
-            $subject_sql = "SELECT tid FROM bbs_thread WHERE subject LIKE '%{$kw_escaped}%'{$subject_perm_sql} ORDER BY tid DESC LIMIT 1000";
-            $subject_threads = db_sql_find($subject_sql);
+            $subject_sql = "SELECT tid FROM {$db->tablepre}thread WHERE subject LIKE ?{$subject_perm_sql} ORDER BY tid DESC LIMIT 1000";
+            $subject_threads = db_sql_find_prepared($subject_sql, array($kw_like));
             if($subject_threads) {
                 foreach($subject_threads as $row) {
                     $merged[$row['tid']] = 1;
@@ -307,8 +306,8 @@ if($keyword_safe) {
             }
 
             // 合并查询 2：post LIKE JOIN thread（含自己待审帖子，OR 条件合并）
-            $post_sql = "SELECT DISTINCT p.tid FROM bbs_post p JOIN bbs_thread t ON p.tid=t.tid WHERE p.message LIKE '%{$kw_escaped}%' AND p.isfirst=1{$post_perm_sql} ORDER BY p.tid DESC LIMIT 1000";
-            $post_threads = db_sql_find($post_sql);
+            $post_sql = "SELECT DISTINCT p.tid FROM {$db->tablepre}post p JOIN {$db->tablepre}thread t ON p.tid=t.tid WHERE p.message LIKE ? AND p.isfirst=1{$post_perm_sql} ORDER BY p.tid DESC LIMIT 1000";
+            $post_threads = db_sql_find_prepared($post_sql, array($kw_like));
             if($post_threads) {
                 foreach($post_threads as $row) {
                     if(!isset($merged[$row['tid']])) {
@@ -410,17 +409,19 @@ if($keyword_safe) {
         // 检查 nickname 字段是否存在
         $has_nickname = db_check_column_exists('user', 'nickname');
         
-        // 构建 SQL 查询（子查询去重，防止 username 和 nickname 同时匹配时重复）
-        $keyword_escaped_user = addslashes($keyword_safe);
+        // 构建 SQL 查询（子查询去重，防止 username 和 nickname 同时匹配时重复）；PDO 预处理防注入
+        $kw_like = '%' . $keyword_safe . '%';
         if($has_nickname) {
-            $user_sql = "SELECT u.* FROM {$db->tablepre}user u INNER JOIN (SELECT DISTINCT uid FROM {$db->tablepre}user WHERE username LIKE '%{$keyword_escaped_user}%' OR nickname LIKE '%{$keyword_escaped_user}%') t ON u.uid = t.uid ORDER BY u.uid DESC LIMIT 20";
-            $user_count_sql = "SELECT COUNT(DISTINCT uid) as num FROM {$db->tablepre}user WHERE username LIKE '%{$keyword_escaped_user}%' OR nickname LIKE '%{$keyword_escaped_user}%'";
+            $user_sql = "SELECT u.* FROM {$db->tablepre}user u INNER JOIN (SELECT DISTINCT uid FROM {$db->tablepre}user WHERE username LIKE ? OR nickname LIKE ?) t ON u.uid = t.uid ORDER BY u.uid DESC LIMIT 20";
+            $user_count_sql = "SELECT COUNT(DISTINCT uid) as num FROM {$db->tablepre}user WHERE username LIKE ? OR nickname LIKE ?";
+            $user_params = array($kw_like, $kw_like);
         } else {
-            $user_sql = "SELECT * FROM {$db->tablepre}user WHERE username LIKE '%{$keyword_escaped_user}%' ORDER BY uid DESC LIMIT 20";
-            $user_count_sql = "SELECT COUNT(*) as num FROM {$db->tablepre}user WHERE username LIKE '%{$keyword_escaped_user}%'";
+            $user_sql = "SELECT * FROM {$db->tablepre}user WHERE username LIKE ? ORDER BY uid DESC LIMIT 20";
+            $user_count_sql = "SELECT COUNT(*) as num FROM {$db->tablepre}user WHERE username LIKE ?";
+            $user_params = array($kw_like);
         }
-        
-        $userlist_result = db_sql_find($user_sql);
+
+        $userlist_result = db_sql_find_prepared($user_sql, $user_params);
         if($userlist_result) {
             // 按 uid 去重，防止同一用户出现多次
             $uid_map = array();
@@ -452,7 +453,7 @@ if($keyword_safe) {
             unset($u);
             $userlist = $userlist_result;
         }
-        $user_count_result = db_sql_find_one($user_count_sql);
+        $user_count_result = db_sql_find_one_prepared($user_count_sql, $user_params);
         $user_total = !empty($user_count_result) ? intval($user_count_result['num']) : 0;
     }
 }

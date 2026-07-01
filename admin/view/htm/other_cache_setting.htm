@@ -106,6 +106,90 @@
     </div>
 </div>
 
+<!-- 插件缓存统计与预热 -->
+<?php
+$pluginStats = CacheService::getPluginStats();
+$registeredKeys = $pluginStats['registered_keys'];
+$runtimeStats = $pluginStats['runtime_stats'];
+?>
+<div class="x-card card">
+    <div id="warmup-result"></div>
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <span><i class="ti ti-chart-bar me-1"></i> <?php echo lang('admin_cache_stats_warmup');?></span>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-warmup" data-url="<?php echo url('other-cache-warmup');?>">
+                <i class="ti ti-flame me-1"></i> <?php echo lang('admin_cache_warmup');?>
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- 总体命中率 -->
+        <div class="row g-3 mb-3">
+            <div class="col-sm-4">
+                <div class="text-secondary small"><?php echo lang('admin_cache_hit_count');?></div>
+                <div class="fs-5"><?php echo $pluginStats['total_hit'];?></div>
+            </div>
+            <div class="col-sm-4">
+                <div class="text-secondary small"><?php echo lang('admin_cache_miss_count');?></div>
+                <div class="fs-5"><?php echo $pluginStats['total_miss'];?></div>
+            </div>
+            <div class="col-sm-4">
+                <div class="text-secondary small"><?php echo lang('admin_cache_hit_rate');?></div>
+                <div class="fs-5"><span class="badge bg-<?php echo $pluginStats['hit_rate'] !== 'N/A' && floatval($pluginStats['hit_rate']) > 80 ? 'success' : 'warning';?>"><?php echo $pluginStats['hit_rate'];?></span></div>
+            </div>
+        </div>
+
+        <?php if(!empty($registeredKeys)): ?>
+        <hr>
+        <h6 class="text-secondary"><?php echo lang('admin_cache_registered_keys_title');?></h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:120px;"><?php echo lang('admin_cache_col_plugin');?></th>
+                        <th><?php echo lang('admin_cache_col_key');?></th>
+                        <th style="width:80px;"><?php echo lang('admin_cache_col_ttl');?></th>
+                        <th style="width:180px;"><?php echo lang('admin_cache_col_desc');?></th>
+                        <th style="width:80px;"><?php echo lang('admin_cache_col_hit');?></th>
+                        <th style="width:80px;"><?php echo lang('admin_cache_col_miss');?></th>
+                        <th style="width:100px;"><?php echo lang('admin_cache_col_op');?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach($registeredKeys as $plugin => $keys): ?>
+                        <?php foreach($keys as $key => $meta): ?>
+                            <?php
+                            $fullKey = (strpos($key, 'core_') === 0 || strpos($key, 'p_') === 0) ? $key : ($plugin === 'core' ? 'core_' . $key : 'p_' . $plugin . '_' . $key);
+                            $hit = isset($runtimeStats['keys'][$fullKey]['hit']) ? $runtimeStats['keys'][$fullKey]['hit'] : 0;
+                            $miss = isset($runtimeStats['keys'][$fullKey]['miss']) ? $runtimeStats['keys'][$fullKey]['miss'] : 0;
+                            $pluginLabel = $plugin === 'core' ? lang('admin_cache_core_label') : $plugin;
+                            ?>
+                            <tr>
+                                <td><span class="badge bg-secondary"><?php echo $pluginLabel;?></span></td>
+                                <td class="font-monospace small"><?php echo $fullKey;?></td>
+                                <td><?php echo $meta['ttl'];?></td>
+                                <td class="small text-secondary"><?php echo $meta['desc'];?></td>
+                                <td><?php echo $hit;?></td>
+                                <td><?php echo $miss;?></td>
+                                <td>
+                                    <?php if($plugin !== 'core'): ?>
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-clear-plugin" data-plugin="<?php echo $plugin;?>" data-url="<?php echo url('other-cache-clear-plugin');?>">
+                                        <i class="ti ti-trash"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php else: ?>
+        <div class="text-body-secondary"><?php echo lang('admin_cache_no_registered_keys');?></div>
+        <?php endif; ?>
+    </div>
+</div>
+
 <!-- 缓存设置 -->
 <div class="x-card card">
     <div class="card-header">
@@ -209,16 +293,6 @@
                 </div>
             </div>
 
-            <!-- 自动预热 -->
-            <div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-2">
-                <label class="col-sm-6 fw-medium"><?php echo lang('admin_cache_auto_warmup');?>：</label>
-                <div class="col-sm-6">
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" name="auto_warmup" id="cache-warmup" value="1" <?php echo !empty($config['auto_warmup']) ? 'checked' : '';?>>
-                    </div>
-                </div>
-            </div>
-
             <!-- 测试连接 + 保存 -->
             <div class="mb-3 d-flex flex-column flex-sm-row gap-2">
                 <label class="col-sm-6"></label>
@@ -240,6 +314,8 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
+console.log('[cache_setting] JS 脚本开始执行');
+
 // 驱动选择联动
 document.querySelectorAll('.cache-driver-radio').forEach(function(radio) {
     radio.addEventListener('change', function() {
@@ -253,7 +329,9 @@ document.querySelectorAll('.cache-driver-radio').forEach(function(radio) {
 });
 
 // 测试连接
-document.getElementById('btn-test-conn').addEventListener('click', function() {
+var btnTestConn = document.getElementById('btn-test-conn');
+console.log('[cache_setting] btn-test-conn 元素:', btnTestConn);
+if(btnTestConn) btnTestConn.addEventListener('click', function() {
     var form = document.getElementById('cache-setting-form');
     var formData = new FormData(form);
     formData.append('act', 'test_connection');
@@ -291,10 +369,22 @@ document.getElementById('btn-test-conn').addEventListener('click', function() {
 });
 
 // 表单提交
-document.getElementById('cache-setting-form').addEventListener('submit', function(e) {
+var formEl = document.getElementById('cache-setting-form');
+console.log('[cache_setting] cache-setting-form 元素:', formEl);
+if(formEl) formEl.addEventListener('submit', function(e) {
     e.preventDefault();
     var form = this;
     var formData = new FormData(form);
+    
+    // 调试：检查 type 字段
+    var selectedType = document.querySelector('input[name="type"]:checked');
+    console.log('[cache_setting] 选中的驱动类型:', selectedType ? selectedType.value : '无');
+    console.log('[cache_setting] FormData 中的 type:', formData.get('type'));
+    console.log('[cache_setting] FormData 中的所有字段:');
+    for (var pair of formData.entries()) {
+        console.log('   ', pair[0], ':', pair[1]);
+    }
+    
     var btn = document.getElementById('btn-save');
     btn.disabled = true;
     btn.innerHTML = '<i class="ti ti-loader me-1"></i><?php echo lang('submiting');?>...';
@@ -322,6 +412,72 @@ document.getElementById('cache-setting-form').addEventListener('submit', functio
         btn.innerHTML = '<i class="ti ti-device-floppy me-1"></i><?php echo lang('confirm');?>';
     });
 });
+
+// 缓存预热
+var btnWarmup = document.getElementById('btn-warmup');
+console.log('[cache_setting] btn-warmup 元素:', btnWarmup);
+if(btnWarmup) btnWarmup.addEventListener('click', function() {
+    var btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ti ti-loader me-1"></i> <?php echo lang('admin_cache_warmup_doing');?>';
+    fetch(btn.dataset.url, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'csrf_token=<?php echo CsrfService::getToken();?>'
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        var type = parseInt(data.code) === 0 ? 'success' : 'danger';
+        // 在 card-header 上方显示结果，不用 toast
+        var resultEl = document.getElementById('warmup-result');
+        var warmupLabel = type === 'success' ? '<?php echo lang('admin_cache_warmup_success');?>' : '<?php echo lang('admin_cache_warmup_failed');?>';
+        resultEl.innerHTML = '<div class="alert alert-' + type + ' alert-dismissible fade show m-2" role="alert">' +
+            '<strong>' + warmupLabel + '</strong> ' + data.message +
+            '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-flame me-1"></i> <?php echo lang('admin_cache_warmup');?>';
+    })
+    .catch(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-flame me-1"></i> <?php echo lang('admin_cache_warmup');?>';
+    });
+});
+
+// 清除单个插件缓存
+console.log('[cache_setting] btn-clear-plugin 数量:', document.querySelectorAll('.btn-clear-plugin').length);
+document.querySelectorAll('.btn-clear-plugin').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var plugin = this.dataset.plugin;
+        var confirmMsg = '<?php echo lang('admin_cache_clear_plugin_confirm');?>'.replace('%s', plugin);
+        if(!confirm(confirmMsg)) return;
+        btn.disabled = true;
+        fetch(btn.dataset.url, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: 'csrf_token=<?php echo CsrfService::getToken();?>&plugin=' + encodeURIComponent(plugin)
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            var type = parseInt(data.code) === 0 ? 'success' : 'error';
+            if(typeof showToast === 'function') {
+                showToast(data.message, type);
+            } else {
+                alert(data.message);
+            }
+            btn.disabled = false;
+        })
+        .catch(function(err) {
+            btn.disabled = false;
+        });
+    });
+});
+console.log('[cache_setting] JS 脚本执行完成');
 </script>
 
 <!--{hook admin_other_cache_setting_js.htm}-->

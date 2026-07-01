@@ -15,8 +15,8 @@
 				<span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:0.65em"><?php echo $_user['groupname'];?></span>
 			</div>
 			<?php if(!empty($_user['signature'])) { ?>
-			<p class="text-body-secondary small mb-0"><?php echo esc_html($_user['signature']);?></p>
-			<?php } ?>
+		<p class="text-body-secondary small mb-0"><?php echo $_user['signature'];?></p>
+		<?php } ?>
 			<div class="d-flex gap-4 mt-2">
 				<a href="<?php echo user_thread_url($_uid);?>" class="text-decoration-none">
 					<span class="fw-bold text-primary"><?php echo $_user['threads'];?></span>

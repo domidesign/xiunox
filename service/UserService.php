@@ -7,7 +7,7 @@ if (!interface_exists('DatabaseInterface')) {
 
 /**
  * 用户服务类
- * @since 4.5.0
+ * @since 1.0.2
  */
 class UserService {
     private DatabaseInterface $db;

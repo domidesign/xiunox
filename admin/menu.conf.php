@@ -30,6 +30,7 @@ return array(
 		'icon'=>'icon-comment',
 		'tab'=> array (
 			'list'=>array('url'=>url('thread-list'), 'text'=>lang('admin_thread_batch')),
+			'recycle'=>array('url'=>url('thread-recycle'), 'text'=>lang('admin_recycle_bin')),
 		)
 	),
 	'audit' => array(

@@ -199,7 +199,7 @@ function forum_list_cache() {
 
 	// hook model_forum_list_cache_start.php
 
-	if($forumlist === NULL) {
+	if($forumlist === NULL || $forumlist === FALSE) {
 		// 先批量查询所有版块权限数据，避免 forum_format 中逐版块回退查询
 		// 注意：不能以 gid 为key，因为同一gid在不同版块有多条记录，会导致覆盖丢失
 		$all_access = db_find('forum_access', array(), array('fid'=>1, 'gid'=>1), 1, 10000);
@@ -237,10 +237,12 @@ function forum_list_cache_delete() {
 	global $conf;
 	static $deleted = FALSE;
 	if($deleted) return;
-	
+
 	// hook model_forum_list_cache_delete_start.php
-	
+
 	cache_delete('forumlist');
+	// 同步清除版块树缓存（ForumService::getForumTree）
+	cache_delete('forum_tree');
 	$deleted = TRUE;
 	// hook model_forum_list_cache_delete_end.php
 }

@@ -123,45 +123,111 @@ function is_htmx_request() {
 
 // 渲染点赞按钮 HTML 片段（htmx 4 模式，供 route/thread.php 使用）
 function _render_like_btn($tid, $pid, $is_liked, $likes_count, $ctx = 'post') {
+	// 已点赞 → 指向取消点赞路由；未点赞 → 指向点赞路由
+	$action = $is_liked ? 'unlike' : 'like';
+	$like_url = url('thread-'.$action.'-'.$tid.'-'.$pid);
+	$title = lang('like');
+
+	// 手机端正文底部：chip 样式（图标+文字+数量），仅手机端显示
+	if ($ctx == 'thread_mobile') {
+		$icon_class = $is_liked ? 'ti-heart-filled' : 'ti-heart';
+		$active_class = $is_liked ? ' is-active' : '';
+		$count_html = $likes_count > 0 ? '<span class="chip-count">'.intval($likes_count).'</span>' : '';
+		$html = '<span class="thread-action-chip thread-like-btn-mobile d-xl-none'.esc_html($active_class).'"'
+			. ' hx-post="'.esc_html($like_url).'" hx-vals=\'{"_ctx":"thread_mobile"}\' hx-target="this" hx-swap="outerHTML"'
+			. ' hx-disable="this" hx-confirm=" " role="button" title="'.esc_html($title).'">'
+			. '<i class="ti '.esc_html($icon_class).'"></i>'
+			. '<span>'.esc_html($title).'</span>'
+			. $count_html
+			. '</span>';
+		return $html;
+	}
+
 	switch($ctx) {
 		case 'thread':
-			$btn_class = 'thread-like-btn cursor-pointer transition-colors';
+			// 电脑端左侧操作栏：圆形白底按钮 + 图标 + 角标
+			$btn_class = 'thread-like-btn thread-sidebar-btn cursor-pointer transition-colors';
 			$btn_style = '';
+			$icon_extra = '';
+			$count_class = 'thread-sidebar-badge';
+			$show_count = true;
 			break;
 		case 'reply':
 			$btn_class = 'post-like-btn cursor-pointer text-body-secondary';
 			$btn_style = 'font-size:0.8em';
+			$icon_extra = '';
+			$count_class = 'like-count';
+			$show_count = true;
 			break;
 		case 'post':
 		default:
 			$btn_class = 'post-like-btn cursor-pointer text-body-secondary ms-3';
 			$btn_style = '';
+			$icon_extra = '';
+			$count_class = 'like-count';
+			$show_count = true;
 			break;
 	}
-	// 已点赞 → 指向取消点赞路由；未点赞 → 指向点赞路由
-	$action = $is_liked ? 'unlike' : 'like';
-	$like_url = url('thread-'.$action.'-'.$tid.'-'.$pid);
-	$icon_class = $is_liked ? 'ti-heart-filled text-danger' : 'ti-heart';
-	$title = lang('like');
+	$icon_class = $is_liked ? 'ti-heart-filled text-primary' : 'ti-heart';
+	$badge_class = $is_liked ? 'bg-primary' : 'bg-secondary';
 	$style_attr = $btn_style ? ' style="'.esc_html($btn_style).'"' : '';
+	$title_attr = ($ctx == 'thread') ? ' data-tip="'.esc_html($title).'"' : ' title="'.esc_html($title).'"';
 	// hx-confirm=" " 为真值，触发 htmx:confirm 事件，让积分确认弹窗逻辑生效
-	return '<span class="'.esc_html($btn_class).'" hx-post="'.esc_html($like_url).'" hx-vals=\'{"_ctx":"'.esc_html($ctx).'"}\' hx-target="this" hx-swap="outerHTML" hx-disable="this" hx-confirm=" " role="button" title="'.esc_html($title).'"'.$style_attr.'>'
-		. '<i class="ti '.esc_html($icon_class).'"></i> '
-	. '<span class="like-count">'.intval($likes_count).'</span>'
-		. '</span>';
+	$html = '<span class="'.esc_html($btn_class).'" hx-post="'.esc_html($like_url).'" hx-vals=\'{"_ctx":"'.esc_html($ctx).'"}\' hx-target="this" hx-swap="outerHTML" hx-disable="this" hx-confirm=" " role="button"'.$title_attr.$style_attr.'>'
+		. '<i class="ti '.$icon_extra.' '.esc_html($icon_class).'"></i>';
+	if ($show_count) {
+		$html .= '<span class="'.esc_html($count_class).' '.esc_html($badge_class).'" badge="'.intval($likes_count).'"></span>';
+	}
+	$html .= '</span>';
+	return $html;
 }
 
 // 渲染收藏按钮 HTML 片段（htmx 4 模式，供 route/thread.php 使用）
-function _render_favorite_btn($tid, $is_favorited, $favorites_count) {
+function _render_favorite_btn($tid, $is_favorited, $favorites_count, $ctx = 'thread') {
 	$fav_url = url('thread-favorite-'.$tid);
-	$btn_class = 'thread-favorite-btn cursor-pointer transition-colors';
-	$icon_class = $is_favorited ? 'ti-star-filled text-warning' : 'ti-star';
 	$title = lang('favorite');
+
+	// 手机端正文底部：chip 样式（图标+文字+数量），仅手机端显示
+	if ($ctx == 'thread_mobile') {
+		$icon_class = $is_favorited ? 'ti-star-filled' : 'ti-star';
+		$active_class = $is_favorited ? ' is-active' : '';
+		$count_html = $favorites_count > 0 ? '<span class="chip-count">'.intval($favorites_count).'</span>' : '';
+		$html = '<span class="thread-action-chip thread-favorite-btn-mobile d-xl-none'.esc_html($active_class).'"'
+			. ' hx-post="'.esc_html($fav_url).'" hx-vals=\'{"_ctx":"thread_mobile"}\' hx-target="this" hx-swap="outerHTML"'
+			. ' hx-disable="this" hx-confirm=" " role="button" title="'.esc_html($title).'">'
+			. '<i class="ti '.esc_html($icon_class).'"></i>'
+			. '<span>'.esc_html($title).'</span>'
+			. $count_html
+			. '</span>';
+		return $html;
+	}
+
+	$icon_class = $is_favorited ? 'ti-star-filled text-primary' : 'ti-star';
+	$badge_class = $is_favorited ? 'bg-primary' : 'bg-secondary';
+	switch($ctx) {
+		case 'thread':
+			// 电脑端左侧操作栏：圆形白底按钮 + 图标 + 角标
+			$btn_class = 'thread-favorite-btn thread-sidebar-btn cursor-pointer transition-colors';
+			$icon_extra = '';
+			$count_class = 'thread-sidebar-badge';
+			$show_count = true;
+			break;
+		default:
+			$btn_class = 'thread-favorite-btn cursor-pointer transition-colors';
+			$icon_extra = '';
+			$count_class = 'favorite-count';
+			$show_count = true;
+			break;
+	}
+	$title_attr = ($ctx == 'thread') ? ' data-tip="'.esc_html($title).'"' : ' title="'.esc_html($title).'"';
 	// hx-confirm=" " 为真值，触发 htmx:confirm 事件，让积分确认弹窗逻辑生效
-	return '<span class="'.esc_html($btn_class).'" hx-post="'.esc_html($fav_url).'" hx-target="this" hx-swap="outerHTML" hx-disable="this" hx-confirm=" " role="button" title="'.esc_html($title).'">'
-		. '<i class="ti '.esc_html($icon_class).'"></i> '
-	. '<span class="favorite-count">'.intval($favorites_count).'</span>'
-		. '</span>';
+	$html = '<span class="'.esc_html($btn_class).'" hx-post="'.esc_html($fav_url).'" hx-target="this" hx-swap="outerHTML" hx-disable="this" hx-confirm=" " role="button"'.$title_attr.'>'
+		. '<i class="ti '.$icon_extra.' '.esc_html($icon_class).'"></i>';
+	if ($show_count) {
+		$html .= '<span class="'.esc_html($count_class).' '.esc_html($badge_class).'" badge="'.intval($favorites_count).'"></span>';
+	}
+	$html .= '</span>';
+	return $html;
 }
 
 /*
@@ -278,13 +344,13 @@ function message($code, $message, $extra = array()) {
 		|| !empty($_SERVER['HTTP_X_API_REQUEST'])
 		|| (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower(trim($_SERVER['HTTP_X_REQUESTED_WITH'])) == 'xmlhttprequest');
 	if($is_api) {
-		header('Content-Type: application/json; charset=utf-8');
-		echo xn_json_encode($arr);
-		exit;
+		// 统一 JSON 响应格式，由 ErrorHandler::renderJson 输出（内部 exit）
+		ErrorHandler::renderJson($code, $message, $extra);
 	}
 
 	if($ajax) {
-		echo xn_json_encode($arr);
+		// 统一 JSON 响应格式，由 ErrorHandler::renderJson 输出（内部 exit）
+		ErrorHandler::renderJson($code, $message, $extra);
 	} else {
 		if(IN_CMD) {
 			if(is_array($message) || is_object($message)) {

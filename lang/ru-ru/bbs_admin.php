@@ -380,7 +380,7 @@ return array(
 	'admin_clear_opcache'=>'Очистить OPcache',
 	'admin_opcache_not_enabled'=>'(OPcache не включён)',
 
-	'admin_upgrade_title'=>'Обновление Xiuno 4.0 → 4.5+ в один клик',
+	'admin_upgrade_title'=>'Обновление Xiuno 4.0 →X в один клик',
 	'admin_upgrade_current_version'=>'Текущая версия: ',
 	'admin_upgrade_target_version'=>'Целевая версия: ',
 	'admin_upgrade_waiting'=>'Ожидание',
@@ -1152,7 +1152,6 @@ return array(
 	'admin_cache_password'=>'Пароль',
 	'admin_cache_default_ttl'=>'TTL кэша по умолчанию',
 	'admin_cache_seconds'=>'сек.',
-	'admin_cache_auto_warmup'=>'Автопрогрев популярных данных',
 	'admin_cache_test_conn'=>'Проверить подключение',
 	'admin_cache_setting_saved'=>'Настройки кэша сохранены',
 	'admin_cache_select_type'=>'Выберите хотя бы один тип кэша',

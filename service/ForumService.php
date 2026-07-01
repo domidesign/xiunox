@@ -7,7 +7,7 @@ if (!interface_exists('DatabaseInterface')) {
 
 /**
  * 版块服务类
- * @since 4.5.0
+ * @since 1.0.2
  */
 class ForumService {
     private DatabaseInterface $db;
@@ -84,43 +84,48 @@ class ForumService {
      * @return array 树形版块列表
      */
     public function getForumTree(): array {
-        // 查询所有版块，按 rank 降序、fid 升序排列
-        $allForums = $this->db->find('forum', [], ['rank' => -1, 'fid' => 1], 1, 1000, 'fid');
-        if (empty($allForums)) return [];
+        // 300s 缓存，版块变更时由 forum_list_cache_delete 间接失效
+        // 含 JOIN 子查询 SELECT MAX(tid) FROM thread GROUP BY fid，开销大
+        // 使用 CacheHelper::remember 简化缓存读写，核心代码前缀 'core'
+        return CacheHelper::remember('forum_tree', 300, function() {
+            // 查询所有版块，按 rank 降序、fid 升序排列
+            $allForums = $this->db->find('forum', [], ['rank' => -1, 'fid' => 1], 1, 1000, 'fid');
+            if (empty($allForums)) return [];
 
-        // 获取每个版块的最新帖子（用于 last_post 信息）
-        $lastPosts = $this->getLastPostsByForums();
+            // 获取每个版块的最新帖子（用于 last_post 信息）
+            $lastPosts = $this->getLastPostsByForums();
 
-        // 构建版块树
-        $tree = [];
-        $childrenMap = []; // fup => 子版块列表
+            // 构建版块树
+            $tree = [];
+            $childrenMap = []; // fup => 子版块列表
 
-        foreach ($allForums as $fid => $forum) {
-            $item = $this->formatForumItem($forum, $lastPosts);
+            foreach ($allForums as $fid => $forum) {
+                $item = $this->formatForumItem($forum, $lastPosts);
 
-            $fup = intval($forum['fup'] ?? 0);
-            if ($fup === 0) {
-                // 顶级版块/分区
-                $item['children'] = [];
-                $tree[$fid] = $item;
-            } else {
-                // 子版块，暂存到 childrenMap
-                if (!isset($childrenMap[$fup])) {
-                    $childrenMap[$fup] = [];
+                $fup = intval($forum['fup'] ?? 0);
+                if ($fup === 0) {
+                    // 顶级版块/分区
+                    $item['children'] = [];
+                    $tree[$fid] = $item;
+                } else {
+                    // 子版块，暂存到 childrenMap
+                    if (!isset($childrenMap[$fup])) {
+                        $childrenMap[$fup] = [];
+                    }
+                    $childrenMap[$fup][] = $item;
                 }
-                $childrenMap[$fup][] = $item;
             }
-        }
 
-        // 将子版块挂载到对应的父版块
-        foreach ($childrenMap as $fup => $children) {
-            if (isset($tree[$fup])) {
-                $tree[$fup]['children'] = $children;
+            // 将子版块挂载到对应的父版块
+            foreach ($childrenMap as $fup => $children) {
+                if (isset($tree[$fup])) {
+                    $tree[$fup]['children'] = $children;
+                }
             }
-        }
 
-        // 重新索引为数字索引数组
-        return array_values($tree);
+            // 重新索引为数字索引数组
+            return array_values($tree);
+        });
     }
 
     /**

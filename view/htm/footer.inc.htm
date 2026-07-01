@@ -72,8 +72,8 @@
 		mark_all_read: <?php echo json_encode(my_notify_mark_read_url());?>,
 		notice_mark_read: <?php echo json_encode(notice_mark_read_url());?>,
 		// notify_read URL 模板：用 __NID__ 占位符，JS 替换为实际 nid
-		// 兼容所有 url_rewrite_on（包括 .html 后缀格式）
-		notify_read_template: <?php echo json_encode(str_replace('read', 'read-__NID__', my_notify_read_url()));?>
+		// 使用 route_url 生成，兼容所有 url_rewrite_on 格式（包括 .html 后缀和路径风格）
+		notify_read_template: <?php echo json_encode(route_url('my_notify_read_nid', ['nid' => '__NID__']));?>
 	};
 	// 公告接口 URL
 	var bbs_notice_announcements_url = <?php echo json_encode(notice_announcements_url());?>;

@@ -7,7 +7,7 @@ if (!interface_exists('DatabaseInterface')) {
 
 /**
  * 回复服务类
- * @since 4.5.0
+ * @since 1.0.2
  */
 class PostService {
     private DatabaseInterface $db;

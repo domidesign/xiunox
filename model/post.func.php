@@ -40,6 +40,10 @@ function post__delete($pid) {
 
 function post__find($cond = array(), $orderby = array(), $page = 1, $pagesize = 20) {
 	// hook model_post__find_start.php
+	// 软删除过滤：自动排除已删除回帖
+	if(!isset($cond['is_deleted'])) {
+		$cond['is_deleted'] = 0;
+	}
 	$postlist = db_find('post', $cond, $orderby, $page, $pagesize, 'pid');
 	// hook model_post__find_end.php
 	return $postlist;
@@ -77,7 +81,16 @@ function post_create($arr, $fid, $gid) {
 	}
 	
 	//post_list_cache_delete($tid);
-	
+
+	// 失效该帖子的回帖列表缓存（递增版本号，使旧缓存自动失效）
+	// 使用 CacheHelper 统一缓存 API，核心代码前缀 'core'
+	$_pl_v_key = 'thread_pl_v_' . $tid;
+	$_old_v = class_exists('CacheHelper', false) ? CacheHelper::get(CacheHelper::pluginKey($_pl_v_key)) : NULL;
+	$_new_v = ($_old_v === NULL || $_old_v === FALSE) ? 1 : intval($_old_v) + 1;
+	if(class_exists('CacheHelper', false)) {
+		CacheHelper::set(CacheHelper::pluginKey($_pl_v_key), $_new_v, 86400);
+	}
+
 	// 更新板块信息。
 	forum_list_cache_delete();
 	
@@ -121,6 +134,10 @@ function post_update($pid, $arr, $tid = 0) {
 function post_read($pid) {
 	// hook model_post_read_start.php
 	$post = post__read($pid);
+	// 软删除过滤：已删除回帖对前台等同于不存在
+	if(!empty($post) && !empty($post['is_deleted'])) {
+		return array();
+	}
 	post_format($post);
 	// hook model_post_read_end.php
 	return $post;
@@ -172,6 +189,72 @@ function post_delete($pid) {
 	
 	// hook model_post_delete_end.php
 	return $r;
+}
+
+// 软删除单个回帖（标记 is_deleted=1）
+function post_soft_delete($pid, $deleted_by) {
+	global $time;
+	$post = post__read($pid);
+	if(empty($post) || intval($post['is_deleted']) == 1) return TRUE;
+
+	$tid = $post['tid'];
+	$uid = $post['uid'];
+	$isfirst = $post['isfirst'];
+
+	// hook model_post_soft_delete_start.php
+
+	// 标记回帖为已删除
+	post__update($pid, array('is_deleted'=>1, 'deleted_date'=>$time, 'deleted_by'=>intval($deleted_by)));
+
+	// 减计统计（仅审核通过的非首帖）
+	if(!$isfirst) {
+		$audit_status = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
+		if($audit_status == 1) {
+			thread__update($tid, array('posts-'=>1));
+			$uid AND user__update($uid, array('posts-'=>1));
+			runtime_set('posts-', 1);
+		}
+	}
+
+	// 如果该 post 是 thread 的 lastpid，重算
+	$thread = thread__read($tid);
+	if(!empty($thread) && $pid == $thread['lastpid']) {
+		thread_update_last($tid);
+	}
+
+	// hook model_post_soft_delete_end.php
+	return TRUE;
+}
+
+// 恢复单个已软删除的回帖
+function post_restore($pid) {
+	$post = post__read($pid);
+	if(empty($post) || intval($post['is_deleted']) == 0) return TRUE;
+
+	$tid = $post['tid'];
+	$uid = $post['uid'];
+	$isfirst = $post['isfirst'];
+
+	// hook model_post_restore_start.php
+
+	// 恢复回帖
+	post__update($pid, array('is_deleted'=>0, 'deleted_date'=>0, 'deleted_by'=>0));
+
+	// 补计统计（仅审核通过的非首帖）
+	if(!$isfirst) {
+		$audit_status = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
+		if($audit_status == 1) {
+			thread__update($tid, array('posts+'=>1));
+			$uid AND user__update($uid, array('posts+'=>1));
+			runtime_set('posts+', 1);
+		}
+	}
+
+	// 重算 lastpid
+	thread_update_last($tid);
+
+	// hook model_post_restore_end.php
+	return TRUE;
 }
 
 // 此处有可能会超时
@@ -374,6 +457,21 @@ function post_find_by_tid($tid, $page = 1, $pagesize = 50, $orderby = array('pid
 	}
 
 	// hook model_post_find_by_tid_end.php
+	return $postlist;
+}
+
+// 查找帖子下已删除回复（回收站用）
+function post_find_deleted_by_tid($tid, $page = 1, $pagesize = 50) {
+	// hook model_post_find_deleted_by_tid_start.php
+	$postlist = post__find(array('tid'=>$tid, 'is_deleted'=>1), array('pid'=>1), $page, $pagesize);
+	if($postlist) {
+		$uids = arrlist_values($postlist, 'uid');
+		user_preload($uids);
+		foreach($postlist as &$post) {
+			post_format($post);
+		}
+	}
+	// hook model_post_find_deleted_by_tid_end.php
 	return $postlist;
 }
 

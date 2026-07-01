@@ -1,0 +1,102 @@
+<!-- 1. 作者信息卡片 -->
+<div class="x-card card mb-3">
+    <div class="card-body">
+        <div class="d-flex align-items-center gap-2">
+            <!-- 头像 -->
+            <div class="flex-shrink-0">
+                <a href="<?php echo user_url($thread['uid']);?>" tabindex="-1">
+                    <?php echo avatar_component_from_data($thread['user_avatar_url'], 'lg', isset($author_group['icon_class']) ? $author_group['icon_class'] : '', isset($author_group['color']) ? $author_group['color'] : '', isset($thread['gid']) ? $thread['gid'] : 0);?>
+                </a>
+            </div>
+            <!-- 用户名+UID+用户组 -->
+            <div class="flex-fill" style="min-width:0">
+                <div class="d-flex align-items-center flex-wrap gap-1">
+                    <a href="<?php echo user_url($thread['uid']);?>" class="text-body text-decoration-none fw-semibold text-truncate">
+                        <?php echo $thread['username'];?>
+                    </a>
+                    <!--{hook thread_author_card_username_after.htm}-->
+                </div>
+                <div class="d-flex align-items-center flex-wrap gap-1 mt-1">
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary" style="font-size:0.65em">uid:<?php echo $thread['uid'];?></span>
+                    <?php if(!empty($author_group['name'])): ?>
+                    <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:0.65em">
+                        <?php echo esc_html($author_group['name']);?>
+                    </span>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <!-- 关注按钮 — 直接渲染 -->
+            <?php if(empty($uid)) { ?>
+            <a href="<?php echo user_login_url();?>" class="btn btn-sm btn-primary rounded-pill flex-shrink-0"><i class="ti ti-user-plus me-1"></i><?php echo lang('follow');?></a>
+            <?php } elseif($uid != $thread['uid']) { ?>
+            <?php if($author_followed) { ?>
+            <button class="btn btn-sm btn-outline-primary rounded-pill flex-shrink-0" hx-post="<?php echo user_follow_url($thread['uid']);?>" hx-target="this" hx-swap="outerHTML" hx-optimistic><i class="ti me-1 ti-user-minus"></i><span><?php echo lang('followed');?></span></button>
+            <?php } else { ?>
+            <button class="btn btn-sm btn-primary rounded-pill flex-shrink-0" hx-post="<?php echo user_follow_url($thread['uid']);?>" hx-target="this" hx-swap="outerHTML" hx-optimistic><i class="ti me-1 ti-user-plus"></i><span><?php echo lang('follow');?></span></button>
+            <?php } ?>
+            <?php } ?>
+        </div>
+    </div>
+    <?php if(!empty($author['signature'])): ?>
+    <!-- 作者签名独立区块 -->
+    <div class="card-body py-2">
+        <div class="bg-body-tertiary rounded-1 p-1 small text-body-secondary">
+            <?php echo $author['signature'];?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- 2. 作者数据统计 -->
+    <div class="card-body py-3">
+        <div class="d-flex small text-center">
+            <div class="flex-fill py-1"><span class="text-body-secondary d-block">
+                    <?php echo lang('posts_label');?>
+                </span><b>
+                    <?php echo $author_threads;?>
+                </b></div>
+            <div class="flex-fill py-1"><span class="text-body-secondary d-block">
+                    <?php echo lang('comments_label');?>
+                </span><b>
+                    <?php echo $author_posts;?>
+                </b></div>
+            <div class="flex-fill py-1"><span class="text-body-secondary d-block">
+                    <?php echo lang('followers_label');?>
+                </span><b>
+                    <?php echo $author_followers;?>
+                </b></div>
+            <div class="flex-fill py-1"><span class="text-body-secondary d-block">
+                    <?php echo lang('following_label');?>
+                </span><b>
+                    <?php echo $author_following;?>
+                </b></div>
+        </div>
+    </div>
+    <a role="button" class="btn btn-primary w-100 my-2" href="<?php echo thread_create_url($fid);?>"
+        hx-boost="false"><i class="ti ti-pencil me-1"></i>
+        <?php echo lang('thread_create_new');?>
+    </a>
+</div>
+
+<!-- 3. 帖子目录（有标题时显示） -->
+<div id="thread-toc" class="d-none" style="position: sticky; top: 1.0.2rem; z-index: 1010; align-self: flex-start;">
+    <div class="x-card card mb-3 overflow-hidden d-flex flex-column" style="max-height: calc(100vh - 6rem);">
+        <div class="card-header bg-transparent border-bottom-0 py-2 flex-shrink-0">
+            <h6 class="mb-0 fw-semibold"><i class="ti ti-list me-1"></i><?php echo lang('table_of_contents');?></h6>
+        </div>
+        <div class="card-body pt-0 overflow-auto flex-fill">
+            <nav id="thread-toc-nav" class="nav flex-column small"></nav>
+        </div>
+    </div>
+</div>
+
+<!-- 4. 移动端扫码访问 -->
+<div class="x-card card mb-3">
+    <div class="card-body text-center">
+        <div id="qrcode" class="d-inline-block mb-2"></div>
+        <p class="text-body-secondary small mb-0">
+            <?php echo lang('scan_qr_code_tip');?>
+        </p>
+    </div>
+</div>
+
+<!--{hook thread_user_after.htm}-->

@@ -20,12 +20,24 @@ if(empty($action) || $action == 'list') {
 	
 	$cond = array();
 	$allowtype = array('uid', 'username', 'nickname', 'email', 'gid', 'create_ip');
-	
+
 	// hook admin_user_list_allow_type_after.php
-	
+
 	if($keyword) {
 		!in_array($srchtype, $allowtype) AND $srchtype = 'uid';
-		$cond[$srchtype] = $srchtype == 'create_ip' ? sprintf('%u', ip2long($keyword)) : $keyword; 
+		if($srchtype == 'create_ip') {
+			// IP 字段为整型存储，使用精确匹配
+			$cond[$srchtype] = sprintf('%u', ip2long($keyword));
+		} elseif($srchtype == 'uid' || $srchtype == 'gid') {
+			// uid / gid 为数值字段，使用精确匹配
+			$cond[$srchtype] = $keyword;
+		} else {
+			// username / nickname / email 使用 LIKE 模糊匹配
+			// 转义 LIKE 通配符 % 和 _，防止用户输入的通配符干扰搜索结果
+			$escaped_keyword = str_replace(array('\\', '%', '_'), array('\\\\', '\%', '\_'), $keyword);
+			// db_cond_to_sqladd 会将 array('LIKE' => $v) 转为 LIKE '%v%' 并参数化绑定，杜绝 SQL 注入
+			$cond[$srchtype] = array('LIKE' => $escaped_keyword);
+		}
 	}
 
 	// hook admin_user_list_cond_after.php
@@ -146,7 +158,11 @@ if(empty($action) || $action == 'list') {
 		$nickname = param('nickname');
 		$password = param('password');
 		$_gid = param('_gid');
-		$signature = param('signature', '');
+		$signature = param('signature', '', FALSE);
+	// 签名支持HTML：使用xn_signature_purify净化
+	if ($signature !== '') {
+		$signature = xn_signature_purify($signature);
+	}
 		$reset_avatar = param('reset_avatar', 0);
 
 		// 积分调整参数

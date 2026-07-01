@@ -380,7 +380,7 @@ return array(
 	'admin_clear_opcache'=>'ล้าง OPcache',
 	'admin_opcache_not_enabled'=>'(OPcache ไม่ได้เปิดใช้งาน)',
 
-	'admin_upgrade_title'=>'อัปเกรด Xiuno 4.0 → 4.5+ ด้วยคลิกเดียว',
+	'admin_upgrade_title'=>'อัปเกรด Xiuno 4.0 →X ด้วยคลิกเดียว',
 	'admin_upgrade_current_version'=>'เวอร์ชันปัจจุบัน: ',
 	'admin_upgrade_target_version'=>'เวอร์ชันเป้าหมาย: ',
 	'admin_upgrade_waiting'=>'รออยู่',
@@ -1152,7 +1152,6 @@ return array(
 	'admin_cache_password'=>'รหัสผ่าน',
 	'admin_cache_default_ttl'=>'TTL แคชเริ่มต้น',
 	'admin_cache_seconds'=>'วินาที',
-	'admin_cache_auto_warmup'=>'วอร์มอัปข้อมูลยอดนิยมอัตโนมัติ',
 	'admin_cache_test_conn'=>'ทดสอบการเชื่อมต่อ',
 	'admin_cache_setting_saved'=>'บันทึกการตั้งค่าแคชแล้ว',
 	'admin_cache_select_type'=>'กรุณาเลือกอย่างน้อยหนึ่งประเภทแคช',

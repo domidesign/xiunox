@@ -29,7 +29,7 @@ switch ($method) {
                 'brief' => $conf['sitebrief'] ?? '',
                 'url' => http_url_path(),
                 'api_version' => '1.0',
-                'bbs_version' => '4.5',
+                'bbs_version' => '1.0.2',
                 'lang' => $conf['lang'] ?? 'zh-cn',
                 'timezone' => $conf['timezone'] ?? 'Asia/Shanghai',
             ]);

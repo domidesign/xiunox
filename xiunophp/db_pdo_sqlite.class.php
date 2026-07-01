@@ -80,32 +80,98 @@ class db_pdo_sqlite {
 	
 	public function find($table, $cond = array(), $orderby = array(), $page = 1, $pagesize = 10, $key = '', $col = array()) {
 		$page = max(1, $page);
-		$cond = db_cond_to_sqladd($cond);
+		list($condSql, $condParams) = db_cond_to_sqladd($cond);
 		$orderby = db_orderby_to_sqladd($orderby);
 		$offset = ($page - 1) * $pagesize;
 		$cols = $col ? implode(',', $col) : '*';
-		return $this->sql_find("SELECT $cols FROM {$this->tablepre}$table $cond$orderby LIMIT $offset,$pagesize", $key);
-		
+		$sql = "SELECT $cols FROM {$this->tablepre}$table $condSql$orderby LIMIT $offset,$pagesize";
+		$stmt = $this->prepare($sql, $condParams);
+		if(!$stmt) return FALSE;
+		$stmt->setFetchMode(PDO::FETCH_ASSOC);
+		$arrlist = $stmt->fetchAll();
+		$stmt->closeCursor();
+		$key AND $arrlist = arrlist_change_key($arrlist, $key);
+		return $arrlist;
 	}
-		
+
 	public function find_one($table, $cond = array(), $orderby = array(), $col = array()) {
-		$cond = db_cond_to_sqladd($cond);
+		list($condSql, $condParams) = db_cond_to_sqladd($cond);
 		$orderby = db_orderby_to_sqladd($orderby);
 		$cols = $col ? implode(',', $col) : '*';
-		return $this->sql_find_one("SELECT $cols FROM {$this->tablepre}$table $cond$orderby LIMIT 1");
+		$sql = "SELECT $cols FROM {$this->tablepre}$table $condSql$orderby LIMIT 1";
+		return $this->prepare_one($sql, $condParams);
 	}
-	
+
+	/**
+	 * PDO 预处理执行
+	 * @param string $sql 带 ? 占位符的 SQL
+	 * @param array $params 绑定参数
+	 * @return PDOStatement|FALSE
+	 */
+	public function prepare($sql, $params = array()) {
+		$this->errno = 0;
+		$this->errstr = '';
+		$pre = strtoupper(substr(ltrim($sql), 0, 7));
+		$isWrite = ($pre == 'INSERT ' || $pre == 'UPDATE ' || $pre == 'DELETE ' || $pre == 'REPLACE' || strtoupper(substr(ltrim($sql), 0, 6)) == 'CREATE' || strtoupper(substr(ltrim($sql), 0, 4)) == 'DROP' || strtoupper(substr(ltrim($sql), 0, 8)) == 'TRUNCATE');
+		$this->link = NULL;
+		if($isWrite) {
+			if(!$this->wlink && !$this->connect_master()) return FALSE;
+			$link = $this->link = $this->wlink;
+		} else {
+			if(!$this->rlink && !$this->connect_slave()) return FALSE;
+			$link = $this->link = $this->rlink;
+		}
+		try {
+			$stmt = $link->prepare($sql);
+			if($stmt === FALSE) {
+				$this->error();
+				return FALSE;
+			}
+			$i = 1;
+			foreach($params as $v) {
+				if(is_int($v)) {
+					$stmt->bindValue($i, $v, PDO::PARAM_INT);
+				} elseif(is_bool($v)) {
+					$stmt->bindValue($i, $v, PDO::PARAM_BOOL);
+				} elseif(is_null($v)) {
+					$stmt->bindValue($i, $v, PDO::PARAM_NULL);
+				} else {
+					$stmt->bindValue($i, (string)$v, PDO::PARAM_STR);
+				}
+				$i++;
+			}
+			$stmt->execute();
+		} catch (Exception $e) {
+			$this->error($e->getCode(), $e->getMessage());
+			return FALSE;
+		}
+		if(count($this->sqls) < 1000) $this->sqls[] = $sql;
+		return $stmt;
+	}
+
+	/**
+	 * PDO 预处理查询单条
+	 */
+	public function prepare_one($sql, $params = array()) {
+		$stmt = $this->prepare($sql, $params);
+		if(!$stmt) return FALSE;
+		$stmt->setFetchMode(PDO::FETCH_ASSOC);
+		$r = $stmt->fetch();
+		$stmt->closeCursor();
+		return $r === FALSE ? NULL : $r;
+	}
+
 	public function query($sql) {
 		if(!$this->rlink && !$this->connect_slave()) return FALSE;
 		$link = $this->link = $this->rlink;
 		$query = $link->query($sql);
 		if($query === FALSE) $this->error();
-		
+
 		if(count($this->sqls) < 1000) $this->sqls[] = $sql;
-		
+
 		return $query;
 	}
-	
+
 	public function exec($sql) {
 		if(!$this->wlink && !$this->connect_master()) return FALSE;
 		$link = $this->link = $this->wlink;
@@ -119,21 +185,21 @@ class db_pdo_sqlite {
 		} else {
 			$this->error();
 		}
-		
+
 		return $n;
 	}
-	
+
 	public function count($table, $cond = array()) {
-		$cond = db_cond_to_sqladd($cond);
-		$sql = "SELECT COUNT(*) AS num FROM `$table` $cond";
-		$arr = $this->sql_find_one($sql);
+		list($condSql, $condParams) = db_cond_to_sqladd($cond);
+		$sql = "SELECT COUNT(*) AS num FROM `$table` $condSql";
+		$arr = $this->prepare_one($sql, $condParams);
 		return !empty($arr) ? intval($arr['num']) : $arr;
 	}
-	
+
 	public function maxid($table, $field, $cond = array()) {
-		$sqladd = db_cond_to_sqladd($cond);
+		list($sqladd, $condParams) = db_cond_to_sqladd($cond);
 		$sql = "SELECT MAX($field) AS maxid FROM `$table` $sqladd";
-		$arr = $this->sql_find_one($sql);
+		$arr = $this->prepare_one($sql, $condParams);
 		return !empty($arr) ? intval($arr['maxid']) : $arr;
 	}
 	

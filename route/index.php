@@ -79,23 +79,28 @@ if($thread_list_from_default) {
 		$fids = array_intersect($fids, $_home_forum_ids);
 		$fids = array_values($fids);
 	}
-	// 首页帖子总数：使用 60 秒短时缓存，避免每次请求都实时 COUNT
+	// 首页帖子总数：60s 短缓存，使用 CacheHelper::remember 统一缓存键命名（core_ 前缀）
 	$_count_cache_key = 'index_thread_count_' . md5(implode(',', $fids)) . '_' . $gid;
-	$totalnum = cache_get($_count_cache_key);
-	if($totalnum === NULL) {
+	$totalnum = CacheHelper::remember($_count_cache_key, 60, function() use ($fids, $gid) {
 		if($gid == 0 || $gid > 2) {
-			$totalnum = thread_count(array('fid' => $fids, 'audit_status' => 1));
+			return thread_count(array('fid' => $fids, 'audit_status' => 1));
 		} else {
-			$totalnum = thread_count(array('fid' => $fids));
+			return thread_count(array('fid' => $fids));
 		}
-		cache_set($_count_cache_key, $totalnum, 60);
-	}
+	});
 	$pagination = pagination(url("$route-{page}", array('order' => $order)), $totalnum, $page, $pagesize);
 
 	// hook thread_find_by_fids_before.php
 	// 最热排序：直接用 ORDER BY views DESC（与版块页一致），修正之前的语义错误
 	$_list_order = ($order == 'hot') ? 'views' : $order;
-	$threadlist = thread_find_by_fids($fids, $page, $pagesize, $_list_order, FALSE);
+
+	// 首页帖子列表 60s 短缓存，避免高并发下频繁查库
+	// 使用 CacheHelper::remember 简化缓存读写，核心代码前缀 'core'
+	// 缓存键包含 order/page/gid/fids，确保不同用户组/排序/页码独立缓存
+	$_list_cache_key = 'index_tl_' . $_list_order . '_' . $page . '_' . $gid . '_' . md5(implode(',', $fids));
+	$threadlist = CacheHelper::remember($_list_cache_key, 60, function() use ($fids, $page, $pagesize, $_list_order) {
+		return thread_find_by_fids($fids, $page, $pagesize, $_list_order, FALSE);
+	});
 }
 
 // 查找置顶帖（在主要浏览排序的第一页显示，排除精华/关注等过滤视图）

@@ -46,7 +46,17 @@ class db_pdo_mysql implements DatabaseInterface {
 			$arr = array_rand($this->conf['slaves'], 1);
 			$conf = $this->conf['slaves'][$arr[0]];
 			$this->rconf = $conf;
-			$this->rlink = $this->real_connect($conf['host'], $conf['user'], $conf['password'], $conf['name'], $conf['charset'], $conf['engine']);
+			$rlink = $this->real_connect($conf['host'], $conf['user'], $conf['password'], $conf['name'], $conf['charset'], $conf['engine']);
+			// 从库连接失败时回退主库，避免读请求全部失败或陷入重试循环
+			// real_connect 失败返回 FALSE 并已通过 $this->error() 记录错误信息
+			if($rlink === FALSE) {
+				xn_log('Slave DB connect failed, fallback to master', 'db_error');
+				if($this->wlink === NULL) $this->wlink = $this->connect_master();
+				$this->rlink = $this->wlink;
+				$this->rconf = $this->conf['master'];
+			} else {
+				$this->rlink = $rlink;
+			}
 		}
 		return $this->rlink;
 	}
@@ -70,25 +80,34 @@ class db_pdo_mysql implements DatabaseInterface {
 			$this->error($e->getCode(), '连接数据库服务器失败:'.$e->getMessage());
 			return FALSE;
 		}
+		// 字符集从配置读取，默认 utf8mb4（避免 charset 为空时跳过 SET NAMES）
+		if(!$charset) $charset = isset($this->conf['master']['charset']) ? $this->conf['master']['charset'] : 'utf8mb4';
 		$charset AND $link->query("SET names $charset, sql_mode=''");
 		return $link;
 	}
 
 	public function find(string $table, array $cond = [], array $orderby = [], int $page = 1, int $pagesize = 10, string $key = '', array $col = []): array {
 		$page = max(1, $page);
-		$cond = db_cond_to_sqladd($cond);
+		list($condSql, $condParams) = db_cond_to_sqladd($cond);
 		$orderby = db_orderby_to_sqladd($orderby);
 		$offset = ($page - 1) * $pagesize;
 		$cols = $col ? implode(',', $col) : '*';
-		$r = $this->sql_find("SELECT $cols FROM {$this->tablepre}$table $cond$orderby LIMIT $offset,$pagesize", $key);
-		return is_array($r) ? $r : [];
+		$sql = "SELECT $cols FROM {$this->tablepre}$table $condSql$orderby LIMIT $offset,$pagesize";
+		$stmt = $this->prepare($sql, $condParams);
+		if(!$stmt) return [];
+		$stmt->setFetchMode(PDO::FETCH_ASSOC);
+		$arrlist = $stmt->fetchAll();
+		$stmt->closeCursor();
+		$key AND $arrlist = arrlist_change_key($arrlist, $key);
+		return is_array($arrlist) ? $arrlist : [];
 	}
 
 	public function find_one($table, $cond = array(), $orderby = array(), $col = array()): ?array {
-		$cond = db_cond_to_sqladd($cond);
+		list($condSql, $condParams) = db_cond_to_sqladd($cond);
 		$orderby = db_orderby_to_sqladd($orderby);
 		$cols = $col ? implode(',', $col) : '*';
-		return $this->sql_find_one("SELECT $cols FROM {$this->tablepre}$table $cond$orderby LIMIT 1");
+		$sql = "SELECT $cols FROM {$this->tablepre}$table $condSql$orderby LIMIT 1";
+		return $this->prepare_one($sql, $condParams);
 	}
 
 	/**
@@ -106,7 +125,7 @@ class db_pdo_mysql implements DatabaseInterface {
 	 */
 	public function find_group(string $table, array $cond = [], array $groupby = [], array $having = [], array $orderby = [], int $page = 1, int $pagesize = 10, string $key = '', array $col = []): array {
 		$page = max(1, $page);
-		$condSql = db_cond_to_sqladd($cond);
+		list($condSql, $condParams) = db_cond_to_sqladd($cond);
 		$orderbySql = db_orderby_to_sqladd($orderby);
 		$offset = ($page - 1) * $pagesize;
 		$cols = $col ? implode(',', $col) : '*';
@@ -117,15 +136,22 @@ class db_pdo_mysql implements DatabaseInterface {
 		}
 
 		$havingSql = '';
+		$havingParams = array();
 		if (!empty($having)) {
-			$havingSql = db_cond_to_sqladd($having);
+			list($havingSql, $havingParams) = db_cond_to_sqladd($having);
 			// db_cond_to_sqladd 返回 ' WHERE ...'，需要替换为 ' HAVING ...'
 			$havingSql = str_replace(' WHERE ', ' HAVING ', $havingSql);
 		}
 
 		$sql = "SELECT $cols FROM {$this->tablepre}$table $condSql$groupbySql$havingSql$orderbySql LIMIT $offset,$pagesize";
-		$r = $this->sql_find($sql, $key);
-		return is_array($r) ? $r : [];
+		$params = array_merge($condParams, $havingParams);
+		$stmt = $this->prepare($sql, $params);
+		if(!$stmt) return [];
+		$stmt->setFetchMode(PDO::FETCH_ASSOC);
+		$arrlist = $stmt->fetchAll();
+		$stmt->closeCursor();
+		$key AND $arrlist = arrlist_change_key($arrlist, $key);
+		return is_array($arrlist) ? $arrlist : [];
 	}
 
 	/**
@@ -139,7 +165,7 @@ class db_pdo_mysql implements DatabaseInterface {
 	 * @return array|null
 	 */
 	public function find_one_group(string $table, array $cond = [], array $groupby = [], array $having = [], array $orderby = [], array $col = []): ?array {
-		$condSql = db_cond_to_sqladd($cond);
+		list($condSql, $condParams) = db_cond_to_sqladd($cond);
 		$orderbySql = db_orderby_to_sqladd($orderby);
 		$cols = $col ? implode(',', $col) : '*';
 
@@ -149,13 +175,15 @@ class db_pdo_mysql implements DatabaseInterface {
 		}
 
 		$havingSql = '';
+		$havingParams = array();
 		if (!empty($having)) {
-			$havingSql = db_cond_to_sqladd($having);
+			list($havingSql, $havingParams) = db_cond_to_sqladd($having);
 			$havingSql = str_replace(' WHERE ', ' HAVING ', $havingSql);
 		}
 
 		$sql = "SELECT $cols FROM {$this->tablepre}$table $condSql$groupbySql$havingSql$orderbySql LIMIT 1";
-		return $this->sql_find_one($sql);
+		$params = array_merge($condParams, $havingParams);
+		return $this->prepare_one($sql, $params);
 	}
 
 	public function findOne(string $table, array $cond = [], array $orderby = [], array $col = []): ?array {
@@ -222,40 +250,52 @@ class db_pdo_mysql implements DatabaseInterface {
 	}
 
 	public function insert(string $table, array $data): int {
-		$sqladd = db_array_to_insert_sqladd($data);
+		list($sqladd, $params) = db_array_to_insert_sqladd($data);
 		if(!$sqladd) return 0;
-		return $this->exec("INSERT INTO {$this->tablepre}$table $sqladd");
+		$sql = "INSERT INTO {$this->tablepre}$table $sqladd";
+		$stmt = $this->prepare($sql, $params);
+		if(!$stmt) return 0;
+		return intval($this->last_insert_id());
 	}
 
 	public function update(string $table, array $cond, array $data): int {
-		$condadd = db_cond_to_sqladd($cond);
-		$sqladd = db_array_to_update_sqladd($data);
+		list($condadd, $condParams) = db_cond_to_sqladd($cond);
+		list($sqladd, $updateParams) = db_array_to_update_sqladd($data);
 		if(!$sqladd) return 0;
-		return $this->exec("UPDATE {$this->tablepre}$table SET $sqladd $condadd");
+		$sql = "UPDATE {$this->tablepre}$table SET $sqladd $condadd";
+		$params = array_merge($updateParams, $condParams);
+		$stmt = $this->prepare($sql, $params);
+		if(!$stmt) return 0;
+		return intval($stmt->rowCount());
 	}
 
 	public function delete(string $table, array $cond): int {
-		$condadd = db_cond_to_sqladd($cond);
-		return $this->exec("DELETE FROM {$this->tablepre}$table $condadd");
+		list($condadd, $condParams) = db_cond_to_sqladd($cond);
+		$sql = "DELETE FROM {$this->tablepre}$table $condadd";
+		$stmt = $this->prepare($sql, $condParams);
+		if(!$stmt) return 0;
+		return intval($stmt->rowCount());
 	}
 
 	public function count(string $table, array $cond = []): int {
 		$this->connect_slave();
 		if(empty($cond) && $this->rconf['engine'] == 'innodb') {
 			$dbname = $this->rconf['name'];
+			// 联表查 information_schema 系统表，db_find 不支持，保留直接 sql_find_one
 			$sql = "SELECT TABLE_ROWS as num FROM information_schema.tables WHERE TABLE_SCHEMA='$dbname' AND TABLE_NAME='$table'";
+			$arr = $this->sql_find_one($sql);
 		} else {
-			$cond = db_cond_to_sqladd($cond);
-			$sql = "SELECT COUNT(*) AS num FROM `$table` $cond";
+			list($condSql, $condParams) = db_cond_to_sqladd($cond);
+			$sql = "SELECT COUNT(*) AS num FROM `$table` $condSql";
+			$arr = $this->prepare_one($sql, $condParams);
 		}
-		$arr = $this->sql_find_one($sql);
 		return !empty($arr) ? intval($arr['num']) : 0;
 	}
 
 	public function maxid(string $table, string $field, array $cond = []): int {
-		$sqladd = db_cond_to_sqladd($cond);
+		list($sqladd, $condParams) = db_cond_to_sqladd($cond);
 		$sql = "SELECT MAX($field) AS maxid FROM `$table` $sqladd";
-		$arr = $this->sql_find_one($sql);
+		$arr = $this->prepare_one($sql, $condParams);
 		return !empty($arr) ? intval($arr['maxid']) : 0;
 	}
 
@@ -264,7 +304,8 @@ class db_pdo_mysql implements DatabaseInterface {
 	}
 
 	public function quote(string $value): string {
-		if(!$this->rlink && !$this->connect_slave()) return addslashes((string)$value);
+		// 无连接时返回原始值（此场景查询必然失败，无需转义）
+		if(!$this->rlink && !$this->connect_slave()) return (string)$value;
 		return substr($this->rlink->quote($value), 1, -1);
 	}
 
@@ -302,6 +343,73 @@ class db_pdo_mysql implements DatabaseInterface {
 		if($query === FALSE) $this->error();
 		if(count($this->sqls) < 1000) $this->sqls[] = number_format($t2 - $t1, 4).' '.$sql;
 		return $query;
+	}
+
+	/**
+	 * PDO 预处理执行（写操作/读操作通用）
+	 * 自动选择 wlink（INSERT/UPDATE/DELETE/REPLACE）或 rlink（SELECT）
+	 * @param string $sql 带 ? 占位符的 SQL
+	 * @param array $params 绑定参数
+	 * @return PDOStatement|FALSE
+	 */
+	public function prepare($sql, $params = array()) {
+		$this->errno = 0;
+		$this->errstr = '';
+		// 判断写/读操作：写操作用 wlink，读操作用 rlink
+		$pre = strtoupper(substr(ltrim($sql), 0, 7));
+		$isWrite = ($pre == 'INSERT ' || $pre == 'UPDATE ' || $pre == 'DELETE ' || $pre == 'REPLACE' || strtoupper(substr(ltrim($sql), 0, 6)) == 'CREATE' || strtoupper(substr(ltrim($sql), 0, 4)) == 'DROP' || strtoupper(substr(ltrim($sql), 0, 8)) == 'TRUNCATE');
+		// 修复：关闭其他 link 上未消费的 PDOStatement
+		$this->link = NULL;
+		if($isWrite) {
+			if(!$this->wlink && !$this->connect_master()) return FALSE;
+			$link = $this->link = $this->wlink;
+		} else {
+			if(!$this->rlink && !$this->connect_slave()) return FALSE;
+			$link = $this->link = $this->rlink;
+		}
+		try {
+			$t1 = microtime(1);
+			$stmt = $link->prepare($sql);
+			if($stmt === FALSE) {
+				$this->error();
+				return FALSE;
+			}
+			$i = 1;
+			foreach($params as $v) {
+				if(is_int($v)) {
+					$stmt->bindValue($i, $v, PDO::PARAM_INT);
+				} elseif(is_bool($v)) {
+					$stmt->bindValue($i, $v, PDO::PARAM_BOOL);
+				} elseif(is_null($v)) {
+					$stmt->bindValue($i, $v, PDO::PARAM_NULL);
+				} else {
+					$stmt->bindValue($i, (string)$v, PDO::PARAM_STR);
+				}
+				$i++;
+			}
+			$stmt->execute();
+			$t2 = microtime(1);
+		} catch (Exception $e) {
+			$this->error($e->getCode(), $e->getMessage());
+			return FALSE;
+		}
+		if(count($this->sqls) < 1000) $this->sqls[] = '['.number_format($t2 - $t1, 4).']'.$sql.' ['.xn_json_encode($params).']';
+		return $stmt;
+	}
+
+	/**
+	 * PDO 预处理查询单条
+	 * @param string $sql 带 ? 占位符的 SQL
+	 * @param array $params 绑定参数
+	 * @return array|null
+	 */
+	public function prepare_one($sql, $params = array()) {
+		$stmt = $this->prepare($sql, $params);
+		if(!$stmt) return NULL;
+		$stmt->setFetchMode(PDO::FETCH_ASSOC);
+		$r = $stmt->fetch();
+		$stmt->closeCursor();
+		return $r === FALSE ? NULL : $r;
 	}
 
 	public function last_insert_id(): int {

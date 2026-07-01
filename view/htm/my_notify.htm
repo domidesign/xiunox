@@ -210,28 +210,59 @@ function _notice_action_text($type, $notify) {
 
 	function markRead(nid, card, onDone) {
 		// 统一使用 my-notify_read 接口
-		// 使用 URL 模板，兼容所有 url_rewrite_on 格式（包括 .html 后缀）
-		var markUrl = '<?php echo str_replace('read', 'read-__NID__', my_notify_read_url());?>'.replace('__NID__', nid);
+		// 使用 route_url 生成带 nid 占位符的 URL，兼容所有 url_rewrite_on 格式
+		var markUrl = <?php echo json_encode(route_url('my_notify_read_nid', ['nid' => '__NID__']));?>.replace('__NID__', nid);
 		var data = 'csrf_token=' + encodeURIComponent(token);
 		fetch(markUrl, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
 			body: data
-		}).then(function(r) { return r.json(); }).then(function(json) {
-			if(parseInt(json.code) === 0 && card) {
-				card.classList.remove('notice-unread');
-				var markBtn = card.querySelector('.notice-card-mark-read');
-				if(markBtn) markBtn.remove();
-				var badge = document.getElementById('notice-badge');
-				if(badge && json.unread_count !== undefined && parseInt(json.unread_count) === 0) {
-					badge.innerHTML = '';
+		}).then(function(r) {
+			return r.text().then(function(txt) {
+				if(!txt) { throw new Error('Empty response body (status=' + r.status + ')'); }
+				try { return JSON.parse(txt); } catch(e) { throw new Error('Non-JSON response: ' + txt.substring(0, 300)); }
+			});
+		}).then(function(json) {
+			if(parseInt(json.code) === 0) {
+				// 更新卡片样式
+				if(card) {
+					card.classList.remove('notice-unread');
+					var markBtn = card.querySelector('.notice-card-mark-read');
+					if(markBtn) markBtn.remove();
 				}
+				// 更新顶部导航未读徽章
+				updateNotifyBadge(json.unread_count);
 			}
 			if(typeof onDone === 'function') onDone();
 		}).catch(function(e) {
 			console.error('markRead error', e);
 			if(typeof onDone === 'function') onDone();
 		});
+	}
+
+	// 更新顶部导航的通知未读徽章（数字+铃铛图标）
+	function updateNotifyBadge(count) {
+		var badge = document.getElementById('notice-badge');
+		if(!badge) return;
+		if(count > 0) {
+			var display = count > 99 ? '99+' : count;
+			badge.innerHTML = '<span class="badge rounded-pill bg-danger" style="font-size:0.65rem;line-height:1;padding:0.15em 0.4em">' + display + '</span>';
+		} else {
+			badge.innerHTML = '';
+		}
+		// 更新铃铛图标
+		var bellIcon = document.getElementById('notify-bell-icon');
+		if(bellIcon) {
+			if(count > 0) {
+				bellIcon.classList.remove('ti-bell');
+				bellIcon.classList.add('ti-bell-filled');
+				bellIcon.style.color = 'var(--bs-primary)';
+			} else {
+				bellIcon.classList.remove('ti-bell-filled');
+				bellIcon.classList.add('ti-bell');
+				bellIcon.style.color = '';
+			}
+		}
 	}
 
 	// 统一处理：点击卡片内任何元素都自动标已读
@@ -280,8 +311,7 @@ function _notice_action_text($type, $notify) {
 						if(markBtn) markBtn.remove();
 					});
 					btn.remove();
-					var badge = document.getElementById('notice-badge');
-					if(badge) badge.innerHTML = '';
+					updateNotifyBadge(0);
 					if(typeof showToast === 'function') showToast('<?php echo lang('all_marked_as_read');?>', 'success');
 				} else {
 					if(typeof showToast === 'function') showToast(json.message || '<?php echo lang('operation_failed');?>', 'danger');

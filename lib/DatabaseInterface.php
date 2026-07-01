@@ -2,7 +2,7 @@
 
 /**
  * DatabaseInterface 数据库抽象接口
- * @since 4.5.0
+ * @since 1.0.2
  */
 interface DatabaseInterface {
 
@@ -144,6 +144,23 @@ interface DatabaseInterface {
      * @return array
      */
     public function sqlFind(string $sql, ?string $key = null): array;
+
+    /**
+     * PDO 预处理执行（写操作/读操作通用）
+     * 自动选择 wlink（INSERT/UPDATE/DELETE/REPLACE）或 rlink（SELECT）
+     * @param string $sql 带 ? 占位符的 SQL
+     * @param array $params 绑定参数
+     * @return mixed PDOStatement|FALSE
+     */
+    public function prepare(string $sql, array $params = array());
+
+    /**
+     * PDO 预处理查询单条
+     * @param string $sql 带 ? 占位符的 SQL
+     * @param array $params 绑定参数
+     * @return array|null
+     */
+    public function prepare_one(string $sql, array $params = array());
 
     /**
      * 获取带前缀的完整表名

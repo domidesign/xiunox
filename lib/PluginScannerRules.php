@@ -2,7 +2,7 @@
 
 /**
  * 插件兼容性扫描 - 规则定义
- * @since 4.5.0
+ * @since 1.0.2
  */
 class PluginScannerRules {
 
@@ -176,7 +176,7 @@ class PluginScannerRules {
             'php8_syntax' => 'fatal',
             'curly_brace_access' => 'fatal',
             'http_post_vars' => 'fatal',
-            'dangerous_functions' => 'warning',
+            'dangerous_functions' => 'fatal',
             'bs4_classes' => 'medium',
             'bs4_data_attrs' => 'medium',
             'fontello_icons' => 'medium',
@@ -201,6 +201,29 @@ class PluginScannerRules {
             'db_find_col_string' => 'warning',
             'app_path_in_url' => 'fatal',
             'install_non_idempotent' => 'warning',
+            'capabilities_format' => 'warning',
+            'conf_version' => 'error',
+        ];
+    }
+
+    /**
+     * force=1 不可跳过的分类（检测到即阻止安装，不可被用户手动跳过）
+     * 包含所有 fatal 级分类 + bbs_version 兼容性检查（error 级但强制阻止）
+     */
+    public static function getForceCategories(): array {
+        return [
+            'php_deprecated_functions',
+            'php8_syntax',
+            'curly_brace_access',
+            'http_post_vars',
+            'dangerous_functions',
+            'php8_deprecated',
+            'php_comment_close_tag',
+            'service_undefined_var',
+            'heredoc_php_tag',
+            'hook_htm_header',
+            'app_path_in_url',
+            'conf_version',
         ];
     }
 
@@ -238,6 +261,8 @@ class PluginScannerRules {
             'db_find_col_string' => 'db_find_one() 第 4 参数为字符串（应为数组）',
             'app_path_in_url' => 'script/link 用 APP_PATH（浏览器无法访问）',
             'install_non_idempotent' => 'CREATE TABLE 缺少 IF NOT EXISTS',
+            'capabilities_format' => 'capabilities 字段格式不正确（应为 lowercase.dots 字符串数组）',
+            'conf_version' => 'conf.json 版本兼容性检查（bbs_version 缺失或低于 1.0.2）',
         ];
     }
 
