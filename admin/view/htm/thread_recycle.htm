@@ -3,7 +3,7 @@
 <!--{hook admin_thread_recycle_start.htm}-->
 
 <div class="mb-3">
-	<?php echo admin_tab_active($menu['thread']['tab'], 'recycle');?>
+	<?php echo admin_tab_active($recycle_tabs, $type);?>
 </div>
 
 <div class="x-card card">
@@ -40,13 +40,57 @@
 				<input type="checkbox" class="form-check-input" id="checkall" />
 				<label class="form-check-label small" for="checkall"><?php echo lang('admin_thread_select_all');?></label>
 			</div>
-			<span class="text-secondary small" id="selected_count">0 <?php echo lang('admin_thread_col_posts');?></span>
+			<span class="text-secondary small" id="selected_count">0 <?php echo $type == 'post' ? lang('admin_thread_col_posts') : lang('admin_thread_col_subjects');?></span>
 			<div class="vr mx-1"></div>
 			<button type="button" class="btn btn-sm btn-outline-success" id="btn_restore" disabled><i class="ti ti-rotate"></i> <?php echo lang('admin_batch_restore');?></button>
 			<button type="button" class="btn btn-sm btn-outline-danger" id="btn_hard_delete" disabled data-confirm-text="<?php echo lang('admin_hard_delete_confirm');?>"><i class="ti ti-trash-x"></i> <?php echo lang('admin_batch_hard_delete');?></button>
 		</div>
 
-		<!-- 帖子列表 -->
+		<?php if($type == 'post') { ?>
+		<!-- 评论回收站列表 -->
+		<table class="table table-hover mb-0 align-middle" id="post_table">
+			<thead class="table-light">
+				<tr>
+					<th style="width:40px;"></th>
+					<th><?php echo lang('admin_post_col_content');?></th>
+					<th style="width:120px;"><?php echo lang('admin_thread_col_author');?></th>
+					<th style=" "><?php echo lang('admin_post_col_thread');?></th>
+					<th style="width:100px;"><?php echo lang('admin_thread_col_forum');?></th>
+					<th style="width:140px;"><?php echo lang('admin_deleted_time');?></th>
+					<th style="width:100px;"><?php echo lang('admin_deleted_by');?></th>
+					<th style="width:120px;" class="text-center"><?php echo lang('operation');?></th>
+				</tr>
+			</thead>
+			<tbody id="item_list">
+			<?php if(!empty($postlist)) { ?>
+				<?php foreach($postlist as $post) { ?>
+				<tr>
+					<td><input type="checkbox" class="form-check-input" name="modid" value="<?php echo $post['pid'];?>" /></td>
+					<td>
+						<div class="small text-body-secondary">#<?php echo intval($post['pid']);?> · 
+							<!-- <a href="<?php echo frontend_thread_url($post['tid']);?>#pid-<?php echo intval($post['pid']);?>" target="_blank" class="text-decoration-none"><?php echo esc_html($post['thread_subject'] ? $post['thread_subject'] : lang('admin_post_thread_missing'));?></a> -->
+							
+						<span class="text-truncate" style="max-width:400px" title="<?php echo esc_attr($post['message_preview']);?>"><?php echo esc_html($post['message_preview']);?></span>
+					    </div>
+					</td>
+					<td><?php echo esc_html($post['username']);?></td>
+					<td><a href="<?php echo frontend_thread_url($post['tid']);?>" target="_blank" class="text-decoration-none"><?php echo esc_html($post['thread_subject'] ? $post['thread_subject'] : lang('admin_post_thread_missing'));?></a></td>
+					<td><?php echo esc_html($post['forumname']);?></td>
+					<td class="small text-secondary"><?php echo $post['deleted_date_fmt'];?></td>
+					<td class="small"><?php echo esc_html($post['deleted_by_name']);?></td>
+					<td class="text-center">
+						<button type="button" class="btn btn-sm btn-outline-success py-0 px-2" data-op="restore" data-id="<?php echo $post['pid'];?>" title="<?php echo lang('admin_thread_restore');?>"><i class="ti ti-rotate"></i></button>
+						<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" data-op="hard_delete" data-id="<?php echo $post['pid'];?>" data-confirm-text="<?php echo lang('admin_hard_delete_confirm');?>" title="<?php echo lang('admin_thread_hard_delete');?>"><i class="ti ti-trash-x"></i></button>
+					</td>
+				</tr>
+				<?php } ?>
+			<?php } else { ?>
+				<tr><td colspan="8" class="text-center py-4 text-secondary"><?php echo lang('admin_no_deleted_posts');?></td></tr>
+			<?php } ?>
+			</tbody>
+		</table>
+		<?php } else { ?>
+		<!-- 主题回收站列表 -->
 		<table class="table table-hover mb-0 align-middle" id="thread_table">
 			<thead class="table-light">
 				<tr>
@@ -59,7 +103,7 @@
 					<th style="width:120px;" class="text-center"><?php echo lang('operation');?></th>
 				</tr>
 			</thead>
-			<tbody id="thread_list">
+			<tbody id="item_list">
 			<?php if(!empty($threadlist)) { ?>
 				<?php foreach($threadlist as $thread) { ?>
 				<tr>
@@ -72,8 +116,8 @@
 					<td class="small text-secondary"><?php echo $thread['deleted_date_fmt'];?></td>
 					<td class="small"><?php echo esc_html($thread['deleted_by_name']);?></td>
 					<td class="text-center">
-						<button type="button" class="btn btn-sm btn-outline-success py-0 px-2" data-op="restore" data-tid="<?php echo $thread['tid'];?>" title="<?php echo lang('admin_thread_restore');?>"><i class="ti ti-rotate"></i></button>
-						<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" data-op="hard_delete" data-tid="<?php echo $thread['tid'];?>" data-confirm-text="<?php echo lang('admin_hard_delete_confirm');?>" title="<?php echo lang('admin_thread_hard_delete');?>"><i class="ti ti-trash-x"></i></button>
+						<button type="button" class="btn btn-sm btn-outline-success py-0 px-2" data-op="restore" data-id="<?php echo $thread['tid'];?>" title="<?php echo lang('admin_thread_restore');?>"><i class="ti ti-rotate"></i></button>
+						<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" data-op="hard_delete" data-id="<?php echo $thread['tid'];?>" data-confirm-text="<?php echo lang('admin_hard_delete_confirm');?>" title="<?php echo lang('admin_thread_hard_delete');?>"><i class="ti ti-trash-x"></i></button>
 					</td>
 				</tr>
 				<?php } ?>
@@ -82,6 +126,7 @@
 			<?php } ?>
 			</tbody>
 		</table>
+		<?php } ?>
 	</div>
 
 	<!-- 分页 -->
@@ -97,7 +142,8 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-var recycleUrl = '<?php echo admin_thread_recycle_url();?>';
+var recycleUrl = '<?php echo admin_thread_recycle_url(array('type'=>$type));?>';
+var recycleType = '<?php echo $type;?>';
 var csrf_token = '<?php echo CsrfService::getToken();?>';
 
 // 筛选跳转
@@ -116,48 +162,49 @@ function doFilter() {
 // 全选/取消全选
 $('#checkall').on('change', function() {
 	var checked = $(this).prop('checked');
-	$('#thread_list input[name="modtid"]').prop('checked', checked);
+	$('#item_list input[type="checkbox"]').prop('checked', checked);
 	updateBatchButtons();
 });
 
 // 复选框变化
-$('#thread_list').on('change', 'input[name="modtid"]', function() {
+$('#item_list').on('change', 'input[type="checkbox"]', function() {
 	updateBatchButtons();
 });
 
 // 更新批量按钮状态
 function updateBatchButtons() {
-	var checked = $('#thread_list input[name="modtid"]:checked');
-	var total = $('#thread_list input[name="modtid"]');
+	var checked = $('#item_list input[type="checkbox"]:checked');
+	var total = $('#item_list input[type="checkbox"]');
 	var count = checked.length;
-	$('#selected_count').text(count + ' <?php echo lang("admin_thread_col_posts");?>');
+	var label = recycleType === 'post' ? '<?php echo lang("admin_thread_col_posts");?>' : '<?php echo lang("admin_thread_col_subjects");?>';
+	$('#selected_count').text(count + ' ' + label);
 	$('#btn_restore').prop('disabled', count === 0);
 	$('#btn_hard_delete').prop('disabled', count === 0);
 	$('#checkall').prop('checked', total.length > 0 && count === total.length);
 }
 
-// 获取选中的 tid
-function getSelectedTids() {
-	var tids = [];
-	$('#thread_list input[name="modtid"]:checked').each(function() {
-		tids.push($(this).val());
+// 获取选中的 id（thread 用 tid，post 用 pid）
+function getSelectedIds() {
+	var ids = [];
+	$('#item_list input[type="checkbox"]:checked').each(function() {
+		ids.push($(this).val());
 	});
-	return tids;
+	return ids;
 }
 
 // 执行操作
-function doRecycleOp(op, tids, confirmMsg) {
-	if(!tids || tids.length === 0) {
+function doRecycleOp(op, ids, confirmMsg) {
+	if(!ids || ids.length === 0) {
 		showToast('<?php echo lang("admin_thread_no_selection");?>', 'warning');
 		return;
 	}
 
 	var doAction = function() {
-		var postdata = {
-			tids: tids.join(','),
-			op: op,
-			csrf_token: csrf_token
-		};
+		var idField = recycleType === 'post' ? 'pids' : 'tids';
+		var postdata = {};
+		postdata[idField] = ids.join(',');
+		postdata.op = op;
+		postdata.csrf_token = csrf_token;
 		$.xpost(recycleUrl, postdata, function(code, message) {
 			if(parseInt(code) == 0) {
 				showToast(message, 'success');
@@ -177,22 +224,22 @@ function doRecycleOp(op, tids, confirmMsg) {
 
 // 批量恢复
 $('#btn_restore').on('click', function() {
-	var tids = getSelectedTids();
-	doRecycleOp('restore', tids, '<?php echo lang("admin_thread_restore");?>？');
+	var ids = getSelectedIds();
+	doRecycleOp('restore', ids, '<?php echo lang("admin_thread_restore");?>？');
 });
 
 // 批量彻底删除
 $('#btn_hard_delete').on('click', function() {
-	var tids = getSelectedTids();
-	doRecycleOp('hard_delete', tids, $(this).data('confirm-text'));
+	var ids = getSelectedIds();
+	doRecycleOp('hard_delete', ids, $(this).data('confirm-text'));
 });
 
 // 单条操作
-$('#thread_list').on('click', 'button[data-op]', function() {
+$('#item_list').on('click', 'button[data-op]', function() {
 	var op = $(this).data('op');
-	var tid = $(this).data('tid');
+	var id = $(this).data('id');
 	var confirmMsg = op === 'hard_delete' ? $(this).data('confirm-text') : '<?php echo lang("admin_thread_restore");?>？';
-	doRecycleOp(op, [tid], confirmMsg);
+	doRecycleOp(op, [id], confirmMsg);
 });
 </script>
 

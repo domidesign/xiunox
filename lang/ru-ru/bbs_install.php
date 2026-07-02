@@ -25,6 +25,7 @@ return array(
 	'check_again' => 'Проверить снова',
 	'os' => 'OS',
 	'unix_like' => 'UNIX',
+	'os_windows_not_recommended' => 'Windows не рекомендуется, используйте Linux для production',
 	'php_version' => 'Версия PHP',
 	
 	'step_2_title' => '2. База данных',
@@ -56,8 +57,8 @@ XIUNOX выпускается под лицензией MIT. Вы можете �
 	'supported' => 'Поддерживается',
 	'not_supported' => 'Не поддерживается',
 	'function_glob_not_exists' => 'Plugin install dependent on it, please setting php.ini, set disabled_functions = ; Lifting restrictions on this function',
-	'function_gzcompress_not_exists' => 'Plugin install dependent on it, on Linux server, add compile argument: --with-zlib, on Windows Server, please setting php.ini open extension=php_zlib.dll',
-	'function_mb_substr_not_exists' => 'System dependent on it, on Linux server, add compile argument: --with-mbstring, on Windows Server, please setting php.ini open extension=php_mbstring.dll',
+	'function_gzcompress_not_exists' => 'Зависит от плагина, установите расширение zlib (напр. Ubuntu: sudo apt install php8.5-zlib)',
+	'function_mb_substr_not_exists' => 'Система зависит от этой функции, установите расширение mbstring (напр. Ubuntu: sudo apt install php8.5-mbstring)',
 
 	'optional' => 'Опционально',
 	'recommended' => 'Рекомендуется',

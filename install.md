@@ -24,12 +24,28 @@
 
 ### 1.1 基础环境
 
+> **不推荐 Windows**：XiunoX 为 Linux/UNIX 环境设计，生产环境必须使用 Linux。Windows 可用于本地体验（如 phpStudy），但安装程序会显示警告，且部分功能可能异常。如需在 Windows 上开发，推荐使用 Docker 或 WSL2。
+
 | 项目 | 最低要求 | 推荐版本 |
 |------|----------|----------|
+| 操作系统 | Linux（类 UNIX）推荐 | Ubuntu 22.04+ / Debian 12+ / CentOS 8+ / AlmaLinux 9+ |
 | PHP | 8.0+ | 8.5 |
 | MySQL | 5.7+ | 8.3 |
 | MariaDB | 10.3+ | 11.4 |
-| Web 服务器 | Nginx / Apache | Nginx 1.30+ |
+| Web 服务器 | Nginx / Apache | Nginx 1.31+ |
+
+#### 支持的 Linux 发行版
+
+| 发行版 | 最低版本 | 说明 |
+|--------|----------|------|
+| Ubuntu | 22.04 LTS | 最广泛使用的发行版，文档和社区支持最丰富 |
+| Debian | 12 (Bookworm) | 稳定可靠，与 Ubuntu 同源 |
+| CentOS | 8 | 企业级，注意 CentOS 8 已 EOL，建议迁移到 AlmaLinux |
+| AlmaLinux | 9 | CentOS 的替代品，完全兼容 RHEL |
+| Rocky Linux | 9 | 另一个 CentOS 替代品 |
+| openSUSE | Leap 15.4+ | 欧洲流行发行版 |
+
+> **提示**：任何运行 PHP 8.0+ 和 MySQL 5.7+ 的类 UNIX 系统均可运行 XiunoX，包括 macOS（仅用于本地开发）。但**生产环境必须使用 Linux**。
 
 ### 1.2 PHP 扩展
 
@@ -887,8 +903,6 @@ brew install php@8.5
 
 # Ubuntu/Debian
 sudo apt install php8.5-cli php8.5-mysql php8.5-gd php8.5-mbstring php8.5-zip php8.5-intl
-
-# Windows：下载 https://windows.php.net/ 选择 8.5 Non Thread Safe
 ```
 
 确认版本：

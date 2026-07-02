@@ -17,7 +17,18 @@ function _atomic_write($file, $s) {
 	$tmp = $file . '.' . substr(md5($s . mt_rand()), 0, 8) . '.tmp';
 	$r = file_put_contents($tmp, $s, LOCK_EX);
 	if($r !== FALSE) {
-		rename($tmp, $file);
+		// Windows 下 rename() 不能覆盖已存在的文件，需先删除
+		if(DIRECTORY_SEPARATOR === '\\' && is_file($file)) {
+			@unlink($file);
+		}
+		if(!@rename($tmp, $file)) {
+			// Windows 下跨盘符 rename 会失败，回退用 copy+unlink
+			if(!@copy($tmp, $file)) {
+				@unlink($tmp);
+				return file_put_contents($file, $s, LOCK_EX);
+			}
+			@unlink($tmp);
+		}
 		clearstatcache();
 		return $r;
 	}

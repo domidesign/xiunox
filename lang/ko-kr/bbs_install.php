@@ -25,6 +25,7 @@ return array(
 	'check_again' => '다시 확인',
 	'os' => '운영체제',
 	'unix_like' => 'UNIX 계열',
+	'os_windows_not_recommended' => 'Windows 비권장, 프로덕션은 Linux를 사용해주세요',
 	'php_version' => 'PHP 버전',
 
 	'step_2_title' => '2. 데이터베이스 설정',
@@ -55,8 +56,8 @@ XIUNOX는 MIT 라이선스로 배포됩니다. 자유롭게 수정, 파생 버�
 	'supported' => '지원됨',
 	'not_supported' => '미지원',
 	'function_glob_not_exists' => '관리자 플러그인 기능이 이 함수에 의존합니다. php.ini에서 disabled_functions = ; 로 설정하여 제한을 해제해주세요',
-	'function_gzcompress_not_exists' => '관리자 플러그인 기능이 이 함수에 의존합니다. Linux에서는 --with-zlib 컴파일 옵션을 추가하고, Windows에서는 php.ini에서 extension=php_zlib.dll의 주석을 해제해주세요',
-	'function_mb_substr_not_exists' => '시스템이 이 함수에 의존합니다. Linux에서는 --with-mbstring 컴파일 옵션을 추가하고, Windows에서는 php.ini에서 extension=php_mbstring.dll의 주석을 해제해주세요',
+	'function_gzcompress_not_exists' => '관리자 플러그인 기능이 이 함수에 의존합니다. zlib 확장을 설치해주세요 (예: Ubuntu: sudo apt install php8.5-zlib)',
+	'function_mb_substr_not_exists' => '시스템이 이 함수에 의존합니다. mbstring 확장을 설치해주세요 (예: Ubuntu: sudo apt install php8.5-mbstring)',
 
 	'optional' => '선택사항',
 	'recommended' => '권장',

@@ -636,8 +636,31 @@ if($action == 'create') {
 	
 	CsrfService::check();
 
+	// 调试日志：记录删除请求关键信息
+	xn_log("post_delete request: pid=$pid, uid=$uid, gid=$gid, method=$method, uri=" . (isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : ''), 'post_delete_error');
+
 	$post = post_read($pid);
-	empty($post) AND error_page(404, lang('post_not_exists'));
+
+	// 调试日志：记录 post_read 结果
+	xn_log("post_delete post_read result: pid=$pid, empty=" . (empty($post) ? '1' : '0'), 'post_delete_error');
+
+	if(empty($post)) {
+		// 软删除场景排查：post_read 对前台过滤已删除回帖，但删除请求可能重复提交
+		$post_raw = post__read($pid);
+		xn_log("post_delete post__read fallback: pid=$pid, exists=" . (!empty($post_raw) ? '1' : '0') . ", is_deleted=" . (isset($post_raw['is_deleted']) ? intval($post_raw['is_deleted']) : 'null'), 'post_delete_error');
+
+		if(!empty($post_raw) && !empty($post_raw['is_deleted'])) {
+			// 已软删除，直接返回成功，避免重复扣积分和404错误
+			// post 表无 fid 字段，需通过 tid 读取 thread 获取 fid
+			$_fallback_tid = intval($post_raw['tid']);
+			$_fallback_thread = thread__read($_fallback_tid);
+			$_fallback_fid = !empty($_fallback_thread) ? intval($_fallback_thread['fid']) : 0;
+			xn_log("post_delete already soft deleted: pid=$pid, tid=$_fallback_tid, fid=$_fallback_fid", 'post_delete_error');
+			message(0, lang('delete_successfully'), array('redirect_url' => $_fallback_fid ? forum_url($_fallback_fid) : './'));
+		}
+
+		error_page(404, lang('post_not_exists'));
+	}
 
 	$tid = $post['tid'];
 	$thread = thread_read($tid);
@@ -686,20 +709,29 @@ if($action == 'create') {
 
 	// 软删除配置检查
 	$sec_soft_delete = SecurityConfigService::get('security_soft_delete', 1);
+	xn_log("post_delete soft_delete config: pid=$pid, isfirst=$isfirst, sec_soft_delete=" . intval($sec_soft_delete), 'post_delete_error');
 	if($sec_soft_delete) {
 		if($isfirst) {
-			thread_soft_delete($tid, $uid);
+			$delete_result = thread_soft_delete($tid, $uid);
+			xn_log("post_delete thread_soft_delete: tid=$tid, result=" . ($delete_result ? '1' : '0'), 'post_delete_error');
 		} else {
-			post_soft_delete($pid, $uid);
+			$delete_result = post_soft_delete($pid, $uid);
+			xn_log("post_delete post_soft_delete: pid=$pid, result=" . ($delete_result ? '1' : '0'), 'post_delete_error');
 		}
 	} else {
 		if($isfirst) {
-			thread_delete($tid);
+			$delete_result = thread_delete($tid);
+			xn_log("post_delete thread_delete: tid=$tid, result=" . ($delete_result ? '1' : '0'), 'post_delete_error');
 		} else {
-			post_delete($pid);
+			$delete_result = post_delete($pid);
+			xn_log("post_delete post_delete: pid=$pid, result=" . ($delete_result ? '1' : '0'), 'post_delete_error');
 			//post_list_cache_delete($tid);
 		}
 	}
+
+	// 调试：删除后读取数据库确认实际状态
+	$post_after_delete = post__read($pid);
+	xn_log("post_delete db state after: pid=$pid, exists=" . (!empty($post_after_delete) ? '1' : '0') . ", is_deleted=" . (isset($post_after_delete['is_deleted']) ? intval($post_after_delete['is_deleted']) : 'null'), 'post_delete_error');
 
 	// hook post_delete_end.php
 

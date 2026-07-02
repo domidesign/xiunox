@@ -26,6 +26,7 @@ define('MESSAGE_HTM_PATH', INSTALL_PATH.'view/htm/message.htm');
 // 切换到上一级目录，操作很方便。
 
 $conf = (include APP_PATH.'conf/conf.default.php');
+$conf['version'] = XIUNOX_VERSION;	// 版本号统一从 version.php 读取
 $conf['log_path'] = APP_PATH.$conf['log_path'];
 $conf['tmp_path'] = APP_PATH.$conf['tmp_path'];
 
@@ -319,6 +320,7 @@ if(empty($action)) {
 		$replace['auth_key'] = xn_rand(64);
 		$replace['attach_sign_key'] = bin2hex(random_bytes(16));
 		$replace['installed'] = 1;
+		$replace['version'] = XIUNOX_VERSION;
 
 		// 创建默认 API 应用
 		$default_appid = bin2hex(random_bytes(8));

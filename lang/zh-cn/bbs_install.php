@@ -25,6 +25,7 @@ return array(
 	'check_again' => '重新检测',
 	'os' => '操作系统',
 	'unix_like' => '类 UNIX',
+	'os_windows_not_recommended' => '不推荐 Windows，生产环境请使用 Linux',
 	'php_version' => 'PHP 版本',
 	'mysql_version' => 'MySQL 版本',
 	'mysql_version_pending' => '连接数据库后检测',
@@ -64,8 +65,8 @@ XIUNOX 采用 MIT 协议发布，您可以自由修改、派生版本、商用�
 	'supported' => '支持',
 	'not_supported' => '不支持',
 	'function_glob_not_exists' => '后台插件功能依赖该函数，请配置 php.ini，设置 disabled_functions = ; 去除对该函数的限制',
-	'function_gzcompress_not_exists' => '后台插件功能依赖该函数，Linux 主机请添加编译参数 --with-zlib，Windows 主机请配置 php.ini 注释掉 extension=php_zlib.dll',
-	'function_mb_substr_not_exists' => '系统依赖该函数，Linux 主机请添加编译参数 --with-mbstring，Windows 主机请配置 php.ini 注释掉 extension=php_mbstring.dll',
+	'function_gzcompress_not_exists' => '后台插件功能依赖该函数，请安装 zlib 扩展（如 Ubuntu: sudo apt install php8.5-zlib）',
+	'function_mb_substr_not_exists' => '系统依赖该函数，请安装 mbstring 扩展（如 Ubuntu: sudo apt install php8.5-mbstring）',
 
 	'optional' => '可选',
 	'recommended' => '推荐',

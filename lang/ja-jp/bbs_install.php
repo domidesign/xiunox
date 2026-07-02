@@ -25,6 +25,7 @@ return array(
 	'check_again' => '再チェック',
 	'os' => 'オペレーティングシステム',
 	'unix_like' => 'UNIX系',
+	'os_windows_not_recommended' => 'Windows非推奨、本番環境はLinuxをご利用ください',
 	'php_version' => 'PHPバージョン',
 
 	'step_2_title' => '2. データベース設定',
@@ -55,8 +56,8 @@ XIUNOX は MITライセンスで公開されており、自由に変更、派生
 	'supported' => '対応',
 	'not_supported' => '未対応',
 	'function_glob_not_exists' => '管理画面のプラグイン機能がこの関数に依存しています。php.ini で disabled_functions = ; と設定し、この関数の制限を解除してください',
-	'function_gzcompress_not_exists' => '管理画面のプラグイン機能がこの関数に依存しています。Linuxホストではコンパイルオプション --with-zlib を追加し、Windowsホストでは php.ini で extension=php_zlib.dll のコメントを外してください',
-	'function_mb_substr_not_exists' => 'システムがこの関数に依存しています。Linuxホストではコンパイルオプション --with-mbstring を追加し、Windowsホストでは php.ini で extension=php_mbstring.dll のコメントを外してください',
+	'function_gzcompress_not_exists' => '管理画面のプラグイン機能がこの関数に依存しています。zlib拡張をインストールしてください（例: Ubuntu: sudo apt install php8.5-zlib）',
+	'function_mb_substr_not_exists' => 'システムがこの関数に依存しています。mbstring拡張をインストールしてください（例: Ubuntu: sudo apt install php8.5-mbstring）',
 
 	'optional' => 'オプション',
 	'recommended' => '推奨',

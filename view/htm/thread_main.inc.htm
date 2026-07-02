@@ -272,7 +272,7 @@
             </div>
         </div>
         <?php } else { ?>
-        <div class="post newpost d-flex mt-3 pt-3 d-none d-xl-flex">
+        <div class="post newpost d-flex mt-3 pt-3 d-flex">
             <a href="<?php echo user_url($user['uid']);?>" class="me-3 flex-shrink-0" tabindex="-1">
                 <?php echo avatar_component($uid, 'md');?>
             </a>
@@ -288,7 +288,7 @@
                     </div>
                 </div>
                 <div>
-                    <form id="quick_reply_form" class="block d-none d-xl-block" hx-post="<?php echo post_create_url($tid, 1);?>"
+                    <form id="quick_reply_form" class="block " hx-post="<?php echo post_create_url($tid, 1);?>"
                         hx-target="#postlist" hx-swap="beforeend"
                         hx-on:htmx:after:request="captchaRefresh('reply');"
                         hx-on:htmx:response-error="captchaRefresh('reply');"
@@ -397,19 +397,15 @@
 </div>
 
 <?php if($page == 1): ?>
-<!-- 帖子详情页隐藏全局bottom_nav（手机端postbar替代） -->
+<!-- 帖子详情页隐藏全局bottom_nav -->
 <style>
 #mobileTabbar{display:none !important}
-/* 手机端postbar输入框：默认单行高度，focus时展开为多行textarea */
-#postbar-message{
-    height:32px;
-    resize:none;
-    overflow-y:auto;
-    transition:height 0.2s ease;
-    line-height:1.5;
+/* 手机端快速回复表单：防止iOS缩放，字体≥16px */
+#quick_reply_form textarea[name="message"]{
+    font-size:16px;
 }
-#postbar-message:focus{
-    height:84px;
+#captcha-input-reply{
+    font-size:16px;
 }
 /* 正文底部互动按钮：浅色border+小圆角+图标+文字14px+数量 */
 .thread-action-chip{
@@ -442,53 +438,5 @@
 .thread-action-chip.is-active{color:var(--bs-primary,#0d6efd);border-color:var(--bs-primary,#0d6efd)}
 .thread-action-chip.is-active .chip-count{color:var(--bs-primary,#0d6efd)}
 </style>
-<!-- 手机端底部postbar（fixed定位，仅移动端显示，含iPhone安全区域padding） -->
-<div class="thread-postbar d-xl-none fixed-bottom  bg-body" style="z-index:1030;padding:0.5rem 0.75rem;padding-bottom:calc(0.5rem + env(safe-area-inset-bottom, 0px))" id="thread-postbar">
-    <!--{hook thread_postbar_start.htm}-->
-    <!-- 引用回复条（默认隐藏，点击回复按钮时显示） -->
-    <div id="postbar-quote-bar" class="d-none mb-1 p-1 rounded border" style="background:var(--bs-tertiary-bg,#f8f9fa);font-size:0.75rem">
-        <div class="d-flex justify-content-between align-items-start gap-1">
-            <div class="flex-fill text-body-secondary" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                <span class="fw-medium text-body">回复</span>
-                <span id="postbar-quote-username" class="text-primary fw-medium"></span>
-                <span id="postbar-quote-content" class="text-body-secondary"></span>
-            </div>
-            <button type="button" id="postbar-quote-close" class="btn btn-sm btn-ghost p-0 lh-1 flex-shrink-0" title="取消回复" style="font-size:0.75rem">
-                <i class="ti ti-x"></i>
-            </button>
-        </div>
-    </div>
-    <div class="d-flex align-items-center gap-2">
-        <!-- 用户头像 -->
-        <?php if(!empty($uid)): ?>
-        <a href="<?php echo user_url($uid);?>" class="flex-shrink-0" tabindex="-1">
-            <?php echo avatar_component($uid, 'sm');?>
-        </a>
-        <?php else: ?>
-        <a href="<?php echo user_login_url();?>" class="flex-shrink-0" tabindex="-1">
-            <?php echo avatar_component(0, 'sm');?>
-        </a>
-        <?php endif; ?>
-
-        <!-- 快速回复输入区（直接输入，点击发送） -->
-        <?php if(!empty($uid)): ?>
-        <?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] != 1)) && $gid > 5): ?>
-        <div class="flex-fill text-body-secondary small py-1"><?php echo lang('thread_has_already_closed');?></div>
-        <?php else: ?>
-        <textarea id="postbar-message" class="form-control-sm bg-body-tertiary rounded-1 border-0 px-2 py-1 flex-fill" style="min-width:0" placeholder="<?php echo lang('message');?>" autocomplete="off" rows="1"></textarea>
-        <button type="button" id="postbar-submit" class="btn btn-sm btn-primary flex-shrink-0 px-3" title="<?php echo lang('reply');?>">
-            <?php echo lang('reply');?>
-        </button>
-        <?php endif; ?>
-        <?php else: ?>
-        <a href="<?php echo user_login_url();?>" class="flex-fill form-control-sm bg-body-tertiary rounded-1 text-body-secondary border-0 px-2 py-1 text-decoration-none d-block" style="min-width:0">
-            <i class="ti ti-message-circle me-1"></i><?php echo lang('please_login_to_reply');?>
-        </a>
-        <?php endif; ?>
-
-        <!--{hook thread_postbar_end.htm}-->
-    </div>
-</div>
-<!-- 手机端postbar占位（避免fixed遮挡内容） -->
-<div class="d-xl-none" style="height:calc(3.5rem + env(safe-area-inset-bottom, 0px))"></div>
+<!-- 手机端底部postbar 已临时隐藏，移动端复用PC快速回复表单 -->
 <?php endif; ?>

@@ -83,13 +83,7 @@ function post_create($arr, $fid, $gid) {
 	//post_list_cache_delete($tid);
 
 	// 失效该帖子的回帖列表缓存（递增版本号，使旧缓存自动失效）
-	// 使用 CacheHelper 统一缓存 API，核心代码前缀 'core'
-	$_pl_v_key = 'thread_pl_v_' . $tid;
-	$_old_v = class_exists('CacheHelper', false) ? CacheHelper::get(CacheHelper::pluginKey($_pl_v_key)) : NULL;
-	$_new_v = ($_old_v === NULL || $_old_v === FALSE) ? 1 : intval($_old_v) + 1;
-	if(class_exists('CacheHelper', false)) {
-		CacheHelper::set(CacheHelper::pluginKey($_pl_v_key), $_new_v, 86400);
-	}
+	post_list_cache_bump_version($tid);
 
 	// 更新板块信息。
 	forum_list_cache_delete();
@@ -179,14 +173,17 @@ function post_delete($pid) {
 	}
 	
 	($post['images'] || $post['files']) AND attach_delete_by_pid($pid);
-	
+
 	$r = post__delete($pid);
 
 	// 更新最后的 lastpid
 	if($r && !$post['isfirst'] && $pid == $thread['lastpid']) {
 		thread_update_last($tid);
 	}
-	
+
+	// 失效回帖列表缓存
+	$r AND post_list_cache_bump_version($tid);
+
 	// hook model_post_delete_end.php
 	return $r;
 }
@@ -222,6 +219,9 @@ function post_soft_delete($pid, $deleted_by) {
 		thread_update_last($tid);
 	}
 
+	// 失效回帖列表缓存
+	post_list_cache_bump_version($tid);
+
 	// hook model_post_soft_delete_end.php
 	return TRUE;
 }
@@ -253,8 +253,24 @@ function post_restore($pid) {
 	// 重算 lastpid
 	thread_update_last($tid);
 
+	// 失效回帖列表缓存
+	post_list_cache_bump_version($tid);
+
 	// hook model_post_restore_end.php
 	return TRUE;
+}
+
+// 递增 thread_pl_v_{tid} 版本号，使回帖列表 60s 短缓存立即失效
+// post_create / post_soft_delete / post_restore / post_delete 等改变回帖列表的操作都应调用
+function post_list_cache_bump_version($tid) {
+	$tid = intval($tid);
+	if($tid <= 0) return;
+	$_pl_v_key = 'thread_pl_v_' . $tid;
+	$_old_v = class_exists('CacheHelper', false) ? CacheHelper::get(CacheHelper::pluginKey($_pl_v_key)) : NULL;
+	$_new_v = ($_old_v === NULL || $_old_v === FALSE) ? 1 : intval($_old_v) + 1;
+	if(class_exists('CacheHelper', false)) {
+		CacheHelper::set(CacheHelper::pluginKey($_pl_v_key), $_new_v, 86400);
+	}
 }
 
 // 此处有可能会超时
@@ -473,6 +489,192 @@ function post_find_deleted_by_tid($tid, $page = 1, $pagesize = 50) {
 	}
 	// hook model_post_find_deleted_by_tid_end.php
 	return $postlist;
+}
+
+// 查找全站已软删除回复（后台回收站用，支持按 fid/keyword 筛选）
+// post 表无 fid 字段，需 LEFT JOIN thread 获取 fid/subject；keyword 匹配 post.message 或 thread.subject
+// 保留 db_sql_find：JOIN 查询 db_find 不支持
+function post_find_deleted($cond = array(), $orderby = array('pid'=>-1), $page = 1, $pagesize = 20) {
+	global $db;
+	// hook model_post_find_deleted_start.php
+
+	$tablepre = $db->tablepre;
+
+	$where = array('p.is_deleted'=>1);
+	$join_args = array();
+
+	$filter_fid = isset($cond['fid']) ? intval($cond['fid']) : 0;
+	$filter_keyword = isset($cond['keyword']) ? trim($cond['keyword']) : '';
+	$filter_tid = isset($cond['tid']) ? intval($cond['tid']) : 0;
+
+	if($filter_fid > 0) {
+		$where['t.fid'] = $filter_fid;
+	}
+	if($filter_tid > 0) {
+		$where['p.tid'] = $filter_tid;
+	}
+
+	$sql = "SELECT p.pid, p.tid, p.uid, p.isfirst, p.create_date, p.deleted_date, p.deleted_by, p.message, t.fid, t.subject FROM {$tablepre}post p LEFT JOIN {$tablepre}thread t ON p.tid=t.tid WHERE ";
+	$cond_parts = array();
+	foreach($where as $k=>$v) {
+		$cond_parts[] = "$k=" . intval($v);
+	}
+	if($filter_keyword !== '') {
+		$cond_parts[] = "(p.message LIKE '%" . addcslashes($filter_keyword, "'%_\\") . "%' OR t.subject LIKE '%" . addcslashes($filter_keyword, "'%_\\") . "%')";
+	}
+	$sql .= implode(' AND ', $cond_parts);
+
+	$orderby_field = 'p.pid';
+	if(!empty($orderby)) {
+		$_f = array_keys($orderby);
+		$_f = $_f[0];
+		$_d = intval($orderby[$_f]);
+		if(in_array($_f, array('pid', 'deleted_date', 'create_date'))) {
+			$orderby_field = $_f;
+		}
+		$orderby_dir = $_d < 0 ? 'DESC' : 'ASC';
+	} else {
+		$orderby_dir = 'DESC';
+	}
+	$sql .= " ORDER BY $orderby_field $orderby_dir";
+
+	$offset = max(0, ($page - 1) * $pagesize);
+	$sql .= " LIMIT $offset, $pagesize";
+
+	$postlist = db_sql_find($sql);
+
+	if($postlist) {
+		$uids = arrlist_values($postlist, 'uid');
+		$deleted_by_uids = arrlist_values($postlist, 'deleted_by');
+		$uids = array_unique(array_merge($uids, $deleted_by_uids));
+		user_preload($uids);
+		foreach($postlist as &$post) {
+			// 仅取 message 前 200 字符作为预览，避免列表过长
+			$post['message_preview'] = xn_substr(trim(strip_tags($post['message'])), 0, 200);
+			unset($post['message']);
+		}
+		unset($post);
+	}
+
+	// hook model_post_find_deleted_end.php
+	return $postlist;
+}
+
+// 统计全站已软删除回复数量（带筛选）
+function post_count_deleted($cond = array()) {
+	global $db;
+	// hook model_post_count_deleted_start.php
+
+	$tablepre = $db->tablepre;
+
+	$where = array('p.is_deleted'=>1);
+	$filter_fid = isset($cond['fid']) ? intval($cond['fid']) : 0;
+	$filter_keyword = isset($cond['keyword']) ? trim($cond['keyword']) : '';
+	$filter_tid = isset($cond['tid']) ? intval($cond['tid']) : 0;
+
+	if($filter_fid > 0) {
+		$where['t.fid'] = $filter_fid;
+	}
+	if($filter_tid > 0) {
+		$where['p.tid'] = $filter_tid;
+	}
+
+	$sql = "SELECT COUNT(*) as cnt FROM {$tablepre}post p LEFT JOIN {$tablepre}thread t ON p.tid=t.tid WHERE ";
+	$cond_parts = array();
+	foreach($where as $k=>$v) {
+		$cond_parts[] = "$k=" . intval($v);
+	}
+	if($filter_keyword !== '') {
+		$cond_parts[] = "(p.message LIKE '%" . addcslashes($filter_keyword, "'%_\\") . "%' OR t.subject LIKE '%" . addcslashes($filter_keyword, "'%_\\") . "%')";
+	}
+	$sql .= implode(' AND ', $cond_parts);
+
+	$row = db_sql_find_one($sql);
+	// hook model_post_count_deleted_end.php
+	return !empty($row['cnt']) ? intval($row['cnt']) : 0;
+}
+
+// 批量恢复已软删除回帖
+function post_restore_batch($pids) {
+	// hook model_post_restore_batch_start.php
+	if(empty($pids) || !is_array($pids)) return 0;
+	$pids = array_map('intval', $pids);
+	$pids = array_unique($pids);
+	$pids = array_filter($pids);
+	if(empty($pids)) return 0;
+
+	$success = 0;
+	foreach($pids as $pid) {
+		if(post_restore($pid)) {
+			$success++;
+		}
+	}
+	// hook model_post_restore_batch_end.php
+	return $success;
+}
+
+// 批量彻底删除回帖（物理删除，含附件清理）
+function post_hard_delete_batch($pids) {
+	// hook model_post_hard_delete_batch_start.php
+	if(empty($pids) || !is_array($pids)) return 0;
+	$pids = array_map('intval', $pids);
+	$pids = array_unique($pids);
+	$pids = array_filter($pids);
+	if(empty($pids)) return 0;
+
+	$success = 0;
+	foreach($pids as $pid) {
+		if(post_hard_delete($pid)) {
+			$success++;
+		}
+	}
+	// hook model_post_hard_delete_batch_end.php
+	return $success;
+}
+
+// 物理删除回帖（不经过 post_read_cache 的 is_deleted 过滤，可直接删除已软删除的 post）
+// 与 post_delete 区别：post_delete 用 post_read_cache（前台过滤 is_deleted），本函数用 post__read（原始读取）
+// 注意：如果 post 已软删除，统计已经在 post_soft_delete 中减过，此处不再减统计
+function post_hard_delete($pid) {
+	global $conf;
+	$post = post__read($pid);
+	if(empty($post)) return TRUE;
+
+	$tid = $post['tid'];
+	$uid = $post['uid'];
+	$is_deleted = intval(isset($post['is_deleted']) ? $post['is_deleted'] : 0);
+
+	// hook model_post_hard_delete_start.php
+
+	// 清理附件（物理文件 + 数据库记录）
+	if($post['images'] || $post['files']) {
+		attach_delete_by_pid($pid);
+	}
+
+	$r = post__delete($pid);
+
+	// 仅当 post 未软删除时才减统计（已软删除的统计在 post_soft_delete 中已减）
+	if($r && !$is_deleted) {
+		if(!$post['isfirst']) {
+			$audit_status = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
+			if($audit_status == 1) {
+				thread__update($tid, array('posts-'=>1));
+				$uid AND user__update($uid, array('posts-'=>1));
+				runtime_set('posts-', 1);
+			}
+		}
+		// 更新 lastpid
+		$thread = thread__read($tid);
+		if(!empty($thread) && $pid == $thread['lastpid']) {
+			thread_update_last($tid);
+		}
+	}
+
+	// 失效回帖列表缓存
+	$r AND post_list_cache_bump_version($tid);
+
+	// hook model_post_hard_delete_end.php
+	return $r;
 }
 
 // <img src="/view/img/face/1.gif"/>

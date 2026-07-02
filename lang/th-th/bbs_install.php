@@ -25,6 +25,7 @@ return array(
 	'check_again' => 'ตรวจสอบอีกครั้ง',
 	'os' => 'OS',
 	'unix_like' => 'UNIX Like',
+	'os_windows_not_recommended' => 'ไม่แนะนำ Windows กรุณาใช้ Linux สำหรับ production',
 	'php_version' => 'เวอร์ชัน PHP',
 	
 	'step_2_title' => '2. ตั้งค่าฐานข้อมูล',
@@ -56,8 +57,8 @@ XIUNOX ใช้งานข้อตกลง MIT คุณสามารถ�
 	'supported' => 'รองรับ',
 	'not_supported' => 'ไม่รองรับ',
 	'function_glob_not_exists' => 'จำเป็นต้องมีการติดตั้งส่วนขยายเพิ่มเติม กรุณาตั้งค่าในไฟล์ php.ini ให้ disabled_functions = ; ยกเว้นข้อจำกัดในฟังก์ชั่นนี้',
-	'function_gzcompress_not_exists' => 'จำเป็นต้องมีการติดตั้งส่วนขยายเพิ่มเติม สำหรับเซิร์ฟเวอร์ Linux ให้เพิ่ม compile argument: --with-zlib, ส่วนเซิร์ฟเวอร์ Windows กรุณาตั้งค่า php.ini ให้เปิด extension=php_zlib.dll',
-	'function_mb_substr_not_exists' => 'จำเป็นต้องมีในระบบ สำหรับเซิร์ฟเวอร์ Linux ให้เพิ่ม compile argument: --with-mbstring, ส่วนเซิร์ฟเวอร์ Windows กรุณาตั้งค่า php.ini ให้เปิด extension=php_mbstring.dll',
+	'function_gzcompress_not_exists' => 'จำเป็นต้องมีการติดตั้งส่วนขยายเพิ่มเติม กรุณาติดตั้ง zlib extension (เช่น Ubuntu: sudo apt install php8.5-zlib)',
+	'function_mb_substr_not_exists' => 'จำเป็นต้องมีในระบบ กรุณาติดตั้ง mbstring extension (เช่น Ubuntu: sudo apt install php8.5-mbstring)',
 
 	'optional' => 'ทางเลือก',
 	'recommended' => 'แนะนำ',

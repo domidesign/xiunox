@@ -25,6 +25,7 @@ return array(
 	'check_again' => 'Check Again',
 	'os' => 'OS',
 	'unix_like' => 'UNIX Like',
+	'os_windows_not_recommended' => 'Windows not recommended, use Linux for production',
 	'php_version' => 'PHP Version',
 	'mysql_version' => 'MySQL Version',
 	'mysql_version_pending' => 'Detected after database connection',
@@ -65,8 +66,8 @@ XIUNOX is released under the MIT license. You are free to modify, create derivat
 	'supported' => 'Supported',
 	'not_supported' => 'Not Supported',
 	'function_glob_not_exists' => 'Plugin install dependent on it, please setting php.ini, set disabled_functions = ; Lifting restrictions on this function',
-	'function_gzcompress_not_exists' => 'Plugin install dependent on it, on Linux server, add compile argument: --with-zlib, on Windows Server, please setting php.ini open extension=php_zlib.dll',
-	'function_mb_substr_not_exists' => 'System dependent on it, on Linux server, add compile argument: --with-mbstring, on Windows Server, please setting php.ini open extension=php_mbstring.dll',
+	'function_gzcompress_not_exists' => 'Plugin install dependent on it, please install zlib extension (e.g. Ubuntu: sudo apt install php8.5-zlib)',
+	'function_mb_substr_not_exists' => 'System dependent on it, please install mbstring extension (e.g. Ubuntu: sudo apt install php8.5-mbstring)',
 
 	'optional' => 'Optional',
 	'recommended' => 'Recommended',

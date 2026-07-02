@@ -2,12 +2,15 @@
 
 function get_env(&$env, &$write) {
 	$env['os']['name'] = lang('os');
-	$env['os']['must'] = TRUE;
+	$env['os']['must'] = FALSE;
 	$env['os']['current'] = PHP_OS;
 	$env['os']['need'] = lang('unix_like');
-	$env['os']['status'] = 1;
-	// glob gzip
-	//$env['os']['disable'] = 1;
+	// Windows 不推荐：DIRECTORY_SEPARATOR 为 '\' 时为 Windows
+	$is_windows = (DIRECTORY_SEPARATOR === '\\');
+	$env['os']['status'] = $is_windows ? 2 : 1;
+	if($is_windows) {
+		$env['os']['current'] = PHP_OS . ' (' . lang('os_windows_not_recommended') . ')';
+	}
 
 	$env['php_version']['name'] = lang('php_version');
 	$env['php_version']['must'] = TRUE;

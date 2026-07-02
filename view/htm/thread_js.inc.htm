@@ -589,6 +589,57 @@ document.body.addEventListener('htmx:after:swap', function(e) {
 
     if (!postbarMsg || !postbarSubmit) return;
 
+    // 验证码元素
+    var postbarCaptchaRow = document.getElementById('postbar-captcha-row');
+    var postbarCaptchaInput = document.getElementById('captcha-input-postbar');
+    var postbarCaptchaImg = document.getElementById('captcha-img-postbar');
+    var postbarNeedCaptcha = !!postbarCaptchaRow;
+
+    // postbar 验证码刷新：请求 reply scene 但手动设置 postbar 图片
+    function postbarCaptchaRefresh() {
+        var url;
+        if (typeof bbs_captcha_url_template !== 'undefined' && bbs_captcha_url_template) {
+            url = bbs_captcha_url_template.replace('__SCENE__', 'reply');
+        } else if (typeof url_rewrite_on !== 'undefined' && url_rewrite_on == 1) {
+            url = 'captcha-generate-reply.htm';
+        } else if (typeof url_rewrite_on !== 'undefined' && url_rewrite_on == 3) {
+            url = 'captcha/generate/reply';
+        } else if (typeof url_rewrite_on !== 'undefined' && url_rewrite_on == 4) {
+            url = 'captcha-generate-reply.html';
+        } else {
+            url = '?captcha-generate-reply.htm';
+        }
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r) { return r.ok ? r.text() : null; })
+            .then(function(text) {
+                if (!text) return;
+                try {
+                    var res = JSON.parse(text);
+                    if (res.code === 0 && res.data && res.data.image && postbarCaptchaImg) {
+                        postbarCaptchaImg.src = res.data.image;
+                        postbarCaptchaImg.style.display = '';
+                    }
+                } catch(e) {}
+            })
+            .catch(function() {});
+    }
+
+    // textarea 聚焦时展开验证码行
+    if (postbarNeedCaptcha && postbarCaptchaRow) {
+        postbarMsg.addEventListener('focus', function() {
+            if (postbarCaptchaRow.classList.contains('d-none')) {
+                postbarCaptchaRow.classList.remove('d-none');
+                postbarCaptchaRefresh();
+            }
+        });
+        // 点击验证码图片刷新
+        if (postbarCaptchaImg) {
+            postbarCaptchaImg.addEventListener('click', function() {
+                postbarCaptchaRefresh();
+            });
+        }
+    }
+
     // 发送回复
     function sendReply() {
         var msg = postbarMsg.value.trim();
@@ -596,17 +647,17 @@ document.body.addEventListener('htmx:after:swap', function(e) {
             XN.toast('请输入回复内容', 'danger');
             return;
         }
-        // 检查是否有验证码（如果quick_reply_form中有验证码输入框且可见）
-        var captchaInput = quickForm ? quickForm.querySelector('#captcha-reply') : null;
-        if (captchaInput && captchaInput.offsetParent !== null) {
-            // 需要验证码：显示quick_reply_form并同步数据
-            if (quickForm) quickForm.classList.remove('d-none');
-            if (quickMsg) quickMsg.value = msg;
-            if (quickQuotepid) quickQuotepid.value = postbarQuotepid;
-            XN.toast('需要验证码，请在此输入', 'info');
-            quickForm.scrollIntoView({behavior:'smooth', block:'center'});
-            if (quickMsg) quickMsg.focus();
-            return;
+        // 验证码检查
+        if (postbarNeedCaptcha && postbarCaptchaInput) {
+            var captchaVal = postbarCaptchaInput.value.trim();
+            if (!captchaVal) {
+                // 展开验证码行并聚焦
+                if (postbarCaptchaRow) postbarCaptchaRow.classList.remove('d-none');
+                postbarCaptchaRefresh();
+                postbarCaptchaInput.focus();
+                XN.toast('请输入验证码', 'danger');
+                return;
+            }
         }
         // 用htmx.ajax发送
         var submitUrl = quickForm ? quickForm.getAttribute('hx-post') : '';
@@ -617,6 +668,9 @@ document.body.addEventListener('htmx:after:swap', function(e) {
         formData.append('doctype', '1');
         formData.append('quotepid', postbarQuotepid);
         formData.append('message', msg);
+        if (postbarNeedCaptcha && postbarCaptchaInput) {
+            formData.append('captcha', postbarCaptchaInput.value.trim());
+        }
         // 禁用按钮
         postbarSubmit.disabled = true;
         postbarMsg.disabled = true;
@@ -626,15 +680,14 @@ document.body.addEventListener('htmx:after:swap', function(e) {
         fetch(submitUrl, {
             method: 'POST',
             body: formData,
-            headers: {'X-Requested-With': 'XMLHttpRequest', 'HX-Request': 'true'}
+            headers: {'X-Requested-With': 'XMLHttpRequest', 'HX-Request': 'true', 'HX-Target': '#postlist'}
         }).then(function(res) {
             return res.text();
         }).then(function(html) {
-            // 尝试解析JSON响应
+            // 尝试解析JSON响应（错误消息等）
             try {
                 var json = JSON.parse(html);
                 if (parseInt(json.code) === 0) {
-                    // 成功：清空输入框和引用条
                     postbarMsg.value = '';
                     postbarQuotepid = 0;
                     if (postbarQuoteBar) postbarQuoteBar.classList.add('d-none');
@@ -643,21 +696,78 @@ document.body.addEventListener('htmx:after:swap', function(e) {
                     if (typeof htmx !== 'undefined') {
                         htmx.trigger('#postlist', 'refresh');
                     }
-                    // 如果有待审提示
-                    if (json.message && json.message.indexOf('审核') >= 0) {
-                        // 不刷新页面
-                    }
                 } else {
                     XN.toast(json.message || '回复失败', 'danger');
                 }
+                return;
             } catch(e) {
-                // HTML响应：可能是错误页面或成功后的重定向
-                XN.toast('回复已提交', 'success');
+                // HTML片段响应：后端返回了评论HTML + OOB更新
+                var tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+
+                // 检查是否有错误提示（alert-danger）
+                var errorEl = tempDiv.querySelector('.alert-danger');
+                if (errorEl) {
+                    XN.toast(errorEl.textContent.trim(), 'danger');
+                    return;
+                }
+
+                // 检查是否有待审提示（alert-warning）
+                var warnEl = tempDiv.querySelector('.alert-warning');
+                if (warnEl) {
+                    postbarMsg.value = '';
+                    postbarQuotepid = 0;
+                    if (postbarQuoteBar) postbarQuoteBar.classList.add('d-none');
+                    XN.toast(warnEl.textContent.trim(), 'success');
+                    return;
+                }
+
+                // 成功：提取评论HTML和OOB更新
+                var postlist = document.getElementById('postlist');
+                // 提取主内容（非OOB的元素）
+                var mainNodes = [];
+                var oobNodes = [];
+                tempDiv.childNodes.forEach(function(node) {
+                    if (node.nodeType !== 1) return;
+                    if (node.hasAttribute && node.hasAttribute('hx-swap-oob')) {
+                        oobNodes.push(node);
+                    } else {
+                        mainNodes.push(node);
+                    }
+                });
+
+                // 移除"暂无回复"占位符
+                if (postlist) {
+                    var emptyEl = postlist.querySelector('.postlist-empty');
+                    if (emptyEl) emptyEl.remove();
+                    // 追加新评论到列表末尾
+                    mainNodes.forEach(function(node) {
+                        postlist.appendChild(node);
+                    });
+                    // 滚动到新评论
+                    postlist.lastElementChild.scrollIntoView({behavior: 'smooth', block: 'center'});
+                }
+
+                // 处理OOB更新（评论数、楼层、积分提示）
+                oobNodes.forEach(function(node) {
+                    var id = node.id;
+                    if (!id) return;
+                    var target = document.getElementById(id);
+                    if (target && node.hasAttribute('hx-swap-oob')) {
+                        target.textContent = node.textContent;
+                    }
+                    // 积分变动提示
+                    if (id === 'credits-toast') {
+                        var desc = node.getAttribute('data-change-desc');
+                        if (desc && typeof XN !== 'undefined' && XN.toast) {
+                            XN.toast(desc, 'info');
+                        }
+                    }
+                });
+
                 postbarMsg.value = '';
                 postbarQuotepid = 0;
                 if (postbarQuoteBar) postbarQuoteBar.classList.add('d-none');
-                // 刷新页面以显示新回复
-                setTimeout(function() { window.location.reload(); }, 1000);
             }
         }).catch(function(err) {
             XN.toast('网络错误，请重试', 'danger');
@@ -665,6 +775,11 @@ document.body.addEventListener('htmx:after:swap', function(e) {
             postbarSubmit.disabled = false;
             postbarMsg.disabled = false;
             postbarSubmit.innerHTML = originalHtml;
+            // 刷新验证码
+            if (postbarNeedCaptcha) {
+                if (postbarCaptchaInput) postbarCaptchaInput.value = '';
+                postbarCaptchaRefresh();
+            }
         });
     }
 

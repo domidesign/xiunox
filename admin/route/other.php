@@ -64,8 +64,6 @@ elseif($action == 'cache_setting') {
 
 	if($method == 'GET') {
 		$config = CacheService::getConfig();
-		// 调试：记录读取到的配置
-		xn_log('cache_get_debug: type=' . (isset($config['type']) ? $config['type'] : 'NULL') . ' enable=' . (isset($config['enable']) ? $config['enable'] : 'NULL'), 'cache_error');
 		$status = CacheService::getStatus();
 		$drivers = CacheService::getAvailableDrivers();
 		$opcacheStatus = CacheService::getOpcacheStatus();

@@ -25,6 +25,7 @@ return array(
 	'check_again' => '重新檢測',
 	'os' => '操作系統',
 	'unix_like' => '類 UNIX',
+	'os_windows_not_recommended' => '不推薦 Windows，正式環境請使用 Linux',
 	'php_version' => 'PHP 版本',
 	'mysql_version' => 'MySQL 版本',
 	'mysql_version_pending' => '連接數據庫後檢測',
@@ -64,8 +65,8 @@ XIUNOX 採用 MIT 協議發布，您可以自由修改、派生版本、商用�
 	'supported' => '支持',
 	'not_supported' => '不支持',
 	'function_glob_not_exists' => '後臺插件功能依賴該函數，請配置 php.ini，設置 disabled_functions = ; 去除對該函數的限制',
-	'function_gzcompress_not_exists' => '後臺插件功能依賴該函數，Linux 主機請添加編譯參數 --with-zlib，Windows 主機請配置 php.ini 註釋掉  extension=php_zlib.dll',
-	'function_mb_substr_not_exists' => '系統依賴該函數，Linux 主機請添加編譯參數 --with-mbstring，Windows 主機請配置 php.ini 註釋掉 extension=php_mbstring.dll',
+	'function_gzcompress_not_exists' => '後臺插件功能依賴該函數，請安裝 zlib 擴展（如 Ubuntu: sudo apt install php8.5-zlib）',
+	'function_mb_substr_not_exists' => '系統依賴該函數，請安裝 mbstring 擴展（如 Ubuntu: sudo apt install php8.5-mbstring）',
 
 	'optional' => '可選',
 	'recommended' => '推薦',
