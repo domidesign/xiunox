@@ -104,6 +104,7 @@
 
                 <?php if($sec_can_delete_thread) { ?>
                 <a data-href="<?php echo post_delete_url($thread['firstpid']);?>"
+                    data-uid="<?php echo intval($thread['uid']);?>"
                     data-confirm-text="<?php echo lang('confirm_delete');?>"
                     href="javascript:void(0);" class="btn btn-sm post_delete _confirm"
                     isfirst="1"><i class="ti ti-trash"></i>

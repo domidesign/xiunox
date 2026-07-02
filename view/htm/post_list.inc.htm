@@ -154,7 +154,7 @@
 
 									<!--{hook post_list_inc_delete_before.htm}-->
 									<?php if($allowdelete || ($_post['allowdelete'] && $sec_allow_delete_reply)) { ?>
-									<a data-href="<?php echo post_delete_url($_post['pid']);?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm"><i class="ti ti-trash"></i></a>
+									<a data-href="<?php echo post_delete_url($_post['pid']);?>" data-uid="<?php echo intval($_post['uid']);?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm"><i class="ti ti-trash"></i></a>
 									<?php } ?>
 									<!--{hook post_list_inc_delete_after.htm}-->
 
@@ -236,7 +236,7 @@
 												<a href="<?php echo post_update_url($_reply['pid']);?>" class="text-body-secondary post_update" hx-boost="false" style="font-size:0.8em"><i class="ti ti-pencil"></i></a>
 												<?php } ?>
 												<?php if($allowdelete || ($_reply['allowdelete'] && $sec_allow_delete_reply)) { ?>
-											<a data-href="<?php echo post_delete_url($_reply['pid']);?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm" style="font-size:0.8em"><i class="ti ti-trash"></i></a>
+											<a data-href="<?php echo post_delete_url($_reply['pid']);?>" data-uid="<?php echo intval($_reply['uid']);?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm" style="font-size:0.8em"><i class="ti ti-trash"></i></a>
 											<?php } ?>
 											<!--{hook post_list_inc_reply_delete_after.htm}-->
 											<?php if($gid > 0 && $gid < 5 && isset($_reply['audit_status']) && $_reply['audit_status'] != 1): ?>

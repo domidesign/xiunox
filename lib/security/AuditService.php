@@ -187,7 +187,7 @@ class AuditService {
      */
     public static function approve(string $target_type, int $target_id, int $operator_uid): bool {
         if ($target_type === 'thread') {
-            $thread = thread_read($target_id);
+            $thread = thread__read($target_id);
             if (empty($thread)) return false;
 
             $r = db_update('thread', ['tid' => $target_id], ['audit_status' => self::STATUS_APPROVED]);
@@ -268,7 +268,7 @@ class AuditService {
             }
 
             // 补发：解析@提及并发送通知
-            $post = post_read($thread['firstpid']);
+            $post = post__read($thread['firstpid']);
             $message = $post ? $post['message'] : '';
             if(!empty($message)) {
                 // 纯文本 @username
@@ -298,7 +298,7 @@ class AuditService {
                 }
             }
         } else {
-            $post = post_read($target_id);
+            $post = post__read($target_id);
             if (empty($post)) return false;
 
             $r = db_update('post', ['pid' => $target_id], ['audit_status' => self::STATUS_APPROVED]);
@@ -311,7 +311,7 @@ class AuditService {
             $post_uid AND user__update($post_uid, array('posts+'=>1));
             runtime_set('posts+', 1);
             runtime_set('todayposts+', 1);
-            $thread = thread_read($tid);
+            $thread = thread__read($tid);
             $fid = $thread ? intval($thread['fid']) : 0;
             if($fid > 0) forum__update($fid, array('todayposts+'=>1));
 
@@ -392,7 +392,7 @@ class AuditService {
      */
     public static function reject(string $target_type, int $target_id, int $operator_uid, string $reason = ''): bool {
         if ($target_type === 'thread') {
-            $thread = thread_read($target_id);
+            $thread = thread__read($target_id);
             if (empty($thread)) return false;
             
             $r = db_update('thread', ['tid' => $target_id], [
@@ -407,7 +407,7 @@ class AuditService {
             if ($reason) $content .= ' — ' . lang('notify_audit_reject_reason', array('reason' => $reason));
             notify_create($thread['uid'], $operator_uid, 'audit_reject', $target_id, 0, $content);
         } else {
-            $post = post_read($target_id);
+            $post = post__read($target_id);
             if (empty($post)) return false;
             
             $r = db_update('post', ['pid' => $target_id], [
@@ -417,7 +417,7 @@ class AuditService {
             if ($r === false) return false;
             
             // 通知作者：包含帖子标题和驳回原因
-            $thread = thread_read($post['tid']);
+            $thread = thread__read($post['tid']);
             $subject_short = $thread ? mb_substr($thread['subject'], 0, 30) : '';
             $content = lang('notify_audit_post_reject', array('subject' => $subject_short));
             if ($reason) $content .= ' — ' . lang('notify_audit_reject_reason', array('reason' => $reason));
@@ -435,7 +435,7 @@ class AuditService {
      */
     public static function resubmit(string $target_type, int $target_id, int $operator_uid): array {
         if ($target_type === 'thread') {
-            $thread = thread_read($target_id);
+            $thread = thread__read($target_id);
             if (empty($thread)) return ['ok'=>false, 'message'=>'帖子不存在'];
             
             // 仅驳回状态可重新提交
@@ -456,7 +456,7 @@ class AuditService {
             ]);
             if ($r === false) return ['ok'=>false, 'message'=>'更新失败'];
         } else {
-            $post = post_read($target_id);
+            $post = post__read($target_id);
             if (empty($post)) return ['ok'=>false, 'message'=>'回帖不存在'];
             
             if (intval($post['audit_status']) !== self::STATUS_REJECTED) {
@@ -852,7 +852,7 @@ class AuditService {
         }
 
         // 补发：解析@提及并发送通知
-        $post = post_read($thread['firstpid']);
+        $post = post__read($thread['firstpid']);
         $message = $post ? $post['message'] : '';
         if(!empty($message)) {
             self::parseAndNotifyMentions($message, $thread_uid, $tid, 0, 'thread');

@@ -378,7 +378,7 @@ if($action == 'create') {
 							<a href="<?php echo post_update_url($post['pid']);?>" class="text-body-secondary post_update" hx-boost="false" style="font-size:0.8em"><i class="ti ti-pencil"></i></a>
 							<?php } ?>
 							<?php if($allowdelete || $post['allowdelete']) { ?>
-							<a data-href="<?php echo post_delete_url($post['pid']);?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm" style="font-size:0.8em"><i class="ti ti-trash"></i></a>
+							<a data-href="<?php echo post_delete_url($post['pid']);?>" data-uid="<?php echo intval($post['uid']);?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm" style="font-size:0.8em"><i class="ti ti-trash"></i></a>
 							<?php } ?>
 							<span class="post-like-btn cursor-pointer text-body-secondary" hx-post="<?php echo !empty($post['is_liked']) ? thread_unlike_url($tid, $post['pid']) : thread_like_url($tid, $post['pid']);?>" hx-vals='{"_ctx":"reply"}' hx-target="this" hx-swap="outerHTML" hx-ext="hx-optimistic" hx-optimistic style="font-size:0.8em">
 								<i class="ti <?php echo !empty($post['is_liked']) ? 'ti-heart-filled text-danger' : 'ti-heart';?>"></i>
@@ -407,6 +407,10 @@ if($action == 'create') {
 		// htmx 请求：区分快速回复（帖子详情页内）和高级回复（独立页面）
 		if(is_htmx_request()) {
 			$hx_target = isset($_SERVER['HTTP_HX_TARGET']) ? $_SERVER['HTTP_HX_TARGET'] : '';
+			// htmx 4 的 HX-Target 头格式为 "tagName#id"（如 "UL#postlist"），兼容手动 fetch 发送的 "#postlist"
+			if($hx_target && strpos($hx_target, '#') !== false) {
+				$hx_target = substr($hx_target, strrpos($hx_target, '#'));
+			}
 
 			// 快速回复：target 为 #postlist，返回 HTML 片段 + OOB 更新
 			if($hx_target === '#postlist') {
@@ -698,13 +702,15 @@ if($action == 'create') {
 	
 	// hook post_delete_middle.php
 
-	// 积分预检查：删除操作扣减积分前检查余额是否充足
+	// 积分预检查：仅普通用户删除时检查余额，管理员/版主删除不拦截（即使作者积分不足也直接删除）
 	$deleteCreditsEvent = $isfirst ? 'thread_delete' : 'reply_delete';
 	$deleteCreditsUid = $isfirst ? intval($thread['uid']) : intval($post['uid']);
 	if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
-	$deleteCreditsCheck = CreditsRuleService::applyRule($deleteCreditsEvent, $deleteCreditsUid, $fid, true);
-	if(!$deleteCreditsCheck['ok']) {
-		message(-1, $deleteCreditsCheck['message']);
+	if(!$allowdelete) {
+		$deleteCreditsCheck = CreditsRuleService::applyRule($deleteCreditsEvent, $deleteCreditsUid, $fid, true);
+		if(!$deleteCreditsCheck['ok']) {
+			message(-1, $deleteCreditsCheck['message']);
+		}
 	}
 
 	// 软删除配置检查
