@@ -286,7 +286,7 @@
 })();
 </script>
 
-<!-- 快速回复：成功时清空表单，失败时保留内容（htmx 4 事件名带冒号） -->
+<!-- 快速回复：submit 同步防抖 + 成功清空表单 + 失败保留内容（htmx 4 事件名带冒号） -->
 <script>
 (function() {
     var form = document.getElementById('quick_reply_form');
@@ -294,21 +294,32 @@
 
     var replyBtn = document.getElementById('submit');
     var replyOriginalText = replyBtn ? replyBtn.textContent.trim() : '';
+    var isSubmitting = false;  // 防抖标志位
+
     window.resetReplySubmit = function() {
+        isSubmitting = false;
         if (replyBtn) {
             replyBtn.disabled = false;
             if (replyOriginalText) replyBtn.textContent = replyOriginalText;
         }
     };
 
-    // htmx 4：htmx:before:request（校验通过、即将发送请求时禁用按钮）
-    form.addEventListener('htmx:before:request', function(e) {
+    // 关键：submit 事件 capture 阶段同步防抖，先于 htmx 的冒泡监听器执行
+    // htmx:before:request 是异步的，无法拦截快速双击产生的两次 submit 事件
+    form.addEventListener('submit', function(e) {
+        if (isSubmitting) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return false;
+        }
+        isSubmitting = true;
+        // 同步禁用按钮，防止快速双击
         if (replyBtn) {
             replyBtn.disabled = true;
             var loadingText = replyBtn.getAttribute('data-loading-text');
             if (loadingText) replyBtn.textContent = loadingText;
         }
-    });
+    }, true);  // capture: true，确保在 htmx 之前拦截
 
     // htmx 4：htmx:after:swap（swap 成功后处理）
     // 后端响应：成功=回帖HTML+OOB，待审=alert-warning，失败(message)=alert-danger
@@ -333,6 +344,38 @@
             // 失败（alert-danger）：保留 form 内容，用户可修改后重试
             if (isDanger) return;
             // 待审（alert-warning）：回复已提交，清空 form
+        } else if (lastChild && lastChild.hasAttribute && lastChild.hasAttribute('data-parent-pid')) {
+            // Level-2 楼中楼回复：从 #postlist 末尾移除，移动到对应父评论的 .replies-container
+            var parentPid = lastChild.getAttribute('data-parent-pid');
+            var parentLi = postlist.querySelector('li[data-pid="' + parentPid + '"]');
+            if (!parentLi) {
+                // 找不到父评论：降级保留在 #postlist 末尾（刷新后由后端重新渲染）
+                if (typeof XN !== 'undefined' && XN.toast) {
+                    XN.toast('<?php echo lang('create_post_sucessfully');?>', 'success');
+                }
+            } else {
+                var repliesContainer = parentLi.querySelector('.replies-container[data-pid="' + parentPid + '"]');
+                // 父评论无 replies-container（这是第一条 Level-2 回复）：创建容器结构
+                if (!repliesContainer) {
+                    repliesContainer = document.createElement('div');
+                    repliesContainer.className = 'replies-container mt-2';
+                    repliesContainer.setAttribute('data-pid', parentPid);
+                    parentLi.querySelector('.flex-fill').appendChild(repliesContainer);
+                }
+                // 移动 Level-2 回复到容器末尾
+                repliesContainer.appendChild(lastChild);
+                // 展开折叠区（如果有 .reply-extra 被隐藏）
+                var replyExtra = repliesContainer.querySelector('.reply-extra.d-none');
+                if (replyExtra) {
+                    replyExtra.classList.remove('d-none');
+                    var toggleBtn = repliesContainer.querySelector('.reply-toggle-btn');
+                    if (toggleBtn) toggleBtn.remove();
+                }
+                // 滚动到新回复
+                setTimeout(function() {
+                    lastChild.scrollIntoView({behavior: 'smooth', block: 'center'});
+                }, 50);
+            }
         }
 
         // 成功：清空表单 + 隐藏引用条
@@ -584,6 +627,7 @@ document.body.addEventListener('htmx:after:swap', function(e) {
     var quickQuotepid = quickForm ? quickForm.querySelector('input[name="quotepid"]') : null;
     var csrfInput = quickForm ? quickForm.querySelector('input[name="csrf_token"]') : null;
     var postbarQuotepid = 0;
+    var postbarSubmitting = false;  // 防抖标志位
 
     if (!postbarMsg || !postbarSubmit) return;
 
@@ -640,6 +684,8 @@ document.body.addEventListener('htmx:after:swap', function(e) {
 
     // 发送回复
     function sendReply() {
+        // 防抖：正在提交中直接拦截（disabled 属性可能因事件队列时序未及时生效）
+        if (postbarSubmitting) return;
         var msg = postbarMsg.value.trim();
         if (!msg) {
             XN.toast('请输入回复内容', 'danger');
@@ -660,6 +706,8 @@ document.body.addEventListener('htmx:after:swap', function(e) {
         // 用htmx.ajax发送
         var submitUrl = quickForm ? quickForm.getAttribute('hx-post') : '';
         if (!submitUrl) return;
+        // 所有验证通过，设置防抖标志位 + 禁用按钮
+        postbarSubmitting = true;
         // 构造表单数据
         var formData = new FormData();
         if (csrfInput) formData.append('csrf_token', csrfInput.value);
@@ -770,6 +818,7 @@ document.body.addEventListener('htmx:after:swap', function(e) {
         }).catch(function(err) {
             XN.toast('网络错误，请重试', 'danger');
         }).finally(function() {
+            postbarSubmitting = false;
             postbarSubmit.disabled = false;
             postbarMsg.disabled = false;
             postbarSubmit.innerHTML = originalHtml;

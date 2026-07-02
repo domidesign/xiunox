@@ -348,7 +348,7 @@ if($action == 'create') {
 		if($post['parent_pid'] > 0) {
 			ob_start();
 			?>
-			<div class="d-flex mb-2 <?php echo $post['classname'];?>" data-pid="<?php echo $post['pid'];?>" data-uid="<?php echo $post['uid'];?>">
+			<div class="d-flex mb-2 <?php echo $post['classname'];?>" data-pid="<?php echo $post['pid'];?>" data-uid="<?php echo $post['uid'];?>" data-parent-pid="<?php echo intval($post['parent_pid']);?>">
 				<div class="position-relative me-2 flex-shrink-0">
 					<a href="<?php echo user_url($post['uid']);?>" tabindex="-1">
 						<img class="avatar-sm" src="<?php echo $post['user_avatar_url'];?>" alt="" onerror="this.src='/view/img/avatar.png'">
