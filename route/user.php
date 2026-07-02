@@ -488,11 +488,12 @@ if(empty($action)) {
 		$_user = user_read_by_username($username);
 		$_user AND message('username', lang('username_is_in_use'));
 
-		// 用户名敏感词检查（拦截，不允许注册）
+		// 用户名保留词检查（拦截，不允许注册；使用 reserved 词库防止冒充管理员等）
 		include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
-		$filter_result = SensitiveWordFilter::content_filter($username);
-		if (!$filter_result['pass']) {
-			message('username', lang('username_contains_sensitive_word'));
+		$reserved_check = SensitiveWordFilter::content_check($username, SensitiveWordFilter::TYPE_RESERVED);
+		if (!$reserved_check['pass']) {
+			$hit_words = implode('、', $reserved_check['matched_keywords']);
+			message('username', lang('username_contains_reserved_word', array('words'=>$hit_words)));
 		}
 
 		!is_password($password, $err) AND message('password', $err);

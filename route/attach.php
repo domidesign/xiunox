@@ -440,19 +440,13 @@ if(empty($action) || $action == 'create') {
 
 } elseif($action == 'fetch') {
 
-    // 方案C+D：签名 token + AJAX 下载，防止直接访问 URL 下载
+    // 方案A：签名 token + 浏览器原生下载，依靠 token+时效签名防盗链
     // URL 格式：attach-fetch-{aid}-{token}-{expires}
-    // token 由服务端在 post_file_list_html 渲染时生成并输出到 data-token
+    // token 由服务端在 post_file_list_html 渲染时生成
+    // 不再强制 X-Requested-With 头，以便浏览器原生 <a download> 触发并显示进度条
     $aid = param(2, 0);
     $token = param(3, '');
     $expires = param(4, 0);
-
-    // 必须 AJAX 请求（带 X-Requested-With 头）
-    $is_ajax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
-    if(!$is_ajax) {
-        http_status(403);
-        exit('Forbidden');
-    }
 
     $attach = attach_read($aid);
     empty($attach) AND message(-1, lang('attach_not_exists'));

@@ -67,12 +67,13 @@ if($action == 'create') {
 			}
 		}
 
-		// ===== 敏感词过滤（内容替换***，不拦截发布） =====
-		include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
-		$filter_result = SensitiveWordFilter::content_filter($message);
-		if (!$filter_result['pass']) {
-			$message = $filter_result['filtered_text'];
-		}
+		// ===== 内容敏感词检查（直接拦截，提示具体违规词） =====
+	include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
+	$content_check = SensitiveWordFilter::content_check($message, SensitiveWordFilter::TYPE_SENSITIVE);
+	if (!$content_check['pass']) {
+		$hit_words = implode('、', $content_check['matched_keywords']);
+		message('message', lang('post_contains_sensitive_word_with_words', array('words'=>$hit_words)));
+	}
 
 		// ===== 内容安全审核 =====
 		include_once APP_PATH . 'lib/security/ContentModerationService.php';
@@ -582,6 +583,14 @@ if($action == 'create') {
 
 		empty($message) AND message('message', lang('please_input_message'));
 		mb_strlen($message, 'UTF-8') > 2048000 AND message('message', lang('message_too_long'));
+
+		// 编辑帖子时同样进行内容敏感词拦截
+		include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
+		$update_check = SensitiveWordFilter::content_check($message, SensitiveWordFilter::TYPE_SENSITIVE);
+		if (!$update_check['pass']) {
+			$hit_words = implode('、', $update_check['matched_keywords']);
+			message('message', lang('post_contains_sensitive_word_with_words', array('words'=>$hit_words)));
+		}
 		
 		$arr = array();
 		if($isfirst) {

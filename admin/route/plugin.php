@@ -335,6 +335,283 @@ if($action == 'local') {
 	$plugin_dir = $dir;
 	include _include(APP_PATH."plugin/$dir/setting.php");
 
+} elseif($action == 'upload') {
+
+	// 上传 zip 安装/升级插件（安装和升级共用入口，系统自动判断走哪个流程）
+	if($method != 'POST') {
+		message(-1, 'Method not allowed');
+	}
+
+	plugin_lock_start();
+
+	// ===== 1. 基础安全校验 =====
+	if(empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+		plugin_lock_end();
+		message(-1, lang('plugin_upload_no_file'));
+	}
+
+	$uploadFile = $_FILES['file']['tmp_name'];
+	$uploadName = $_FILES['file']['name'];
+	$uploadSize = $_FILES['file']['size'];
+
+	// 大小限制 50MB
+	$maxSize = 50 * 1024 * 1024;
+	if($uploadSize > $maxSize || $uploadSize == 0) {
+		plugin_lock_end();
+		message(-1, lang('plugin_upload_too_large'));
+	}
+
+	// 检测 plugin/ 目录可写
+	if(!is_writable(APP_PATH.'plugin/')) {
+		plugin_lock_end();
+		message(-1, lang('plugin_upload_dir_not_writable'));
+	}
+
+	// ===== 2. ZIP 有效性 + 防目录穿越 =====
+	if(!class_exists('ZipArchive')) {
+		plugin_lock_end();
+		message(-1, lang('plugin_upload_zip_not_supported'));
+	}
+
+	$zip = new ZipArchive();
+	if($zip->open($uploadFile) !== TRUE) {
+		plugin_lock_end();
+		message(-1, lang('plugin_upload_invalid_zip'));
+	}
+
+	// 防目录穿越：禁止 zip 内文件名包含 ../ 或 ..\
+	for($i = 0; $i < $zip->numFiles; $i++) {
+		$entryName = $zip->getNameIndex($i);
+		if(strpos($entryName, '../') !== false || strpos($entryName, '..\\') !== false) {
+			$zip->close();
+			plugin_lock_end();
+			message(-1, lang('plugin_upload_path_traversal'));
+		}
+	}
+
+	// ===== 3. 解压到临时目录 =====
+	$tmpDir = APP_PATH.'tmp/upload_'.xn_rand(16).'/';
+	if(!mkdir($tmpDir, 0755, true)) {
+		$zip->close();
+		plugin_lock_end();
+		message(-1, lang('plugin_upload_mkdir_failed'));
+	}
+
+	$zip->extractTo($tmpDir);
+	$zip->close();
+
+	// ===== 4. 检测 zip 结构 + 读取 conf.json =====
+	// 支持两种 zip 结构：
+	//   A) conf.json 在 zip 根目录 → 用上传文件名（去掉 .zip）作为插件目录名
+	//   B) zip 内有一层目录，conf.json 在该目录下 → 用该目录名作为插件目录名
+	$confData = null;
+	$pluginDir = '';
+	$srcDir = '';
+
+	if(is_file($tmpDir.'conf.json')) {
+		// 结构 A：conf.json 在 zip 根目录
+		$pluginDir = preg_replace('/\.zip$/i', '', $uploadName);
+		$srcDir = $tmpDir;
+		$confData = json_decode(file_get_contents($tmpDir.'conf.json'), true);
+	} else {
+		// 结构 B：zip 内有一层目录
+		$subDirs = glob($tmpDir.'*', GLOB_ONLYDIR);
+		if(count($subDirs) === 1 && is_file($subDirs[0].'/conf.json')) {
+			$pluginDir = basename($subDirs[0]);
+			$srcDir = $subDirs[0];
+			$confData = json_decode(file_get_contents($subDirs[0].'/conf.json'), true);
+		}
+	}
+
+	// 校验 conf.json
+	if(empty($confData) || !is_array($confData)) {
+		rmdir_recusive($tmpDir);
+		plugin_lock_end();
+		message(-1, lang('plugin_upload_conf_invalid'));
+	}
+
+	// 校验目录名合法性
+	if(!is_word($pluginDir)) {
+		rmdir_recusive($tmpDir);
+		plugin_lock_end();
+		message(-1, lang('plugin_upload_name_invalid'));
+	}
+
+	$pluginPath = APP_PATH.'plugin/'.$pluginDir.'/';
+	$isUpgrade = is_dir($pluginPath);
+	$pluginName = isset($confData['name']) ? $confData['name'] : $pluginDir;
+	$newVersion = isset($confData['version']) ? $confData['version'] : '1.0';
+
+	// ===== 5. 版本判断（仅升级时）=====
+	if($isUpgrade) {
+		$oldConfRaw = is_file($pluginPath.'conf.json') ? file_get_contents($pluginPath.'conf.json') : '';
+		$oldConf = $oldConfRaw ? json_decode($oldConfRaw, true) : array();
+		$oldVersion = isset($oldConf['version']) ? $oldConf['version'] : '1.0';
+
+		if(version_compare($newVersion, $oldVersion, '<=')) {
+			rmdir_recusive($tmpDir);
+			plugin_lock_end();
+			message(-1, lang('plugin_upload_version_lower', array('old'=>$oldVersion, 'new'=>$newVersion)));
+		}
+	}
+
+	// ===== 6. 执行安装或升级 =====
+	if(!$isUpgrade) {
+		// ----- 全新安装 -----
+
+		// 把新文件移到 plugin/
+		if(!rmove_dir($srcDir, $pluginPath)) {
+			rmdir_recusive($tmpDir);
+			plugin_lock_end();
+			message(-1, lang('plugin_upload_move_failed'));
+		}
+
+		// 清理临时目录（rmove_dir 已删 srcDir，但结构 A 时 $tmpDir 本身可能残留）
+		if(is_dir($tmpDir)) rmdir_recusive($tmpDir);
+
+		// 重新初始化插件列表
+		plugin_init();
+
+		// PluginScanner 预扫描
+		include APP_PATH.'lib/PluginScannerRules.php';
+		include APP_PATH.'lib/PluginScannerSuggestion.php';
+		include APP_PATH.'lib/PluginScannerAlpine.php';
+		include APP_PATH.'lib/PluginScanner.php';
+		$scanner = new PluginScanner();
+		$scanResult = $scanner->scanBeforeInstall($pluginDir);
+
+		if(!$scanResult['can_install']) {
+			// 有致命问题，删除刚解压的插件文件
+			rmdir_recusive($pluginPath);
+			plugin_clear_tmp_dir();
+			plugin_lock_end();
+			$fatalList = array();
+			foreach($scanResult['fatal'] as $f) {
+				$fatalList[] = $f['file'].':'.$f['line'].' '.$f['suggestion'];
+			}
+			$msg = lang('plugin_install_blocked', array('name'=>$pluginName, 'issues'=>implode("\n", $fatalList)));
+			message(-1, $msg);
+		}
+
+		// 依赖检查
+		plugin_check_dependency($pluginDir, 'install');
+
+		// 安装（写 conf.json + 数据库 + 清缓存，不执行 install.php）
+		plugin_install($pluginDir);
+
+		// 执行 install.php
+		$installFile = APP_PATH."plugin/$pluginDir/install.php";
+		if(is_file($installFile)) {
+			require_once APP_PATH.'lib/xn_safe_io.php';
+			$plugin_dir = $pluginDir;
+			include _include($installFile);
+		}
+
+		plugin_lock_end();
+
+		admin_log_create('plugin_install', 'plugin', $pluginDir, '上传安装插件：'.$pluginName);
+
+		$msg = lang('plugin_upload_install_success', array('name'=>$pluginName, 'version'=>$newVersion));
+		message(0, $msg, array('redirect_url' => http_referer()));
+
+	} else {
+		// ----- 升级 -----
+
+		// 记录原启用状态
+		$wasEnabled = !empty($plugins[$pluginDir]['enable']);
+
+		// 升级前自动禁用，防止 upgrade.php 执行时被运行代码冲突
+		if($wasEnabled) {
+			plugin_disable($pluginDir);
+		}
+
+		// 备份旧版本到 plugin/{dir}.bak/
+		$bakPath = APP_PATH.'plugin/'.$pluginDir.'.bak/';
+		if(is_dir($bakPath)) {
+			rmdir_recusive($bakPath); // 清理残留的旧备份
+		}
+		rename($pluginPath, $bakPath);
+
+		// 移入新版本
+		if(!rmove_dir($srcDir, $pluginPath)) {
+			// 移动失败，回滚
+			if(is_dir($pluginPath)) rmdir_recusive($pluginPath);
+			rename($bakPath, $pluginPath);
+			if(is_dir($tmpDir)) rmdir_recusive($tmpDir);
+			if($wasEnabled) plugin_enable($pluginDir);
+			plugin_lock_end();
+			message(-1, lang('plugin_upload_move_failed'));
+		}
+
+		// 清理临时目录
+		if(is_dir($tmpDir)) rmdir_recusive($tmpDir);
+
+		// 重新初始化插件列表
+		plugin_init();
+
+		// 设置升级错误捕获
+		$upgradeError = false;
+		$oldErrorHandler = set_error_handler(function($errno, $errstr, $errfile, $errline) use (&$upgradeError) {
+			if($errno & (E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR | E_USER_ERROR)) {
+				$upgradeError = true;
+				xn_log("Plugin upgrade error: [$errno] $errstr at $errfile:$errline", 'plugin_upgrade_error');
+			}
+			return false;
+		});
+
+		try {
+			// 写 conf.json + 数据库状态（不执行 install.php）
+			plugin_install($pluginDir);
+
+			// 执行 upgrade.php 迁移脚本
+			$upgradeFile = APP_PATH."plugin/$pluginDir/upgrade.php";
+			if(is_file($upgradeFile)) {
+				require_once APP_PATH.'lib/xn_safe_io.php';
+				$plugin_dir = $pluginDir;
+				include _include($upgradeFile);
+			}
+		} catch(Throwable $e) {
+			$upgradeError = true;
+			xn_log("Plugin upgrade exception: ".$e->getMessage(), 'plugin_upgrade_error');
+		}
+
+		restore_error_handler();
+
+		if($upgradeError) {
+			// 升级失败，自动回滚
+			if(is_dir($pluginPath)) rmdir_recusive($pluginPath);
+			rename($bakPath, $pluginPath);
+
+			// 重新初始化 + 清缓存
+			plugin_init();
+			plugin_clear_tmp_dir();
+
+			// 保持禁用状态（不恢复启用），让用户手动确认后启用
+			plugin_lock_end();
+
+			admin_log_create('plugin_upgrade', 'plugin', $pluginDir, '上传升级失败已回滚：'.$pluginName);
+
+			$msg = lang('plugin_upload_rollback', array('name'=>$pluginName, 'bak'=>"plugin/$pluginDir.bak"));
+			message(-1, $msg);
+		}
+
+		// 升级成功，删除备份
+		rmdir_recusive($bakPath);
+
+		// 恢复原启用状态
+		if($wasEnabled) {
+			plugin_enable($pluginDir);
+		}
+
+		plugin_clear_tmp_dir();
+		plugin_lock_end();
+
+		admin_log_create('plugin_upgrade', 'plugin', $pluginDir, '上传升级插件：'.$pluginName);
+
+		$msg = lang('plugin_upload_upgrade_success', array('name'=>$pluginName, 'version'=>$newVersion));
+		message(0, $msg, array('redirect_url' => http_referer()));
+	}
+
 } elseif($action == 'scanner') {
 
 	include _include(ADMIN_PATH.'route/plugin_scanner.php');
@@ -423,6 +700,36 @@ function plugin_lock_end() {
 // 依赖
 function plugin_env_check() {
 	//!class_exists('ZipArchive') AND message(-1, 'ZipArchive does not exists! require PHP version > 5.2.0');
+}
+
+// 递归移动目录内容到目标目录（用于 zip 解压后移入 plugin/ 目录）
+// 成功后源目录会被删除；同一文件系统下走 rename 原子操作，跨设备回退到 copy+unlink
+function rmove_dir($src, $dst) {
+	if(!is_dir($src)) return false;
+	substr($src, -1) != '/' AND $src .= '/';
+	substr($dst, -1) != '/' AND $dst .= '/';
+
+	if(!is_dir($dst)) {
+		@mkdir($dst, 0755, true);
+	}
+
+	$d = dir($src);
+	while(false !== ($entry = $d->read())) {
+		if($entry == '.' || $entry == '..') continue;
+		$srcPath = $src.$entry;
+		$dstPath = $dst.$entry;
+		if(is_dir($srcPath)) {
+			if(!rmove_dir($srcPath, $dstPath)) return false;
+		} else {
+			if(!@rename($srcPath, $dstPath)) {
+				if(!@copy($srcPath, $dstPath)) return false;
+				@unlink($srcPath);
+			}
+		}
+	}
+	$d->close();
+	@rmdir($src);
+	return true;
 }
 
 ?>

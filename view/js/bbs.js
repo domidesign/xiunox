@@ -110,8 +110,9 @@ function deleteAttach(btn, aid) {
 	});
 }
 
-// AJAX Blob 下载附件（方案C+D：不暴露真实 URL，通过 fetch 下载）
+// 附件下载（方案A：原生 <a download> 触发，浏览器显示进度条）
 // 使用事件委托，支持动态插入的元素
+// 后端 attach-fetch 路由依靠 token+时效签名防盗链，不再强制 X-Requested-With 头
 if (typeof document !== 'undefined') {
 	document.addEventListener('click', function(e) {
 		var btn = e.target.closest('.attach-fetch-btn');
@@ -126,39 +127,26 @@ if (typeof document !== 'undefined') {
 			return;
 		}
 
-		// 禁用按钮，显示加载状态
+		// 用原生 <a download> 触发浏览器下载
+		// 浏览器接管后会显示原生下载进度条（含文件大小、剩余时间、可取消）
+		// 同源下 download 属性生效；服务端已返回 Content-Disposition: attachment，跨域也会触发下载
+		var a = document.createElement('a');
+		a.href = fetchUrl;
+		a.download = fileName;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+
+		// 短暂禁用按钮防止误点；浏览器接管下载后无法准确回调，1.2s 后恢复
 		btn.disabled = true;
 		var originalHtml = btn.innerHTML;
 		btn.innerHTML = '<i class="ti ti-loader ti-spin"></i>';
+		if(typeof XN !== 'undefined' && XN.toast) XN.toast('下载已开始，请查看浏览器下载列表', 'primary');
 
-		fetch(fetchUrl, {
-			method: 'GET',
-			headers: {'X-Requested-With': 'XMLHttpRequest'}
-		}).then(function(response) {
-			if(!response.ok) {
-				throw new Error('HTTP ' + response.status);
-			}
-			return response.blob();
-		}).then(function(blob) {
-			// 创建临时下载链接
-			var url = window.URL.createObjectURL(blob);
-			var a = document.createElement('a');
-			a.href = url;
-			a.download = fileName;
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			window.URL.revokeObjectURL(url);
-			// 清空 data-url，防止右键复制
-			btn.removeAttribute('data-url');
-			if(typeof XN !== 'undefined' && XN.toast) XN.toast('下载成功', 'success');
-		}).catch(function(err) {
-			if(typeof XN !== 'undefined' && XN.toast) XN.toast('下载失败：' + err.message, 'danger');
-		}).finally(function() {
-			// 恢复按钮
+		setTimeout(function() {
 			btn.disabled = false;
 			btn.innerHTML = originalHtml;
-		});
+		}, 1200);
 	});
 }
 

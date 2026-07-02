@@ -17,10 +17,10 @@
 				<!--{hook post_list_inc_start.htm}-->
 
 			<?php if(empty($postlist)) { ?>
-			<li class="postlist-empty d-flex flex-column align-items-center justify-content-center text-body-secondary" style="min-height:200px">
+			<!-- <li class="postlist-empty d-flex flex-column align-items-center justify-content-center text-body-secondary" style="min-height:200px">
 				<i class="ti ti-message-off fs-1 mb-2 opacity-50"></i>
 				<p class="mb-0"><?php echo lang('no_reply');?></p>
-			</li>
+			</li> -->
 			<?php } else { foreach($postlist as $_post) { ?>
 					<li class="d-flex <?php echo $_post['classname'];?>" data-pid="<?php echo $_post['pid'];?>" data-uid="<?php echo $_post['uid'];?>">
 						<div class="me-3 flex-shrink-0">

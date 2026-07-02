@@ -4,6 +4,25 @@
     <?php echo admin_tab_active($menu['plugin']['tab'], $action);?>
 </div>
 
+<!-- 上传安装/升级区域 -->
+<div class="x-card card p-3 mb-4">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <div class="flex-grow-1 min-width-0">
+            <h6 class="mb-1"><i class="ti ti-cloud-upload me-1"></i><?php echo lang('plugin_upload_title');?></h6>
+            <small class="text-secondary d-block"><?php echo lang('plugin_upload_desc');?></small>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <input type="file" id="pluginUploadFile" accept=".zip" class="d-none" onchange="handlePluginUploadChange(this)">
+            <button type="button" class="btn btn-outline-primary rounded-pill" onclick="document.getElementById('pluginUploadFile').click()">
+                <i class="ti ti-file-zip me-1"></i> <span id="pluginUploadSelectText"><?php echo lang('plugin_upload_select');?></span>
+            </button>
+            <button type="button" class="btn btn-primary rounded-pill" id="pluginUploadBtn" disabled onclick="submitPluginUpload()">
+                <i class="ti ti-upload me-1"></i> <?php echo lang('plugin_upload_btn');?>
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- 筛选和搜索区域 -->
 <div class="x-card  card p-3 mb-4">
     <div class="row g-3">
@@ -278,6 +297,68 @@ function renderPreinstallResult(data) {
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ===== 插件上传安装/升级 =====
+var selectedUploadFile = null;
+
+function handlePluginUploadChange(input) {
+    var btn = document.getElementById('pluginUploadBtn');
+    var selectText = document.getElementById('pluginUploadSelectText');
+    if (input.files && input.files[0]) {
+        var file = input.files[0];
+        if (!file.name.toLowerCase().endsWith('.zip')) {
+            alert('<?php echo lang('plugin_upload_invalid_zip');?>');
+            input.value = '';
+            btn.disabled = true;
+            selectText.textContent = '<?php echo lang('plugin_upload_select');?>';
+            selectedUploadFile = null;
+            return;
+        }
+        selectedUploadFile = file;
+        selectText.textContent = file.name.length > 20 ? file.name.substring(0, 17) + '...' : file.name;
+        btn.disabled = false;
+    } else {
+        btn.disabled = true;
+        selectText.textContent = '<?php echo lang('plugin_upload_select');?>';
+        selectedUploadFile = null;
+    }
+}
+
+function submitPluginUpload() {
+    if (!selectedUploadFile) return;
+
+    var btn = document.getElementById('pluginUploadBtn');
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('plugin_upload_uploading');?>';
+
+    var formData = new FormData();
+    formData.append('file', selectedUploadFile);
+    formData.append('csrf_token', csrfToken);
+
+    fetch('<?php echo url('plugin-upload');?>', {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (parseInt(data.code) === 0) {
+            alert(data.message);
+            window.location.href = data.redirect_url || window.location.href;
+        } else {
+            alert(data.message || '<?php echo lang('plugin_upload_failed');?>');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ti ti-upload me-1"></i><?php echo lang('plugin_upload_btn');?>';
+        }
+    })
+    .catch(function() {
+        alert('<?php echo lang('plugin_upload_failed');?>');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-upload me-1"></i><?php echo lang('plugin_upload_btn');?>';
+    });
 }
 </script>
 

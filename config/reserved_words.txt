@@ -1,0 +1,18 @@
+# 保留词库 - 仅用于用户名/昵称注册时拦截，防止冒充管理员等
+# 每行一个词，# 开头为注释
+# 与内容敏感词库（sensitive_words.txt）不同，此词库不影响发帖内容
+admin
+administrator
+root
+system
+moderator
+manager
+官方
+管理员
+超级管理员
+站长
+版主
+超级版主
+客服
+管理
+后台

@@ -126,12 +126,13 @@ if(empty($action)) {
 
 		$update = array();
 		if(!empty($nickname) && $nickname != $user['nickname']) {
-			// 昵称敏感词检查（拦截，不允许使用）
-			include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
-			$filter_result = SensitiveWordFilter::content_filter($nickname);
-			if (!$filter_result['pass']) {
-				message('nickname', lang('nickname_contains_sensitive_word'));
-			}
+			// 昵称保留词检查（使用 reserved 词库，防止冒充管理员等）
+		include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
+		$nickname_check = SensitiveWordFilter::content_check($nickname, SensitiveWordFilter::TYPE_RESERVED);
+		if (!$nickname_check['pass']) {
+			$hit_words = implode('、', $nickname_check['matched_keywords']);
+			message('nickname', lang('nickname_contains_reserved_word', array('words'=>$hit_words)));
+		}
 			// 昵称全局唯一性检查
 			$exists = db_find_one('user', array('nickname'=>$nickname));
 			if(!empty($exists) && $exists['uid'] != $uid) {
@@ -156,12 +157,13 @@ if(empty($action)) {
 			$update['nickname'] = $nickname;
 		}
 		if(db_check_column_exists('user', 'signature') && $signature != $user['signature']) {
-			// 签名敏感词检查
-			include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
-			$sig_filter_result = SensitiveWordFilter::content_filter($signature);
-			if (!$sig_filter_result['pass']) {
-				message('signature', lang('signature_contains_sensitive_word'));
-			}
+			// 签名内容敏感词检查（拦截并提示具体违规词）
+		include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
+		$sig_check = SensitiveWordFilter::content_check($signature, SensitiveWordFilter::TYPE_SENSITIVE);
+		if (!$sig_check['pass']) {
+			$hit_words = implode('、', $sig_check['matched_keywords']);
+			message('signature', lang('signature_contains_sensitive_word_with_words', array('words'=>$hit_words)));
+		}
 			// 签名修改频率限制：读取后台配置，30天内最多修改N次
 		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
 		$signature_change_limit = intval(SecurityConfigService::get('security_signature_change_limit', 3));

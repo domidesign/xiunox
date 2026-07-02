@@ -385,16 +385,18 @@ if($action == 'create') {
 		$doctype > 10 AND message(-1, lang('doc_type_not_supported'));
 		xn_strlen($message) > 2028000 AND message('message', lang('message_too_long'));
 
-		// ===== 敏感词过滤（内容替换***，不拦截发布） =====
-		include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
-		$filter_result_subject = SensitiveWordFilter::content_filter($subject);
-		$filter_result_message = SensitiveWordFilter::content_filter($message);
-		if (!$filter_result_subject['pass']) {
-			$subject = $filter_result_subject['filtered_text'];
-		}
-		if (!$filter_result_message['pass']) {
-			$message = $filter_result_message['filtered_text'];
-		}
+		// ===== 内容敏感词检查（直接拦截，提示具体违规词） =====
+	include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
+	$subject_check = SensitiveWordFilter::content_check($subject, SensitiveWordFilter::TYPE_SENSITIVE);
+	if (!$subject_check['pass']) {
+		$hit_words = implode('、', $subject_check['matched_keywords']);
+		message('subject', lang('post_contains_sensitive_word_with_words', array('words'=>$hit_words)));
+	}
+	$message_check = SensitiveWordFilter::content_check($message, SensitiveWordFilter::TYPE_SENSITIVE);
+	if (!$message_check['pass']) {
+		$hit_words = implode('、', $message_check['matched_keywords']);
+		message('message', lang('post_contains_sensitive_word_with_words', array('words'=>$hit_words)));
+	}
 
 		// ===== 内容安全审核 =====
 		include_once APP_PATH . 'lib/security/ContentModerationService.php';

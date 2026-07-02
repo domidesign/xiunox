@@ -44,10 +44,11 @@ class AuditService {
             return true;
         }
 
-        // 第三级：关键词触发级
+        // 第三级：关键词触发级（冗余防御层：正常情况下发帖入口已直接拦截敏感词；
+        // 此处保留作为防御性检查，防止其他入口绕过）
         include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
         $text = $subject . ' ' . $message;
-        $result = SensitiveWordFilter::content_filter($text);
+        $result = SensitiveWordFilter::content_check($text, SensitiveWordFilter::TYPE_SENSITIVE);
         if (!$result['pass']) {
             return true;
         }
@@ -74,9 +75,9 @@ class AuditService {
             return true;
         }
 
-        // 第三级：关键词触发级
+        // 第三级：关键词触发级（冗余防御层，详见 need_thread_audit 注释）
         include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
-        $result = SensitiveWordFilter::content_filter($message);
+        $result = SensitiveWordFilter::content_check($message, SensitiveWordFilter::TYPE_SENSITIVE);
         if (!$result['pass']) {
             return true;
         }

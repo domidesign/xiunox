@@ -5,6 +5,31 @@
 <div class="x-card card">
 	<div class="card-body">
 
+		<!-- 说明 -->
+		<div class="alert alert-info py-2 mb-3">
+			<i class="ti ti-info-circle me-1"></i>
+			<?php echo lang('admin_words_intro');?>
+		</div>
+
+		<!-- 词库切换 Tab -->
+		<ul class="nav nav-tabs mb-3" id="wordTypeTab" role="tablist">
+			<li class="nav-item" role="presentation">
+				<button class="nav-link<?php echo $word_type === 'sensitive' ? ' active' : '';?>" type="button" data-word-type="sensitive">
+					<i class="ti ti-shield-exclamation me-1"></i><?php echo lang('admin_sensitive_words');?>
+					<span class="badge bg-secondary ms-1"><?php echo count($content_words);?></span>
+				</button>
+			</li>
+			<li class="nav-item" role="presentation">
+				<button class="nav-link<?php echo $word_type === 'reserved' ? ' active' : '';?>" type="button" data-word-type="reserved">
+					<i class="ti ti-user-shield me-1"></i><?php echo lang('admin_reserved_words');?>
+					<span class="badge bg-secondary ms-1"><?php echo count($reserved_words);?></span>
+				</button>
+			</li>
+		</ul>
+
+		<!-- 当前词库类型标识（隐藏字段，所有表单都需要带上） -->
+		<input type="hidden" id="current-word-type" value="<?php echo $word_type;?>">
+
 		<!-- 操作区：批量导入 / 文件导入 / 测试过滤 三栏 -->
 		<div class="row g-4 mb-4">
 			<div class="col-lg-4">
@@ -12,6 +37,7 @@
 				<form id="import-form" action="<?php echo admin_security_url('words');?>" method="post">
 					<?php echo CsrfService::input(); ?>
 					<input type="hidden" name="word_action" value="import">
+					<input type="hidden" name="word_type" value="<?php echo $word_type;?>">
 					<textarea class="form-control mb-2" name="words_text" rows="5" placeholder="<?php echo lang('admin_sensitive_placeholder')?>"></textarea>
 					<button type="submit" class="btn btn-outline-primary rounded-pill btn-sm">
 						<i class="ti ti-file-import me-1"></i><?php echo lang('admin_btn_import')?>
@@ -23,6 +49,7 @@
 				<form id="file-import-form" action="<?php echo admin_security_url('words');?>" method="post" enctype="multipart/form-data">
 					<?php echo CsrfService::input(); ?>
 					<input type="hidden" name="word_action" value="import_file">
+					<input type="hidden" name="word_type" value="<?php echo $word_type;?>">
 					<input type="file" class="form-control rounded-pill mb-2" name="words_file" accept=".txt" required>
 					<div class="form-text mb-2"><?php echo lang('admin_sensitive_file_tip')?></div>
 					<button type="submit" class="btn btn-outline-primary rounded-pill btn-sm">
@@ -42,9 +69,13 @@
 
 		<hr>
 
-		<!-- 敏感词列表 -->
+		<!-- 词列表 -->
 		<div class="d-flex justify-content-between align-items-center mb-3">
-			<h6 class="fw-semibold mb-0"><i class="ti ti-list me-1"></i><?php echo lang('admin_sensitive_list')?> <span class="badge bg-secondary"><?php echo count($sensitive_words);?></span></h6>
+			<h6 class="fw-semibold mb-0">
+				<i class="ti ti-list me-1"></i>
+				<span id="list-title"><?php echo $word_type === 'reserved' ? lang('admin_reserved_list') : lang('admin_sensitive_list');?></span>
+				<span class="badge bg-secondary"><?php echo count($sensitive_words);?></span>
+			</h6>
 			<?php if(!empty($sensitive_words)): ?>
 			<button type="button" class="btn btn-outline-danger btn-sm rounded-pill" id="clear-btn">
 				<i class="ti ti-trash me-1"></i><?php echo lang('admin_clear_all')?>
@@ -54,7 +85,7 @@
 		<?php if(empty($sensitive_words)): ?>
 		<div class="text-center text-body-secondary py-4">
 			<i class="ti ti-filter-off fs-2 d-block mb-2"></i>
-			<?php echo lang('admin_no_sensitive_words')?>
+			<?php echo $word_type === 'reserved' ? lang('admin_no_reserved_words') : lang('admin_no_sensitive_words');?>
 		</div>
 		<?php else: ?>
 		<div class="d-flex flex-wrap gap-2">
@@ -74,12 +105,29 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-// 删除敏感词
+// 当前词库类型
+var currentType = '<?php echo $word_type;?>';
+// 预生成的两种词库 URL（避免手动拼接 & 在不同伪静态模式下出错）
+var wordTypeUrls = {
+	'sensitive': '<?php echo addslashes(admin_security_url('words', array('word_type'=>'sensitive')));?>',
+	'reserved':  '<?php echo addslashes(admin_security_url('words', array('word_type'=>'reserved')));?>'
+};
+
+// Tab 切换：跳转页面并带上 word_type 参数
+document.querySelectorAll('#wordTypeTab .nav-link').forEach(function(btn) {
+	btn.addEventListener('click', function() {
+		var type = this.getAttribute('data-word-type');
+		if(type === currentType) return;
+		window.location.href = wordTypeUrls[type];
+	});
+});
+
+// 删除词
 document.querySelectorAll('.word-delete').forEach(function(btn) {
 	btn.addEventListener('click', function() {
 		var word = this.getAttribute('data-word');
 		XN.confirm('<?php echo lang('admin_confirm_delete_word')?>' + word + '？', function() {
-			XN.post('<?php echo admin_security_url('words');?>', { word_action: 'delete', word: word }, function(code, message) {
+			XN.post('<?php echo admin_security_url('words');?>', { word_action: 'delete', word: word, word_type: currentType }, function(code, message) {
 				if(code == 0) {
 					showToast(message, 'success');
 					setTimeout(function(){ location.reload(); }, 800);
@@ -96,7 +144,7 @@ var clearBtn = document.getElementById('clear-btn');
 if(clearBtn) {
 	clearBtn.addEventListener('click', function() {
 		XN.confirm('<?php echo lang('admin_confirm_clear_all_words')?>', function() {
-			XN.post('<?php echo admin_security_url('words');?>', { word_action: 'clear' }, function(code, message) {
+			XN.post('<?php echo admin_security_url('words');?>', { word_action: 'clear', word_type: currentType }, function(code, message) {
 				if(code == 0) {
 					showToast(message, 'success');
 					setTimeout(function(){ location.reload(); }, 800);
@@ -108,21 +156,28 @@ if(clearBtn) {
 	});
 };
 
-// 测试过滤
+// 测试过滤（同时测试两类词库）
 document.getElementById('test-btn').addEventListener('click', function() {
 	var text = document.getElementById('test-text').value.trim();
 	if(!text) return;
 	var resultDiv = document.getElementById('test-result');
-	var words = JSON.parse('<?php echo addslashes(json_encode($sensitive_words, JSON_UNESCAPED_UNICODE));?>');
-	var matched = [];
-	words.forEach(function(w) {
-		if(text.indexOf(w) !== -1) matched.push(w);
-	});
-	if(matched.length > 0) {
-		resultDiv.innerHTML = '<div class="alert alert-warning py-2 mb-0"><i class="ti ti-alert-triangle me-1"></i><?php echo lang('admin_filter_hit')?><strong>' + matched.join('、') + '</strong></div>';
-	} else {
-		resultDiv.innerHTML = '<div class="alert alert-success py-2 mb-0"><i class="ti ti-circle-check me-1"></i><?php echo lang('admin_filter_no_hit')?></div>';
+	var reservedWords = JSON.parse('<?php echo addslashes(json_encode($reserved_words, JSON_UNESCAPED_UNICODE));?>');
+	var sensitiveWords = JSON.parse('<?php echo addslashes(json_encode($content_words, JSON_UNESCAPED_UNICODE));?>');
+	var hitReserved = [];
+	var hitSensitive = [];
+	reservedWords.forEach(function(w) { if(text.indexOf(w) !== -1) hitReserved.push(w); });
+	sensitiveWords.forEach(function(w) { if(text.indexOf(w) !== -1) hitSensitive.push(w); });
+	var html = '';
+	if(hitReserved.length > 0) {
+		html += '<div class="alert alert-warning py-2 mb-1"><i class="ti ti-user-shield me-1"></i><?php echo lang('admin_reserved_words_hit')?><strong>' + hitReserved.join('、') + '</strong></div>';
 	}
+	if(hitSensitive.length > 0) {
+		html += '<div class="alert alert-danger py-2 mb-1"><i class="ti ti-shield-exclamation me-1"></i><?php echo lang('admin_sensitive_words_hit')?><strong>' + hitSensitive.join('、') + '</strong></div>';
+	}
+	if(html === '') {
+		html = '<div class="alert alert-success py-2 mb-0"><i class="ti ti-circle-check me-1"></i><?php echo lang('admin_filter_no_hit')?></div>';
+	}
+	resultDiv.innerHTML = html;
 });
 
 document.getElementById('test-text').addEventListener('keyup', function(e) {

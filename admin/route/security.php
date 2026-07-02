@@ -184,10 +184,19 @@ if($action == '' || $action == 'post_limit') {
 } elseif($action == 'words') {
     include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
 
+    // 词库类型：reserved=保留词（用户名/昵称禁用），sensitive=内容敏感词（发帖/签名拦截）
+    $word_type = param('word_type', SensitiveWordFilter::TYPE_SENSITIVE);
+    if($word_type !== SensitiveWordFilter::TYPE_RESERVED && $word_type !== SensitiveWordFilter::TYPE_SENSITIVE) {
+        $word_type = SensitiveWordFilter::TYPE_SENSITIVE;
+    }
+    $type_label = $word_type === SensitiveWordFilter::TYPE_RESERVED ? '保留词' : '敏感词';
+
     if($method == 'GET') {
-        $sensitive_words = SensitiveWordFilter::get_all_words();
-        $header['title'] = '敏感词库';
-        $header['mobile_title'] = '敏感词库';
+        $sensitive_words = SensitiveWordFilter::get_all_words($word_type);
+        $reserved_words = SensitiveWordFilter::get_all_words(SensitiveWordFilter::TYPE_RESERVED);
+        $content_words = SensitiveWordFilter::get_all_words(SensitiveWordFilter::TYPE_SENSITIVE);
+        $header['title'] = '词库管理';
+        $header['mobile_title'] = '词库管理';
         include _include(ADMIN_PATH.'view/htm/security_words.htm');
     } else {
         CsrfService::check();
@@ -195,10 +204,10 @@ if($action == '' || $action == 'post_limit') {
 
         if($word_action == 'add') {
             $word = param('word', '', FALSE);
-            if(empty($word)) message(-1, '敏感词不能为空');
-            $r = SensitiveWordFilter::add_word($word);
+            if(empty($word)) message(-1, '词不能为空');
+            $r = SensitiveWordFilter::add_word($word, $word_type);
             if($r) {
-                admin_log_create('security_badword', 'security', '', '添加敏感词：' . $word);
+                admin_log_create('security_badword', 'security', '', '添加' . $type_label . '：' . $word);
                 message(0, '添加成功');
             } else {
                 message(-1, '添加失败或已存在');
@@ -206,9 +215,9 @@ if($action == '' || $action == 'post_limit') {
         } elseif($word_action == 'delete') {
             $word = param('word', '', FALSE);
             if(empty($word)) message(-1, '参数错误');
-            $r = SensitiveWordFilter::delete_word($word);
+            $r = SensitiveWordFilter::delete_word($word, $word_type);
             if($r) {
-                admin_log_create('security_badword', 'security', '', '删除敏感词：' . $word);
+                admin_log_create('security_badword', 'security', '', '删除' . $type_label . '：' . $word);
                 message(0, '删除成功');
             } else {
                 message(-1, '删除失败');
@@ -216,9 +225,9 @@ if($action == '' || $action == 'post_limit') {
         } elseif($word_action == 'import') {
             $words_text = param('words_text', '', FALSE);
             if(empty($words_text)) message(-1, '导入内容不能为空');
-            $count = SensitiveWordFilter::batch_import($words_text);
-            admin_log_create('security_badword', 'security', '', '批量导入敏感词 ' . $count . ' 个');
-            message(0, '成功导入 ' . $count . ' 个敏感词');
+            $count = SensitiveWordFilter::batch_import($words_text, $word_type);
+            admin_log_create('security_badword', 'security', '', '批量导入' . $type_label . ' ' . $count . ' 个');
+            message(0, '成功导入 ' . $count . ' 个' . $type_label);
         } elseif($word_action == 'import_file') {
             if(empty($_FILES['words_file']) || $_FILES['words_file']['error'] != 0) {
                 message(-1, '请选择要上传的文件');
@@ -230,13 +239,13 @@ if($action == '' || $action == 'post_limit') {
             if($file['size'] > 2 * 1024 * 1024) {
                 message(-1, '文件大小不能超过2MB');
             }
-            $count = SensitiveWordFilter::import_from_file($file['tmp_name']);
-            admin_log_create('security_badword', 'security', '', '从文件导入敏感词 ' . $count . ' 个');
-            message(0, '成功导入 ' . $count . ' 个敏感词');
+            $count = SensitiveWordFilter::import_from_file($file['tmp_name'], $word_type);
+            admin_log_create('security_badword', 'security', '', '从文件导入' . $type_label . ' ' . $count . ' 个');
+            message(0, '成功导入 ' . $count . ' 个' . $type_label);
         } elseif($word_action == 'clear') {
-            $r = SensitiveWordFilter::clear_words();
+            $r = SensitiveWordFilter::clear_words($word_type);
             if($r) {
-                admin_log_create('security_badword', 'security', '', '清空敏感词库');
+                admin_log_create('security_badword', 'security', '', '清空' . $type_label . '库');
                 message(0, '已清空');
             } else {
                 message(-1, '清空失败');

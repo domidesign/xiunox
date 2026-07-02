@@ -286,7 +286,7 @@
 })();
 </script>
 
-<!-- 快速回复：成功时清空表单，失败时保留内容 -->
+<!-- 快速回复：成功时清空表单，失败时保留内容（htmx 4 事件名带冒号） -->
 <script>
 (function() {
     var form = document.getElementById('quick_reply_form');
@@ -301,8 +301,8 @@
         }
     };
 
-    // htmx 校验通过、即将发送请求时才禁用按钮
-    form.addEventListener('htmx:beforeRequest', function(e) {
+    // htmx 4：htmx:before:request（校验通过、即将发送请求时禁用按钮）
+    form.addEventListener('htmx:before:request', function(e) {
         if (replyBtn) {
             replyBtn.disabled = true;
             var loadingText = replyBtn.getAttribute('data-loading-text');
@@ -310,44 +310,42 @@
         }
     });
 
-    // htmx 请求完成后恢复按钮
-    form.addEventListener('htmx:afterRequest', function(event) {
+    // htmx 4：htmx:after:swap（swap 成功后处理）
+    // 后端响应：成功=回帖HTML+OOB，待审=alert-warning，失败(message)=alert-danger
+    // 由于 hx-swap="beforeend"，所有响应都追加到 #postlist 末尾，需检查 lastElementChild 区分
+    form.addEventListener('htmx:after:swap', function(event) {
         window.resetReplySubmit();
-        if (event.detail && event.detail.xhr) {
-            var xhr = event.detail.xhr;
-            try {
-                var resp = JSON.parse(xhr.responseText);
-                if (parseInt(resp.code) === 0) {
-                    // 成功：清空表单
-                    form.reset();
-                    // 隐藏引用条
-                    var quoteBar = document.getElementById('reply-quote-bar');
-                    if(quoteBar) quoteBar.classList.add('d-none');
-                    // 积分变动提示
-                    if(resp.data && resp.data.change_desc && typeof XN !== 'undefined' && XN.toast) {
-                        XN.toast(resp.data.change_desc, 'info');
-                    }
-                } else {
-                    // 失败：保留输入，显示错误
-                    var msgEl = document.getElementById('reply-msg');
-                    if (msgEl) {
-                        msgEl.innerHTML = '<div class="alert alert-warning py-1 small">' + (resp.message || '<?php echo lang('operation_failed');?>') + '</div>';
-                    }
-                }
-            } catch(e) {
-                // 非 JSON 响应（可能是 HTML 片段），视为成功
-                form.reset();
-                var quoteBar2 = document.getElementById('reply-quote-bar');
-                if(quoteBar2) quoteBar2.classList.add('d-none');
+
+        var postlist = document.getElementById('postlist');
+        if (!postlist) return;
+
+        var lastChild = postlist.lastElementChild;
+        // 失败/待审：swap 进来的是 alert 提示，需移除以免破坏评论列表
+        if (lastChild && lastChild.classList.contains('alert')) {
+            var msg = lastChild.textContent.trim();
+            var isDanger = lastChild.classList.contains('alert-danger');
+            // 延迟移除提示元素
+            setTimeout(function() { lastChild.remove(); }, 50);
+            // toast 提示用户
+            if (typeof XN !== 'undefined' && XN.toast && msg) {
+                XN.toast(msg, isDanger ? 'danger' : 'info');
             }
+            // 失败（alert-danger）：保留 form 内容，用户可修改后重试
+            if (isDanger) return;
+            // 待审（alert-warning）：回复已提交，清空 form
         }
+
+        // 成功：清空表单 + 隐藏引用条
+        form.reset();
+        var quoteBar = document.getElementById('reply-quote-bar');
+        if (quoteBar) quoteBar.classList.add('d-none');
     });
 
-    // 兜底：htmx 请求出错（网络错误等）时恢复按钮
-    form.addEventListener('htmx:responseError', function(e) {
+    // 兜底：htmx 4 请求出错（网络错误等）时恢复按钮
+    form.addEventListener('htmx:response-error', function(e) {
         window.resetReplySubmit();
     });
-    form.addEventListener('htmx:sendError', function(e) {
+    form.addEventListener('htmx:send-error', function(e) {
         window.resetReplySubmit();
     });
 })();
