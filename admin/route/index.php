@@ -9,32 +9,108 @@ $action = param(1);
 if($action == 'login') {
 
 	// hook admin_index_login_get_post.php
-	
+
+	// 检查 IP 失败次数，决定是否显示验证码（失败 >= 3 次显示）
+	include_once APP_PATH . 'lib/LoginSecurityService.php';
+	$admin_captcha_threshold = 3;
+	$admin_captcha_window = isset($conf['login_ban_duration']) ? intval($conf['login_ban_duration']) : 900;
+	$admin_captcha_cutoff = $time - $admin_captcha_window;
+	$admin_show_captcha = FALSE;
+	if(function_exists('db_check_table_exists') && db_check_table_exists('user_login_log')) {
+		$admin_fail_count = db_count('user_login_log', array('ip'=>intval($longip), 'success'=>0, 'time'=>array('>'=>$admin_captcha_cutoff)));
+		if($admin_fail_count >= $admin_captcha_threshold) {
+			$admin_show_captcha = TRUE;
+		}
+	}
+
 	if($method == 'GET') {
 
 		// hook admin_index_login_get_start.php
-		
+
+		// AJAX 刷新验证码
+		if(param('captcha_refresh')) {
+			include_once APP_PATH . 'lib/security/CaptchaService.php';
+			$result = CaptchaService::generate('login', TRUE);
+			header('Content-Type: application/json; charset=utf-8');
+			if($result) {
+				echo json_encode(array('code'=>0, 'image'=>$result['image']));
+			} else {
+				echo json_encode(array('code'=>-1, 'message'=>'captcha generate failed'));
+			}
+			exit;
+		}
+
 		$header['title'] = lang('admin_login');
-		
+
+		// 生成验证码图片（base64），传给模板
+		$captcha_image = '';
+		if($admin_show_captcha) {
+			include_once APP_PATH . 'lib/security/CaptchaService.php';
+			$result = CaptchaService::generate('login', TRUE);
+			if($result) {
+				$captcha_image = $result['image'];
+			}
+		}
+
 		include _include(ADMIN_PATH."view/htm/index_login.htm");
 
 	} else if($method == 'POST') {
 
 		// hook admin_index_login_post_start.php
-		
+
+		// CSRF 校验
+		CsrfService::check();
+
+		// IP 黑名单检查（banned_ip 表 + IpBlacklistService 双重检查）
+		if(function_exists('banned_ip_check') && banned_ip_check($ip)) {
+			message(-1, lang('ip_banned'));
+		}
+		if(!class_exists('IpBlacklistService')) {
+			include_once APP_PATH . 'lib/security/IpBlacklistService.php';
+		}
+		if(IpBlacklistService::is_blacklisted($ip)) {
+			message(-1, lang('ip_banned'));
+		}
+
+		// 验证码校验（失败次数达阈值时）
+		// 直接校验 session，绕过 CaptchaService::verify 的 is_enabled 检查
+		// （后台验证码按失败次数触发，不受验证码配置开关控制）
+		if($admin_show_captcha) {
+			$captcha_input = param('captcha', '', FALSE);
+			if(empty($captcha_input)) {
+				message('captcha', lang('please_input_captcha'));
+			}
+			$stored = isset($_SESSION['captcha_login']) ? $_SESSION['captcha_login'] : '';
+			unset($_SESSION['captcha_login']);
+			if(empty($stored) || strtolower($captcha_input) !== strtolower($stored)) {
+				message('captcha', lang('captcha_error'));
+			}
+		}
+
+		// IP 维度限流 + uid 维度锁定检查（防止后台密码暴破）
+		LoginSecurityService::checkIpBan($longip);
+		LoginSecurityService::checkBan($user['uid']);
+
 		$password = param('password');
 
 		if(!user_login_verify($password, $user)) {
 			xn_log('password error. uid:'.$user['uid'], 'admin_login_error');
-			message('password', lang('password_incorrect'));
+			LoginSecurityService::recordAttempt($user['uid'], FALSE, $longip, $_SERVER['HTTP_USER_AGENT']);
+			message('password', lang('username_or_password_incorrect'));
 		}
+
+		// 登录成功，清除该用户的失败计数
+		LoginSecurityService::recordAttempt($user['uid'], TRUE, $longip, $_SERVER['HTTP_USER_AGENT']);
+
+		// 防止 Session 固定攻击
+		session_regenerate_id(true);
 
 		admin_token_set();
 
 		xn_log('login successed. uid:'.$user['uid'], 'admin_login');
 
 		// hook admin_index_login_post_end.php
-		
+
 		message(0, jump(lang('login_successfully'), '.'));
 
 	}

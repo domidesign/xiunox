@@ -132,12 +132,12 @@
 					<?php if(!empty($user['signature'])) { ?>
 				<p class="text-body-secondary small mb-0"><?php echo $user['signature'];?></p>
 				<?php } ?>
-					<div class="d-flex gap-4 mt-2">
-						<span><span class="fw-bold text-primary"><?php echo $user['threads'];?></span> <small class="text-body-secondary"><?php echo lang('threads_label');?></small></span>
-						<span><span class="fw-bold text-primary"><?php echo $user['credits'];?></span> <small class="text-body-secondary"><?php echo lang('credits_label');?></small></span>
-						<span><span class="fw-bold text-primary"><?php echo $user['follows'];?></span> <small class="text-body-secondary"><?php echo lang('following_label');?></small></span>
-						<span><span class="fw-bold text-primary"><?php echo $user['followeds'];?></span> <small class="text-body-secondary"><?php echo lang('followers_label');?></small></span>
-					</div>
+					<div class="d-flex gap-2 gap-sm-4 mt-2 justify-content-around justify-content-sm-start">
+					<span class="d-flex flex-column flex-sm-row align-items-center align-items-sm-baseline"><span class="fw-bold text-primary"><?php echo $user['threads'];?></span><small class="text-body-secondary"><?php echo lang('threads_label');?></small></span>
+					<span class="d-flex flex-column flex-sm-row align-items-center align-items-sm-baseline"><span class="fw-bold text-primary"><?php echo $user['credits'];?></span><small class="text-body-secondary"><?php echo lang('credits_label');?></small></span>
+					<span class="d-flex flex-column flex-sm-row align-items-center align-items-sm-baseline"><span class="fw-bold text-primary"><?php echo $user['follows'];?></span><small class="text-body-secondary"><?php echo lang('following_label');?></small></span>
+					<span class="d-flex flex-column flex-sm-row align-items-center align-items-sm-baseline"><span class="fw-bold text-primary"><?php echo $user['followeds'];?></span><small class="text-body-secondary"><?php echo lang('followers_label');?></small></span>
+				</div>
 				</div>
 			</div>
 		</div>

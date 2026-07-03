@@ -21,26 +21,36 @@
 			</div>
 			<div>
 <input type="text" id="keyword" placeholder="<?php echo lang('keyword');?>" value="<?php echo $keyword; ?>"  class="form-control form-control-sm flex-grow-1" style="min-width:150px" />
-			
+
 			</div>
-			
+			<div>
+<select id="banTypeFilter" class="form-select form-select-sm flex-shrink-0" style="min-width:120px">
+				<option value=""><?php echo lang('admin_user_status_all');?></option>
+				<option value="0" <?php echo $ban_type_filter === '0' ? 'selected' : '';?>><?php echo lang('admin_user_status_normal');?></option>
+				<option value="1" <?php echo $ban_type_filter === '1' ? 'selected' : '';?>><?php echo lang('user_ban_type_silence');?></option>
+				<option value="2" <?php echo $ban_type_filter === '2' ? 'selected' : '';?>><?php echo lang('user_ban_type_ban_access');?></option>
+				<option value="3" <?php echo $ban_type_filter === '3' ? 'selected' : '';?>><?php echo lang('user_ban_type_lock');?></option>
+			</select>
+			</div>
+
 			<button id="search" class="btn btn-primary btn-sm flex-shrink-0"><i class="ti ti-search"></i> <?php echo lang('search');?></button>
 		</div>
 
 		<div class="table-responsive">
-		<table class="table table-hover align-middle" id="userlist">
+		<table class="table table-hover align-middle table-min-w-md" id="userlist">
 			<thead>
-				<tr>
-					<th style="width:40px"><input type="checkbox" class="form-check-input" id="checkAll" /></th>
-					<th>UID</th>
-					<th><?php echo lang('email');?></th>
-					<th><?php echo lang('username');?> / <?php echo lang('nickname');?></th>
-					<th><?php echo lang('user_group');?></th>
-					<th style="min-width:120px"><?php echo lang('create_date');?></th>
-					<th style="min-width:100px">IP</th>
-					<th style="width:50px"></th>
-				</tr>
-			</thead>
+			<tr>
+				<th style="width:40px"><input type="checkbox" class="form-check-input" id="checkAll" /></th>
+				<th>UID</th>
+				<th><?php echo lang('email');?></th>
+				<th><?php echo lang('username');?> / <?php echo lang('nickname');?></th>
+				<th><?php echo lang('user_group');?></th>
+				<th><?php echo lang('admin_user_status_col');?></th>
+				<th style="min-width:120px"><?php echo lang('create_date');?></th>
+				<th style="min-width:100px">IP</th>
+				<th style="width:100px"></th>
+			</tr>
+		</thead>
 			<tbody>
 			<?php foreach($userlist as &$_user){ ?>
 				<tr uid="<?php echo $_user['uid']; ?>">
@@ -62,9 +72,22 @@
 							<?php echo $_user['groupname']; ?>
 						</span>
 					</td>
+					<td>
+						<span class="badge bg-<?php echo $_user['ban_status']['status_color']; ?>">
+							<?php echo $_user['ban_status']['status_label']; ?>
+						</span>
+						<?php if($_user['ban_status']['ban_type'] != 0 && !empty($_user['ban_status']['expire_formatted'])) { ?>
+						<div class="text-body-secondary small mt-1"><?php echo $_user['ban_status']['expire_formatted']; ?></div>
+						<?php } ?>
+					</td>
 					<td class="text-body-secondary text-sm"><?php echo date('Y-n-j H:i', $_user['create_date']); ?></td>
 					<td><a href="https://bbs.xiuno.com/ip.htm?ip=<?php echo $_user['create_ip_fmt']; ?>" target="_blank" class="text-body-secondary text-sm"><?php echo $_user['create_ip_fmt']; ?></a></td>
-					<td><a href="<?php echo admin_user_update_url($_user['uid']); ?>" class="row-action" title="<?php echo lang('edit');?>"><i class="ti ti-pencil"></i></a></td>
+					<td>
+						<a href="<?php echo admin_user_update_url($_user['uid']); ?>" class="row-action" title="<?php echo lang('edit');?>"><i class="ti ti-pencil"></i></a>
+						<?php if($_user['gid'] != 1 && $_user['gid'] != 2) { ?>
+						<a href="javascript:void(0)" class="row-action quick-ban-btn" data-uid="<?php echo $_user['uid']; ?>" title="<?php echo lang('admin_user_quick_silence_7d');?>"><i class="ti ti-ban"></i></a>
+						<?php } ?>
+					</td>
 				</tr>
 			<?php } ?>
 			</tbody>
@@ -72,9 +95,56 @@
 		</div>
 
 		 
-		<div class="d-flex justify-content-between align-items-center">
-			<button class="btn btn-danger btn-sm" id="confirm"><i class="ti ti-trash"></i> <?php echo lang('delete');?></button>
+		<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+			<div class="d-flex gap-2 flex-wrap">
+				<button class="btn btn-danger btn-sm" id="confirm"><i class="ti ti-trash"></i> <?php echo lang('delete');?></button>
+				<button class="btn btn-warning btn-sm" id="batchBanBtn"><i class="ti ti-ban"></i> <?php echo lang('admin_user_batch_ban');?></button>
+				<button class="btn btn-success btn-sm" id="batchUnbanBtn"><i class="ti ti-circle-check"></i> <?php echo lang('admin_user_batch_unban');?></button>
+			</div>
 			<nav><ul class="pagination pagination-boxed justify-content-center"><?php echo $pagination; ?></ul></nav>
+		</div>
+	</div>
+</div>
+
+<!-- 批量封禁弹窗 -->
+<div class="modal fade" id="batchBanModal" tabindex="-1">
+	<div class="modal-dialog modal-dialog-centered">
+		<div class="modal-content border-0 rounded-1">
+			<div class="modal-header border-0">
+				<h5 class="modal-title"><i class="ti ti-ban"></i> <?php echo lang('admin_user_batch_ban_title');?></h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+			</div>
+			<div class="modal-body">
+				<form id="batchBanForm">
+					<?php echo CsrfService::input(); ?>
+					<div class="mb-3">
+						<label class="form-label"><?php echo lang('admin_user_ban_type_label');?></label>
+						<select name="ban_type" class="form-select form-select-sm">
+							<option value="1"><?php echo lang('user_ban_type_silence');?></option>
+							<option value="2"><?php echo lang('user_ban_type_ban_access');?></option>
+							<option value="3"><?php echo lang('user_ban_type_lock');?></option>
+						</select>
+					</div>
+					<div class="mb-3">
+						<label class="form-label"><?php echo lang('admin_user_ban_duration_label');?></label>
+						<select name="duration" class="form-select form-select-sm">
+							<option value="86400"><?php echo lang('user_ban_duration_1day');?></option>
+							<option value="259200"><?php echo lang('user_ban_duration_3days');?></option>
+							<option value="604800" selected><?php echo lang('user_ban_duration_7days');?></option>
+							<option value="2592000"><?php echo lang('user_ban_duration_30days');?></option>
+							<option value="0"><?php echo lang('user_ban_permanent');?></option>
+						</select>
+					</div>
+					<div class="mb-3">
+						<label class="form-label"><?php echo lang('admin_user_ban_reason_label');?></label>
+						<textarea name="reason" class="form-control form-control-sm" rows="2" placeholder="<?php echo lang('admin_user_ban_reason_placeholder');?>"></textarea>
+					</div>
+				</form>
+			</div>
+			<div class="modal-footer border-0">
+				<button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?php echo lang('cancel');?></button>
+				<button type="button" class="btn btn-warning" id="batchBanConfirmBtn"><?php echo lang('confirm');?></button>
+			</div>
 		</div>
 	</div>
 </div>
@@ -107,26 +177,38 @@ var jsearch = $("#search");
 var jsrchtype = $("#srchtype");
 var jkeyword = $('#keyword');
 var juserlist = $('#userlist');
+var jbanTypeFilter = $('#banTypeFilter');
 jsrchtype.val(jsrchtype.attr('value'));
 
 jcreate.on('click', function(event) {
 	window.location = xn.url('user-create');
 });
 
-jsearch.on('click', function(){
+function buildSearchUrl() {
 	var srchtype = jsrchtype.val();
 	srchtype = srchtype ? srchtype : 'uid';
 	var keyword = $("#keyword").val();
+	var banType = jbanTypeFilter.val();
 	var url = xn.url('user-list-'+srchtype+'-'+xn.urlencode(keyword)+'-1');
-	window.location = url;
+	if(banType !== '') url += '?ban_type=' + banType;
+	return url;
+}
+
+jsearch.on('click', function(){
+	window.location = buildSearchUrl();
 });
 jkeyword.on('keydown', function(e) {
 	if(e.keyCode == 13) jsearch.trigger('click');
+});
+jbanTypeFilter.on('change', function(){
+	window.location = buildSearchUrl();
 });
 
 var deleteModalEl = document.getElementById('confirmDeleteModal');
 var deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
 var pendingDeleteChecked = null;
+// CSRF token 提前声明，供删除/封禁等批量操作复用
+var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
 
 jconfirm.on('click', function(){
 	var jchecked = juserlist.find('input[name="delete"]').filter(function(){ return this.checked; });
@@ -142,13 +224,17 @@ jconfirm.on('click', function(){
 });
 
 function executeDelete(jchecked) {
+	var successCount = 0, failCount = 0, total = jchecked.length;
 	jchecked.each(function() {
 		jtr = $(this).closest('tr');
 		var uid = jtr.attr('uid');
-		if(uid == 1) return showToast('<?php echo lang('user_admin_cant_be_deleted');?>', 'error');
-		$.xpost(xn.url('user-delete'), {uid:uid}, function(code, message) {
-			if(code != 0) return showToast(message, 'error');
-			jtr.remove();
+		if(uid == 1) { failCount++; showToast('<?php echo lang('user_admin_cant_be_deleted');?>', 'error'); return; }
+		$.xpost(xn.url('user-delete'), {uid:uid, csrf_token: csrfToken}, function(code, message) {
+			if(code == 0) { successCount++; jtr.remove(); } else { failCount++; showToast(message, 'error'); }
+			if(successCount + failCount >= total) {
+				showToast('<?php echo lang('admin_user_batch_delete_done');?>' + successCount + '/' + total, successCount > 0 ? 'success' : 'error');
+				if(successCount > 0) setTimeout(function(){ window.location.reload(); }, 1000);
+			}
 		});
 	});
 }
@@ -171,6 +257,78 @@ if(checkAll) {
 		checkboxes.forEach(function(cb) { cb.checked = checkAll.checked; });
 	});
 }
+
+// 快速禁言 7 天
+document.querySelectorAll('.quick-ban-btn').forEach(function(btn) {
+	btn.addEventListener('click', function() {
+		var uid = this.getAttribute('data-uid');
+		if(!confirm('<?php echo lang('admin_user_quick_silence_7d_confirm');?>')) return;
+		$.xpost(xn.url('user-ban'), {
+			uid: uid,
+			ban_type: 1,
+			duration: 604800,
+			reason: '<?php echo lang('user_ban_quick_silence_reason');?>',
+		 csrf_token: csrfToken
+		}, function(code, message) {
+			if(code == 0) {
+				showToast(message, 'success');
+				setTimeout(function(){ window.location.reload(); }, 800);
+			} else {
+				showToast(message, 'error');
+			}
+		});
+	});
+});
+
+// 批量封禁
+var batchBanModalEl = document.getElementById('batchBanModal');
+var batchBanModal = batchBanModalEl ? new bootstrap.Modal(batchBanModalEl) : null;
+document.getElementById('batchBanBtn').addEventListener('click', function() {
+	var jchecked = juserlist.find('input[name="delete"]').filter(function(){ return this.checked; });
+	if(jchecked.length < 1) return showToast('<?php echo lang('admin_user_batch_select_users');?>', 'error');
+	if(batchBanModal) batchBanModal.show();
+});
+
+document.getElementById('batchBanConfirmBtn').addEventListener('click', function() {
+	var jchecked = juserlist.find('input[name="delete"]').filter(function(){ return this.checked; });
+	var ban_type = document.querySelector('#batchBanForm [name="ban_type"]').value;
+	var duration = document.querySelector('#batchBanForm [name="duration"]').value;
+	var reason = document.querySelector('#batchBanForm [name="reason"]').value;
+	var successCount = 0, failCount = 0, total = jchecked.length;
+	jchecked.each(function() {
+		var jtr = $(this).closest('tr');
+		var uid = jtr.attr('uid');
+		$.xpost(xn.url('user-ban'), {
+			uid: uid, ban_type: ban_type, duration: duration, reason: reason, csrf_token: csrfToken
+		}, function(code, message) {
+			if(code == 0) { successCount++; } else { failCount++; }
+			if(successCount + failCount >= total) {
+				if(batchBanModal) batchBanModal.hide();
+				showToast('<?php echo lang('admin_user_batch_ban_done');?>' + successCount + '/' + total, successCount > 0 ? 'success' : 'error');
+				setTimeout(function(){ window.location.reload(); }, 1000);
+			}
+		});
+	});
+});
+
+// 批量解禁
+document.getElementById('batchUnbanBtn').addEventListener('click', function() {
+	var jchecked = juserlist.find('input[name="delete"]').filter(function(){ return this.checked; });
+	if(jchecked.length < 1) return showToast('<?php echo lang('admin_user_batch_select_users');?>', 'error');
+	if(!confirm('<?php echo lang('admin_user_batch_unban_confirm');?>')) return;
+	var successCount = 0, failCount = 0, total = jchecked.length;
+	jchecked.each(function() {
+		var jtr = $(this).closest('tr');
+		var uid = jtr.attr('uid');
+		$.xpost(xn.url('user-unban'), {uid: uid, csrf_token: csrfToken}, function(code, message) {
+			if(code == 0) { successCount++; } else { failCount++; }
+			if(successCount + failCount >= total) {
+				showToast('<?php echo lang('admin_user_batch_unban_done');?>' + successCount + '/' + total, successCount > 0 ? 'success' : 'error');
+				setTimeout(function(){ window.location.reload(); }, 1000);
+			}
+		});
+	});
+});
 
 </script>
 

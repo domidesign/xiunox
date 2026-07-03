@@ -30,7 +30,17 @@ if($action == 'create') {
 	if(!$r) {
 		message(-1, lang('user_group_insufficient_privilege'));
 	}
-	
+
+	// 回帖前检查封禁状态（管理员组 gid=1,2 豁免）
+	if(!class_exists('UserBanService')) { include_once APP_PATH.'lib/UserBanService.php'; }
+	if(!in_array($gid, UserBanService::ADMIN_GIDS, true)) {
+		$ban_check = UserBanService::checkBanByScene($uid, 'post');
+		// hook user_ban_check.php
+		if(!$ban_check['allowed']) {
+			message(-1, $ban_check['message']);
+		}
+	}
+
 	if(($thread['closed'] || (isset($thread['audit_status']) && $thread['audit_status'] != 1)) && ($gid == 0 || $gid > 5)) {
 		message(-1, lang('thread_has_already_closed'));
 	}
@@ -504,6 +514,16 @@ if($action == 'create') {
 	empty($uid) AND message(-1, lang('have_no_privilege_to_update'));
 	$allowupdate = forum_access_mod($fid, $gid, 'allowupdate');
 	!$allowupdate AND !$post['allowupdate'] AND message(-1, lang('have_no_privilege_to_update'));
+
+	// 编辑前检查封禁状态（管理员组 gid=1,2 豁免）
+	if(!class_exists('UserBanService')) { include_once APP_PATH.'lib/UserBanService.php'; }
+	if(!in_array($gid, UserBanService::ADMIN_GIDS, true)) {
+		$ban_check = UserBanService::checkBanByScene($uid, 'post');
+		// hook user_ban_check.php
+		if(!$ban_check['allowed']) {
+			message(-1, $ban_check['message']);
+		}
+	}
 
 	// 引入审核服务
 	include_once APP_PATH . 'lib/security/AuditService.php';

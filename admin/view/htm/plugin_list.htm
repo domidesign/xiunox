@@ -153,9 +153,7 @@
                             <?php endif;?>
                             
                             <?php if($plugin['installed']):?>
-                                <a class="btn btn-sm btn-outline rounded-pill confirm" 
-                                   data-method="post" 
-                                   data-confirm-text="<?php echo esc_attr(lang('plugin_unstall_confirm_tips', array('name'=>$plugin['name'])));?>" 
+                                <a class="btn btn-sm btn-outline rounded-pill"
                                    href="<?php echo admin_plugin_unstall_url($dir);?>">
                                     <i class="ti ti-trash"></i> <?php echo lang('admin_btn_uninstall')?>
                                 </a>

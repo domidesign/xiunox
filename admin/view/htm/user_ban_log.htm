@@ -1,0 +1,99 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_user_ban_log_start.htm}-->
+
+<div class="mx-auto" style="max-width:64rem">
+	<div class="mb-3">
+		<?php echo admin_tab_active($menu['user']['tab'], 'list');?>
+	</div>
+	<div class="x-card card">
+		<div class="card-body">
+			<div class="d-flex justify-content-between align-items-center mb-3">
+				<h4 class="card-title mb-0">
+					<i class="ti ti-history"></i>
+					<?php echo lang('admin_user_ban_log_title');?> -
+					<a href="<?php echo admin_user_update_url($_uid);?>" class="text-decoration-none"><?php echo esc_html($_user['username']);?></a>
+					<span class="text-body-secondary small">(UID: <?php echo $_uid;?>)</span>
+				</h4>
+				<a href="<?php echo admin_user_update_url($_uid);?>" class="btn btn-outline-secondary btn-sm">
+					<i class="ti ti-arrow-left"></i> <?php echo lang('admin_back');?>
+				</a>
+			</div>
+
+			<div class="table-responsive">
+				<table class="table table-hover align-middle">
+					<thead>
+						<tr>
+							<th style="min-width:150px"><?php echo lang('admin_user_ban_log_col_time');?></th>
+							<th><?php echo lang('admin_user_ban_log_col_action');?></th>
+							<th><?php echo lang('admin_user_ban_log_col_type');?></th>
+							<th><?php echo lang('admin_user_ban_log_col_duration');?></th>
+							<th><?php echo lang('admin_user_ban_log_col_reason');?></th>
+							<th><?php echo lang('admin_user_ban_log_col_admin');?></th>
+						</tr>
+					</thead>
+					<tbody>
+					<?php if(empty($ban_logs)) { ?>
+						<tr>
+							<td colspan="6" class="text-center text-body-secondary py-4">
+								<i class="ti ti-info-circle" style="font-size:1.5rem"></i>
+								<p class="mt-2 mb-0"><?php echo lang('admin_user_ban_log_empty');?></p>
+							</td>
+						</tr>
+					<?php } else { ?>
+						<?php foreach($ban_logs as &$_log){ ?>
+						<tr>
+							<td class="text-body-secondary small"><?php echo $_log['create_time_fmt'];?></td>
+							<td>
+								<span class="badge bg-<?php echo $_log['action_color'];?>">
+									<?php echo $_log['action_label'];?>
+								</span>
+							</td>
+							<td>
+								<?php if($_log['ban_type'] != 0) { ?>
+								<span class="badge bg-<?php echo $_log['type_label']['color'];?>">
+									<?php echo $_log['type_label']['label'];?>
+								</span>
+								<?php } else { ?>
+								<span class="text-body-secondary">-</span>
+								<?php } ?>
+							</td>
+							<td class="text-body-secondary small">
+								<?php if($_log['duration'] > 0) { ?>
+									<?php echo $_log['duration_formatted'];?>
+								<?php } else { ?>
+									<span class="text-body-secondary">-</span>
+								<?php } ?>
+							</td>
+							<td class="text-truncate" style="max-width:200px">
+								<?php if(!empty($_log['reason'])) { ?>
+									<?php echo esc_html($_log['reason']);?>
+								<?php } else { ?>
+									<span class="text-body-secondary">-</span>
+								<?php } ?>
+							</td>
+							<td class="text-body-secondary small">
+								<?php if($_log['admin_uid'] > 0) { ?>
+									<?php echo esc_html($_log['admin_username']);?>
+								<?php } else { ?>
+									<span class="text-body-secondary"><?php echo lang('admin_user_ban_log_system');?></span>
+								<?php } ?>
+							</td>
+						</tr>
+						<?php } ?>
+					<?php } ?>
+					</tbody>
+				</table>
+			</div>
+
+			<div class="d-flex justify-content-between align-items-center mt-3">
+				<span class="text-body-secondary small"><?php echo lang('admin_user_ban_log_total');?>：<?php echo $ban_log_total;?></span>
+				<nav><ul class="pagination pagination-boxed justify-content-center"><?php echo $pagination;?></ul></nav>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!--{hook admin_user_ban_log_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>

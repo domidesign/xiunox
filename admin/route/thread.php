@@ -13,11 +13,13 @@ if(empty($action) || $action == 'list') {
 
 	$header['title'] = lang('thread_admin');
 	$header['mobile_title'] = lang('thread_admin');
-		
+
 	// hook admin_thread_list_start.php
-	
+
 	// ajax 扫描全表
-	$threads = $runtime['threads'];
+	// 后台管理员需要管理所有未删除帖子（含待审），用实时 count 而非 runtime 缓存
+	// runtime['threads'] 仅统计已审核通过的帖子，会漏掉待审帖子
+	$threads = thread_count(array('is_deleted'=>0));
 	$page = 1; // 从第一页开始
 	$totalpage = ceil($threads / $pagesize);
 	
@@ -28,9 +30,11 @@ if(empty($action) || $action == 'list') {
 
 	$forumlist_simple = array();
 	foreach($forumlist as $k=>$v) {
+		// 用实时 count 替代 forum['threads']，确保后台管理员能看到待审帖子
+		// forum['threads'] 仅统计已审核通过的帖子，会漏掉待审帖子
 		$forumlist_simple[$k] = array(
 			'name'=>$v['name'],
-			'threads'=>$v['threads'],
+			'threads'=>db_count('thread', array('fid'=>$k, 'is_deleted'=>0)),
 		);
 	}
 	
@@ -62,11 +66,18 @@ if(empty($action) || $action == 'list') {
 	$cond['page'] = param('page', 1);
 	
 	$page = $cond['page'];
-	$threads = $cond['fid'] ? $forumlist[$fid]['threads'] : $runtime['threads'];
+	// scan 用实时 count，与 list 页面一致，含待审帖子
+	$threads = $cond['fid'] ? db_count('thread', array('fid'=>$fid, 'is_deleted'=>0)) : thread_count(array('is_deleted'=>0));
 	$totalpage = ceil($threads / $pagesize);
-	
+
 	// hook admin_thread_scan_start.php
-	$threadlist = thread_find_by_fid($fid, $page, $pagesize);
+	// 后台 scan 直接用 thread_find，绕过 thread_find_by_fid 的两个问题：
+	// 1. 深分页优化用 $runtime['threads']（仅已审核），对管理员场景（含待审）偏小，会错误限制 page
+	// 2. 第一页合并置顶帖，后台 scan 不需要
+	$scan_cond = array('is_deleted'=>0);
+	$fid AND $scan_cond['fid'] = $fid;
+	// 管理员不需要过滤 audit_status，gid=1,2 在后台上下文
+	$threadlist = thread_find($scan_cond, array('tid'=>-1), $page, $pagesize);
 	
 	if($page == 1) $queueid AND queue_destory($queueid);
 	

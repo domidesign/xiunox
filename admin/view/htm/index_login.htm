@@ -10,14 +10,23 @@
 				<?php echo CsrfService::input(); ?>
 				<div class="mb-3 fs-6"><?php echo lang('for_safe_input_password_again');?>：</div>
 				<div class="mb-3">
-					<div class="input-group">
-						<span class="input-group-text"><i class="ti ti-lock text-secondary"></i></span>
-						<input type="password" class="form-control" placeholder="<?php echo lang('password');?>" id="password" name="password" />
-					</div>
+				<div class="input-group">
+					<span class="input-group-text"><i class="ti ti-lock text-secondary"></i></span>
+					<input type="password" class="form-control" placeholder="<?php echo lang('password');?>" id="password" name="password" />
 				</div>
-				<div class="mb-3">
-					<button type="submit" class="btn btn-primary w-100" id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('login');?></button>
+			</div>
+			<?php if(!empty($admin_show_captcha) && !empty($captcha_image)) { ?>
+			<div class="mb-3">
+				<label class="form-label"><?php echo lang('captcha_label');?></label>
+				<div class="input-group">
+					<input type="text" class="form-control" name="captcha" id="captcha" maxlength="6" autocomplete="off">
+					<img class="captcha-img" id="captcha-img" src="<?php echo $captcha_image;?>" onclick="adminCaptchaRefresh()" style="cursor:pointer;height:38px;" title="<?php echo lang('click_to_refresh');?>">
 				</div>
+			</div>
+			<?php } ?>
+			<div class="mb-3">
+				<button type="submit" class="btn btn-primary w-100" id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('login');?></button>
+			</div>
 			</form>
 		</div>
 	</div>
@@ -31,20 +40,80 @@
 var jform = $('#form');
 var jsubmit = $('#submit');
 var jpassword = $('#password').focus();
+
+// 验证码刷新
+function adminCaptchaRefresh() {
+	var img = document.getElementById('captcha-img');
+	if(!img) return;
+	$.ajax({
+		url: '<?php echo url('index-login');?>?captcha_refresh=1',
+		type: 'GET',
+		dataType: 'text',
+		success: function(r) {
+			var s = xn.json_decode(r);
+			if(s && s.code == 0 && s.image) {
+				img.src = s.image;
+			}
+		}
+	});
+}
+
+// 账号锁定倒计时
+function startCountdown(seconds) {
+	var btn = document.getElementById('submit');
+	if(!btn) return;
+	var originalText = btn.innerHTML;
+	btn.disabled = true;
+	var updateBtn = function() {
+		if(seconds > 0) {
+			btn.innerHTML = '<?php echo lang('submiting');?>... ' + seconds + 's';
+			seconds--;
+			setTimeout(updateBtn, 1000);
+		} else {
+			btn.disabled = false;
+			btn.innerHTML = originalText;
+		}
+	};
+	updateBtn();
+}
+
 jform.on('submit', function() {
 	jform.reset();
 	jsubmit.prop('disabled', true).html('<?php echo lang('submiting');?>...');
 	var postdata = jform.serializeObject();
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
-		if(code == 0) {
-			showToast(message, 'success');
-			setTimeout(function() { window.location.assign('./'); }, 1000);
-		} else if(code == 'password') {
-			showToast(message, 'error');
-			jpassword.focus();
-			jsubmit.prop('disabled', false).html('<?php echo lang('login');?>');
-		} else {
-			showToast(message, 'error');
+	// 用 $.ajax 代替 $.xpost，获取完整响应（含 wait 字段用于倒计时）
+	$.ajax({
+		type: 'POST',
+		url: jform.attr('action'),
+		data: postdata,
+		dataType: 'text',
+		success: function(r) {
+			if(!r) { showToast('Server Response Empty!', 'error'); jsubmit.prop('disabled', false).html('<?php echo lang('login');?>'); return; }
+			var s = xn.json_decode(r);
+			if(!s || s.code === undefined) { showToast('Server Response Not JSON', 'error'); jsubmit.prop('disabled', false).html('<?php echo lang('login');?>'); return; }
+			var code = s.code;
+			var message = s.message;
+			if(code == 0) {
+				showToast(message, 'success');
+				setTimeout(function() { window.location.assign('./'); }, 1000);
+			} else if(code == -1003) {
+				// 账号锁定，启动倒计时
+				showToast(message, 'error');
+				var wait = parseInt(s.wait) || 0;
+				if(wait > 0) { startCountdown(wait); }
+				else { jsubmit.prop('disabled', false).html('<?php echo lang('login');?>'); }
+			} else if(code == 'password' || code == 'captcha') {
+				showToast(message, 'error');
+				if(code == 'captcha') { adminCaptchaRefresh(); }
+				else { jpassword.focus(); }
+				jsubmit.prop('disabled', false).html('<?php echo lang('login');?>');
+			} else {
+				showToast(message, 'error');
+				jsubmit.prop('disabled', false).html('<?php echo lang('login');?>');
+			}
+		},
+		error: function() {
+			showToast('Network error', 'error');
 			jsubmit.prop('disabled', false).html('<?php echo lang('login');?>');
 		}
 	});

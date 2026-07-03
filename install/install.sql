@@ -17,6 +17,10 @@ CREATE TABLE `bbs_user` (
   `password_hash` varchar(255) NOT NULL DEFAULT '' COMMENT 'bcrypt密码哈希',
   login_attempts int(11) NOT NULL DEFAULT '0' COMMENT '登录失败次数',
   banned_until int(11) unsigned NOT NULL DEFAULT '0' COMMENT '封禁截止时间',
+  ban_type tinyint(1) unsigned NOT NULL DEFAULT '0' COMMENT '封禁类型:0正常/1禁言/2禁止访问/3锁定',
+  ban_reason varchar(255) NOT NULL DEFAULT '' COMMENT '封禁原因',
+  ban_admin_uid int(11) unsigned NOT NULL DEFAULT '0' COMMENT '操作管理员uid',
+  ban_time int(11) unsigned NOT NULL DEFAULT '0' COMMENT '封禁时间戳',
   last_login_ip int(11) unsigned NOT NULL DEFAULT '0' COMMENT '最后登录IP',
   last_login_time int(11) unsigned NOT NULL DEFAULT '0' COMMENT '最后登录时间',
   mobile char(11) NOT NULL DEFAULT '' COMMENT '手机号',		# 预留，供二次开发扩展
@@ -735,6 +739,25 @@ INSERT INTO bbs_group_permission (gid, permission_key, value) VALUES
 (103, 'allowread', 1), (103, 'allowthread', 1), (103, 'allowpost', 1), (103, 'allowattach', 1), (103, 'allowdown', 1),
 (104, 'allowread', 1), (104, 'allowthread', 1), (104, 'allowpost', 1), (104, 'allowattach', 1), (104, 'allowdown', 1),
 (105, 'allowread', 1), (105, 'allowthread', 1), (105, 'allowpost', 1), (105, 'allowattach', 1), (105, 'allowdown', 1);
+
+# 封禁历史记录表
+DROP TABLE IF EXISTS bbs_user_ban_log;
+CREATE TABLE bbs_user_ban_log (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `uid` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '被操作用户uid',
+  `admin_uid` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '操作管理员uid',
+  `action` varchar(20) NOT NULL DEFAULT '' COMMENT '操作类型:ban/unban/auto_unban/clear_content',
+  `ban_type` tinyint(1) unsigned NOT NULL DEFAULT '0' COMMENT '封禁类型',
+  `reason` varchar(255) NOT NULL DEFAULT '' COMMENT '原因',
+  `duration` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '封禁时长(秒),0表示永久',
+  `create_time` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '操作时间戳',
+  PRIMARY KEY (`id`),
+  KEY `uid` (`uid`),
+  KEY `create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+# IP 黑名单已迁移到 IpBlacklistService（基于 bbs_kv 表的 kv 存储，支持 CIDR/范围/过期时间）
+# 废弃的 bbs_banned_ip 表不再在安装时创建；旧站点升级时由 UpgradeService::migrateBannedIpToBlacklist() 自动迁移
 
 # 全文搜索索引（MySQL 5.6+ InnoDB 支持 ngram parser，低版本或不支持时跳过不影响核心功能）
 # FULLTEXT_TOLERANT 标记：install_sql_file 遇到失败不中断安装

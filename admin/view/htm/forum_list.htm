@@ -91,7 +91,7 @@ if(!function_exists('forum_frontend_url')) {
 			$sub_forums = isset($sub_forums_map[$_fid]) ? $sub_forums_map[$_fid] : array();
 			if(!empty($sub_forums)) { ?>
 			<div class="table-responsive">
-				<table class="table table-borderless table-hover align-middle mb-0">
+			<table class="table table-borderless table-hover align-middle mb-0 table-min-w-sm">
 					<thead>
 						<tr class="text-body-secondary small">
 							<th style="width:8%"><?php echo lang('forum_id');?></th>
@@ -162,7 +162,7 @@ if(!function_exists('forum_frontend_url')) {
 				<span class="fw-semibold"><?php echo lang('admin_uncategorized_forums')?></span>
 			</div>
 			<div class="table-responsive">
-				<table class="table table-borderless table-hover align-middle mb-0">
+			<table class="table table-borderless table-hover align-middle mb-0 table-min-w-sm">
 					<thead>
 						<tr class="text-body-secondary small">
 							<th style="width:8%"><?php echo lang('forum_id');?></th>

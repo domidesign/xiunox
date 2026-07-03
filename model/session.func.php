@@ -264,7 +264,7 @@ function sess_start() {
 	}
 
 	session_set_cookie_params(array(
-		'lifetime' => 8640000,
+		'lifetime' => 604800, // 7 天有效期（原 100 天 8640000，缩短以降低 cookie 泄露窗口）
 		'path' => '/',
 		'domain' => '',
 		'secure' => $cookie_secure,

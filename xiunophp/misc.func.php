@@ -316,7 +316,7 @@ function pagination($url, $totalnum, $page, $pagesize = 20) {
 	$totalpage = ceil($totalnum / $pagesize);
 	if($totalpage < 2) return '';
 	$page = min($totalpage, $page);
-	$shownum = 5;	// 显示多少个页 * 2
+	$shownum = 2;	// 当前页左右各显示多少个页码，总计 5 个页码按钮
 
 	$start = max(1, $page - $shownum);
 	$end = min($totalpage, $page + $shownum);
@@ -531,8 +531,8 @@ function ip() {
 // 日志记录
 // $level: DEBUG/INFO/WARNING/ERROR，按 conf.log_level 过滤低级别日志
 function xn_log($s, $file = 'error', $level = 'WARNING') {
-	// DEBUG=0 时仅写文件名含 error 的日志（保留原逻辑）
-	if(DEBUG == 0 && strpos($file, 'error') === FALSE) return;
+	// DEBUG=0 时仅写文件名含 error 或 security 的日志（security 用于安全审计日志）
+	if(DEBUG == 0 && strpos($file, 'error') === FALSE && strpos($file, 'security') === FALSE) return;
 
 	// 级别过滤：低于 conf.log_level 阈值的日志不写
 	static $levels = array('DEBUG' => 0, 'INFO' => 1, 'WARNING' => 2, 'ERROR' => 3);

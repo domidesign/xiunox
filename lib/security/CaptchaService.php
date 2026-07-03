@@ -116,12 +116,13 @@ class CaptchaService {
     /**
      * 生成验证码
      * @param string $scene 场景名
+     * @param bool $force 强制生成（跳过场景开启检查，用于后台登录按失败次数触发验证码等场景）
      * @return array|false ['key'=>string, 'image'=>string(base64)] 或 false（场景未开启）
      */
-    public static function generate(string $scene) {
+    public static function generate(string $scene, bool $force = false) {
         // 标准场景：检查是否有用户组开启
         if (in_array($scene, self::SCENES)) {
-            if (!self::is_scene_active($scene)) {
+            if (!$force && !self::is_scene_active($scene)) {
                 return false;
             }
         }

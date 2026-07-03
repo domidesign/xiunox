@@ -40,6 +40,15 @@
 
 <!--{hook thread_status_alert_after.htm}-->
 
+<?php
+// 楼主被封禁：ban_type>0 且当前用户非管理员(gid=1,2)且非作者本人
+$_first_banned = (isset($first['user']['ban_type']) ? intval($first['user']['ban_type']) : 0) > 0 && !($gid == 1 || $gid == 2) && (empty($uid) || $uid != $thread['uid']);
+// 封禁权限：管理员(gid=1,2)直接放行；版主需 allowbanuser 权限
+$_allow_ban_user = !empty($uid) && forum_access_mod($fid, $gid, 'allowbanuser');
+// 是否管理员组（决定 Modal 选项范围）
+$_ban_is_admin = in_array($gid, array(1, 2));
+?>
+
 <div class="x-card card card-thread  ">
     <div class="card-body">
         <!--{hook thread_subject_before.htm}-->
@@ -72,6 +81,7 @@
                     <a href="<?php echo user_url($thread['uid']);?>" class="text-body-secondary fw-semibold">
                         <?php echo $thread['username'];?>
                     </a>
+                    <?php echo user_ban_badge_html(isset($thread['user']) ? $thread['user'] : $first['user']);?>
                 </span>
                 <?php if(!empty($thread['group_name'])): ?>
                 <span class="badge bg-primary bg-opacity-10 text-primary "  ><?php echo $thread['group_name'];?></span>
@@ -125,10 +135,10 @@
                 <?php if($page == 1) { ?>
 
                 <!--{hook thread_message_before.htm}-->
-                <?php echo $first['message_fmt'];?>
+                <?php if($_first_banned) { echo user_ban_hidden_notice_html(); } else { echo $first['message_fmt']; } ?>
                 <!--{hook thread_message_after.htm}-->
 
-                <?php echo post_file_list_html($first['filelist'], FALSE, $first['imagelist'], $first['videolist']);?>
+                <?php if(!$_first_banned) echo post_file_list_html($first['filelist'], FALSE, $first['imagelist'], $first['videolist']);?>
                 <!--{hook thread_filelist_after.htm}-->
 
                 <?php if(!empty($author['signature'])): ?>
@@ -222,6 +232,12 @@
             <button class="btn btn-sm btn-outline-success py-0 px-2 thread-mod-btn"
                 data-mod-url="<?php echo mod_audit_url();?>" data-mod-title="<?php echo lang('audit_approve');?>"
                 data-mod-size="md" data-mod-tid="<?php echo $thread['tid'];?>"><i class="ti ti-check"></i>
+            </button>
+            <?php endif; ?>
+            <?php if($_allow_ban_user && $thread['uid'] != $uid): ?>
+            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 user-ban-btn"
+                data-uid="<?php echo intval($thread['uid']);?>" data-username="<?php echo esc_attr($thread['username']);?>"
+                title="<?php echo lang('user_ban_button');?>"><i class="ti ti-ban"></i>
             </button>
             <?php endif; ?>
         </span>
@@ -396,6 +412,116 @@
     <!--{hook thread_page_after.htm}-->
 
 </div>
+
+<?php if($_allow_ban_user): ?>
+<?php if(!class_exists('UserBanService')) { include_once APP_PATH.'lib/UserBanService.php'; } ?>
+<!-- 封禁用户弹窗 -->
+<div class="modal fade" id="banUserModal" tabindex="-1" aria-labelledby="banUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="banUserForm" autocomplete="off">
+                <?php echo CsrfService::input();?>
+                <input type="hidden" name="uid" id="banUserUid" value="0" />
+                <input type="hidden" name="fid" value="<?php echo intval($fid);?>" />
+                <div class="modal-header">
+                    <h5 class="modal-title" id="banUserModalLabel">
+                        <i class="ti ti-ban me-1"></i><?php echo lang('user_ban_modal_title');?>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="<?php echo lang('close');?>"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <span class="text-body-secondary small"><?php echo lang('user_ban_modal_target');?></span>
+                        <span class="fw-semibold" id="banUserTargetName">-</span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small"><?php echo lang('user_ban_modal_ban_type');?></label>
+                        <select name="ban_type" id="banUserType" class="form-select form-select-sm">
+                            <?php if($_ban_is_admin): ?>
+                            <option value="<?php echo UserBanService::BAN_TYPE_SILENCE;?>"><?php echo lang('user_ban_type_silence');?></option>
+                            <option value="<?php echo UserBanService::BAN_TYPE_BAN_ACCESS;?>"><?php echo lang('user_ban_type_ban_access');?></option>
+                            <option value="<?php echo UserBanService::BAN_TYPE_LOCK;?>"><?php echo lang('user_ban_type_lock');?></option>
+                            <?php else: ?>
+                            <option value="<?php echo UserBanService::BAN_TYPE_SILENCE;?>"><?php echo lang('user_ban_type_silence');?></option>
+                            <?php endif; ?>
+                        </select>
+                        <?php if(!$_ban_is_admin): ?>
+                        <div class="form-text small"><?php echo lang('user_ban_mod_can_only_silence');?></div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small"><?php echo lang('user_ban_modal_duration');?></label>
+                        <select name="duration" id="banUserDuration" class="form-select form-select-sm">
+                            <option value="86400"><?php echo lang('user_ban_modal_duration_1day');?></option>
+                            <option value="259200"><?php echo lang('user_ban_modal_duration_3days');?></option>
+                            <option value="604800"><?php echo lang('user_ban_modal_duration_7days');?></option>
+                            <?php if($_ban_is_admin): ?>
+                            <option value="2592000"><?php echo lang('user_ban_modal_duration_30days');?></option>
+                            <option value="0"><?php echo lang('user_ban_permanent');?></option>
+                            <?php endif; ?>
+                        </select>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label small"><?php echo lang('user_ban_modal_reason');?></label>
+                        <textarea name="reason" class="form-control form-control-sm" rows="3" maxlength="200" placeholder="<?php echo lang('user_ban_modal_reason_placeholder');?>"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal"><?php echo lang('user_ban_modal_cancel');?></button>
+                    <button type="submit" class="btn btn-sm btn-danger" id="banUserSubmit"><?php echo lang('user_ban_modal_confirm');?></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+(function(){
+    var banModalEl = document.getElementById('banUserModal');
+    var banForm = document.getElementById('banUserForm');
+    var banUrl = <?php echo json_encode(mod_ban_user_url());?>;
+    if(!banModalEl || !banForm) return;
+
+    // 点击封禁按钮：填充 uid 并弹出 Modal
+    document.addEventListener('click', function(e){
+        var btn = e.target.closest('.user-ban-btn');
+        if(!btn) return;
+        var uid = btn.getAttribute('data-uid');
+        var username = btn.getAttribute('data-username') || '';
+        document.getElementById('banUserUid').value = uid;
+        document.getElementById('banUserTargetName').textContent = username;
+        var bs = bootstrap.Modal.getInstance(banModalEl) || new bootstrap.Modal(banModalEl);
+        bs.show();
+    });
+
+    banForm.addEventListener('submit', function(e){
+        e.preventDefault();
+        var submitBtn = document.getElementById('banUserSubmit');
+        var fd = new FormData(banForm);
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        fetch(banUrl, {
+            method: 'POST',
+            body: fd,
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        }).then(function(r){ return r.json(); }).then(function(res){
+            var code = parseInt(res.code);
+            if(code === 0) {
+                if(typeof XN !== 'undefined' && XN.toast) { XN.toast(res.message || <?php echo json_encode(lang('user_ban_success'));?>, 'success'); }
+                bootstrap.Modal.getInstance(banModalEl).hide();
+                setTimeout(function(){ window.location.reload(); }, 800);
+            } else {
+                if(typeof XN !== 'undefined' && XN.toast) { XN.toast(res.message || <?php echo json_encode(lang('operation_failed'));?>, 'danger'); }
+            }
+        }).catch(function(){
+            if(typeof XN !== 'undefined' && XN.toast) { XN.toast(<?php echo json_encode(lang('operation_failed'));?>, 'danger'); }
+        }).finally(function(){
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = <?php echo json_encode(lang('user_ban_modal_confirm'));?>;
+        });
+    });
+})();
+</script>
+<?php endif; ?>
 
 <?php if($page == 1): ?>
 <!-- 帖子详情页隐藏全局bottom_nav -->

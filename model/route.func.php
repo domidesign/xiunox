@@ -144,6 +144,7 @@ function route_table() {
 			'mod_announcement'      => 'mod-announcement',
 			'mod_audit'             => 'mod-audit',
 			'mod_audit_post'        => 'mod-audit_post',
+			'mod_ban_user'          => 'mod-ban_user',
 
 			// ===== 全局通用 =====
 			'index'                 => 'index',
@@ -411,6 +412,7 @@ function mod_digest_url($query = array())                { return route_url('mod
 function mod_announcement_url($query = array())          { return route_url('mod_announcement', [], $query); }
 function mod_audit_url($query = array())                 { return route_url('mod_audit', [], $query); }
 function mod_audit_post_url($query = array())            { return route_url('mod_audit_post', [], $query); }
+function mod_ban_user_url($query = array())              { return route_url('mod_ban_user', [], $query); }
 
 // ----- 全局通用 -----
 function index_url($query = array())                      { return route_url('index', [], $query); }
@@ -501,6 +503,12 @@ function admin_api_settings_save_url($query = array())     { return route_url('a
 function admin_cache_url($query = array())                { return route_url('admin_cache', [], $query); }
 function admin_cache_setting_url($query = array())        { return route_url('admin_cache_setting', [], $query); }
 function admin_upgrade_url($query = array())              { return route_url('admin_upgrade', [], $query); }
+function admin_online_upgrade_url($query = array())        { return route_url('admin_online_upgrade', [], $query); }
+function admin_online_upgrade_check_url($query = array())  { return route_url('admin_online_upgrade_check', [], $query); }
+function admin_online_upgrade_step_url($query = array())   { return route_url('admin_online_upgrade_step', [], $query); }
+function admin_online_upgrade_rollback_url($query = array()){ return route_url('admin_online_upgrade_rollback', [], $query); }
+function admin_online_upgrade_settings_url($query = array()){ return route_url('admin_online_upgrade_settings', [], $query); }
+function admin_online_upgrade_reinstall_url($query = array()){ return route_url('admin_online_upgrade_reinstall', [], $query); }
 function admin_health_url($query = array())               { return route_url('admin_health', [], $query); }
 function admin_phpinfo_url($query = array())              { return route_url('admin_phpinfo', [], $query); }
 function admin_logout_url($query = array())               { return route_url('admin_logout', [], $query); }

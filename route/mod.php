@@ -280,6 +280,58 @@ if($action == 'top') {
 	echo json_encode(array('code' => 0, 'message' => lang('delete_successfully'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
 	exit;
 
+} elseif($action == 'ban_user') {
+
+	// 封禁用户（版主/管理员）
+	$method != 'POST' AND message(-1, 'Method error');
+
+	user_login_check();
+
+	CsrfService::check();
+
+	$ban_uid = intval(param('uid'));
+	$ban_type = intval(param('ban_type'));
+	$duration = intval(param('duration'));
+	$reason = param('reason', '', FALSE);
+	$fid = intval(param('fid'));
+
+	// 权限校验：管理员组（gid=1,2）直接放行；版主组需 allowbanuser 权限
+	$_is_admin = in_array($gid, array(1, 2));
+	if(!$_is_admin) {
+		if(!forum_access_mod($fid, $gid, 'allowbanuser')) {
+			message(-1, lang('user_ban_no_permission'));
+		}
+	}
+
+	// 版主权限限制：非管理员仅能禁言(ban_type=1) 1-7天，不能永久
+	if(!$_is_admin) {
+		if($ban_type != 1) {
+			message(-1, lang('user_ban_mod_can_only_silence'));
+		}
+		if($duration == 0) {
+			message(-1, lang('user_ban_mod_no_permanent'));
+		}
+		if($duration < 86400 || $duration > 604800) {
+			message(-1, lang('user_ban_mod_duration_limit'));
+		}
+	}
+
+	if($ban_uid <= 0) {
+		message(-1, lang('data_malformation'));
+	}
+
+	// 调用封禁服务（内部校验：不能封禁自己、不能封禁管理员组、uid 有效性）
+	if(!class_exists('UserBanService')) { include_once APP_PATH.'lib/UserBanService.php'; }
+	$result = UserBanService::ban($ban_uid, $ban_type, $duration, $reason, $uid);
+
+	if($result['code'] != 0) {
+		message(-1, isset($result['message']) ? $result['message'] : lang('operation_failed'));
+	}
+
+	header('Content-Type: application/json; charset=utf-8');
+	echo json_encode(array('code' => 0, 'message' => lang('user_ban_success'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
+	exit;
+
 } elseif($action == 'digest') {
 
 	if($method == 'GET') {

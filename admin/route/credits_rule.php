@@ -12,6 +12,9 @@ if($action == 'global') {
     // GET: 展示全局规则编辑页面（含版块覆盖 tab）
     // POST: 保存全局规则
     if($method == 'POST') {
+        // CSRF 校验
+        CsrfService::check();
+
         // hook admin_credits_rule_global_post_start.php
 
         $events = param('events', array());
@@ -67,6 +70,9 @@ if($action == 'global') {
     $fid = param(2, 0);
 
     if($method == 'POST') {
+        // CSRF 校验
+        CsrfService::check();
+
         // hook admin_credits_rule_forum_post_start.php
 
         $fid = param('fid', 0);

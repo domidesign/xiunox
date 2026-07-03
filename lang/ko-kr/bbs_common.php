@@ -527,13 +527,8 @@ return array(
 	'theme_light'=>'라이트',
 	'theme_dark'=>'다크',
 	'ai_provider'=>'AI 서비스 제공자',
-	'ai_provider_spark'=>'스파크 대모델',
-	'ai_provider_wenxin'=>'원심일언',
-	'ai_provider_custom'=>'사용자 정의',
 	'ai_provider_tip'=>'AI 서비스 제공자를 선택하고 본인의 API Key를 사용하세요',
 	'ai_api_key_tip'=>'API Key는 본 사이트 데이터베이스에만 저장되며 제3자에게 유출되지 않습니다',
-	'ai_api_url'=>'API 주소',
-	'ai_api_url_tip'=>'비워두면 기본 주소를 사용합니다. OpenAI 호환 서비스를 지원합니다',
 	'ai_model_name'=>'모델 이름',
 	'ai_model_name_tip'=>'예: gpt-4o-mini, gpt-4o, deepseek-chat 등',
 

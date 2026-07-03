@@ -128,6 +128,98 @@
 			</form>
 		</div>
 	</div>
+
+	<!-- 封禁设置区 -->
+	<div class="x-card card mt-3">
+		<div class="card-body">
+			<h4 class="card-title mb-3"><i class="ti ti-ban"></i> <?php echo lang('admin_user_ban_section_title');?></h4>
+
+			<?php if($ban_status['ban_type'] != 0) { ?>
+			<!-- 当前封禁状态 -->
+			<div class="alert alert-warning mb-3">
+				<div class="d-flex align-items-center gap-2 mb-2">
+					<span class="badge bg-<?php echo $ban_status['status_color']; ?>"><?php echo $ban_status['status_label'];?></span>
+					<?php if(!empty($ban_status['expire_formatted'])) { ?>
+					<span class="text-body-secondary small"><?php echo lang('admin_user_ban_expire_label');?>：<?php echo $ban_status['expire_formatted'];?></span>
+					<?php } ?>
+				</div>
+				<div class="small text-body-secondary">
+					<?php if(!empty($ban_status['ban_reason'])) { ?>
+					<div><?php echo lang('admin_user_ban_reason_label');?>：<?php echo esc_html($ban_status['ban_reason']);?></div>
+					<?php } ?>
+					<?php if(!empty($ban_status['ban_time_fmt'])) { ?>
+					<div><?php echo lang('admin_user_ban_time_label');?>：<?php echo $ban_status['ban_time_fmt'];?></div>
+					<?php } ?>
+					<?php if(!empty($ban_status['admin_username'])) { ?>
+					<div><?php echo lang('admin_user_ban_admin_label');?>：<?php echo esc_html($ban_status['admin_username']);?></div>
+					<?php } ?>
+				</div>
+			</div>
+			<?php } ?>
+
+			<!-- 封禁表单 -->
+			<form action="<?php echo url('user-ban');?>" method="post" id="banForm">
+				<?php echo CsrfService::input(); ?>
+				<input type="hidden" name="uid" value="<?php echo $_uid;?>">
+				<div class="row g-3 mb-3">
+					<div class="col-md-4">
+						<label class="form-label"><?php echo lang('admin_user_ban_type_label');?></label>
+						<select name="ban_type" class="form-select form-select-sm">
+							<option value="1" <?php echo $ban_status['ban_type'] == 1 ? 'selected' : '';?>><?php echo lang('user_ban_type_silence');?></option>
+							<option value="2" <?php echo $ban_status['ban_type'] == 2 ? 'selected' : '';?>><?php echo lang('user_ban_type_ban_access');?></option>
+							<option value="3" <?php echo $ban_status['ban_type'] == 3 ? 'selected' : '';?>><?php echo lang('user_ban_type_lock');?></option>
+						</select>
+					</div>
+					<div class="col-md-4">
+						<label class="form-label"><?php echo lang('admin_user_ban_duration_label');?></label>
+						<select name="duration" class="form-select form-select-sm">
+							<option value="86400"><?php echo lang('user_ban_duration_1day');?></option>
+							<option value="259200"><?php echo lang('user_ban_duration_3days');?></option>
+							<option value="604800" selected><?php echo lang('user_ban_duration_7days');?></option>
+							<option value="2592000"><?php echo lang('user_ban_duration_30days');?></option>
+							<option value="0"><?php echo lang('user_ban_permanent');?></option>
+						</select>
+					</div>
+					<div class="col-md-4">
+						<label class="form-label"><?php echo lang('admin_user_ban_reason_label');?></label>
+						<input type="text" name="reason" class="form-control form-control-sm" placeholder="<?php echo lang('admin_user_ban_reason_placeholder');?>" value="<?php echo esc_attr($ban_status['ban_reason']);?>">
+					</div>
+				</div>
+				<div class="d-flex gap-2 flex-wrap">
+					<button type="submit" class="btn btn-warning btn-sm">
+						<i class="ti ti-ban"></i>
+						<?php echo $ban_status['ban_type'] != 0 ? lang('admin_user_modify_ban_btn') : lang('admin_user_ban_btn');?>
+					</button>
+					<a href="<?php echo url('user-ban_log-'.$_uid);?>" class="btn btn-outline-info btn-sm">
+						<i class="ti ti-history"></i> <?php echo lang('admin_user_view_ban_log');?>
+					</a>
+				</div>
+			</form>
+
+			<!-- 解封表单（独立 form，避免嵌套） -->
+			<?php if($ban_status['ban_type'] != 0) { ?>
+			<form action="<?php echo url('user-unban');?>" method="post" class="mt-2">
+				<?php echo CsrfService::input(); ?>
+				<input type="hidden" name="uid" value="<?php echo $_uid;?>">
+				<button type="submit" class="btn btn-success btn-sm">
+					<i class="ti ti-circle-check"></i> <?php echo lang('admin_user_unban_btn');?>
+				</button>
+			</form>
+			<?php } ?>
+
+			<!-- 清空内容（危险操作） -->
+			<hr class="my-3">
+			<form action="<?php echo url('user-clear_content');?>" method="post" onsubmit="return confirm('<?php echo lang('user_clear_content_confirm');?>')">
+				<?php echo CsrfService::input(); ?>
+				<input type="hidden" name="uid" value="<?php echo $_uid;?>">
+				<input type="hidden" name="confirm" value="1">
+				<button type="submit" class="btn btn-danger btn-sm">
+					<i class="ti ti-trash"></i> <?php echo lang('admin_user_clear_content_btn');?>
+				</button>
+				<small class="text-body-secondary ms-2"><?php echo lang('admin_user_clear_content_tip');?></small>
+			</form>
+		</div>
+	</div>
 </div>
 
 <!--{hook admin_user_update_end.htm}-->
@@ -138,9 +230,24 @@
 <script>
 var jform = $('#form');
 var jsubmit = $('#submit');
+var langCreditsReasonRequired = <?php echo json_encode(lang('admin_credits_reason_required'));?>;
 jform.on('submit', function() {
 	jform.reset();
 	jsubmit.button('loading');
+	// 积分调整时必须填写理由
+	var hasCreditsChange = false;
+	['credits', 'golds', 'rmbs'].forEach(function(k) {
+		var act = parseInt(jform.find('[name="'+k+'_action"]').val(), 10) || 0;
+		var amt = parseInt(jform.find('[name="'+k+'_amount"]').val(), 10) || 0;
+		if(act !== 0 && amt > 0) hasCreditsChange = true;
+	});
+	if(hasCreditsChange && !jform.find('[name="credits_reason"]').val().trim()) {
+		showToast(langCreditsReasonRequired, 'error');
+		jform.find('[name="credits_reason"]').addClass('is-invalid').focus();
+		jsubmit.button('reset');
+		return false;
+	}
+	jform.find('[name="credits_reason"]').removeClass('is-invalid');
 	var postdata = jform.serialize();
 	$.xpost(jform.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
@@ -157,7 +264,6 @@ jform.on('submit', function() {
 	});
 	return false;
 });
-
 </script>
 
 <!--{hook admin_user_update_js.htm}-->

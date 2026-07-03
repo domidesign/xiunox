@@ -344,6 +344,14 @@ if(empty($action)) {
 
 		// hook user_login_post_start.php
 
+		// IP 黑名单检查（在密码验证前拒绝，避免泄露用户是否存在）
+		if(!isset($ip)) { $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : ''; }
+		include_once APP_PATH.'model/banned_ip.func.php';
+		// hook banned_ip_check.php
+		if(banned_ip_check($ip)) {
+			message(-1, lang('user_ban_ip_banned'));
+		}
+
 		// 登录验证码检查
 		include_once APP_PATH . 'lib/security/CaptchaService.php';
 		if (CaptchaService::is_enabled('login', $gid)) {
@@ -359,12 +367,21 @@ if(empty($action)) {
 		$email = param('email');			// 邮箱或者手机号 / email or mobile
 		$password = param('password');
 		empty($email) AND message('email', lang('email_is_empty'));
+
+		// IP 维度限流检查（防止用不存在的用户名枚举绕过 uid 维度限流）
+		LoginSecurityService::checkIpBan($longip);
+
 		if(is_email($email, $err)) {
 			$_user = user_read_by_email($email);
-			empty($_user) AND message('email', lang('email_not_exists'));
 		} else {
 			$_user = user_read_by_username($email);
-			empty($_user) AND message('email', lang('username_not_exists'));
+		}
+
+		// 用户不存在时统一返回"用户名或密码错误"，避免用户名枚举
+		// 同时记录 IP 维度失败尝试（uid=0），纳入 IP 限流统计
+		if(empty($_user)) {
+			LoginSecurityService::recordIpAttempt($longip, FALSE, $_SERVER['HTTP_USER_AGENT']);
+			message('email', lang('login_user_or_password_error'));
 		}
 
 		LoginSecurityService::checkBan($_user['uid']);
@@ -372,7 +389,18 @@ if(empty($action)) {
 		$check = user_login_verify($password, $_user);
 		// hook user_login_post_password_check_after.php
 		!$check AND LoginSecurityService::recordAttempt($_user['uid'], FALSE, $longip, $_SERVER['HTTP_USER_AGENT']);
-		!$check AND message('password', lang('password_incorrect'));
+		// recordAttempt 已写 user_login_log（含 ip 字段），IP 维度限流可直接统计，无需再调 recordIpAttempt
+		!$check AND message('password', lang('login_user_or_password_error'));
+
+		// 封禁检查：禁止访问/锁定用户不能登录（管理员组豁免）
+		if(!class_exists('UserBanService')) { include_once APP_PATH.'lib/UserBanService.php'; }
+		if(!in_array(intval($_user['gid']), UserBanService::ADMIN_GIDS, true)) {
+			// hook user_ban_check.php
+			$ban_check = UserBanService::checkBanByScene($_user['uid'], 'login');
+			if(!$ban_check['allowed']) {
+				message(-1, $ban_check['message']);
+			}
+		}
 
 		// 更新登录时间和次数
 		// update login times
@@ -381,6 +409,9 @@ if(empty($action)) {
 		// 全局变量 $uid 会在结束后，在函数 register_shutdown_function() 中存入 session (文件: model/session.func.php)
 		// global variable $uid will save to session in register_shutdown_function() (file: model/session.func.php)
 		$uid = $_user['uid'];
+
+		// 防止 Session 固定攻击
+		session_regenerate_id(true);
 
 		$_SESSION['uid'] = $uid;
 
@@ -424,6 +455,14 @@ if(empty($action)) {
 		CsrfService::check();
 
 		// hook user_create_post_start.php
+
+		// IP 黑名单检查
+		if(!isset($ip)) { $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : ''; }
+		include_once APP_PATH.'model/banned_ip.func.php';
+		// hook banned_ip_check.php
+		if(banned_ip_check($ip)) {
+			message(-1, lang('user_ban_ip_banned'));
+		}
 
 		// 注册验证码检查
 		include_once APP_PATH . 'lib/security/CaptchaService.php';
@@ -621,6 +660,16 @@ if(empty($action)) {
 
 		$_user = user_read_by_email($email);
 		!$_user AND message('email', lang('email_is_not_in_use'));
+
+		// 封禁检查：锁定用户不能找密（管理员组豁免）
+		if(!class_exists('UserBanService')) { include_once APP_PATH.'lib/UserBanService.php'; }
+		if(!in_array(intval($_user['gid']), UserBanService::ADMIN_GIDS, true)) {
+			// hook user_ban_check.php
+			$ban_check = UserBanService::checkBanByScene($_user['uid'], 'password');
+			if(!$ban_check['allowed']) {
+				message(-1, $ban_check['message']);
+			}
+		}
 
 		$code = param('code');
 		empty($code) AND message('code', lang('please_input_verify_code'));

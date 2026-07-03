@@ -108,7 +108,7 @@ function admin_token_clean() {
 // bootstrap style
 function admin_tab_active($arr, $active) {
 	// hook admin_tab_active_start.php
-	$s = '<ul class="nav nav-tabs gap-2  ">';
+	$s = '<ul class="nav nav-tabs nav-tabs-scroll gap-2">';
 	foreach ($arr as $k=>$v) {
 		$s .= '<li class="nav-item"><a class="nav-link '.($active == $k ? ' active' : '').'" href="'.$v['url'].'">'.$v['text'].'</a></li>';
 	}

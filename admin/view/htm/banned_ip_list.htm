@@ -1,0 +1,109 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_banned_ip_list_start.htm}-->
+
+<!-- 顶部 nav-tabs：复用安全设置统一的 tab 导航（页面跳转风格，禁用 Bootstrap Tab 组件）-->
+<div class=""><?php echo admin_tab_active($menu['security']['tab'], 'ip_blacklist');?></div>
+
+<div class="x-card card">
+	<div class="card-header">
+		<h5 class="mb-0"><i class="ti ti-shield-off me-2"></i><?php echo lang('admin_banned_ip_add');?></h5>
+	</div>
+	<div class="card-body">
+		<form method="post" action="<?php echo url('banned_ip-create');?>">
+			<?php echo CsrfService::input();?>
+			<div class="row g-3 align-items-end">
+				<div class="col-md-5">
+					<label class="form-label"><?php echo lang('admin_banned_ip_range');?></label>
+					<div class="form-text"><?php echo lang('ip_blacklist_cidr_format');?></div>
+					<input type="text" name="ip" class="form-control" placeholder="192.168.1.1 / 192.168.1.0/24 / 192.168.1.1-192.168.1.10" required>
+					
+				</div>
+				<div class="col-md-3">
+					<label class="form-label"><?php echo lang('admin_banned_ip_reason');?></label>
+					<input type="text" name="reason" class="form-control" placeholder="<?php echo lang('admin_banned_ip_reason_placeholder');?>">
+				</div>
+				<div class="col-md-2">
+					<label class="form-label"><?php echo lang('admin_banned_ip_duration');?></label>
+					<select name="duration" class="form-select">
+						<option value="86400"><?php echo lang('admin_banned_ip_duration_1day');?></option>
+						<option value="259200"><?php echo lang('admin_banned_ip_duration_3days');?></option>
+						<option value="604800"><?php echo lang('admin_banned_ip_duration_7days');?></option>
+						<option value="2592000"><?php echo lang('admin_banned_ip_duration_30days');?></option>
+						<option value="0" selected><?php echo lang('admin_banned_ip_permanent');?></option>
+					</select>
+				</div>
+				<div class="col-md-2">
+				<button type="submit" class="btn btn-primary"><i class="ti ti-plus me-1"></i><?php echo lang('admin_banned_ip_add');?></button>
+			</div>
+			</div>
+			
+		</form>
+	</div>
+</div>
+
+<div class="x-card card">
+	<div class="card-header d-flex justify-content-between align-items-center">
+		<h5 class="mb-0"><i class="ti ti-list me-2"></i><?php echo lang('admin_banned_ip_list');?></h5>
+		<span class="badge bg-secondary"><?php echo $n;?></span>
+	</div>
+	<div class="card-body">
+		<?php if(empty($banned_list)){ ?>
+		<div class="text-center text-body-secondary py-5">
+			<i class="ti ti-shield-off fs-1 d-block mb-2"></i>
+			<?php echo lang('admin_banned_ip_empty');?>
+		</div>
+		<?php } else { ?>
+		<div class="table-responsive">
+		<table class="table table-hover align-middle">
+			<thead>
+			<tr>
+				<th style="width:60px">#</th>
+				<th><?php echo lang('admin_banned_ip_range');?></th>
+				<th><?php echo lang('admin_banned_ip_reason');?></th>
+				<th style="min-width:130px"><?php echo lang('admin_banned_ip_create_time');?></th>
+				<th style="min-width:130px"><?php echo lang('admin_banned_ip_expire');?></th>
+				<th><?php echo lang('admin_banned_ip_admin');?></th>
+				<th style="width:80px"><?php echo lang('admin_banned_ip_op');?></th>
+			</tr>
+			</thead>
+			<tbody>
+			<?php $row_index = ($page - 1) * $pagesize; foreach($banned_list as &$_item){ $row_index++; ?>
+			<tr id="row_<?php echo esc_html($_item['ip']);?>">
+				<td class="text-body-secondary"><?php echo $row_index;?></td>
+				<td>
+					<span class="fw-medium"><?php echo esc_html($_item['ip_range_fmt']);?></span>
+					<?php if($_item['is_expired']){ ?>
+					<span class="badge bg-secondary ms-1"><?php echo lang('admin_banned_ip_expired');?></span>
+					<?php } ?>
+				</td>
+				<td class="text-body-secondary"><?php echo esc_html($_item['reason']);?></td>
+				<td class="text-body-secondary text-sm"><?php echo $_item['create_time_fmt'];?></td>
+				<td class="text-body-secondary text-sm">
+					<?php if($_item['expire_time'] == 0){ ?>
+					<span class="badge bg-danger"><?php echo $_item['expire_time_fmt'];?></span>
+					<?php } else { ?>
+					<?php echo $_item['expire_time_fmt'];?>
+					<?php } ?>
+				</td>
+				<td class="text-body-secondary"><?php echo esc_html($_item['admin_username']);?></td>
+				<td>
+					<form method="post" action="<?php echo url('banned_ip-delete');?>" style="display:inline" onsubmit="return confirm('<?php echo lang('admin_banned_ip_delete_confirm');?>');">
+						<?php echo CsrfService::input();?>
+						<input type="hidden" name="ip" value="<?php echo esc_html($_item['ip']);?>">
+						<button type="submit" class="btn btn-outline-danger btn-sm" title="<?php echo lang('delete');?>"><i class="ti ti-trash"></i></button>
+					</form>
+				</td>
+			</tr>
+			<?php } ?>
+			</tbody>
+		</table>
+		</div>
+		<nav><ul class="pagination pagination-boxed justify-content-center"><?php echo $pagination;?></ul></nav>
+		<?php } ?>
+	</div>
+</div>
+
+<!--{hook admin_banned_ip_list_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>

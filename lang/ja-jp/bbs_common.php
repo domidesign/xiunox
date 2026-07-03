@@ -527,13 +527,8 @@ return array(
 	'theme_light'=>'ライト',
 	'theme_dark'=>'ダーク',
 	'ai_provider'=>'AIプロバイダ',
-	'ai_provider_spark'=>'星火大モデル',
-	'ai_provider_wenxin'=>'文心一言',
-	'ai_provider_custom'=>'カスタム',
 	'ai_provider_tip'=>'AIプロバイダを選択し、ご自身のAPI Keyを使用してください',
 	'ai_api_key_tip'=>'API Keyは当サイトのデータベースにのみ保存され、第三者に漏洩することはありません',
-	'ai_api_url'=>'API URL',
-	'ai_api_url_tip'=>'空欄でデフォルトURLを使用。OpenAI互換のサードパーティサービスに対応',
 	'ai_model_name'=>'モデル名',
 	'ai_model_name_tip'=>'例：gpt-4o-mini、gpt-4o、deepseek-chat など',
 

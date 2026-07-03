@@ -10,7 +10,7 @@
 	<div class="card-body">
 
 		<!-- 内部 Tab 导航 -->
-		<ul class="nav nav-tabs mb-3" role="tablist">
+		<ul class="nav nav-tabs nav-tabs-scroll mb-3" role="tablist">
 			<li class="nav-item" role="presentation">
 				<button class="nav-link active" data-bs-toggle="tab" data-bs-target="#smtpPane" type="button" role="tab">
 					<i class="ti ti-mail me-1"></i><?php echo lang('smtp_server');?>
@@ -36,7 +36,7 @@
 					<?php echo CsrfService::input(); ?>
 					<div id="smtp-manager">
 						<div class="table-responsive">
-							<table class="table table-hover align-middle">
+							<table class="table table-hover align-middle table-min-w-md">
 								<thead>
 									<tr>
 										<th style="min-width:180px"><?php echo lang('email');?></th>
@@ -186,7 +186,7 @@
 				</div>
 
 				<div class="table-responsive">
-					<table class="table table-hover">
+					<table class="table table-hover table-min-w-md">
 						<thead>
 							<tr>
 								<th><?php echo lang('admin_col_id'); ?></th>

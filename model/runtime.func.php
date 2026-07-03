@@ -10,7 +10,8 @@ function runtime_init() {
 		$runtime = array();
 		$runtime['users'] = user_count();
 		$runtime['posts'] = post_count();
-		$runtime['threads'] = thread_count();
+		// 仅统计未软删且已审核通过的帖子，与 thread_create/soft_delete 的统计口径一致
+		$runtime['threads'] = thread_count(array('is_deleted'=>0, 'audit_status'=>1));
 		$runtime['posts'] -= $runtime['threads']; // 减去首帖
 		$runtime['todayusers'] = 0;
 		$runtime['todayposts'] = 0;

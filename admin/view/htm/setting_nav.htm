@@ -12,7 +12,7 @@
 			<?php echo CsrfService::input(); ?>
 
 			<!-- Tab 导航 -->
-		<ul class="nav nav-tabs mb-3" id="navTab" role="tablist">
+		<ul class="nav nav-tabs nav-tabs-scroll mb-3" id="navTab" role="tablist">
 			<li class="nav-item" role="presentation">
 				<a class="nav-link active" href="#topNav" data-nav-tab="topNav">
 					<i class="ti ti-layout-navbar me-1"></i><?php echo lang('admin_top_nav')?>
@@ -46,7 +46,7 @@
 				<!-- 顶部导航 -->
 				<div class="nav-tab-pane" id="topNavPane">
 					<div class="table-responsive">
-						<table class="table table-hover align-middle">
+						<table class="table table-hover align-middle table-min-w-lg">
 							<thead>
 								<tr>
 									<th style="width:110px"><?php echo lang('admin_col_type')?></th>
@@ -74,7 +74,7 @@
 				<!-- 左侧导航 -->
 				<div class="nav-tab-pane" id="sideNavPane" style="display:none;">
 					<div class="table-responsive">
-						<table class="table table-hover align-middle">
+						<table class="table table-hover align-middle table-min-w-lg">
 							<thead>
 								<tr>
 									<th style="width:110px"><?php echo lang('admin_col_type')?></th>
@@ -108,7 +108,7 @@
 					</div>
 					<p class="text-body-secondary small mb-3"><?php echo lang('admin_mobile_nav_desc')?></p>
 					<div class="table-responsive">
-						<table class="table table-hover align-middle">
+						<table class="table table-hover align-middle table-min-w-lg">
 							<thead>
 								<tr>
 									<th style="width:140px"><?php echo lang('admin_col_icon')?></th>
@@ -132,7 +132,7 @@
 				<div class="nav-tab-pane" id="discoverPane" style="display:none;">
 					<p class="text-body-secondary small mb-3"><?php echo lang('admin_discover_nav_desc')?></p>
 					<div class="table-responsive">
-						<table class="table table-hover align-middle">
+						<table class="table table-hover align-middle table-min-w-lg">
 							<thead>
 								<tr>
 									<th style="width:140px"><?php echo lang('admin_col_icon')?></th>
@@ -352,6 +352,37 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 	}
 
 	// ====== 侧边栏导航行（支持类型：link/title） ======
+	// 分类标题模式下，icon/slug/url 三个字段整个隐藏掉（display:none）
+	// 关键：display:none 的 input 只要不加 disabled 属性，FormData 仍会提交空值，
+	// 后端 setting.php 按 sidebar_icon 数组索引遍历不会错位
+	function applySideNavRowState(tr) {
+		var typeVal = tr.getAttribute('data-nav-type') || 'link';
+		var isTitle = (typeVal === 'title');
+		var iconInput = tr.querySelector('input[name="sidebar_icon[]"]');
+		var slugInput = tr.querySelector('input[name="sidebar_slug[]"]');
+		var urlInput  = tr.querySelector('input[name="sidebar_url[]"]');
+		var iconGroup = iconInput ? iconInput.closest('.input-group') : null;
+
+		// 切换显示的元素：icon 的整组 input-group、slug input、url input
+		[iconGroup, slugInput, urlInput].forEach(function(el) {
+			if (!el) return;
+			if (isTitle) {
+				// 备份 input 原值，切回 link 时恢复
+				if (el.tagName === 'INPUT' && el.getAttribute('data-orig-value') === null) {
+					el.setAttribute('data-orig-value', el.value);
+					el.value = '';
+				}
+				el.style.display = 'none';
+			} else {
+				el.style.display = '';
+				if (el.tagName === 'INPUT' && el.getAttribute('data-orig-value') !== null) {
+					el.value = el.getAttribute('data-orig-value');
+					el.removeAttribute('data-orig-value');
+				}
+			}
+		});
+	}
+
 	function createSideNavRow(item) {
 		var tr = document.createElement('tr');
 		var typeVal = item.type || 'link';
@@ -390,12 +421,22 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 			preview: iconPreview
 		});
 
+		// 类型切换：更新 data-nav-type 并重置字段状态
+		var typeSelect = tr.querySelector('select.sidebar-type-select');
+		typeSelect.addEventListener('change', function() {
+			tr.setAttribute('data-nav-type', this.value);
+			applySideNavRowState(tr);
+		});
+
 		// 删除
 		var deleteBtn = tr.querySelector('a[title="<?php echo lang('delete')?>"]');
 		deleteBtn.addEventListener('click', function(e) {
 			e.preventDefault();
 			tr.remove();
 		});
+
+		// 初始应用字段状态（分类标题行需立即置空只读）
+		applySideNavRowState(tr);
 
 		return tr;
 	}

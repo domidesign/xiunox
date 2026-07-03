@@ -516,9 +516,17 @@ class ReportService {
                 post_delete($target_id);
             }
         } elseif ($action === 'ban') {
-            // 封禁用户：优先使用记录中的 target_uid，兼容内容已删场景
-            if ($target_uid > 0) {
-                user_update($target_uid, ['gid' => 0]);
+            // 封禁用户：调用 UserBanService（默认禁言7天），原因取自举报内容
+            $ban_result = self::execute_ban($target_uid, $report, $handler_uid);
+            if ($ban_result['code'] !== 0) {
+                // 封禁失败（如被举报人是管理员组），回滚举报状态为待处理
+                db_update('report', ['reportid' => $reportid], [
+                    'status' => self::STATUS_PENDING,
+                    'handler_uid' => 0,
+                    'handle_result' => '',
+                    'handle_date' => 0,
+                ]);
+                return ['code' => -1, 'message' => $ban_result['message']];
             }
         } elseif ($action === 'delete_ban') {
             // 组合操作：删除内容 + 封禁作者
@@ -527,8 +535,11 @@ class ReportService {
             } elseif ($target_type === 'post') {
                 post_delete($target_id);
             }
-            if ($target_uid > 0) {
-                user_update($target_uid, ['gid' => 0]);
+            // 封禁用户：调用 UserBanService（默认禁言7天）
+            $ban_result = self::execute_ban($target_uid, $report, $handler_uid);
+            if ($ban_result['code'] !== 0) {
+                // 内容已删除不可恢复，封禁失败时举报状态保持已处理，提示管理员
+                return ['code' => 0, 'message' => '内容已删除，但封禁失败：' . $ban_result['message']];
             }
         }
         // dismiss 不执行任何操作
@@ -605,11 +616,27 @@ class ReportService {
                 if ($target_type === 'thread') thread_delete($target_id);
                 elseif ($target_type === 'post') post_delete($target_id);
             } elseif ($action === 'ban') {
-                if ($target_uid > 0) user_update($target_uid, ['gid' => 0]);
+                // 封禁用户：调用 UserBanService（默认禁言7天）
+                $ban_result = self::execute_ban($target_uid, $report, $handler_uid);
+                if ($ban_result['code'] !== 0) {
+                    // 封禁失败，回滚该条举报状态为待处理，计入失败
+                    db_update('report', ['reportid' => $report['reportid']], [
+                        'status' => self::STATUS_PENDING,
+                        'handler_uid' => 0,
+                        'handle_result' => '',
+                        'handle_date' => 0,
+                    ]);
+                    $fail++;
+                    continue;
+                }
             } elseif ($action === 'delete_ban') {
                 if ($target_type === 'thread') thread_delete($target_id);
                 elseif ($target_type === 'post') post_delete($target_id);
-                if ($target_uid > 0) user_update($target_uid, ['gid' => 0]);
+                // 封禁用户：调用 UserBanService（默认禁言7天）
+                $ban_result = self::execute_ban($target_uid, $report, $handler_uid);
+                if ($ban_result['code'] !== 0) {
+                    // 内容已删除，封禁失败计入成功（内容已处理），不回滚
+                }
             }
 
             // 收集通知对象
@@ -633,5 +660,46 @@ class ReportService {
         }
 
         return ['code' => 0, 'message' => "处理完成：成功{$success}条，失败{$fail}条"];
+    }
+
+    /**
+     * 执行封禁（调用 UserBanService，默认禁言7天）
+     * 封禁原因取自举报内容
+     *
+     * @param int $target_uid 被举报用户 uid
+     * @param array $report 举报记录
+     * @param int $handler_uid 处理管理员 uid
+     * @return array ['code'=>0 成功, 'message'=>失败原因]
+     */
+    private static function execute_ban(int $target_uid, array $report, int $handler_uid): array {
+        if ($target_uid <= 0) {
+            return ['code' => 1, 'message' => '被举报用户不存在'];
+        }
+        if (!class_exists('UserBanService')) {
+            include_once APP_PATH . 'lib/UserBanService.php';
+        }
+        $ban_reason = self::build_ban_reason($report);
+        return UserBanService::ban(
+            $target_uid,
+            UserBanService::BAN_TYPE_SILENCE,
+            604800, // 7天
+            $ban_reason,
+            $handler_uid
+        );
+    }
+
+    /**
+     * 根据举报记录构造封禁原因
+     */
+    private static function build_ban_reason(array $report): string {
+        $reason_type_text = self::REASON_TYPES[$report['reason_type']] ?? $report['reason_type'];
+        $ban_reason = '举报：' . $reason_type_text;
+        if (!empty($report['reason_text'])) {
+            $ban_reason .= ' - ' . $report['reason_text'];
+        }
+        if (mb_strlen($ban_reason) > 200) {
+            $ban_reason = mb_substr($ban_reason, 0, 200);
+        }
+        return $ban_reason;
     }
 }

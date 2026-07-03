@@ -89,7 +89,8 @@ return array (
 	'cdn_ip' => array(),
 	
 	'pagesize' => 20,
-	'postlist_pagesize' => 100,
+	// 帖子详情页每页一级评论数（不含楼中楼二级回复，二级评论跟随其父级显示，不占分页计数）
+	'postlist_pagesize' => 10,
 	'cache_thread_list_pages' => 10,
 	'online_update_span' => 120,	// 在线更新频度，大站设置的长一些
 	'online_hold_time' => 3600,	// 在线的时间
@@ -108,7 +109,10 @@ return array (
 	'login_ban_duration' => 900,
 	
 	'admin_bind_ip' => 0,		// 后台是否绑定 IP
-	
+
+	// 强制 HTTPS（1=开启，所有 HTTP 请求 301 跳转到 HTTPS）
+	'force_https' => 0,
+
 	'cdn_on' => 0,
 	
 	/* 支持多种 URL 格式：
@@ -168,6 +172,35 @@ return array (
 	// 编辑器
 	'editor' => 'aieditor',
 
+	// AI 配置：providers 全局提供商库 + features 功能配置
+	// 预置 2026 主流 AI 厂商，api_key 留空由管理员填写
+	'ai' => array (
+		// 全局提供商库（管理员维护，含 api_key）
+		'providers' => array (
+			array('name'=>'openai', 'url'=>'https://api.openai.com', 'api_key'=>'', 'models'=>'gpt-4o,gpt-4o-mini,gpt-4-turbo'),
+			array('name'=>'deepseek', 'url'=>'https://api.deepseek.com', 'api_key'=>'', 'models'=>'deepseek-chat,deepseek-reasoner'),
+			array('name'=>'glm', 'url'=>'https://open.bigmodel.cn/api/paas/v4', 'api_key'=>'', 'models'=>'glm-4-plus,glm-4-flash,glm-4-air'),
+			array('name'=>'kimi', 'url'=>'https://api.moonshot.cn', 'api_key'=>'', 'models'=>'moonshot-v1-8k,moonshot-v1-32k,moonshot-v1-128k'),
+			array('name'=>'qwen', 'url'=>'https://dashscope.aliyuncs.com/compatible-mode', 'api_key'=>'', 'models'=>'qwen-max,qwen-plus,qwen-turbo'),
+		),
+		// 功能配置（每个 AI 功能一项）
+		'features' => array (
+			'editor' => array (
+				'name' => 'AIeditor',
+				'mode' => 'user_key',			// global/user_key/both
+				'call_method' => 'frontend',	// frontend/proxy
+				'default_provider' => '',
+				'default_model' => '',
+			),
+		),
+		// 编辑器专属配置
+		'bubblePanelEnable' => true,
+		'bubblePanelModel' => 'openai',
+		'mentionEnable' => true,
+		'promptContinue' => '请根据上下文续写内容，保持风格一致',
+		'promptImprove' => '请优化以下文本的表达，使其更清晰流畅',
+	),
+
 	// 安全设置
 	'security_password_max_retries' => 5,    // 密码最大重试次数
 	'security_lockout_duration' => 900,      // 锁定时长（秒）
@@ -175,6 +208,10 @@ return array (
 	'security_email_code_interval' => 60,    // 发送验证码间隔（秒）
 	'security_email_code_daily_limit' => 5,  // 同一邮箱每日发送上限
 	'security_email_code_ip_hourly_limit' => 10, // 同一IP每小时发送上限
+
+	// 用户封禁设置
+	'ban_show_public_list' => 1,        // 是否显示封禁公示页 1=是 0=否
+	'ban_inherit_to_same_ip' => 0,      // 同IP新注册是否继承封禁状态 1=是 0=否
 
 	// 注意：version 字段运行时会被 index.php 中的 XIUNOX_VERSION 常量覆盖
 	// 真实版本号唯一来源为 version.php，修改版本号只需改 version.php
@@ -184,6 +221,7 @@ return array (
 
 	// 显示设置
 	'home_forum_ids' => array(),         // 首页版块过滤（空=显示全部）
+	'editor_tip' => '',                  // 编辑器顶部提示文字（空=不显示）
 	'default_lang' => '',                // 默认语言（空=跟随浏览器）
 	'mobile_nav_items' => array(),       // 手机底部导航（空=使用默认）
 	'mobile_nav_enable' => 0,            // 手机底部导航开关

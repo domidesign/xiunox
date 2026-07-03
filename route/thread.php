@@ -358,7 +358,24 @@ if($action == 'create') {
 		empty($forum) AND message('fid', lang('forum_not_exists'));
 
 		$r = forum_access_user($fid, $gid, 'allowthread');
-		!$r AND message(-1, lang('user_group_insufficient_privilege'));
+	!$r AND message(-1, lang('user_group_insufficient_privilege'));
+
+	// 发帖前检查 IP 黑名单（被封 IP 不能发帖）
+	include_once APP_PATH.'model/banned_ip.func.php';
+	// hook banned_ip_check.php
+	if(banned_ip_check($ip)) {
+		message(-1, lang('user_ban_ip_banned'));
+	}
+
+	// 发帖前检查封禁状态（管理员组 gid=1,2 豁免）
+	if(!class_exists('UserBanService')) { include_once APP_PATH.'lib/UserBanService.php'; }
+	if(!in_array($gid, UserBanService::ADMIN_GIDS, true)) {
+		$ban_check = UserBanService::checkBanByScene($uid, 'post');
+		// hook user_ban_check.php
+		if(!$ban_check['allowed']) {
+			message(-1, $ban_check['message']);
+		}
+	}
 
 		$subject = param('subject');
 		// 标题只允许纯文本，过滤所有HTML标签
@@ -677,22 +694,34 @@ if($action == 'create') {
 			break;
 	}
 
-	// 查询回帖（排除首帖），排序由 sort 参数控制
+	// === 两级评论分页查询 ===
+	// 一级评论：quotepid=0 或 quotepid=firstpid（直接回复主题）
+	// 二级评论：quotepid 指向其他评论（楼中楼），跟随其一级父评论显示，不占分页计数
 	// 回帖列表 60s 短缓存，使用 CacheHelper::remember + 版本号机制
 	// post_create 时递增版本号，使旧缓存自动失效
+	$_firstpid = $thread['firstpid'];
 	$_postlist_version_key = 'thread_pl_v_' . $tid;
 	$_pl_version = CacheHelper::remember($_postlist_version_key, 86400, function() {
 		return 1;
 	});
+
+	// 第一步：查一级评论（分页）
 	$_postlist_cache_key = 'thread_pl_' . $tid . '_' . $sort . '_' . $page . '_v' . $_pl_version;
-	$postlist = CacheHelper::remember($_postlist_cache_key, 60, function() use ($tid, $_orderby, $page, $pagesize) {
-		return post__find(array('tid'=>$tid, 'isfirst'=>0), $_orderby, $page, $pagesize);
+	$postlist = CacheHelper::remember($_postlist_cache_key, 60, function() use ($tid, $_firstpid, $_orderby, $page, $pagesize) {
+		return post__find(
+			array('tid'=>$tid, 'isfirst'=>0, 'quotepid'=>array(0, $_firstpid)),
+			$_orderby, $page, $pagesize
+		);
 	});
-	// 格式化回帖
+
+	// 格式化一级评论 + 楼层
 	if($postlist) {
 		$floor = ($page - 1) * $pagesize + 1;
 		foreach($postlist as &$_pf_post) {
 			$_pf_post['floor'] = $floor++;
+			$_pf_post['parent_pid'] = 0;
+			$_pf_post['reply_to_username'] = '';
+			$_pf_post['reply_to_uid'] = 0;
 			post_format($_pf_post);
 		}
 		unset($_pf_post);
@@ -726,70 +755,101 @@ if($action == 'create') {
 		$thread['is_favorited'] = !empty(thread_favorite_read($uid, $tid)) ? 1 : 0;
 	}
 
-	// 构建两级评论结构：level-1 主评论 + level-2 回复
+	// 第二步：查询二级评论（楼中楼），跟随其一级父评论显示
+	// 二级评论：quotepid 指向其他评论（非 0、非 firstpid）
+	// 递归查询最多 3 轮，覆盖"回复二级评论的二级评论"嵌套情况
 	$reply_map = array();
 	if(!empty($postlist)) {
-		// 构建 pid -> post 查找表，用于解析父级关系
-		$pid_map = array();
-		foreach($postlist as $_p) {
-			$pid_map[$_p['pid']] = $_p;
-		}
+		$_main_pids = array();
+		foreach($postlist as $_p) $_main_pids[] = $_p['pid'];
 
-		// 解析每个评论的 parent_pid 和 reply_to_username
-		foreach($postlist as &$_p) {
-			$_p['parent_pid'] = 0;
-			$_p['reply_to_username'] = '';
-			$_p['reply_to_uid'] = 0;
+		$_replies_cache_key = 'thread_pl_replies_' . $tid . '_' . md5(implode('-', $_main_pids)) . '_v' . $_pl_version;
+		$_all_replies = CacheHelper::remember($_replies_cache_key, 60, function() use ($tid, $_main_pids) {
+			$result = array();
+			$batch = $_main_pids;
+			for($i = 0; $i < 3 && !empty($batch); $i++) {
+				$found = post__find(
+					array('tid'=>$tid, 'isfirst'=>0, 'quotepid'=>$batch),
+					array('pid'=>1), 1, 1000
+				);
+				if(empty($found)) break;
+				// 记录本轮查询前已查到的 pid，用于去重
+				$_old_keys = array_keys($result);
+				foreach($found as $f) $result[$f['pid']] = $f;
+				// 下一轮查询 quotepid 指向本轮新查到的评论（嵌套回复），排除已查过的 pid 避免循环引用
+				$batch = array_diff(array_column($found, 'pid'), $_old_keys);
+			}
+			return array_values($result);
+		});
 
-			if(!empty($_p['quotepid']) && $_p['quotepid'] != $thread['firstpid']) {
-				// 递归查找 level-1 父评论
-				$_current_pid = $_p['quotepid'];
-				$_depth = 0;
-				while($_depth < 10) {
-					if(!isset($pid_map[$_current_pid])) break;
-					$_quoted = $pid_map[$_current_pid];
-					if(empty($_quoted['quotepid']) || $_quoted['quotepid'] == $thread['firstpid']) {
-						// 找到 level-1 父评论
-						$_p['parent_pid'] = $_quoted['pid'];
+		if(!empty($_all_replies)) {
+			// 待审过滤二级评论
+			if($gid == 0 || $gid > 2) {
+				foreach($_all_replies as $_rid => $_r) {
+					if(isset($_r['audit_status']) && $_r['audit_status'] != 1 && $_r['uid'] != $uid) {
+						unset($_all_replies[$_rid]);
+					}
+				}
+			}
+
+			// 构建 pid_map（包含一级和二级评论，用于解析父级关系和 reply_to_username）
+			$pid_map = array();
+			foreach($postlist as $_p) $pid_map[$_p['pid']] = $_p;
+			foreach($_all_replies as $_r) $pid_map[$_r['pid']] = $_r;
+
+			// 格式化二级评论 + 递归找一级父评论
+			foreach($_all_replies as &$_r) {
+				post_format($_r);
+				$_r['floor'] = 0; // 二级评论无楼层
+
+				// 递归查找一级父评论（沿 quotepid 链向上）
+				$_r['parent_pid'] = 0;
+				$_current = $_r['quotepid'];
+				for($d = 0; $d < 10; $d++) {
+					if(!isset($pid_map[$_current])) break;
+					$_parent = $pid_map[$_current];
+					// 一级评论判定：quotepid 为 0 或等于 firstpid
+					if(empty($_parent['quotepid']) || $_parent['quotepid'] == $_firstpid) {
+						$_r['parent_pid'] = $_parent['pid'];
 						break;
 					}
-					$_current_pid = $_quoted['quotepid'];
-					$_depth++;
+					$_current = $_parent['quotepid'];
 				}
 
-				// 设置 reply_to_username（直接回复的对象，显示昵称）
-				if(isset($pid_map[$_p['quotepid']])) {
-					$_p['reply_to_username'] = $pid_map[$_p['quotepid']]['username'] ?? '';
-					$_p['reply_to_uid'] = $pid_map[$_p['quotepid']]['uid'] ?? 0;
+				// reply_to_username（直接回复的对象）
+				$_r['reply_to_username'] = '';
+				$_r['reply_to_uid'] = 0;
+				if(isset($pid_map[$_r['quotepid']])) {
+					$_r['reply_to_username'] = $pid_map[$_r['quotepid']]['username'] ?? '';
+					$_r['reply_to_uid'] = $pid_map[$_r['quotepid']]['uid'] ?? 0;
+				}
+			}
+			unset($_r);
+
+			// 归入 reply_map（只归入父评论在当前页的二级评论）
+			foreach($_all_replies as $_r) {
+				if($_r['parent_pid'] > 0 && in_array($_r['parent_pid'], $_main_pids)) {
+					if(!isset($reply_map[$_r['parent_pid']])) {
+						$reply_map[$_r['parent_pid']] = array();
+					}
+					$reply_map[$_r['parent_pid']][] = $_r;
 				}
 			}
 		}
-		unset($_p);
+	}
 
-		// 分离 level-1 主评论和 level-2 回复
-		$main_postlist = array();
-		foreach($postlist as $_p) {
-			if(!empty($_p['parent_pid']) && $_p['parent_pid'] > 0) {
-				if(!isset($reply_map[$_p['parent_pid']])) {
-					$reply_map[$_p['parent_pid']] = array();
-				}
-				$reply_map[$_p['parent_pid']][] = $_p;
-			} else {
-				$main_postlist[] = $_p;
-			}
-		}
-		// 置顶评论排在最前面，非置顶评论保持原顺序（尊重用户选择的排序方式 hot/desc/asc）
+	// 置顶评论排在最前面，非置顶评论保持原顺序（尊重用户选择的排序方式 hot/desc/asc）
+	if(!empty($postlist)) {
 		$_top_posts = array();
 		$_normal_posts = array();
-		foreach($main_postlist as $_p) {
+		foreach($postlist as $_p) {
 			if(!empty($_p['is_top'])) {
 				$_top_posts[] = $_p;
 			} else {
 				$_normal_posts[] = $_p;
 			}
 		}
-		$main_postlist = array_merge($_top_posts, $_normal_posts);
-		$postlist = $main_postlist;
+		$postlist = array_merge($_top_posts, $_normal_posts);
 	}
 	
 	$keywordurl = '';
@@ -804,9 +864,14 @@ if($action == 'create') {
 	
 	forum_access_user($fid, $gid, 'allowread') OR message(-1, lang('user_group_insufficient_privilege'));
 
-	// 分页：只针对回帖（首帖单独获取，不参与分页）
+	// 分页：基于一级评论数（不含楼中楼二级回复），加缓存
+	// post_count 不自动过滤 is_deleted，需手动指定
+	$_main_count_cache_key = 'thread_pl_count_' . $tid . '_v' . $_pl_version;
+	$_main_count = CacheHelper::remember($_main_count_cache_key, 300, function() use ($tid, $_firstpid) {
+		return post_count(array('tid'=>$tid, 'isfirst'=>0, 'quotepid'=>array(0, $_firstpid), 'is_deleted'=>0));
+	});
 	$_sort_query = $sort != 'asc' ? '?sort=' . $sort : '';
-	$pagination = pagination(url("thread-$tid-{page}$keywordurl") . $_sort_query, $thread['posts'], $page, $pagesize);
+	$pagination = pagination(url("thread-$tid-{page}$keywordurl") . $_sort_query, $_main_count, $page, $pagesize);
 	
 	$header['title'] = $thread['subject'].'-'.$forum['name'].'-'.$conf['sitename']; 
 	//$header['mobile_title'] = lang('thread_detail');

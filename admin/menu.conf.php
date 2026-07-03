@@ -8,7 +8,6 @@ return array(
 		'tab'=> array (
 			'base'=>array('url'=>url('setting-base'), 'text'=>lang('admin_setting_base')),
 		'permalink'=>array('url'=>url('setting-permalink'), 'text'=>lang('admin_setting_permalink')),
-			'ai'=>array('url'=>url('setting-ai'), 'text'=>lang('admin_setting_ai')),
 			'smtp'=>array('url'=>url('setting-smtp'), 'text'=>lang('admin_setting_smtp')),
 			'nav'=>array('url'=>url('setting-nav'), 'text'=>lang('admin_setting_nav')),
 			'display'=>array('url'=>url('setting-display'), 'text'=>lang('admin_setting_display')),
@@ -68,6 +67,8 @@ return array(
 			'other'=>array('url'=>url('security-other'), 'text'=>lang('admin_other_settings')),
 			'captcha'=>array('url'=>url('security-captcha'), 'text'=>lang('admin_captcha_config')),
 			'words'=>array('url'=>url('security-words'), 'text'=>lang('admin_sensitive_words')),
+			'ip_blacklist'=>array('url'=>url('banned_ip-list'), 'text'=>lang('admin_banned_ip_list')),
+			'banned_user'=>array('url'=>url('banned_user-list'), 'text'=>lang('admin_banned_user_list')),
 		)
 	),
 	'log' => array(
@@ -96,6 +97,7 @@ return array(
 			'cache_setting'=>array('url'=>url('other-cache_setting'), 'text'=>lang('admin_cache_setting')),
 			'cache'=>array('url'=>url('other-cache'), 'text'=>lang('admin_other_cache')),
 			'upgrade'=>array('url'=>url('upgrade'), 'text'=>lang('admin_system_upgrade')),
+			'online_upgrade'=>array('url'=>url('online_upgrade'), 'text'=>lang('admin_online_upgrade')),
 		)
 	),
 	'notice' => array(
@@ -139,10 +141,21 @@ return array(
 		)
 	),
 	'theme' => array(
-		'url'=>url('theme-list'), 
-		'text'=>lang('admin_theme_setting_short'), 
+		'url'=>url('theme-list'),
+		'text'=>lang('admin_theme_setting_short'),
 		'icon'=>'icon-cogs',
 		'tab'=> array (
+		)
+	),
+	'ai' => array(
+		'url'=>url('ai-providers'),
+		'text'=>lang('admin_setting_ai'),
+		'icon'=>'ti-robot',
+		'tab'=> array (
+			'providers'=>array('url'=>url('ai-providers'), 'text'=>lang('admin_ai_tab_providers')),
+			'features'=>array('url'=>url('ai-features'), 'text'=>lang('admin_ai_tab_features')),
+			'logs'=>array('url'=>url('ai-logs'), 'text'=>lang('admin_ai_tab_logs')),
+			'editor'=>array('url'=>url('ai-editor'), 'text'=>lang('admin_ai_tab_editor')),
 		)
 	)
 );

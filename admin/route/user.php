@@ -15,9 +15,15 @@ if(empty($action) || $action == 'list') {
 	$srchtype = param(2);
 	$keyword  = trim(xn_urldecode(param(3)));
 	$page     = param(4, 1);
+	$ban_type_filter = param('ban_type', '');
 
 	// hook admin_user_list_start.php
-	
+
+	// 加载 UserBanService 用于获取用户封禁状态
+	if(!class_exists('UserBanService')) {
+		include_once APP_PATH.'lib/UserBanService.php';
+	}
+
 	$cond = array();
 	$allowtype = array('uid', 'username', 'nickname', 'email', 'gid', 'create_ip');
 
@@ -40,14 +46,21 @@ if(empty($action) || $action == 'list') {
 		}
 	}
 
+	// 按封禁状态筛选
+	if($ban_type_filter !== '' && function_exists('db_check_column_exists') && db_check_column_exists('user', 'ban_type')) {
+		$cond['ban_type'] = intval($ban_type_filter);
+	}
+
 	// hook admin_user_list_cond_after.php
 	$n = user_count($cond);
 	$userlist = user_find($cond, array('uid'=>-1), $page, $pagesize);
-	$pagination = pagination(url("user-list-$srchtype-".urlencode($keyword).'-{page}'), $n, $page, $pagesize);
-	$pager = pager(url("user-list-$srchtype-".urlencode($keyword).'-{page}'), $n, $page, $pagesize);
+	$ban_type_query = ($ban_type_filter !== '') ? '?ban_type='.intval($ban_type_filter) : '';
+	$pagination = pagination(url("user-list-$srchtype-".urlencode($keyword).'-{page}').$ban_type_query, $n, $page, $pagesize);
+	$pager = pager(url("user-list-$srchtype-".urlencode($keyword).'-{page}').$ban_type_query, $n, $page, $pagesize);
 
 	foreach ($userlist as &$_user) {
 		$_user['group'] = array_value($grouplist, $_user['gid'], '');
+		$_user['ban_status'] = UserBanService::getBanStatus($_user['uid']);
 	}
 
 	// hook admin_user_list_end.php
@@ -145,6 +158,20 @@ if(empty($action) || $action == 'list') {
 		$input['avatar_url'] = isset($_user['avatar_url']) ? $_user['avatar_url'] : '/view/img/avatar.png';
 		$input['avatar_val'] = intval($_user['avatar']);
 
+		// 加载封禁状态
+		if(!class_exists('UserBanService')) {
+			include_once APP_PATH.'lib/UserBanService.php';
+		}
+		$ban_status = UserBanService::getBanStatus($_uid);
+		// 封禁操作管理员用户名
+		$ban_admin_username = '';
+		if($ban_status['ban_type'] != 0 && !empty($_user['ban_admin_uid'])) {
+			$_ban_admin = user_read($_user['ban_admin_uid']);
+			$ban_admin_username = $_ban_admin ? $_ban_admin['username'] : '';
+		}
+		$ban_status['admin_username'] = $ban_admin_username;
+		$ban_status['ban_time_fmt'] = !empty($ban_status['ban_time']) ? date('Y-m-d H:i:s', $ban_status['ban_time']) : '';
+
 		// hook admin_user_update_get_end.php
 		
 		include _include(ADMIN_PATH."view/htm/user_update.htm");
@@ -230,9 +257,13 @@ if(empty($action) || $action == 'list') {
 		}
 
 		// 积分调整：通过 CreditsService 增减，自动写入日志
-		$hasCreditsChange = ($credits_action != 0 && $credits_amount > 0) || ($golds_action != 0 && $golds_amount > 0) || ($rmbs_action != 0 && $rmbs_amount > 0);
-		if($hasCreditsChange) {
-			$reason = $credits_reason ? $credits_reason : 'admin_adjust';
+	$hasCreditsChange = ($credits_action != 0 && $credits_amount > 0) || ($golds_action != 0 && $golds_amount > 0) || ($rmbs_action != 0 && $rmbs_amount > 0);
+	// 调整积分时必须填写调整理由
+	if($hasCreditsChange && !$credits_reason) {
+		message('credits_reason', lang('admin_credits_reason_required'));
+	}
+	if($hasCreditsChange) {
+		$reason = $credits_reason;
 			include_once APP_PATH . 'lib/CreditsService.php';
 			// 使用 $_SERVER['db'] 确保获取到 db 对象（避免全局变量作用域问题）
 			$_db = $_SERVER['db'];
@@ -290,7 +321,152 @@ if(empty($action) || $action == 'list') {
 	// hook admin_user_delete_end.php
 
 	message(0, lang('delete_successfully'));
-	
+
+} elseif($action == 'ban') {
+
+	// 封禁用户 - POST 处理在 header include 之前
+	if($method != 'POST') message(-1, lang('method_error'));
+
+	if(!class_exists('CsrfService')) {
+		include_once APP_PATH.'lib/CsrfService.php';
+	}
+	CsrfService::check();
+
+	if(!class_exists('UserBanService')) {
+		include_once APP_PATH.'lib/UserBanService.php';
+	}
+
+	$uid = intval(param('uid', 0));
+	$ban_type = intval(param('ban_type', 0));
+	$duration = intval(param('duration', 0));
+	$reason = param('reason', '');
+
+	global $user;
+	$admin_uid = intval($user['uid']);
+
+	$r = UserBanService::ban($uid, $ban_type, $duration, $reason, $admin_uid);
+	if($r['code'] !== 0) {
+		message(-1, isset($r['message']) ? $r['message'] : lang('user_ban_failed'));
+	}
+
+	$_user = user_read($uid);
+	$username = isset($_user['username']) ? $_user['username'] : '';
+	admin_log_create('admin_op_user_ban', 'user', strval($uid), lang('admin_user_ban_log_op').$username.' (type:'.$ban_type.',duration:'.$duration.')');
+
+	message(0, lang('user_ban_success'));
+
+} elseif($action == 'unban') {
+
+	// 解封用户 - POST 处理在 header include 之前
+	if($method != 'POST') message(-1, lang('method_error'));
+
+	if(!class_exists('CsrfService')) {
+		include_once APP_PATH.'lib/CsrfService.php';
+	}
+	CsrfService::check();
+
+	if(!class_exists('UserBanService')) {
+		include_once APP_PATH.'lib/UserBanService.php';
+	}
+
+	$uid = intval(param('uid', 0));
+	$reason = param('reason', '');
+
+	global $user;
+	$admin_uid = intval($user['uid']);
+
+	$r = UserBanService::unban($uid, $admin_uid, $reason);
+	if($r['code'] !== 0) {
+		message(-1, isset($r['message']) ? $r['message'] : lang('user_unban_failed'));
+	}
+
+	$_user = user_read($uid);
+	$username = isset($_user['username']) ? $_user['username'] : '';
+	admin_log_create('admin_op_user_unban', 'user', strval($uid), lang('admin_user_unban_log_op').$username);
+
+	message(0, lang('user_unban_success'));
+
+} elseif($action == 'clear_content') {
+
+	// 清空用户内容 - POST 处理在 header include 之前
+	if($method != 'POST') message(-1, lang('method_error'));
+
+	if(!class_exists('CsrfService')) {
+		include_once APP_PATH.'lib/CsrfService.php';
+	}
+	CsrfService::check();
+
+	if(!class_exists('UserBanService')) {
+		include_once APP_PATH.'lib/UserBanService.php';
+	}
+
+	$uid = intval(param('uid', 0));
+	$confirm = param('confirm', 0);
+
+	if(!$confirm) {
+		message(-1, lang('user_clear_content_confirm'));
+	}
+
+	global $user;
+	$admin_uid = intval($user['uid']);
+
+	$r = UserBanService::clearContent($uid, $admin_uid);
+	if($r['code'] !== 0) {
+		message(-1, isset($r['message']) ? $r['message'] : lang('user_clear_content_failed'));
+	}
+
+	$_user = user_read($uid);
+	$username = isset($_user['username']) ? $_user['username'] : '';
+	admin_log_create('admin_op_user_clear_content', 'user', strval($uid), lang('admin_user_clear_content_log_op').$username);
+
+	message(0, lang('user_clear_content_success'));
+
+} elseif($action == 'ban_log') {
+
+	// 查看封禁历史 - GET only
+	if($method != 'GET') message(-1, lang('method_error'));
+
+	$_uid = param(2, 0);
+	$page = param(3, 1);
+	$pagesize = 20;
+
+	if(!function_exists('ban_log_find_by_uid')) {
+		include_once APP_PATH.'model/ban_log.func.php';
+	}
+	if(!class_exists('UserBanService')) {
+		include_once APP_PATH.'lib/UserBanService.php';
+	}
+
+	$_user = user_read($_uid);
+	empty($_user) AND message(-1, lang('user_not_exists'));
+
+	$ban_logs = ban_log_find_by_uid($_uid, $page, $pagesize);
+	$ban_log_total = ban_log_count_by_uid($_uid);
+	$pagination = pagination(url("user-ban_log-$_uid-{page}"), $ban_log_total, $page, $pagesize);
+
+	// 预计算每条记录的标签和管理员用户名
+	$action_labels = array(
+		'ban' => array('label' => lang('admin_user_ban_log_action_ban'), 'color' => 'danger'),
+		'unban' => array('label' => lang('admin_user_ban_log_action_unban'), 'color' => 'success'),
+		'auto_unban' => array('label' => lang('admin_user_ban_log_action_auto_unban'), 'color' => 'secondary'),
+		'clear_content' => array('label' => lang('admin_user_ban_log_action_clear_content'), 'color' => 'warning'),
+	);
+
+	foreach($ban_logs as &$_log) {
+		$_admin = user_read($_log['admin_uid']);
+		$_log['admin_username'] = $_admin ? $_admin['username'] : lang('admin_user_ban_log_system');
+		$_log['action_label'] = isset($action_labels[$_log['action']]) ? $action_labels[$_log['action']]['label'] : $_log['action'];
+		$_log['action_color'] = isset($action_labels[$_log['action']]) ? $action_labels[$_log['action']]['color'] : 'secondary';
+		$_log['type_label'] = UserBanService::getBanTypeLabel($_log['ban_type']);
+		$_log['duration_formatted'] = UserBanService::formatDuration($_log['duration']);
+		$_log['create_time_fmt'] = date('Y-m-d H:i:s', $_log['create_time']);
+	}
+
+	$header['title'] = lang('admin_user_ban_log_title') . ' - ' . $_user['username'];
+	$header['mobile_title'] = lang('admin_user_ban_log_title');
+
+	include _include(ADMIN_PATH."view/htm/user_ban_log.htm");
+
 }
 
 // hook admin_user_end.php

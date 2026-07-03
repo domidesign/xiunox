@@ -11,6 +11,11 @@
 // 使用 include_once 防止与 index.inc.php 重复加载导致类重声明
 include_once APP_PATH.'lib/ServiceRegistry.php';
 
+// AIService 按需加载兜底（正常已在 xiunophp.php 中 include，此处防止特殊场景未加载）
+if (!class_exists('AIService')) {
+	include_once APP_PATH.'lib/AIService.php';
+}
+
 $include_model_files = array (
 	APP_PATH.'model/kv.func.php',
 	APP_PATH.'model/queue.func.php',

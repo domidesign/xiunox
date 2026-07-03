@@ -1829,10 +1829,10 @@ function xn_html_purify($html, $config = array()) {
     if (class_exists('HTMLPurifier_HTML5Config')) {
         // 使用 HTML5 配置，支持 video/audio/source 等 HTML5 元素
         $purifierConfig = HTMLPurifier_HTML5Config::createDefault();
-        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,ins,mark,dl,dt,dd,video[controls|preload|class|style|width|height],source[src|type],audio[controls|preload|class|style],figure,figcaption,iframe[src|width|height|frameborder|class|style]');
+        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height|style],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,ins,mark,dl,dt,dd,video[src|controls|preload|class|style|width|height],source[src|type],audio[controls|preload|class|style],figure,figcaption,iframe[src|width|height|frameborder|class|style]');
         $purifierConfig->set('Attr.AllowedFrameTargets', array('_blank', '_self', '_parent', '_top'));
         $purifierConfig->set('Attr.AllowedRel', array('noopener', 'noreferrer', 'nofollow'));
-        $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,height,border');
+        $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,max-width,height,border');
         $purifierConfig->set('URI.AllowedSchemes', array('http' => true, 'https' => true, 'mailto' => true));
         $purifierConfig->set('AutoFormat.RemoveEmpty', false);
         // 允许 iframe，从后台安全设置读取白名单构建正则
@@ -1871,10 +1871,10 @@ function xn_html_purify($html, $config = array()) {
     }
     if (class_exists('HTMLPurifier', false)) {
         $purifierConfig = HTMLPurifier_Config::createDefault();
-        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style|data-type|data-params],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,ins,mark,dl,dt,dd,iframe[src|width|height|frameborder|class|style]');
+        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height|style],video[src|controls|preload|width|style],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style|data-type|data-params],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,ins,mark,dl,dt,dd,iframe[src|width|height|frameborder|class|style]');
         $purifierConfig->set('Attr.AllowedFrameTargets', array('_blank', '_self', '_parent', '_top'));
         $purifierConfig->set('Attr.AllowedRel', array('noopener', 'noreferrer', 'nofollow'));
-        $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,height,border');
+        $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,max-width,height,border');
         $purifierConfig->set('URI.AllowedSchemes', array('http' => true, 'https' => true, 'mailto' => true));
         $purifierConfig->set('AutoFormat.RemoveEmpty', false);
         // 允许 iframe，从后台安全设置读取白名单构建正则
@@ -1890,6 +1890,15 @@ function xn_html_purify($html, $config = array()) {
             $def->addAttribute('span', 'data-id', 'Text');
             $def->addAttribute('span', 'data-label', 'Text');
             $def->addAttribute('iframe', 'allowfullscreen', 'Bool');
+            // 注册 video 元素：默认 HTMLPurifier 不支持 HTML5 video 标签
+            // ponytail: 用 Empty 内容模型，video 内的回退文本会被移除，但 video 标签本身和属性保留
+            $def->addElement('video', 'Flow', 'Empty', 'Common', array(
+                'src' => new HTMLPurifier_AttrDef_URI(true),
+                'controls' => 'Bool#controls',
+                'preload' => 'Enum#auto,metadata,none',
+                'width' => 'Length',
+            ));
+            $def->addElementToContentSet('video', 'Inline');
         }
         if (!empty($config)) {
             foreach ($config as $key => $value) {

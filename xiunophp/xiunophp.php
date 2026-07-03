@@ -136,6 +136,11 @@ if($db && isset($conf['charset']) && $conf['charset'] !== 'utf8mb4') {
 include APP_PATH.'lib/CacheService.php';
 // 加载缓存辅助类（提供 remember/pluginKey/deleteByPrefix 等便捷 API）
 include APP_PATH.'lib/CacheHelper.php';
+// 加载 AI 调用中台（统一 AI 入口，支持 global/user_key/both 三种模式）
+include APP_PATH.'lib/AIService.php';
+// 加载轻量事件机制（插件通过 XnEvent::on 注册监听器，核心代码 XnEvent::trigger 触发）
+// 零依赖，可在框架启动最早期加载，确保插件在 model_inc_start 等 hook 中即可注册监听器
+include APP_PATH.'lib/XnEvent.php';
 // 每个请求结束时自动持久化缓存统计，供后台页面读取跨请求累积的命中率
 register_shutdown_function(array('CacheHelper', 'persistStats'));
 $cache = CacheService::earlyInit();

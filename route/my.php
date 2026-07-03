@@ -266,6 +266,16 @@ if(empty($action)) {
 
 } elseif($action == 'password') {
 
+	// 改密前检查封禁状态（锁定用户禁止改密，管理员组 gid=1,2 豁免）
+	if(!class_exists('UserBanService')) { include_once APP_PATH.'lib/UserBanService.php'; }
+	if(!in_array(intval($gid), UserBanService::ADMIN_GIDS, true)) {
+		$ban_check = UserBanService::checkBanByScene($uid, 'password');
+		// hook user_ban_check.php
+		if(!$ban_check['allowed']) {
+			message(-1, $ban_check['message']);
+		}
+	}
+
 	if($method == 'POST') {
 
 		CsrfService::check();
@@ -567,9 +577,15 @@ if(empty($action)) {
 		$size > 40000 AND message(-1, lang('filesize_too_large', array('maxsize'=>'40K', 'size'=>$size)));
 
 		// hook my_avatar_post_save_before.php
+		// base64 数据先写入临时文件，再走 image_thumb 重新编码（剥离图片马）
+		$tmpfile_b64 = $path.$uid.'_tmp_'.$time.'.jpg';
+		file_put_contents($tmpfile_b64, $data) OR message(-1, lang('write_to_file_failed'));
+
 		// 需要审核时保存到临时文件，避免覆盖当前头像
 		$save_destfile_b64 = $need_profile_audit ? ($path.$uid.'_pending_'.$time.'.jpg') : $destfile;
-		file_put_contents($save_destfile_b64, $data) OR message(-1, lang('write_to_file_failed'));
+		$thumb_result_b64 = image_thumb($tmpfile_b64, $save_destfile_b64, 256, 256);
+		@unlink($tmpfile_b64);
+		empty($thumb_result_b64['filesize']) AND message(-1, lang('image_process_failed'));
 
 		if($need_profile_audit) {
 			// 需要审核：记录到审核表，暂不更新头像
@@ -633,16 +649,44 @@ if(empty($action)) {
 
 	$active_tab = 'ai';
 
+	// 初始化 AIService
+	if (!class_exists('AIService')) include_once APP_PATH . 'lib/AIService.php';
+	$aiService = new AIService($db, $conf);
+
 	// 从后台配置读取 AI 提供商列表
 	$ai_providers = !empty($conf['ai']['providers']) ? $conf['ai']['providers'] : [];
 
-	if($method == 'GET') {
-
-		$ai_config = [];
-		if(!empty($user['ai_config'])) {
-			$ai_config = json_decode($user['ai_config'], true);
-			if(!is_array($ai_config)) $ai_config = [];
+	// 取所有需要用户配置的功能（mode 为 user_key 或 both 的）
+	// mode=global 的功能由系统提供，用户无需填写，不传给前台
+	$ai_features_for_user = [];
+	$conf_features = !empty($conf['ai']['features']) ? $conf['ai']['features'] : [];
+	$has_global_feature = false;  // 是否存在系统提供的功能（用于前台提示）
+	foreach ($conf_features as $key => $feature) {
+		$mode = isset($feature['mode']) ? $feature['mode'] : 'user_key';
+		if ($mode === 'user_key' || $mode === 'both') {
+			$ai_features_for_user[$key] = $feature;
+		} elseif ($mode === 'global') {
+			$has_global_feature = true;
 		}
+	}
+	// 仅在后台完全没有 features 配置时才 fallback 显示 editor（首次安装未配置场景）
+	// 不能因为所有功能都是 global 就 fallback，否则用户在后台选了 global 后前台仍被要求填 key
+	if (empty($ai_features_for_user) && empty($conf_features)) {
+		$ai_features_for_user = ['editor' => ['name' => 'AIeditor', 'mode' => 'user_key', 'call_method' => 'frontend']];
+	}
+
+	// 读取用户配置（含旧数据自动迁移）
+	$user_ai_config = [];
+	if (!empty($user['ai_config'])) {
+		$raw = json_decode($user['ai_config'], true);
+		if (is_array($raw)) $user_ai_config = $raw;
+		// 旧版单层结构检测：有顶层 provider_name 但没有 editor 等功能 key
+		if (!empty($raw['provider_name']) && !isset($raw['editor'])) {
+			$user_ai_config = ['editor' => $raw];
+		}
+	}
+
+	if($method == 'GET') {
 
 		include _include(APP_PATH.'view/htm/my_ai.htm');
 
@@ -652,42 +696,62 @@ if(empty($action)) {
 
 		// hook my_ai_setting_post_start.php
 
-		$provider_name = param('ai_provider');
-		$apikey = param('ai_apikey');
-		$model = param('ai_model');
-		$ai_prompt_continue = param('ai_prompt_continue', '', false);
-		$ai_prompt_improve = param('ai_prompt_improve', '', false);
+		// 遍历所有需要用户配置的功能，收集表单数据（字段 name 加功能 key 前缀）
+		$new_config = $user_ai_config;  // 保留其他功能配置
+		foreach ($ai_features_for_user as $key => $feature) {
+			$mode = isset($feature['mode']) ? $feature['mode'] : 'user_key';
 
-		empty($provider_name) AND message(-1, lang('please_select_ai_provider'));
-		empty($apikey) AND message(-1, lang('please_input_ai_apikey'));
-
-		// 根据选择的提供商名称从后台配置中读取 URL
-		$url = '';
-		if(!empty($ai_providers) && is_array($ai_providers)) {
-			foreach($ai_providers as $provider) {
-				if(!empty($provider['name']) && $provider['name'] == $provider_name) {
-					$url = $provider['url'] ?? '';
-					break;
+			// both 模式：检查用户是否选「用系统默认」
+			if ($mode === 'both') {
+				$use_default = param($key . '_use_default', 0);
+				if ($use_default) {
+					// 用系统默认，清空该功能的用户配置
+					unset($new_config[$key]);
+					continue;
 				}
 			}
+
+			// 收集该功能的配置（apiKey/prompt 关闭 htmlspecialchars）
+			$provider_name = param($key . '_ai_provider');
+			$apikey = param($key . '_ai_apikey', '', FALSE);
+			$model = param($key . '_ai_model');
+			$prompt_continue = param($key . '_ai_prompt_continue', '', FALSE);
+			$prompt_improve = param($key . '_ai_prompt_improve', '', FALSE);
+
+			// user_key 模式必填校验
+			if ($mode === 'user_key') {
+				empty($provider_name) AND message(-1, lang('please_select_ai_provider'));
+				empty($apikey) AND message(-1, lang('please_input_ai_apikey'));
+			}
+
+			// 根据 provider_name 查 url
+			$url = '';
+			if (!empty($ai_providers) && is_array($ai_providers)) {
+				foreach ($ai_providers as $provider) {
+					if (!empty($provider['name']) && $provider['name'] == $provider_name) {
+						$url = isset($provider['url']) ? $provider['url'] : '';
+						break;
+					}
+				}
+			}
+
+			$feature_config = [
+				'provider_name' => $provider_name,
+				'apiKey' => $apikey,
+				'model' => $model,
+				'url' => $url,
+			];
+			if (!empty($prompt_continue)) $feature_config['promptContinue'] = $prompt_continue;
+			if (!empty($prompt_improve)) $feature_config['promptImprove'] = $prompt_improve;
+
+			$new_config[$key] = $feature_config;
 		}
 
-		$ai_config = [
-			'provider_name' => $provider_name,
-			'apiKey' => $apikey,
-			'model' => $model,
-			'url' => $url,
-		];
-
-		// 保存用户自定义 prompt
-		if(!empty($ai_prompt_continue)) $ai_config['promptContinue'] = $ai_prompt_continue;
-		if(!empty($ai_prompt_improve)) $ai_config['promptImprove'] = $ai_prompt_improve;
-
-		user_update($uid, ['ai_config' => json_encode($ai_config)]);
+		user_update($uid, ['ai_config' => json_encode($new_config)]);
 
 		// hook my_ai_setting_post_end.php
 
-		message(0, lang('save_successfully'));
+		message(0, lang('ai_save_success'));
 	}
 
 } elseif($action == 'credits') {

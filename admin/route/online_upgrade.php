@@ -1,0 +1,120 @@
+<?php
+
+!defined('DEBUG') AND exit('Access Denied');
+
+$action = param(1, '');
+
+include APP_PATH . 'lib/OnlineUpgradeService.php';
+$onlineUpgradeService = new OnlineUpgradeService($db, $conf);
+
+// hook admin_online_upgrade_start.php
+
+if($action == 'check') {
+    // 检查最新版本
+    $result = $onlineUpgradeService->checkLatestVersion();
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($result, JSON_UNESCAPED_UNICODE);
+    exit;
+
+} elseif($action == 'preflight') {
+    // 前置检查
+    $result = $onlineUpgradeService->preflight();
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($result, JSON_UNESCAPED_UNICODE);
+    exit;
+
+} elseif($action == 'run_step') {
+    // 执行单个升级步骤
+    $step = param('step', '');
+    if(empty($step)) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'message' => 'Step required'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $result = ['ok' => false, 'message' => '未知步骤：' . $step];
+
+    switch($step) {
+        case 'maintenance_on':
+            $result = $onlineUpgradeService->maintenanceOn(intval($uid));
+            break;
+        case 'backup':
+            $result = $onlineUpgradeService->backup();
+            break;
+        case 'download':
+            // 从 session 或临时文件获取版本信息
+            $versionInfo = $onlineUpgradeService->checkLatestVersion();
+            if(!$versionInfo['ok']) {
+                $result = $versionInfo;
+                break;
+            }
+            $result = $onlineUpgradeService->download($versionInfo['zip_url'], $versionInfo['latest_version']);
+            break;
+        case 'extract':
+            // 找到已下载的 zip 文件
+            $zipFiles = glob(APP_PATH . 'tmp/upgrade_*.zip');
+            if(empty($zipFiles)) {
+                $result = ['ok' => false, 'message' => '未找到升级包，请先执行下载步骤'];
+                break;
+            }
+            $zipPath = end($zipFiles); // 取最新的
+            $result = $onlineUpgradeService->extractAndOverwrite($zipPath);
+            break;
+        case 'db_upgrade':
+            $result = $onlineUpgradeService->runDbUpgrade();
+            break;
+        case 'cleanup':
+            $result = $onlineUpgradeService->cleanup();
+            break;
+        case 'maintenance_off':
+            $result = $onlineUpgradeService->maintenanceOff();
+            break;
+        default:
+            $result = ['ok' => false, 'message' => '未知步骤：' . $step];
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($result, JSON_UNESCAPED_UNICODE);
+    exit;
+
+} elseif($action == 'rollback') {
+    // 一键回滚
+    $result = $onlineUpgradeService->rollback();
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($result, JSON_UNESCAPED_UNICODE);
+    exit;
+
+} elseif($action == 'reinstall') {
+    // 重装当前版本
+    $result = $onlineUpgradeService->reinstall();
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($result, JSON_UNESCAPED_UNICODE);
+    exit;
+
+} else {
+    // 默认页面 - 升级主页
+    $header['title'] = lang('admin_online_upgrade_title');
+    $header['mobile_title'] = lang('admin_online_upgrade');
+
+    // 获取当前版本和最新版本信息（初始为空，由前端 AJAX 获取）
+    $currentVersion = $conf['version'] ?? '0.0.0';
+    $latestVersion = '';
+    $hasUpdate = false;
+
+    // 步骤列表
+    $steps = array(
+        array('id' => 'maintenance_on', 'name' => lang('admin_online_upgrade_step_maintenance_on'), 'description' => lang('admin_online_upgrade_step_maintenance_on_desc')),
+        array('id' => 'backup', 'name' => lang('admin_online_upgrade_step_backup'), 'description' => lang('admin_online_upgrade_step_backup_desc')),
+        array('id' => 'download', 'name' => lang('admin_online_upgrade_step_download'), 'description' => lang('admin_online_upgrade_step_download_desc')),
+        array('id' => 'extract', 'name' => lang('admin_online_upgrade_step_extract'), 'description' => lang('admin_online_upgrade_step_extract_desc')),
+        array('id' => 'db_upgrade', 'name' => lang('admin_online_upgrade_step_db_upgrade'), 'description' => lang('admin_online_upgrade_step_db_upgrade_desc')),
+        array('id' => 'cleanup', 'name' => lang('admin_online_upgrade_step_cleanup'), 'description' => lang('admin_online_upgrade_step_cleanup_desc')),
+        array('id' => 'maintenance_off', 'name' => lang('admin_online_upgrade_step_maintenance_off'), 'description' => lang('admin_online_upgrade_step_maintenance_off_desc')),
+    );
+
+    include _include(ADMIN_PATH.'view/htm/online_upgrade.htm');
+}
+
+// hook admin_online_upgrade_end.php
+
+?>

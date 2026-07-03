@@ -23,7 +23,11 @@
 			</li> -->
 			<?php } else { foreach($postlist as $_post) { ?>
 					<li class="d-flex <?php echo $_post['classname'];?>" data-pid="<?php echo $_post['pid'];?>" data-uid="<?php echo $_post['uid'];?>">
-						<div class="me-3 flex-shrink-0">
+					<?php
+					// 被封禁作者内容隐藏：作者 ban_type>0 且当前用户非管理员(gid=1,2)且非作者本人
+					$_author_banned = (isset($_post['user']['ban_type']) ? intval($_post['user']['ban_type']) : 0) > 0 && !($gid == 1 || $gid == 2) && (empty($uid) || $uid != $_post['uid']);
+					?>
+					<div class="me-3 flex-shrink-0">
 							<a href="<?php echo user_url($_post['uid']);?>" tabindex="-1">
 								<?php echo avatar_component_from_data($_post['user_avatar_url'], 'md', isset($_post['group_icon_class']) ? $_post['group_icon_class'] : '', isset($_post['group_color']) ? $_post['group_color'] : '', isset($_post['gid']) ? $_post['gid'] : 0);?>
 							</a>
@@ -33,9 +37,10 @@
 							<div class="small text-body-secondary">
 								<!--{hook post_list_inc_username_before.htm}-->
 								<span class="username">
-								<a href="<?php echo user_url($_post['uid']);?>" class="text-body-secondary fw-semibold"><?php echo $_post['username'];?></a>
-								<!-- <span class="text-body-tertiary ms-1" style="font-size:0.85em">#<?php echo $_post['uid'];?></span> -->
-							</span>
+							<a href="<?php echo user_url($_post['uid']);?>" class="text-body-secondary fw-semibold"><?php echo $_post['username'];?></a>
+							<?php echo user_ban_badge_html($_post['user']);?>
+							<!-- <span class="text-body-tertiary ms-1" style="font-size:0.85em">#<?php echo $_post['uid'];?></span> -->
+						</span>
 							<!--{hook post_list_inc_username_after.htm}-->
 								<?php if(!empty($_post['group_name'])): ?>
 							<span class="badge bg-primary bg-opacity-10 text-primary "  ><?php echo $_post['group_name'];?></span>
@@ -92,19 +97,23 @@
 							</div>
 							<?php endif; ?>
 							<?php
-							// 用户中心回帖列表：截断长内容，移除引用块
-							$_msg = $_post['message_fmt'];
+							if($_author_banned) {
+								echo user_ban_hidden_notice_html();
+							} else {
+								// 用户中心回帖列表：截断长内容，移除引用块
+								$_msg = $_post['message_fmt'];
 								if(!empty($is_user_post_list)) {
 									$_msg = preg_replace('#<blockquote\s+class="blockquote"[^>]*>.*?</blockquote>#is', '', $_msg);
 									$_msg = xn_substr(trim(strip_tags($_msg, '<br><p><a><strong><em><code><span>')), 0, 200);
 									if(xn_strlen($_msg) >= 200) $_msg .= '...';
 								}
 								echo $_msg;
-								?>
+							}
+							?>
 								<!--{hook post_list_inc_message_after.htm}-->
 
 								<!--{hook post_list_inc_filelist_before.htm}-->
-								<?php echo post_file_list_html($_post['filelist'], FALSE, $_post['imagelist'], $_post['videolist']);?>
+								<?php if(!$_author_banned) echo post_file_list_html($_post['filelist'], FALSE, $_post['imagelist'], $_post['videolist']);?>
 								<!--{hook post_list_inc_filelist_after.htm}-->
 
 							</div>
@@ -154,9 +163,12 @@
 
 									<!--{hook post_list_inc_delete_before.htm}-->
 									<?php if($allowdelete || ($_post['allowdelete'] && $sec_allow_delete_reply)) { ?>
-									<a data-href="<?php echo post_delete_url($_post['pid']);?>" data-uid="<?php echo intval($_post['uid']);?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm"><i class="ti ti-trash"></i></a>
-									<?php } ?>
-									<!--{hook post_list_inc_delete_after.htm}-->
+								<a data-href="<?php echo post_delete_url($_post['pid']);?>" data-uid="<?php echo intval($_post['uid']);?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm"><i class="ti ti-trash"></i></a>
+								<?php } ?>
+								<!--{hook post_list_inc_delete_after.htm}-->
+								<?php if(!empty($_allow_ban_user) && $_post['uid'] != $uid): ?>
+								<a href="javascript:void(0);" class="text-body-secondary user-ban-btn" data-uid="<?php echo intval($_post['uid']);?>" data-username="<?php echo esc_attr($_post['username']);?>" title="<?php echo lang('user_ban_button');?>"><i class="ti ti-ban"></i></a>
+								<?php endif; ?>
 
 								<?php if(($allowdelete || (!empty($thread) && $uid == $thread['uid'])) && empty($_post['isfirst'])): ?>
 								<a href="javascript:void(0);" class="text-body-secondary post_top_btn" data-pid="<?php echo $_post['pid'];?>" data-tid="<?php echo $_post['tid'];?>" data-is-top="<?php echo intval($_post['is_top']);?>" data-mod-url="<?php echo mod_top_post_url();?>"><i class="ti ti-pin"></i> <?php echo !empty($_post['is_top']) ? lang('untop') : lang('post_top_label');?></a>
@@ -194,6 +206,9 @@
 								<div class="reply-extra d-none" data-pid="<?php echo $_post['pid'];?>">
 								<?php endif; ?>
 								<div class="d-flex mb-2 <?php echo $_reply['classname'];?>" data-pid="<?php echo $_reply['pid'];?>" data-uid="<?php echo $_reply['uid'];?>">
+									<?php
+									$_reply_banned = (isset($_reply['user']['ban_type']) ? intval($_reply['user']['ban_type']) : 0) > 0 && !($gid == 1 || $gid == 2) && (empty($uid) || $uid != $_reply['uid']);
+									?>
 									<div class="me-2 flex-shrink-0">
 										<a href="<?php echo user_url($_reply['uid']);?>" tabindex="-1">
 											<?php echo avatar_component_from_data($_reply['user_avatar_url'], 'sm', isset($_reply['group_icon_class']) ? $_reply['group_icon_class'] : '', isset($_reply['group_color']) ? $_reply['group_color'] : '', isset($_reply['gid']) ? $_reply['gid'] : 0);?>
@@ -203,6 +218,7 @@
 										<div class="small text-body-secondary">
 											<span class="username">
 											<a href="<?php echo user_url($_reply['uid']);?>" class="text-body-secondary fw-semibold small"><?php echo $_reply['username'];?></a>
+											<?php echo user_ban_badge_html($_reply['user']);?>
 											<!-- <span class="text-body-tertiary ms-1" style="font-size:0.85em">#<?php echo $_reply['uid'];?></span> -->
 										</span>
 										<?php if(!empty($_reply['group_name'])): ?>
@@ -220,7 +236,7 @@
 											<span class="text-body-secondary small"><?php echo lang('colon_separator'); ?></span>
 											<?php } ?>
 										</div>
-										<div class="small"><?php echo preg_replace('#<blockquote\s+class="blockquote"[^>]*>.*?</blockquote>#is', '', $_reply['message_fmt']);?></div>
+										<div class="small"><?php if($_reply_banned) { echo user_ban_hidden_notice_html(); } else { echo preg_replace('#<blockquote\s+class="blockquote"[^>]*>.*?</blockquote>#is', '', $_reply['message_fmt']); } ?></div>
 										<div class="d-flex justify-content-between align-items-center mt-1">
 											<span class="date text-body-secondary" style="font-size:0.75em"><?php echo $_reply['create_date_fmt'];?></span>
 											<div class="d-flex align-items-center gap-2">
@@ -239,6 +255,9 @@
 											<a data-href="<?php echo post_delete_url($_reply['pid']);?>" data-uid="<?php echo intval($_reply['uid']);?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm" style="font-size:0.8em"><i class="ti ti-trash"></i></a>
 											<?php } ?>
 											<!--{hook post_list_inc_reply_delete_after.htm}-->
+											<?php if(!empty($_allow_ban_user) && $_reply['uid'] != $uid): ?>
+											<a href="javascript:void(0);" class="text-body-secondary user-ban-btn" data-uid="<?php echo intval($_reply['uid']);?>" data-username="<?php echo esc_attr($_reply['username']);?>" title="<?php echo lang('user_ban_button');?>" style="font-size:0.8em"><i class="ti ti-ban"></i></a>
+											<?php endif; ?>
 											<?php if($gid > 0 && $gid < 5 && isset($_reply['audit_status']) && $_reply['audit_status'] != 1): ?>
 												<a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_reply['pid'];?>" data-audit-status="1" data-mod-url="<?php echo mod_audit_post_url();?>" style="font-size:0.8em"><i class="ti ti-check"></i>  </a>
 												<!-- <a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_reply['pid'];?>" data-audit-status="2" data-mod-url="<?php echo mod_audit_post_url();?>" style="font-size:0.8em"><i class="ti ti-x"></i> <?php echo lang('audit_reject');?></a> -->

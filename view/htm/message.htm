@@ -14,37 +14,143 @@ $_toast_type = ($code == 0) ? 'success' : 'danger';
 // 成功消息已由 message() 函数 303 重定向，此处仅处理错误消息
 $_need_redirect = !empty($_redirect_url);
 $_back_url = !empty($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '/';
+
+// 站点访问限制（runlevel）提示页配置：根据 runlevel + 用户角色 显示不同图标/文案/操作按钮
+$_rl = isset($conf['runlevel']) ? intval($conf['runlevel']) : 5;
+$_is_guest = empty($gid) || $gid == 0;
+$_rl_icon = 'ti-info-circle';
+$_rl_color = 'warning';
+$_rl_title = '';
+$_rl_desc = '';
+$_rl_buttons = array();
+$_login_url = function_exists('url') ? url('user-login') : '/user-login.htm';
+$_register_url = function_exists('url') ? url('user-create') : '/user-create.htm';
+$_home_url = function_exists('url') ? url('index') : '/';
+
+if($_rl == 0) {
+	// 站点关闭：所有人（除管理员）都被拦截
+	$_rl_icon = 'ti-tools'; $_rl_color = 'warning';
+	$_rl_title = lang('runlevel_0');
+	$_rl_desc = lang('runlevel_reson_0');
+	$_rl_buttons[] = array('cls'=>'btn-primary', 'icon'=>'ti-refresh', 'text'=>lang('reload'), 'onclick'=>'location.reload()');
+} elseif($_rl == 1) {
+	// 管理员可读写：普通用户被拦截
+	$_rl_icon = 'ti-lock'; $_rl_color = 'warning';
+	$_rl_title = lang('runlevel_1');
+	$_rl_desc = lang('runlevel_reson_1');
+	$_rl_buttons[] = array('cls'=>'btn-primary', 'icon'=>'ti-refresh', 'text'=>lang('reload'), 'onclick'=>'location.reload()');
+} elseif($_rl == 2) {
+	// 会员只读：游客完全拦截，会员仅 POST 被拦截
+	if($_is_guest) {
+		$_rl_icon = 'ti-lock-access'; $_rl_color = 'info';
+		$_rl_title = lang('runlevel_action_login');
+		$_rl_desc = lang('runlevel_reson_2');
+		$_rl_buttons[] = array('cls'=>'btn-primary', 'icon'=>'ti-login', 'text'=>lang('login'), 'onclick'=>"location.href='".htmlspecialchars($_login_url, ENT_QUOTES, 'UTF-8')."'");
+		$_rl_buttons[] = array('cls'=>'btn-outline-secondary', 'icon'=>'ti-user-plus', 'text'=>lang('register'), 'onclick'=>"location.href='".htmlspecialchars($_register_url, ENT_QUOTES, 'UTF-8')."'");
+	} else {
+		$_rl_icon = 'ti-eye'; $_rl_color = 'info';
+		$_rl_title = lang('runlevel_2');
+		$_rl_desc = lang('runlevel_reson_2_member');
+		$_rl_buttons[] = array('cls'=>'btn-outline-secondary', 'icon'=>'ti-arrow-left', 'text'=>lang('back'), 'onclick'=>"if(window.history.length>1){history.back();}else{location.href='".htmlspecialchars($_home_url, ENT_QUOTES, 'UTF-8')."';}");
+	}
+} elseif($_rl == 3) {
+	// 会员可读写：游客被拦截
+	$_rl_icon = 'ti-user'; $_rl_color = 'info';
+	$_rl_title = lang('runlevel_action_login');
+	$_rl_desc = lang('runlevel_reson_3');
+	$_rl_buttons[] = array('cls'=>'btn-primary', 'icon'=>'ti-login', 'text'=>lang('login'), 'onclick'=>"location.href='".htmlspecialchars($_login_url, ENT_QUOTES, 'UTF-8')."'");
+	$_rl_buttons[] = array('cls'=>'btn-outline-secondary', 'icon'=>'ti-user-plus', 'text'=>lang('register'), 'onclick'=>"location.href='".htmlspecialchars($_register_url, ENT_QUOTES, 'UTF-8')."'");
+} elseif($_rl == 4) {
+	// 所有人只读：仅 POST 被拦截
+	$_rl_icon = 'ti-eye-off'; $_rl_color = 'info';
+	$_rl_title = lang('runlevel_4');
+	$_rl_desc = lang('runlevel_reson_4');
+	$_rl_buttons[] = array('cls'=>'btn-outline-secondary', 'icon'=>'ti-arrow-left', 'text'=>lang('back'), 'onclick'=>"if(window.history.length>1){history.back();}else{location.href='".htmlspecialchars($_home_url, ENT_QUOTES, 'UTF-8')."';}");
+}
+// runlevel=5（所有人可读写）或未设置：不触发提示页
+$_is_runlevel_block = ($_rl >= 0 && $_rl <= 4);
+
+// 业务错误分类：仅对权限不足/需要登录/帖子已关闭类做卡片化，其他业务错误保留简陋样式
+$_is_card_error = false;
+$_err_icon = ''; $_err_color = ''; $_err_title = ''; $_err_desc = ''; $_err_buttons = array();
+if($code != 0 && !$_need_redirect && is_string($message)) {
+	if($_clean_msg === lang('please_login') || $_clean_msg === lang('unauthorized_access')) {
+		// 需要登录类
+		$_is_card_error = true;
+		$_err_icon = 'ti-user'; $_err_color = 'info';
+		$_err_title = lang('please_login');
+		$_err_desc = '';
+		$_err_buttons[] = array('cls'=>'btn-primary', 'icon'=>'ti-login', 'text'=>lang('login'), 'onclick'=>"location.href='".htmlspecialchars($_login_url, ENT_QUOTES, 'UTF-8')."'");
+		$_err_buttons[] = array('cls'=>'btn-outline-secondary', 'icon'=>'ti-user-plus', 'text'=>lang('register'), 'onclick'=>"location.href='".htmlspecialchars($_register_url, ENT_QUOTES, 'UTF-8')."'");
+	} elseif($_clean_msg === lang('thread_has_already_closed')) {
+		// 帖子已关闭
+		$_is_card_error = true;
+		$_err_icon = 'ti-lock'; $_err_color = 'warning';
+		$_err_title = lang('thread_has_already_closed');
+		$_err_desc = '';
+		$_err_buttons[] = array('cls'=>'btn-outline-secondary', 'icon'=>'ti-arrow-left', 'text'=>lang('back'), 'onclick'=>"if(window.history.length>1){history.back();}else{location.href='".htmlspecialchars($_home_url, ENT_QUOTES, 'UTF-8')."';}");
+	} elseif(
+		$_clean_msg === lang('insufficient_visit_forum_privilege')
+		|| $_clean_msg === lang('user_group_insufficient_privilege')
+		|| $_clean_msg === lang('insufficient_privilege_to_download')
+		|| $_clean_msg === lang('avatar_upload_no_permission')
+		|| $_clean_msg === lang('have_no_privilege_to_update')
+		|| $_clean_msg === lang('insufficient_delete_privilege')
+		|| $_clean_msg === lang('insufficient_privilege')
+		|| $_clean_msg === lang('insufficient_delete_user_privilege')
+		|| $_clean_msg === '您无权上传'
+	) {
+		// 权限不足类
+		$_is_card_error = true;
+		$_err_icon = 'ti-lock-access'; $_err_color = 'warning';
+		$_err_title = lang('insufficient_privilege');
+		$_err_desc = $_clean_msg;
+		$_err_buttons[] = array('cls'=>'btn-outline-secondary', 'icon'=>'ti-arrow-left', 'text'=>lang('back'), 'onclick'=>"if(window.history.length>1){history.back();}else{location.href='".htmlspecialchars($_home_url, ENT_QUOTES, 'UTF-8')."';}");
+	}
+}
 ?>
 
 <?php if(!$_need_redirect): ?>
-<?php if(isset($conf['runlevel']) && $conf['runlevel'] == 0): ?>
-<!-- 站点维护页面 -->
+<?php
+// 统一卡片参数：runlevel / 已识别业务错误 / 通用错误
+if($_is_runlevel_block) {
+	$_c_icon = $_rl_icon; $_c_color = $_rl_color; $_c_title = $_rl_title; $_c_desc = $_rl_desc; $_c_buttons = $_rl_buttons;
+} elseif($_is_card_error) {
+	$_c_icon = $_err_icon; $_c_color = $_err_color; $_c_title = $_err_title; $_c_desc = $_err_desc; $_c_buttons = $_err_buttons;
+} else {
+	// 通用错误卡片（其他业务错误）
+	$_c_icon = 'ti-alert-circle'; $_c_color = 'danger';
+	$_c_title = lang('operation_failed');
+	$_c_desc = $_clean_msg;
+	$_c_buttons = array(array('cls'=>'btn-outline-secondary', 'icon'=>'ti-arrow-left', 'text'=>lang('back'), 'onclick'=>"if(window.history.length>1){history.back();}else{location.href='".htmlspecialchars($_home_url, ENT_QUOTES, 'UTF-8')."';}"));
+}
+?>
 <style>
-.maintenance-wrap{display:flex;align-items:center;justify-content:center;min-height:80vh;padding:2rem}
-.maintenance-card{text-align:center;max-width:420px}
-.maintenance-icon{width:80px;height:80px;margin:0 auto 1.5rem;border-radius:50%;background:rgba(var(--bs-warning-rgb),0.12);display:flex;align-items:center;justify-content:center}
-.maintenance-icon i{font-size:2.2rem;color:var(--bs-warning)}
-.maintenance-title{font-size:1.35rem;font-weight:700;margin-bottom:.5rem}
-.maintenance-desc{color:var(--bs-secondary-color);font-size:.925rem;line-height:1.6;margin-bottom:1.5rem}
+.ec-wrap{display:flex;align-items:center;justify-content:center;min-height:80vh;padding:2rem 1rem}
+.ec-card{text-align:center;max-width:440px;width:100%}
+.ec-icon{width:84px;height:84px;margin:0 auto 1.5rem;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.ec-icon i{font-size:2.4rem}
+.ec-icon.text-warning{background:rgba(var(--bs-warning-rgb),0.12);color:var(--bs-warning)}
+.ec-icon.text-info{background:rgba(var(--bs-info-rgb),0.12);color:var(--bs-info)}
+.ec-icon.text-danger{background:rgba(var(--bs-danger-rgb),0.12);color:var(--bs-danger)}
+.ec-title{font-size:1.4rem;font-weight:700;margin-bottom:.6rem}
+.ec-desc{color:var(--bs-secondary-color);font-size:.925rem;line-height:1.7;margin-bottom:1.75rem;min-height:1.75rem}
+.ec-actions{display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap}
+.ec-actions .btn{min-width:120px}
+@media(max-width:575.98px){.ec-actions .btn{min-width:0;flex:1}}
 </style>
-<div class="maintenance-wrap">
-	<div class="maintenance-card">
-		<div class="maintenance-icon"><i class="ti ti-tools"></i></div>
-		<div class="maintenance-title"><?php echo lang('runlevel_0');?></div>
-		<div class="maintenance-desc"><?php echo htmlspecialchars($_clean_msg, ENT_QUOTES, 'UTF-8');?></div>
-		<button class="btn btn-primary btn-sm px-4" onclick="location.reload()"><i class="ti ti-refresh me-1"></i><?php echo lang('reload');?></button>
+<div class="ec-wrap">
+	<div class="ec-card">
+		<div class="ec-icon text-<?php echo $_c_color;?>"><i class="ti <?php echo $_c_icon;?>"></i></div>
+		<div class="ec-title"><?php echo htmlspecialchars($_c_title, ENT_QUOTES, 'UTF-8');?></div>
+		<div class="ec-desc"><?php echo htmlspecialchars($_c_desc, ENT_QUOTES, 'UTF-8');?></div>
+		<div class="ec-actions">
+			<?php foreach($_c_buttons as $_btn): ?>
+			<button class="btn <?php echo $_btn['cls'];?> btn-sm px-4" onclick="<?php echo $_btn['onclick'];?>"><i class="ti <?php echo $_btn['icon'];?> me-1"></i><?php echo htmlspecialchars($_btn['text'], ENT_QUOTES, 'UTF-8');?></button>
+			<?php endforeach; ?>
+		</div>
 	</div>
 </div>
-<?php else: ?>
-<!-- 错误提示（无跳转）：显示简洁错误信息，不自动跳转 -->
-<div class="d-flex justify-content-center align-items-center" style="min-height:50vh;">
-	<div class="text-center">
-		<i class="ti ti-alert-circle fs-1 text-danger mb-3"></i>
-		<div class="text-body-secondary"><?php echo htmlspecialchars($_clean_msg, ENT_QUOTES, 'UTF-8');?></div>
-		<button class="btn btn-outline-secondary btn-sm mt-3" onclick="if(window.history.length > 1){history.back();}else{window.location.href='<?php echo htmlspecialchars($_back_url, ENT_QUOTES, 'UTF-8');?>';}"><?php echo lang('back');?></button>
-	</div>
-</div>
-<?php endif; ?>
 <?php endif; ?>
 
 <!--{hook message_end.htm}-->
@@ -53,15 +159,17 @@ $_back_url = !empty($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '/';
 
 <script>
 (function() {
-	var msg = <?php echo json_encode($_clean_msg);?>;
-	var type = <?php echo json_encode($_toast_type);?>;
 	var redirect = <?php echo json_encode($_redirect_url);?>;
-	var code = <?php echo json_encode($code);?>;
+	// 卡片化错误已在卡片中展示友好文案，不再弹 toast（避免重复）
+	var msg = <?php echo json_encode($_need_redirect ? $_clean_msg : '');?>;
+	var type = <?php echo json_encode($_toast_type);?>;
 
-	if(typeof showToast === 'function') {
-		showToast(msg, type);
-	} else if(typeof XN !== 'undefined' && typeof XN.toast === 'function') {
-		XN.toast(msg, type);
+	if(msg) {
+		if(typeof showToast === 'function') {
+			showToast(msg, type);
+		} else if(typeof XN !== 'undefined' && typeof XN.toast === 'function') {
+			XN.toast(msg, type);
+		}
 	}
 
 	// 有跳转 URL → 立即跳转（无需 loading 中间页）

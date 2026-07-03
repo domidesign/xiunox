@@ -1,0 +1,147 @@
+<?php $conf = G('conf');?>
+<?php $header = G('header');?>
+<?php $uid = G('uid');?>
+<?php
+// XSS 防护：转义封禁状态数据
+$_bn_status_label = isset($ban_status['status_label']) ? esc_html($ban_status['status_label']) : '';
+$_bn_status_color = isset($ban_status['status_color']) ? esc_attr($ban_status['status_color']) : 'danger';
+$_bn_ban_reason   = isset($ban_status['ban_reason']) ? esc_html($ban_status['ban_reason']) : '';
+$_bn_expire       = isset($ban_status['expire_formatted']) ? esc_html($ban_status['expire_formatted']) : '';
+$_bn_ban_type     = isset($ban_status['ban_type']) ? intval($ban_status['ban_type']) : 0;
+$_bn_banned_until = isset($ban_status['banned_until']) ? intval($ban_status['banned_until']) : 0;
+// 永久封禁判断：banned_until=0 或 >= PERMANENT_BAN(9999999999)
+$_bn_is_permanent = ($_bn_banned_until === 0 || $_bn_banned_until >= 9999999999);
+// 图标：锁定用 ti-lock-off，禁止访问用 ti-ban
+$_bn_icon = ($_bn_ban_type == 3) ? 'ti-lock' : 'ti-lock-off';
+$_bn_logout_url = function_exists('url') ? url('user-logout') : '/user-logout.htm';
+?>
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook banned_notice_start.htm}-->
+
+<style>
+.bn-wrap{display:flex;align-items:center;justify-content:center;min-height:70vh;padding:2rem 1rem}
+.bn-card{text-align:center;max-width:480px;width:100%}
+.bn-icon{width:96px;height:96px;margin:0 auto 1.5rem;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.bn-icon i{font-size:2.8rem}
+.bn-icon.text-danger{background:rgba(var(--bs-danger-rgb),0.12);color:var(--bs-danger)}
+.bn-icon.text-warning{background:rgba(var(--bs-warning-rgb),0.12);color:var(--bs-warning)}
+.bn-icon.text-dark{background:rgba(var(--bs-dark-rgb),0.12);color:var(--bs-dark)}
+.bn-title{font-size:1.5rem;font-weight:700;margin-bottom:1rem}
+.bn-badge{margin-bottom:1.5rem}
+.bn-badge .badge{font-size:.875rem;padding:.5em .8em;font-weight:500}
+.bn-info{display:flex;justify-content:space-between;align-items:flex-start;padding:.75rem 1rem;background:var(--bs-tertiary-bg);border-radius:.5rem;margin-bottom:.5rem;text-align:left}
+.bn-info-label{color:var(--bs-secondary-color);font-size:.875rem;font-weight:500;white-space:nowrap;margin-right:1rem}
+.bn-info-label i{margin-right:.25rem;vertical-align:-1px}
+.bn-info-value{font-weight:600;word-break:break-word;text-align:right}
+.bn-countdown{display:flex;justify-content:center;align-items:center;gap:.25rem;padding:.75rem 1rem;background:rgba(var(--bs-danger-rgb),0.08);border-radius:.5rem;margin-bottom:1.5rem;font-size:.95rem}
+.bn-countdown .countdown-value{font-weight:700;color:var(--bs-danger);font-variant-numeric:tabular-nums}
+.bn-appeal{color:var(--bs-secondary-color);font-size:.875rem;margin-bottom:1.75rem;line-height:1.6}
+.bn-actions{display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap}
+.bn-actions .btn{min-width:130px}
+@media(max-width:575.98px){.bn-actions .btn{min-width:0;flex:1}.bn-info{flex-direction:column}.bn-info-label{margin-right:0;margin-bottom:.25rem}.bn-info-value{text-align:left}}
+</style>
+
+<div class="bn-wrap">
+	<div class="bn-card">
+		<!--{hook banned_notice_icon_before.htm}-->
+		<div class="bn-icon text-<?php echo $_bn_status_color;?>">
+			<i class="ti <?php echo $_bn_icon;?>"></i>
+		</div>
+		<!--{hook banned_notice_icon_after.htm}-->
+
+		<!--{hook banned_notice_title_before.htm}-->
+		<h1 class="bn-title"><?php echo lang('user_ban_page_title');?></h1>
+		<!--{hook banned_notice_title_after.htm}-->
+
+		<!--{hook banned_notice_badge_before.htm}-->
+		<div class="bn-badge">
+			<span class="badge bg-<?php echo $_bn_status_color;?>"><?php echo $_bn_status_label;?></span>
+		</div>
+		<!--{hook banned_notice_badge_after.htm}-->
+
+		<?php if($_bn_ban_reason !== '') { ?>
+		<!--{hook banned_notice_reason_before.htm}-->
+		<div class="bn-info">
+			<span class="bn-info-label"><i class="ti ti-message-2"></i><?php echo lang('user_ban_reason_label');?></span>
+			<span class="bn-info-value"><?php echo $_bn_ban_reason;?></span>
+		</div>
+		<!--{hook banned_notice_reason_after.htm}-->
+		<?php } ?>
+
+		<?php if($_bn_expire !== '') { ?>
+		<!--{hook banned_notice_expire_before.htm}-->
+		<div class="bn-info">
+			<span class="bn-info-label"><i class="ti ti-clock"></i><?php echo lang('user_ban_expire_label');?></span>
+			<span class="bn-info-value"><?php echo $_bn_expire;?></span>
+		</div>
+		<!--{hook banned_notice_expire_after.htm}-->
+		<?php } ?>
+
+		<?php if(!$_bn_is_permanent && $_bn_banned_until > 0) { ?>
+		<!--{hook banned_notice_countdown_before.htm}-->
+		<div class="bn-countdown" id="bn-countdown" data-expire="<?php echo $_bn_banned_until;?>">
+			<i class="ti ti-hourglass-empty"></i>
+			<span><?php echo lang('user_ban_remaining_label');?>:</span>
+			<span class="countdown-value" id="bn-countdown-value">--</span>
+		</div>
+		<!--{hook banned_notice_countdown_after.htm}-->
+		<?php } ?>
+
+		<!--{hook banned_notice_appeal_before.htm}-->
+		<div class="bn-appeal">
+			<i class="ti ti-info-circle me-1"></i><?php echo lang('user_ban_appeal_desc');?>
+		</div>
+		<!--{hook banned_notice_appeal_after.htm}-->
+
+		<!--{hook banned_notice_actions_before.htm}-->
+		<div class="bn-actions">
+			<?php if($uid > 0) { ?>
+			<a href="<?php echo $_bn_logout_url;?>" class="btn btn-outline-danger px-4">
+				<i class="ti ti-logout me-1"></i><?php echo lang('logout');?>
+			</a>
+			<?php } ?>
+		</div>
+		<!--{hook banned_notice_actions_after.htm}-->
+	</div>
+</div>
+
+<!--{hook banned_notice_end.htm}-->
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<!--{hook banned_notice_js.htm}-->
+<?php if(!$_bn_is_permanent && $_bn_banned_until > 0) { ?>
+<script>
+(function() {
+	var expireTs = <?php echo $_bn_banned_until;?> * 1000;
+	var expiredText = <?php echo json_encode(lang('user_ban_expired'));?>;
+	var daysUnit = <?php echo json_encode(lang('user_ban_duration_days_unit'));?>;
+	var el = document.getElementById('bn-countdown-value');
+	if(!el) return;
+	function pad(n) { return n < 10 ? '0' + n : n; }
+	function update() {
+		var now = Date.now();
+		var diff = expireTs - now;
+		if(diff <= 0) {
+			el.textContent = expiredText;
+			if(typeof XN !== 'undefined' && typeof XN.toast === 'function') {
+				XN.toast(expiredText, 'success');
+			}
+			setTimeout(function(){ location.reload(); }, 2000);
+			return;
+		}
+		var d = Math.floor(diff / 86400000);
+		var h = Math.floor((diff % 86400000) / 3600000);
+		var m = Math.floor((diff % 3600000) / 60000);
+		var s = Math.floor((diff % 60000) / 1000);
+		var text = '';
+		if(d > 0) text += d + daysUnit + ' ';
+		text += pad(h) + ':' + pad(m) + ':' + pad(s);
+		el.textContent = text;
+	}
+	update();
+	setInterval(update, 1000);
+})();
+</script>
+<?php } ?>

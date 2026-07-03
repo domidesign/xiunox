@@ -2,7 +2,7 @@
 
 <div class="x-card card">
 <!-- 审核内容标签页 -->
-<ul class="nav nav-tabs mb-3" id="audit-tabs">
+<ul class="nav nav-tabs nav-tabs-scroll mb-3" id="audit-tabs">
     <li class="nav-item">
         <a class="nav-link active" href="#threads" data-tab="threads">
             <i class="ti ti-message-2 me-1"></i><?php echo lang('admin_pending_threads');?>
@@ -37,7 +37,7 @@
             <div class="text-center text-body-secondary py-4"><?php echo lang('admin_no_pending_threads')?></div>
             <?php else: ?>
             <div class="table-responsive">
-                <table class="table admin-table align-middle">
+                <table class="table admin-table align-middle table-min-w-sm">
                     <thead>
                         <tr>
                             <th style="width:40px;"><input type="checkbox" class="form-check-input" id="select-all-thread"></th>
@@ -95,7 +95,7 @@
             <div class="text-center text-body-secondary py-4"><?php echo lang('admin_no_pending_posts')?></div>
             <?php else: ?>
             <div class="table-responsive">
-                <table class="table admin-table align-middle">
+                <table class="table admin-table align-middle table-min-w-sm">
                     <thead>
                         <tr>
                             <th style="width:40px;"><input type="checkbox" class="form-check-input" id="select-all-post"></th>
@@ -153,7 +153,7 @@
             <div class="text-center text-body-secondary py-4"><?php echo lang('admin_no_pending_profiles')?></div>
             <?php else: ?>
             <div class="table-responsive">
-                <table class="table admin-table align-middle">
+                <table class="table admin-table align-middle table-min-w-md">
                     <thead>
                         <tr>
                             <th style="width:40px;"><input type="checkbox" class="form-check-input" id="select-all-profile"></th>

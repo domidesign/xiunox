@@ -28,6 +28,33 @@ a:hover {
     border: none;
 }
 
+/* 导航Tab横向滚动（移动端不换行，可左右滑动） */
+.nav-tabs-scroll {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+.nav-tabs-scroll .nav-item {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.nav-tabs-scroll::-webkit-scrollbar {
+    height: 4px;
+}
+.nav-tabs-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+.nav-tabs-scroll::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 2px;
+}
+[data-bs-theme="dark"] .nav-tabs-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+}
+
 .form-select {
     width: auto;
 }
@@ -326,6 +353,12 @@ a {
     background: rgba(37, 99, 235, 0.15) !important;
 }
 
+/* 表格最小宽度（配合 table-responsive 实现移动端横向滚动，防止列压缩不可读） */
+.table-responsive .table-min-w-sm { min-width: 576px; }
+.table-responsive .table-min-w-md { min-width: 768px; }
+.table-responsive .table-min-w-lg { min-width: 992px; }
+.table-responsive .table-min-w-xl { min-width: 1200px; }
+
 .admin-form .form-label {
     font-weight: 600;
     font-size: 0.875rem;
@@ -468,10 +501,68 @@ a {
 .badge {
     border-radius: 50rem;
 }
+/* ===== Avatar ===== */
+.avatar-xs {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
+}
 
 .avatar-sm {
-    width: 2rem;
-    height: 2rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.avatar-md {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.avatar-lg {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.avatar-xl {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.avatar-group-icon {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.avatar-sm~.avatar-group-icon {
+    width: 12px;
+    height: 12px;
+    bottom: -1px;
+    right: -1px;
+    border-width: 1px;
+}
+
+.avatar-lg~.avatar-group-icon {
+    width: 24px;
+    height: 24px;
+    bottom: -4px;
+    right: -4px;
+    border-width: 3px;
 }
 
 .sidebar-tooltip {

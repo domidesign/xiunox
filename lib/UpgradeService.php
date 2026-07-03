@@ -6,10 +6,34 @@ class UpgradeService {
     private string $backupPath;
     private string $targetVersion = XIUNOX_VERSION;
 
+    // KV 键名：记录上次升级完成时的版本号（不被 index.php 运行时覆盖）
+    const INSTALLED_VERSION_KEY = 'installed_version';
+
     public function __construct($db, array $conf) {
         $this->db = $db;
         $this->conf = $conf;
         $this->backupPath = $conf['tmp_path'] . 'upgrade_backup_' . date('Ymd_His') . '/';
+    }
+
+    /**
+     * 获取已安装版本号（持久化存储，不被代码版本覆盖）
+     * 优先读 kv.installed_version；不存在时 fallback 到 $conf['version']
+     * （注意：$conf['version'] 在 index.php 中被 XIUNOX_VERSION 覆盖，
+     *  所以旧系统首次升级时 fallback 值等于代码版本，需升级完成后 kv 才会写入真实版本）
+     */
+    public function getInstalledVersion(): string {
+        $installed = function_exists('kv_get') ? kv_get(self::INSTALLED_VERSION_KEY) : NULL;
+        if (!empty($installed) && is_string($installed)) {
+            return $installed;
+        }
+        return $this->conf['version'] ?? '0.0.0';
+    }
+
+    /**
+     * 是否需要升级：installed < target
+     */
+    public function needUpgrade(): bool {
+        return version_compare($this->getInstalledVersion(), $this->targetVersion, '<');
     }
 
     public function checkPrerequisites(): array {
@@ -44,8 +68,8 @@ class UpgradeService {
         return [
             'ok' => $ok,
             'message' => $ok ? '检查通过' : '存在 ' . count($warnings) . ' 个问题',
-            'need_upgrade' => true,
-            'current_version' => $this->conf['version'] ?? '0.0.0',
+            'need_upgrade' => $this->needUpgrade(),
+            'current_version' => $this->getInstalledVersion(),
             'target_version' => $this->targetVersion,
             'warnings' => $warnings,
         ];
@@ -674,6 +698,13 @@ class UpgradeService {
             return ['ok' => false, 'message' => '写入 conf/conf.php 失败'];
         }
 
+        // 持久化记录已安装版本到 kv（核心：区分「已安装版本」和「代码版本」）
+        // index.php 运行时会用 XIUNOX_VERSION 覆盖 $conf['version']，导致 conf.php 的 version 字段无法反映真实安装版本
+        // kv 的 installed_version 是真实安装版本的唯一可信来源
+        if (function_exists('kv_set')) {
+            kv_set(self::INSTALLED_VERSION_KEY, $this->targetVersion);
+        }
+
         return [
             'ok' => true,
             'message' => '配置更新完成，共 ' . count($changes) . ' 项变更',
@@ -796,6 +827,15 @@ class UpgradeService {
             $results[] = ['name' => 'thread.idx_fid_audit_lastpid', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
         } else {
             $results[] = ['name' => 'thread.idx_fid_audit_lastpid', 'ok' => true, 'message' => '已存在，跳过'];
+        }
+
+        // user_login_log 表：IP 维度登录限流查询 WHERE ip=X AND success=0 AND time>Y ORDER BY time
+        // 避免 IP 限流检查全表扫描
+        if ($this->dbTableExists('user_login_log', $tablepre) && !$this->dbIndexExists('user_login_log', 'idx_ip_success_time', $tablepre)) {
+            $r = $this->execSql("ALTER TABLE `{$tablepre}user_login_log` ADD INDEX `idx_ip_success_time` (`ip`, `success`, `time`)");
+            $results[] = ['name' => 'user_login_log.idx_ip_success_time', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+        } else {
+            $results[] = ['name' => 'user_login_log.idx_ip_success_time', 'ok' => true, 'message' => '已存在，跳过'];
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
@@ -1515,6 +1555,140 @@ class UpgradeService {
         ];
     }
 
+    /**
+     * 用户封禁系统：为 user 表添加封禁字段，创建封禁历史记录表与 IP 黑名单表
+     */
+    public function upgradeUserBanSystem(): array {
+        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $results = [];
+
+        // 1. 为 user 表添加封禁相关字段（放在 banned_until 之后）
+        $columns = [
+            ['user', 'ban_type', "ALTER TABLE `{$tablepre}user` ADD COLUMN `ban_type` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT '封禁类型:0正常/1禁言/2禁止访问/3锁定' AFTER `banned_until`"],
+            ['user', 'ban_reason', "ALTER TABLE `{$tablepre}user` ADD COLUMN `ban_reason` varchar(255) NOT NULL DEFAULT '' COMMENT '封禁原因' AFTER `ban_type`"],
+            ['user', 'ban_admin_uid', "ALTER TABLE `{$tablepre}user` ADD COLUMN `ban_admin_uid` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '操作管理员uid' AFTER `ban_reason`"],
+            ['user', 'ban_time', "ALTER TABLE `{$tablepre}user` ADD COLUMN `ban_time` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '封禁时间戳' AFTER `ban_admin_uid`"],
+        ];
+
+        foreach ($columns as $col) {
+            $r = $this->addColumn($col[0], $col[1], $col[2], $tablepre);
+            $results[] = ['name' => $col[0].'.'.$col[1], 'ok' => $r['ok'], 'message' => $r['message']];
+        }
+
+        // 2. 创建封禁历史记录表
+        $r = $this->createTable('user_ban_log', "CREATE TABLE `{$tablepre}user_ban_log` (
+          `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+          `uid` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '被操作用户uid',
+          `admin_uid` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '操作管理员uid',
+          `action` varchar(20) NOT NULL DEFAULT '' COMMENT '操作类型:ban/unban/auto_unban/clear_content',
+          `ban_type` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT '封禁类型',
+          `reason` varchar(255) NOT NULL DEFAULT '' COMMENT '原因',
+          `duration` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '封禁时长(秒),0表示永久',
+          `create_time` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '操作时间戳',
+          PRIMARY KEY (`id`),
+          KEY `uid` (`uid`),
+          KEY `create_time` (`create_time`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci", $tablepre);
+        $results[] = ['name' => 'user_ban_log', 'ok' => $r['ok'], 'message' => $r['message']];
+
+        // 3. 初始化已存在用户 ban_type=0（字段 DEFAULT 0 已保证，此处幂等兜底）
+        // 注：废弃的 banned_ip 表不再创建，IP 黑名单统一由 IpBlacklistService（kv 存储）管理，
+        // 旧站点若存在 banned_ip 表数据，由 migrate_banned_ip 升级步骤自动迁移
+        $r = $this->execSql("UPDATE `{$tablepre}user` SET `ban_type` = 0 WHERE `ban_type` IS NULL OR `ban_type` NOT IN (0,1,2,3)");
+        $results[] = ['name' => 'user.ban_type_init', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+
+        $allOk = !in_array(false, array_column($results, 'ok'), true);
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        return [
+            'ok' => $allOk,
+            'message' => $allOk ? "用户封禁系统升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'results' => $results,
+        ];
+    }
+
+    /**
+     * 迁移 banned_ip 表数据到 IpBlacklistService（kv 存储）
+     * 幂等：通过 kv 标记 banned_ip_migrated 防止重复迁移
+     * 转换规则：
+     *   - ip_start == ip_end → 单个 IP（如 192.168.1.1）
+     *   - ip_start != ip_end → 范围格式（如 192.168.1.1-192.168.1.10）
+     *   - 已过期记录（expire_time > 0 且 <= now）跳过
+     */
+    public function migrateBannedIpToBlacklist(): array {
+        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $results = [];
+
+        // 1. 检测 banned_ip 表是否存在（新安装无此表，直接标记已迁移避免重复检测）
+        if (!$this->dbTableExists('banned_ip', $tablepre)) {
+            kv_set('banned_ip_migrated', 1);
+            return ['ok' => true, 'message' => 'banned_ip 表不存在（新安装），已标记跳过迁移', 'results' => []];
+        }
+
+        // 2. 加载 IpBlacklistService
+        if (!class_exists('IpBlacklistService')) {
+            include_once APP_PATH . 'lib/security/IpBlacklistService.php';
+        }
+        if (!class_exists('IpBlacklistService')) {
+            return ['ok' => false, 'message' => 'IpBlacklistService 类不可用', 'results' => []];
+        }
+
+        // 3. 幂等检查
+        $migrated = kv_get('banned_ip_migrated');
+        if ($migrated === 1) {
+            return ['ok' => true, 'message' => 'banned_ip 数据已迁移，跳过', 'results' => []];
+        }
+
+        // 4. 读取所有未过期记录
+        $now = time();
+        $sql = "SELECT * FROM `{$tablepre}banned_ip` WHERE expire_time = 0 OR expire_time > {$now}";
+        $rows = $this->db->sqlFind($sql);
+
+        if (empty($rows)) {
+            kv_set('banned_ip_migrated', 1);
+            return ['ok' => true, 'message' => 'banned_ip 表无未过期记录，已标记为迁移完成', 'results' => []];
+        }
+
+        // 5. 转换并写入 IpBlacklistService
+        $migratedCount = 0;
+        $skippedCount = 0;
+        foreach ($rows as $row) {
+            $ip_start_long = intval($row['ip_start']);
+            $ip_end_long = intval($row['ip_end']);
+            $ip_start_str = long2ip($ip_start_long);
+            $ip_end_str = long2ip($ip_end_long);
+
+            // ip_start == ip_end → 单 IP；否则用范围格式
+            $ip = ($ip_start_long === $ip_end_long) ? $ip_start_str : $ip_start_str . '-' . $ip_end_str;
+
+            $r = IpBlacklistService::add_blacklist_entry(
+                $ip,
+                isset($row['reason']) ? $row['reason'] : '',
+                intval($row['expire_time']),
+                intval($row['admin_uid'])
+            );
+            if ($r) {
+                $migratedCount++;
+            } else {
+                $skippedCount++;
+            }
+        }
+
+        // 6. 标记已迁移
+        kv_set('banned_ip_migrated', 1);
+
+        $results[] = [
+            'name' => 'migrate_banned_ip',
+            'ok' => true,
+            'message' => "迁移 {$migratedCount} 条，跳过 {$skippedCount} 条重复",
+        ];
+
+        return [
+            'ok' => true,
+            'message' => "banned_ip 数据迁移完成：迁移 {$migratedCount} 条到 IpBlacklistService，跳过 {$skippedCount} 条重复",
+            'results' => $results,
+        ];
+    }
+
     public function upgradeEmailLogTable(): array {
         $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
         $results = [];
@@ -1607,6 +1781,8 @@ class UpgradeService {
             ['id' => 'email_log', 'name' => '邮件发送日志表', 'description' => '创建邮件发送日志表，记录邮件发送状态、错误信息等'],
             ['id' => 'friendlink_digest', 'name' => '精华帖', 'description' => '添加帖子精华字段（digest, digest_date），创建精华帖索引表'],
             ['id' => 'soft_delete', 'name' => '软删除字段', 'description' => '为 thread 和 post 表添加 is_deleted, deleted_date, deleted_by 字段及索引，支持软删除功能'],
+            ['id' => 'user_ban_system', 'name' => '用户封禁系统', 'description' => '为 user 表添加 ban_type/ban_reason/ban_admin_uid/ban_time 字段，创建封禁历史记录表和 IP 黑名单表'],
+            ['id' => 'migrate_banned_ip', 'name' => 'IP黑名单数据迁移', 'description' => '将 banned_ip 表数据迁移到 IpBlacklistService（kv 存储，支持 CIDR 和范围格式）'],
             ['id' => 'cache_system', 'name' => '缓存系统优化', 'description' => '迁移旧缓存配置到 setting，清理过时驱动（xcache/apc/yac），初始化默认缓存配置'],
             ['id' => 'nickname_field', 'name' => '昵称字段迁移', 'description' => '将现有用户名复制到昵称字段，支持用户名不可修改、昵称可修改'],
             ['id' => 'notify_merge', 'name' => '通知系统合并', 'description' => '扩展 notify 表字段（message/icon/url 等），将 notice 表数据迁移到 notify 表，删除旧 notice 表'],
@@ -1617,6 +1793,7 @@ class UpgradeService {
             ['id' => 'recompile', 'name' => '插件重编译', 'description' => '清空缓存，重编译所有插件'],
             ['id' => 'perf_indexes', 'name' => '性能索引优化', 'description' => '为用户帖子列表、回帖列表等高频查询添加联合索引，消除全表扫描'],
             ['id' => 'fid_field_type', 'name' => 'fid 字段类型统一', 'description' => '统一所有表的 fid 字段为 smallint(5) unsigned，避免 JOIN 隐式类型转换导致索引失效'],
+            ['id' => 'ai_call_log', 'name' => 'AI 调用日志表', 'description' => '创建 xnx_ai_call_log 表，统一记录核心与插件的 AI 调用日志'],
         ];
     }
 
@@ -1643,6 +1820,8 @@ class UpgradeService {
             case 'email_log': return $this->upgradeEmailLogTable();
             case 'friendlink_digest': return $this->upgradeFriendlinkTable();
             case 'soft_delete': return $this->upgradeSoftDeleteFields();
+            case 'user_ban_system': return $this->upgradeUserBanSystem();
+            case 'migrate_banned_ip': return $this->migrateBannedIpToBlacklist();
             case 'cache_system': return $this->upgradeCacheSystem();
             case 'nickname_field': return $this->upgradeNicknameField();
             case 'notify_merge': return $this->upgradeNotifyMerge();
@@ -1653,6 +1832,7 @@ class UpgradeService {
             case 'recompile': return $this->recompilePlugins();
             case 'perf_indexes': return $this->upgradePerfIndexes();
             case 'fid_field_type': return $this->upgradeFidFieldType();
+            case 'ai_call_log': return $this->upgradeAiCallLogTable();
             default: return ['ok' => false, 'message' => '未知步骤：' . $stepId];
         }
     }
@@ -1891,6 +2071,49 @@ class UpgradeService {
         return [
             'ok' => true,
             'message' => "用户组重同步完成：扫描 {$scanned}，升级 {$upgraded}，未变 {$unchanged}",
+            'results' => $results,
+        ];
+    }
+
+    /**
+     * AI 调用日志表：统一记录核心 AIService::call() 与插件的 AI 调用
+     */
+    public function upgradeAiCallLogTable(): array {
+        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $results = [];
+
+        $r = $this->createTable('xnx_ai_call_log', "CREATE TABLE `{$tablepre}xnx_ai_call_log` (
+          `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+          `uid` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '调用用户ID',
+          `feature` varchar(32) NOT NULL DEFAULT '' COMMENT '功能标识：editor/xnx_ai_reply 等',
+          `source` varchar(32) NOT NULL DEFAULT 'core' COMMENT '来源：core=核心 / 插件目录名',
+          `provider_name` varchar(64) NOT NULL DEFAULT '' COMMENT '提供商名称',
+          `model` varchar(64) NOT NULL DEFAULT '' COMMENT '调用的模型',
+          `mode` varchar(16) NOT NULL DEFAULT '' COMMENT '模式：global/user_key/both',
+          `prompt_tokens` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '请求 token 数',
+          `completion_tokens` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '响应 token 数',
+          `total_tokens` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '总 token 数',
+          `response_time` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '响应耗时（毫秒）',
+          `status` tinyint(1) NOT NULL DEFAULT '0' COMMENT '0=失败 1=成功',
+          `error_msg` varchar(500) NOT NULL DEFAULT '' COMMENT '错误信息（失败时）',
+          `request_summary` varchar(255) NOT NULL DEFAULT '' COMMENT '请求摘要（前 200 字符）',
+          `response_summary` varchar(600) NOT NULL DEFAULT '' COMMENT '响应摘要（前 500 字符）',
+          `ip` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '调用者 IP（ip2long）',
+          `create_time` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '创建时间',
+          PRIMARY KEY (`id`),
+          KEY `idx_uid` (`uid`),
+          KEY `idx_feature` (`feature`),
+          KEY `idx_source` (`source`),
+          KEY `idx_status` (`status`),
+          KEY `idx_create_time` (`create_time`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 调用日志（核心+插件统一记录）'", $tablepre);
+        $results[] = ['name' => 'xnx_ai_call_log', 'ok' => $r['ok'], 'message' => $r['message']];
+
+        $allOk = !in_array(false, array_column($results, 'ok'), true);
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        return [
+            'ok' => $allOk,
+            'message' => $allOk ? "AI 调用日志表升级完成（{$doneCount} 项操作）" : '部分升级失败',
             'results' => $results,
         ];
     }

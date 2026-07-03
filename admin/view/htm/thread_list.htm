@@ -77,7 +77,8 @@
 		</div>
 
 		<!-- 帖子列表 -->
-		<table class="table table-hover mb-0 align-middle" id="thread_table">
+		<div class="table-responsive">
+		<table class="table table-hover mb-0 align-middle table-min-w-md" id="thread_table">
 			<thead class="table-light">
 				<tr>
 					<th style="width:40px;"></th>
@@ -92,6 +93,7 @@
 			<tbody id="thread_result_list">
 			</tbody>
 		</table>
+		</div>
 	</div>
 
 	<!-- 底部：结果数 + 每页条数 + 翻页 -->
@@ -133,9 +135,25 @@ var pagesize = <?php echo $pagesize;?>;
 var totalpage = <?php echo $totalpage;?>;
 var totalpage_back = totalpage;
 var pagearr = [];
-for(var i=1; i <= totalpage; i++) pagearr.push(i);
 var forumlist = <?php echo xn_json_encode($forumlist_simple);?>;
 var currentFoundPage = 1;
+
+// 根据当前 fid 和 pagesize 重新计算扫描页数
+function rebuildPageArr() {
+	var curPs = parseInt(jpagesize.val()) || pagesize;
+	var fid = jfid.val();
+	if(fid == 0) {
+		totalpage = totalpage_back;
+	} else if(forumlist[fid]) {
+		var n = forumlist[fid]['threads'];
+		totalpage = Math.max(1, Math.ceil(n / curPs));
+	} else {
+		totalpage = 1;
+	}
+	pagearr = [];
+	for(var i=1; i <= totalpage; i++) pagearr.push(i);
+}
+rebuildPageArr();
 
 // 加载搜索结果（带翻页）
 function loadThreadResults(page) {
@@ -158,10 +176,14 @@ function loadThreadResults(page) {
 		} else {
 			jpagination.html('');
 		}
-		// 提取总数
+		// 提取总数：仅当 queue 总数比当前 threads 大时才采纳（首次加载或重新搜索场景）
+		// 批量删除后 threads 已被扣减，queue_count 仍为旧值，不能覆盖回去
 		var totalText = $html.find('[data-total]').data('total');
 		if(totalText) {
-			threads = parseInt(totalText);
+			var queueTotal = parseInt(totalText);
+			if(queueTotal > threads) {
+				threads = queueTotal;
+			}
 		}
 		jresult_info.html('<?php echo lang('admin_thread_total_found');?>'.replace('{n}', '<b>' + threads + '</b>'));
 		jbatch_toolbar.show();
@@ -170,15 +192,7 @@ function loadThreadResults(page) {
 }
 
 jfid.on('change', function() {
-	var fid = $(this).val();
-	if(fid == 0) {
-		totalpage = Math.max(1, totalpage_back);
-	} else {
-		var n = forumlist[fid]['threads'];
-		totalpage = Math.max(1, Math.ceil(n / pagesize));
-	}
-	pagearr = [];
-	for(var i=1; i <= totalpage; i++) pagearr.push(i);
+	rebuildPageArr();
 });
 
 // 搜索
@@ -186,6 +200,10 @@ jsubmit.on('click', function() {
 	jsubmit.button('loading');
 	var postdata = jform.serializeObject();
 	var url = jform.attr('action');
+	// scan 后端 pagesize 来自 param('pagesize')，前端必须同步传当前 pagesize
+	// 否则 pagearr 基于新 pagesize 计算 totalpage，但 scan 用默认 100 查询，会漏掉数据
+	var scanPagesize = parseInt(jpagesize.val()) || pagesize;
+	postdata.pagesize = scanPagesize;
 	threads = 0;
 	var completedPages = 0;
 	$.each_sync(pagearr, function(i, callback) {
@@ -220,6 +238,8 @@ jsubmit.on('click', function() {
 
 // 每页条数切换
 jpagesize.on('change', function() {
+	// 切换 pagesize 后重新计算扫描页数，确保下次搜索用新 pagesize
+	rebuildPageArr();
 	if(jsearch_result.is(':visible') && threads > 0) {
 		loadThreadResults(1);
 	}
@@ -302,6 +322,10 @@ jbatch_btns.on('click', function() {
 	}
 	$.xpost(url, postdata, function(code, message) {
 		if(parseInt(code) == 0) {
+			// 删除操作会减少可见帖子数，同步更新 threads 计数避免 result_info 显示陈旧总数
+			if(op === 'delete') {
+				threads = Math.max(0, threads - tids.length);
+			}
 			showToast('<?php echo lang('admin_thread_batch_success');?>', 'success');
 			loadThreadResults(currentFoundPage);
 		} else {

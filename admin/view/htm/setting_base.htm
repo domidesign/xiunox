@@ -55,20 +55,20 @@
 				<?php echo $input['user_resetpw_on'];?>
 			</div>
 
-			<div class="mb-4">
-				<label class="form-label fw-medium"><?php echo lang('cache_disable');?></label>
-				<br>
-				<?php echo $input['cache_disable'];?>
-				<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('cache_disable_tips');?></p>
-			</div>
-
 			<!--{hook admin_setting_runlevel_after.htm}-->
 
-			<div class="mb-4">
-				<label class="form-label fw-medium"><?php echo lang('lang');?></label>
-				<br>	
-				<?php echo $input['lang'];?>
-			</div>
+		<div class="mb-4">
+			<label class="form-label fw-medium"><?php echo lang('force_https');?></label>
+			<br>
+			<?php echo $input['force_https'];?>
+			<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('force_https_tips');?></p>
+		</div>
+
+		<div class="mb-4">
+			<label class="form-label fw-medium"><?php echo lang('lang');?></label>
+			<br>
+			<?php echo $input['lang'];?>
+		</div>
 
 			<!--{hook admin_setting_base_lang_after.htm}-->
 

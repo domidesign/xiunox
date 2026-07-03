@@ -523,13 +523,8 @@ return array(
 	'theme_light'=>'Светлая',
 	'theme_dark'=>'Тёмная',
 	'ai_provider'=>'AI-провайдер',
-	'ai_provider_spark'=>'Spark Model',
-	'ai_provider_wenxin'=>'Wenxin Yiyan',
-	'ai_provider_custom'=>'Пользовательский',
 	'ai_provider_tip'=>'Выберите AI-провайдера и используйте свой API Key',
 	'ai_api_key_tip'=>'Ваш API Key хранится только в базе данных сайта и не передаётся третьим лицам',
-	'ai_api_url'=>'API URL',
-	'ai_api_url_tip'=>'Оставьте пустым для URL по умолчанию, поддерживает OpenAI-совместимые сервисы',
 	'ai_model_name'=>'Имя модели',
 	'ai_model_name_tip'=>'Например: gpt-4o-mini, gpt-4o, deepseek-chat и т.д.',
 

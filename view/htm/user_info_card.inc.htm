@@ -1,15 +1,51 @@
 <?php
 // 用户信息横排卡片（参考 my.htm 风格）
 // 使用：$_user, $_uid, $uid 需在调用前已定义
+// 封禁状态：本人可见完整信息，他人仅见徽章
+if(!class_exists('UserBanService', false)) {
+	include_once APP_PATH . 'lib/UserBanService.php';
+}
+$_ban_status = UserBanService::getBanStatus($_uid);
+$_ban_type = intval($_ban_status['ban_type']);
+$_is_own_profile = !empty($uid) && $uid == $_uid;
+// 内容被清空提示：仅当 threads==0 && posts==0 时查 ban_log 是否有 clear_content 记录
+$_cleared_content = false;
+if(intval($_user['threads']) == 0 && intval($_user['posts']) == 0) {
+	$_cleared_count = db_count('user_ban_log', array('uid' => intval($_uid), 'action' => 'clear_content'));
+	$_cleared_content = $_cleared_count > 0;
+}
 ?>
 <div class="x-card card">
 	<div class="card-body d-flex align-items-center gap-2 flex-wrap">
 		<?php echo avatar_component_from_data($_user['avatar_url'], 'xl', isset($_user['group_icon_class']) ? $_user['group_icon_class'] : '', isset($_user['group_color']) ? $_user['group_color'] : '', isset($_user['gid']) ? $_user['gid'] : 0);?>
 		<div class="flex-fill" style="min-width:0">
 			<h5 class="fw-bold mb-1">
-				<span class="text-truncate"><?php echo esc_html($_user['display_name'] ?? $_user['username']);?></span>
-				<!--{hook user_profile_username_after.htm}-->
-			</h5>
+			<span class="text-truncate"><?php echo esc_html($_user['display_name'] ?? $_user['username']);?></span>
+			<?php echo user_ban_badge_html($_ban_status);?>
+			<!--{hook user_profile_username_after.htm}-->
+		</h5>
+		<?php if($_is_own_profile && $_ban_type > 0): ?>
+		<!-- 本人主页：完整封禁信息（类型+原因+解封时间+操作时间） -->
+		<div class="alert alert-<?php echo $_ban_status['status_color'];?> py-2 px-3 mb-2 small">
+			<i class="ti ti-shield-lock me-1"></i>
+			<strong><?php echo $_ban_status['status_label'];?></strong>
+			<?php if(!empty($_ban_status['ban_reason'])): ?>
+			— <?php echo esc_html($_ban_status['ban_reason']);?>
+			<?php endif; ?>
+			<?php if(!empty($_ban_status['expire_formatted'])): ?>
+			<div class="mt-1"><i class="ti ti-clock me-1"></i><?php echo lang('user_ban_expire_label');?>：<?php echo esc_html($_ban_status['expire_formatted']);?></div>
+			<?php endif; ?>
+			<?php if(!empty($_ban_status['ban_time'])): ?>
+			<div><i class="ti ti-history me-1"></i><?php echo lang('user_ban_time_label');?>：<?php echo date('Y-m-d H:i:s', intval($_ban_status['ban_time']));?></div>
+			<?php endif; ?>
+		</div>
+		<?php endif; ?>
+		<?php if($_cleared_content): ?>
+		<!-- 内容已被管理员清空提示 -->
+		<div class="alert alert-secondary py-2 px-3 mb-2 small">
+			<i class="ti ti-trash me-1"></i><?php echo lang('user_ban_cleared_content');?>
+		</div>
+		<?php endif; ?>
 			<div class="d-flex align-items-center flex-wrap gap-1">
 				<span class="badge bg-secondary bg-opacity-10 text-secondary" style="font-size:0.65em">uid:<?php echo $_uid;?></span>
 				<span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:0.65em"><?php echo $_user['groupname'];?></span>

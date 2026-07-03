@@ -48,7 +48,8 @@
 
 		<?php if($type == 'post') { ?>
 		<!-- 评论回收站列表 -->
-		<table class="table table-hover mb-0 align-middle" id="post_table">
+	<div class="table-responsive">
+	<table class="table table-hover mb-0 align-middle table-min-w-md" id="post_table">
 			<thead class="table-light">
 				<tr>
 					<th style="width:40px;"></th>
@@ -89,9 +90,11 @@
 			<?php } ?>
 			</tbody>
 		</table>
+	</div>
 		<?php } else { ?>
 		<!-- 主题回收站列表 -->
-		<table class="table table-hover mb-0 align-middle" id="thread_table">
+		<div class="table-responsive">
+		<table class="table table-hover mb-0 align-middle table-min-w-md" id="thread_table">
 			<thead class="table-light">
 				<tr>
 					<th style="width:40px;"></th>
@@ -126,6 +129,7 @@
 			<?php } ?>
 			</tbody>
 		</table>
+	</div>
 		<?php } ?>
 	</div>
 

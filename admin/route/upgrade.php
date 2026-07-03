@@ -29,7 +29,8 @@ if($action == 'do') {
 
 	header('Content-Type: application/json; charset=utf-8');
 	echo json_encode([
-		'version' => $conf['version'] ?? '0.0.0',
+		'version' => $upgradeService->getInstalledVersion(),
+		'target_version' => XIUNOX_VERSION,
 		'php_version' => PHP_VERSION,
 		'db_type' => $conf['db']['type'] ?? 'unknown',
 		'plugins_count' => count(glob(APP_PATH . 'plugin/*', GLOB_ONLYDIR)),
@@ -45,6 +46,8 @@ if($action == 'do') {
 
 	$prerequisites = $upgradeService->checkPrerequisites();
 	$steps = $upgradeService->getSteps();
+	// 已安装版本（来自 kv 持久化存储，与代码版本 XIUNOX_VERSION 区分）
+	$installedVersion = $upgradeService->getInstalledVersion();
 
 	include _include(ADMIN_PATH.'view/htm/upgrade.htm');
 }

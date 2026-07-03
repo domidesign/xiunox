@@ -1,0 +1,347 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_ai_providers_start.htm}-->
+
+<style>
+/* 模型 tag 输入组件样式 */
+.model-tags-wrap{
+	display:flex;
+	flex-wrap:wrap;
+	gap:4px;
+	align-items:center;
+	padding:4px 6px;
+	border:1px solid var(--bs-border-color);
+	border-radius:4px;
+	min-height:34px;
+	background:var(--bs-body-bg);
+}
+.model-tags-wrap.is-focus{
+	border-color:var(--bs-primary);
+	box-shadow:0 0 0 .2rem rgba(var(--bs-primary-rgb),.15);
+}
+.model-tag{
+	display:inline-flex;
+	align-items:center;
+	gap:2px;
+	font-size:12px;
+	line-height:1.4;
+	padding:2px 4px 2px 8px;
+	border-radius:50rem;
+	cursor:pointer;
+	user-select:none;
+	white-space:nowrap;
+}
+.model-tag .model-name{cursor:pointer;}
+.model-tag.enabled{
+	background:var(--bs-primary);
+	color:#fff;
+}
+.model-tag.disabled{
+	background:transparent;
+	color:var(--bs-secondary-color);
+	border:1px solid var(--bs-border-color);
+}
+.model-tag .model-remove{
+	cursor:pointer;
+	opacity:.7;
+	display:inline-flex;
+	align-items:center;
+	padding:0 2px;
+}
+.model-tag .model-remove:hover{opacity:1;}
+.model-input{
+	flex:1;
+	min-width:120px;
+	border:none!important;
+	padding:2px 4px!important;
+	background:transparent!important;
+	box-shadow:none!important;
+	outline:none!important;
+	height:24px;
+	font-size:13px;
+}
+.model-input::placeholder{color:var(--bs-secondary-color);}
+/* 移动端横向滑动提示 */
+.table-providers{min-width:860px;}
+.provider-empty-row td{padding:32px 16px;}
+.provider-type-select{min-width:110px;}
+</style>
+
+<div class="mb-3">
+	<?php echo admin_tab_active($menu['ai']['tab'], 'providers');?>
+</div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo url('ai-providers');?>" method="post" id="aiProvidersForm">
+			<?php echo CsrfService::input(); ?>
+
+			<p class="text-body-secondary small mb-3"><?php echo lang('admin_ai_provider_desc'); ?></p>
+
+			<div class="table-responsive">
+				<table class="table table-hover align-middle mb-0 table-providers">
+					<thead>
+						<tr>
+							<th style="min-width:130px;"><?php echo lang('admin_ai_provider_name');?></th>
+							<th style="min-width:110px;"><?php echo lang('admin_ai_provider_type');?></th>
+							<th style="min-width:220px;">API URL</th>
+							<th style="min-width:200px;">API Key</th>
+							<th style="min-width:340px;"><?php echo lang('admin_ai_provider_models');?></th>
+							<th style="width:60px;"><?php echo lang('forum_op');?></th>
+						</tr>
+					</thead>
+					<tbody id="aiProvidersBody"></tbody>
+				</table>
+			</div>
+
+			<a role="button" class="btn btn-outline-primary btn-sm mt-2" id="addProvider">
+				<i class="ti ti-plus"></i> <?php echo lang('admin_ai_add_provider'); ?>
+			</a>
+
+			<div class="mt-4">
+				<button type="submit" class="btn btn-primary rounded-pill" id="providersSubmitBtn"><?php echo lang('confirm');?></button>
+				<span class="text-body-secondary small ms-2"><?php echo lang('admin_ai_model_tip');?></span>
+			</div>
+		</form>
+	</div>
+</div>
+
+<!--{hook admin_ai_providers_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+(function() {
+	// AI 提供商数据（每个 provider 含 name/url/api_key/models）
+	// models 新格式：[{name, enabled}, ...]；旧格式逗号字符串在 normalizeModels 中转换
+	var providers = <?php echo xn_json_encode($ai_providers);?>;
+
+	// type 标签映射：在 PHP 端预生成，避免 JS 调用 lang()（lang 是对象不是函数）
+	var typeLabels = <?php
+		$_type_labels = array();
+		foreach(array('text','image','video','audio','transcription') as $_t) {
+			$_type_labels[$_t] = lang('admin_ai_provider_type_' . $_t);
+		}
+		echo xn_json_encode($_type_labels);
+	?>;
+
+	function escapeHtml(s) {
+		return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+	}
+
+	// 规范化 models：旧格式逗号字符串 → [{name, enabled:1}]
+	function normalizeModels(models) {
+		if (!models) return [];
+		if (Array.isArray(models)) {
+			return models.map(function(m) {
+				if (typeof m === 'string') return {name: m, enabled: 1};
+				return {name: m.name || '', enabled: (m.enabled === undefined ? 1 : (m.enabled ? 1 : 0))};
+			}).filter(function(m){ return m.name; });
+		}
+		return String(models).split(',').map(function(s) {
+			var t = s.trim();
+			return t ? {name: t, enabled: 1} : null;
+		}).filter(Boolean);
+	}
+
+	// 创建一个模型 tag chip
+	// enabled=1 蓝色实心，enabled=0 灰色 outline，点击 chip 文字切换状态
+	function createModelTag(wrap, name, enabled) {
+		var tag = document.createElement('span');
+		tag.className = 'model-tag ' + (enabled ? 'enabled' : 'disabled');
+		tag.setAttribute('data-name', name);
+		tag.setAttribute('data-enabled', enabled ? '1' : '0');
+		tag.innerHTML =
+			'<span class="model-name">' + escapeHtml(name) + '</span>' +
+			'<span class="model-remove" title="<?php echo lang('delete');?>"><i class="ti ti-x" style="font-size:12px;"></i></span>';
+
+		// 点击 chip 文字部分 → 切换启用/禁用
+		tag.querySelector('.model-name').addEventListener('click', function() {
+			var cur = tag.getAttribute('data-enabled') === '1';
+			tag.setAttribute('data-enabled', cur ? '0' : '1');
+			tag.classList.toggle('enabled', !cur);
+			tag.classList.toggle('disabled', cur);
+		});
+
+		// 点击 X → 删除
+		tag.querySelector('.model-remove').addEventListener('click', function(e) {
+			e.stopPropagation();
+			tag.remove();
+		});
+
+		// 在 input 前面插入 tag
+		var input = wrap.querySelector('.model-input');
+		wrap.insertBefore(tag, input);
+		return tag;
+	}
+
+	// 从 input 添加模型：支持回车或逗号触发，去重
+	function addModelFromInput(wrap, input) {
+		var val = input.value.trim().replace(/[,，]+$/g, '').trim();
+		if (!val) return;
+		// 去重检查
+		var existing = {};
+		wrap.querySelectorAll('.model-tag').forEach(function(t) {
+			existing[t.getAttribute('data-name').toLowerCase()] = true;
+		});
+		// 支持粘贴逗号分隔批量添加
+		val.split(/[,，]/).forEach(function(name) {
+			name = name.trim();
+			if (!name) return;
+			if (existing[name.toLowerCase()]) return;
+			createModelTag(wrap, name, 1);
+			existing[name.toLowerCase()] = true;
+		});
+		input.value = '';
+	}
+
+	function createProviderRow(item, idx) {
+		var tr = document.createElement('tr');
+		tr.className = 'provider-row';
+		var nameVal    = (item && item.name)    ? item.name    : '';
+		var typeVal    = (item && item.type)    ? item.type    : 'text';
+		var urlVal     = (item && item.url)     ? item.url     : '';
+		var apiKeyVal  = (item && item.api_key) ? item.api_key : '';
+		var modelsArr  = normalizeModels(item && item.models ? item.models : '');
+
+		// type 选项：text 文本 / image 生图 / video 视频 / audio 语音 / transcription 转写
+		// 标签从 PHP 预生成的 typeLabels 映射中读取（lang 是对象不是函数，不能直接调用）
+		var typeOptions = ['text','image','video','audio','transcription'];
+		var typeOptsHtml = typeOptions.map(function(t) {
+			var label = typeLabels[t] || t;
+			return '<option value="' + t + '"' + (t === typeVal ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+		}).join('');
+
+		tr.innerHTML =
+			'<td><input type="text" class="form-control form-control-sm" name="ai_provider_name[]" value="' + escapeHtml(nameVal) + '" placeholder="<?php echo lang('admin_ai_provider_placeholder');?>"></td>' +
+			'<td><select class="form-select form-select-sm provider-type-select" name="ai_provider_type[]">' + typeOptsHtml + '</select></td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="ai_provider_url[]" value="' + escapeHtml(urlVal) + '" placeholder="https://api.openai.com"></td>' +
+			'<td><input type="password" class="form-control form-control-sm" name="ai_provider_apikey[]" value="' + escapeHtml(apiKeyVal) + '" placeholder="sk-..." autocomplete="off"></td>' +
+			'<td><div class="model-tags-wrap"><input type="text" class="model-input" placeholder="<?php echo lang('admin_ai_model_input_tip');?>" autocomplete="off"></div></td>' +
+			'<td class="text-center"><a role="button" class="text-danger delete-provider" title="<?php echo lang('delete');?>"><i class="ti ti-trash"></i></a></td>';
+
+		var wrap = tr.querySelector('.model-tags-wrap');
+		var input = tr.querySelector('.model-input');
+
+		// 渲染已有模型
+		modelsArr.forEach(function(m) {
+			createModelTag(wrap, m.name, m.enabled);
+		});
+
+		// 输入框：回车或逗号触发添加
+		input.addEventListener('keydown', function(e) {
+			if (e.key === 'Enter' || e.key === ',' || e.key === '，') {
+				e.preventDefault();
+				addModelFromInput(wrap, input);
+			} else if (e.key === 'Backspace' && input.value === '') {
+				// 输入框为空时按退格删除最后一个 tag
+				var tags = wrap.querySelectorAll('.model-tag');
+				if (tags.length > 0) tags[tags.length - 1].remove();
+			}
+		});
+		// 失焦时如果有内容也添加
+		input.addEventListener('blur', function() {
+			if (input.value.trim()) addModelFromInput(wrap, input);
+			wrap.classList.remove('is-focus');
+		});
+		input.addEventListener('focus', function() {
+			wrap.classList.add('is-focus');
+		});
+		// 点击 wrap 空白处聚焦 input
+		wrap.addEventListener('click', function(e) {
+			if (e.target === wrap) input.focus();
+		});
+
+		tr.querySelector('.delete-provider').addEventListener('click', function(e) {
+			e.preventDefault();
+			if (confirm('<?php echo lang('admin_ai_provider_delete_confirm');?>')) {
+				tr.remove();
+			}
+		});
+
+		return tr;
+	}
+
+	function renderProviders(items) {
+		var tbody = document.getElementById('aiProvidersBody');
+		tbody.innerHTML = '';
+		if (!items || items.length === 0) {
+			tbody.innerHTML = '<tr class="provider-empty-row"><td colspan="6" class="text-center text-body-secondary"><?php echo lang('admin_ai_provider_empty_tip');?></td></tr>';
+			return;
+		}
+		items.forEach(function(item) {
+			tbody.appendChild(createProviderRow(item));
+		});
+	}
+
+	renderProviders(providers);
+
+	document.getElementById('addProvider').addEventListener('click', function(e) {
+		e.preventDefault();
+		var tbody = document.getElementById('aiProvidersBody');
+		// 清掉空提示行
+		var emptyRow = tbody.querySelector('.provider-empty-row');
+		if (emptyRow) emptyRow.remove();
+		tbody.appendChild(createProviderRow({}));
+		// 聚焦新行第一个输入框
+		var lastRow = tbody.lastElementChild;
+		if (lastRow) lastRow.querySelector('input[name="ai_provider_name[]"]').focus();
+	});
+
+	// 表单提交：fetch + JSON + showToast
+	var form = document.getElementById('aiProvidersForm');
+	var btn  = document.getElementById('providersSubmitBtn');
+	form.addEventListener('submit', function(e) {
+		e.preventDefault();
+		btn.disabled = true;
+		var origText = btn.innerHTML;
+		btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('submiting');?>...';
+
+		var formData = new FormData(form);
+
+		// 收集每行模型数据：按行 idx 顺序提交二维数组
+		// model_names[idx][] + model_enabled[idx][]（仅启用项才 append enabled）
+		var rows = document.querySelectorAll('#aiProvidersBody .provider-row');
+		rows.forEach(function(row, idx) {
+			row.querySelectorAll('.model-tag').forEach(function(tag) {
+				formData.append('ai_provider_model_names[' + idx + '][]', tag.getAttribute('data-name'));
+				if (tag.getAttribute('data-enabled') === '1') {
+					formData.append('ai_provider_model_enabled[' + idx + '][]', '1');
+				}
+			});
+		});
+
+		fetch(form.getAttribute('action'), {
+			method: 'POST',
+			body: formData,
+			headers: { 'X-Requested-With': 'XMLHttpRequest' }
+		})
+		.then(function(res) { return res.json(); })
+		.then(function(data) {
+			if (parseInt(data.code) === 0) {
+				showToast(data.message, 'success');
+				btn.innerHTML = '<i class="ti ti-check me-1"></i>' + data.message;
+				btn.classList.remove('btn-primary');
+				btn.classList.add('btn-success');
+				setTimeout(function() {
+					btn.disabled = false;
+					btn.innerHTML = origText;
+					btn.classList.remove('btn-success');
+					btn.classList.add('btn-primary');
+				}, 1500);
+			} else {
+				showToast(data.message, 'error');
+				btn.disabled = false;
+				btn.innerHTML = origText;
+			}
+		})
+		.catch(function(err) {
+			showToast('<?php echo lang('admin_request_failed_retry')?>', 'error');
+			btn.disabled = false;
+			btn.innerHTML = origText;
+		});
+	});
+})();
+</script>
+
+<!--{hook admin_ai_providers_js.htm}-->

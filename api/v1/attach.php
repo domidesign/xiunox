@@ -21,7 +21,7 @@ switch ($method) {
             ApiResponse::unauthorized();
         }
         // 检查上传附件权限
-        include_once APP_PATH . 'lib/security/PermissionService.php';
+        include_once APP_PATH . 'lib/PermissionService.php';
         if (!PermissionService::check('allowattach')) {
             ApiResponse::forbidden('您无权上传附件');
         }

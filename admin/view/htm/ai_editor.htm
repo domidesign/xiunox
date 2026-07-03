@@ -1,0 +1,81 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_ai_editor_start.htm}-->
+
+<div class="mb-3">
+	<?php echo admin_tab_active($menu['ai']['tab'], 'editor');?>
+</div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo url('ai-editor');?>" method="post" id="aiEditorForm">
+			<?php echo CsrfService::input(); ?>
+
+			<p class="text-body-secondary small mb-3"><?php echo lang('admin_ai_editor_desc'); ?></p>
+
+			<div class="mb-3">
+				<label class="form-label"><?php echo lang('admin_ai_editor_prompt_continue');?></label>
+				<textarea class="form-control" name="editor_prompt_continue" rows="3"><?php echo esc_html($ai_editor_config['promptContinue']);?></textarea>
+			</div>
+
+			<div class="mb-3">
+				<label class="form-label"><?php echo lang('admin_ai_editor_prompt_improve');?></label>
+				<textarea class="form-control" name="editor_prompt_improve" rows="3"><?php echo esc_html($ai_editor_config['promptImprove']);?></textarea>
+			</div>
+
+			<div class="mt-4">
+				<button type="submit" class="btn btn-primary rounded-pill" id="editorSubmitBtn"><?php echo lang('confirm');?></button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<!--{hook admin_ai_editor_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+(function() {
+	var form = document.getElementById('aiEditorForm');
+	var btn  = document.getElementById('editorSubmitBtn');
+	form.addEventListener('submit', function(e) {
+		e.preventDefault();
+		btn.disabled = true;
+		var origText = btn.innerHTML;
+		btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('submiting');?>...';
+
+		var formData = new FormData(form);
+		fetch(form.getAttribute('action'), {
+			method: 'POST',
+			body: formData,
+			headers: { 'X-Requested-With': 'XMLHttpRequest' }
+		})
+		.then(function(res) { return res.json(); })
+		.then(function(data) {
+			if (parseInt(data.code) === 0) {
+				showToast(data.message, 'success');
+				btn.innerHTML = '<i class="ti ti-check me-1"></i>' + data.message;
+				btn.classList.remove('btn-primary');
+				btn.classList.add('btn-success');
+				setTimeout(function() {
+					btn.disabled = false;
+					btn.innerHTML = origText;
+					btn.classList.remove('btn-success');
+					btn.classList.add('btn-primary');
+				}, 1500);
+			} else {
+				showToast(data.message, 'error');
+				btn.disabled = false;
+				btn.innerHTML = origText;
+			}
+		})
+		.catch(function(err) {
+			showToast('<?php echo lang('admin_request_failed_retry')?>', 'error');
+			btn.disabled = false;
+			btn.innerHTML = origText;
+		});
+	});
+})();
+</script>
+
+<!--{hook admin_ai_editor_js.htm}-->

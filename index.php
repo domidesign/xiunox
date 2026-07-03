@@ -72,6 +72,19 @@ foreach(array('logo_mobile_url', 'logo_pc_url', 'logo_water_url') as $_logo_key)
 
 $_SERVER['conf'] = $conf;
 
+// 强制 HTTPS 跳转（必须在 conf 加载后、框架初始化前执行）
+if(!empty($conf['force_https']) && $conf['force_https'] == 1) {
+	$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+		|| (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
+		|| (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+	if(!$is_https) {
+		$https_url = 'https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+		header('HTTP/1.1 301 Moved Permanently');
+		header('Location: ' . $https_url);
+		exit;
+	}
+}
+
 if(DEBUG > 1) {
 	include XIUNOPHP_PATH.'xiunophp.php';
 } else {

@@ -610,8 +610,33 @@ function xn_html_safe($doc, $arg = array()) {
 	$result = $safehtml->parse($doc);
 	
 	// hook model_xn_html_safe_end.php
-	
+
 	return $result;
+}
+
+/**
+ * 渲染用户封禁状态徽章 HTML
+ * 接收 user 数组或 ban_type 数值；ban_type>0 时返回徽章 HTML，否则返回空串
+ * 复用 UserBanService::getBanTypeLabel() 获取标签与颜色，保持单一数据源
+ * @param array|int $user 用户数组（含 ban_type）或 ban_type 数值
+ * @return string
+ */
+function user_ban_badge_html($user) {
+	$banType = is_array($user) ? (isset($user['ban_type']) ? intval($user['ban_type']) : 0) : intval($user);
+	if($banType <= 0) return '';
+	if(!class_exists('UserBanService', false)) {
+		include_once APP_PATH . 'lib/UserBanService.php';
+	}
+	$label = UserBanService::getBanTypeLabel($banType);
+	return '<span class="badge bg-' . $label['color'] . ' ms-1" style="font-size:0.6em">' . $label['label'] . '</span>';
+}
+
+/**
+ * 渲染被封禁用户内容隐藏占位提示 HTML
+ * @return string
+ */
+function user_ban_hidden_notice_html() {
+	return '<div class="alert alert-warning py-2 px-3 mb-2 small"><i class="ti ti-eye-off me-1"></i>' . lang('user_ban_content_hidden') . '</div>';
 }
 
 // hook model_misc_end.php

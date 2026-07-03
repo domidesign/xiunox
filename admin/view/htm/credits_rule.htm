@@ -9,7 +9,7 @@
 <div class="x-card card">
 	<div class="card-body">
 		<!-- 子Tab导航：全局规则 / 版块覆盖 -->
-		<ul class="nav nav-tabs mb-4" role="tablist">
+		<ul class="nav nav-tabs nav-tabs-scroll mb-4" role="tablist">
 			<li class="nav-item" role="presentation">
 				<a class="nav-link active" href="#globalRule" data-credits-tab="globalRule">
 					<i class="ti ti-world me-1"></i><?php echo lang('admin_credits_rule_global');?>
@@ -33,7 +33,7 @@
 			<p class="text-body-secondary fs-6 mb-3"><i class="ti ti-info-circle me-1"></i><?php echo lang('admin_credits_rule_positive_tip');?></p>
 
 			<div class="table-responsive">
-				<table class="table table-hover align-middle mb-0">
+				<table class="table table-hover align-middle table-min-w-md mb-0">
 					<thead>
 						<tr>
 							<th style="width:22%;"><?php echo lang('admin_credits_rule_label');?></th>
@@ -210,6 +210,14 @@ document.getElementById('forumSelect').addEventListener('change', function() {
 		.then(function(r) { return r.text(); })
 		.then(function(html) {
 			panel.innerHTML = html;
+			// ponytail: 通过 innerHTML 注入的 <script> 不会自动执行 (浏览器规范),
+			// 需手动创建新 script 元素替换以触发绑定事件 (上限: 每次切换版块重新执行;
+			// 升级路径: 改为事件委托避免重复注入)
+			panel.querySelectorAll('script').forEach(function(oldScript) {
+				var s = document.createElement('script');
+				s.textContent = oldScript.textContent;
+				oldScript.parentNode.replaceChild(s, oldScript);
+			});
 		});
 });
 </script>

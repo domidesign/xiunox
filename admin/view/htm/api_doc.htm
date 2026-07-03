@@ -100,7 +100,7 @@
                 <?php if(!empty($ep['params'])): ?>
                 <div class="api-section-title"><?php echo lang('api_params');?></div>
                 <div class="overflow-x-auto">
-                    <table class="table table-sm mb-3">
+                    <table class="table table-sm mb-3 table-min-w-sm">
                         <thead><tr><th><?php echo lang('api_param_name');?></th><th><?php echo lang('api_param_type');?></th><th><?php echo lang('api_param_position');?></th><th><?php echo lang('api_param_required');?></th><th><?php echo lang('api_param_desc');?></th></tr></thead>
                         <tbody>
                         <?php foreach($ep['params'] as $p): ?>

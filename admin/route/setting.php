@@ -24,7 +24,7 @@ if($action == 'base') {
 		$input['user_create_on'] = form_radio_yes_no('user_create_on', $conf['user_create_on']);
 		$input['user_create_email_on'] = form_radio_yes_no('user_create_email_on', $conf['user_create_email_on']);
 		$input['user_resetpw_on'] = form_radio_yes_no('user_resetpw_on', $conf['user_resetpw_on']);
-		$input['cache_disable'] = form_radio_yes_no('cache_disable', isset($conf['cache_disable']) ? $conf['cache_disable'] : 0);
+		$input['force_https'] = form_radio_yes_no('force_https', isset($conf['force_https']) ? $conf['force_https'] : 0);
 		$input['lang'] = form_select('lang', array('zh-cn'=>lang('lang_zh_cn'), 'zh-tw'=>lang('lang_zh_tw'), 'en-us'=>lang('lang_en_us'), 'ru-ru'=>lang('lang_ru_ru'), 'th-th'=>lang('lang_th_th'), 'ja-jp'=>lang('lang_ja_jp'), 'ko-kr'=>lang('lang_ko_kr')), $conf['lang']);
 		
 		$header['title'] = lang('admin_site_setting');
@@ -44,12 +44,12 @@ if($action == 'base') {
 		$user_create_on = param('user_create_on', 0);
 		$user_create_email_on = param('user_create_email_on', 0);
 		$user_resetpw_on = param('user_resetpw_on', 0);
-		$cache_disable = param('cache_disable', 0);
-		
+		$force_https = param('force_https', 0);
+
 		$_lang = param('lang');
-		
+
 		// hook admin_setting_base_post_start.php
-		
+
 		$replace = array();
 		$replace['sitename'] = $sitename;
 		$replace['sitebrief'] = $sitebrief;
@@ -57,7 +57,7 @@ if($action == 'base') {
 		$replace['user_create_on'] = $user_create_on;
 		$replace['user_create_email_on'] = $user_create_email_on;
 		$replace['user_resetpw_on'] = $user_resetpw_on;
-		$replace['cache_disable'] = $cache_disable;
+		$replace['force_https'] = $force_https;
 		$replace['lang'] = $_lang;
 		
 		file_replace_var(APP_PATH.'conf/conf.php', $replace);
@@ -65,70 +65,6 @@ if($action == 'base') {
 		// hook admin_setting_base_post_end.php
 
 		admin_log_create('setting_site', 'setting', '', '修改站点设置');
-		message(0, lang('modify_successfully'));
-	}
-
-} elseif($action == 'ai') {
-
-	// hook admin_setting_ai_get_post.php
-
-	if($method == 'GET') {
-
-		// hook admin_setting_ai_get_start.php
-
-		$ai_config = isset($conf['ai']) ? $conf['ai'] : array();
-
-		// 读取新的 providers 配置；若不存在则尝试从旧版 models 迁移
-		$ai_providers = array();
-		if(!empty($ai_config['providers'])) {
-			$ai_providers = array_values($ai_config['providers']);
-		} elseif(!empty($ai_config['models'])) {
-			foreach($ai_config['models'] as $name => $config) {
-				$url = isset($config['endpoint']) ? $config['endpoint'] : (isset($config['url']) ? $config['url'] : '');
-				if(empty($name) && empty($url)) continue;
-				$ai_providers[] = array(
-					'name' => $name,
-					'url' => $url,
-				);
-			}
-		}
-
-		$header['title'] = 'AI 设置';
-		$header['mobile_title'] = 'AI 设置';
-
-		// hook admin_setting_ai_get_end.php
-
-		include _include(ADMIN_PATH.'view/htm/setting_ai.htm');
-
-	} else {
-
-		CsrfService::check();
-
-		$ai_provider_name = param('ai_provider_name', array());
-		$ai_provider_url = param('ai_provider_url', array());
-
-		$providers = array();
-		for($i = 0; $i < count($ai_provider_name); $i++) {
-			$name = isset($ai_provider_name[$i]) ? trim($ai_provider_name[$i]) : '';
-			$url = isset($ai_provider_url[$i]) ? trim($ai_provider_url[$i]) : '';
-			// 过滤掉名称和 URL 都为空的行
-			if($name === '' && $url === '') continue;
-			$providers[] = array(
-				'name' => $name,
-				'url' => $url,
-			);
-		}
-
-		$ai_config = isset($conf['ai']) ? $conf['ai'] : array();
-		$ai_config['providers'] = $providers;
-		// 清空旧版 models，避免旧配置干扰
-		$ai_config['models'] = array();
-
-		file_replace_var(APP_PATH.'conf/conf.php', array('ai' => $ai_config));
-
-		// hook admin_setting_ai_post_end.php
-
-		admin_log_create('setting_ai', 'setting', '', '修改AI设置');
 		message(0, lang('modify_successfully'));
 	}
 
@@ -842,6 +778,9 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 		// 首页版块过滤
 		$home_forum_ids = isset($conf['home_forum_ids']) ? $conf['home_forum_ids'] : array();
 
+		// 编辑器提示文字
+		$editor_tip = isset($conf['editor_tip']) ? $conf['editor_tip'] : '';
+
 		// 版块列表（用于版块过滤选择）
 		$all_forums = isset($forumlist_show) ? $forumlist_show : array();
 
@@ -899,8 +838,13 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 		$home_forum_ids = param('home_forum_ids', array());
 		$home_forum_ids = array_map('intval', $home_forum_ids);
 
+		// 编辑器提示文字（纯文本，保留换行）
+	// 关闭 htmlspecialchars：该值后续经 json_encode 输出到 JS placeholder，htmlspecialchars 会把 " 破坏成 &quot; 导致显示乱码
+	$editor_tip = trim(param('editor_tip', '', FALSE));
+
 		$display_replace = array();
 		$display_replace['home_forum_ids'] = $home_forum_ids;
+		$display_replace['editor_tip'] = $editor_tip;
 		file_replace_var(APP_PATH.'conf/conf.php', $display_replace);
 
 		// hook admin_setting_display_post_end.php

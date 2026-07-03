@@ -39,6 +39,7 @@ switch ($route) {
 	case 'api':		include _include(ADMIN_PATH.'route/api.php'); 	break;
 	case 'log':		include _include(ADMIN_PATH.'route/log.php'); 	break;
 	case 'upgrade':		include _include(ADMIN_PATH.'route/upgrade.php'); 	break;
+	case 'online_upgrade':include _include(ADMIN_PATH.'route/online_upgrade.php'); 	break;
 	case 'notice':		include _include(APP_PATH.'route/notice.php'); 	break;
 	// hook admin_index_route_case_end.php
 	default:

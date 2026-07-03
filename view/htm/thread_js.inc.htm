@@ -240,16 +240,72 @@
         $('#lightboxImage').attr('src', lightboxImages[lightboxIndex]);
     });
 
-    $(function () {
-        $('.message pre code').each(function () {
-            $(this).parent().css('position', 'relative');
-            $(this).before('<button class="btn btn-sm btn-outline-light position-absolute top-0 end-0 m-1  copy-code" title="<?php echo lang('copy');?>"><i class="ti ti-clipboard"></i></button>');
+    // 代码块复制按钮：原生 JS 实现，支持 htmx 局部刷新后重绑定
+    function bindCopyCode(container) {
+        var root = container || document;
+        if (!root.querySelectorAll) return;
+        var nodes = root.querySelectorAll('.message pre code');
+        for (var i = 0; i < nodes.length; i++) {
+            (function (codeEl) {
+                var pre = codeEl.parentNode;
+                if (!pre || pre.querySelector('.copy-code')) return;
+                pre.style.position = 'relative';
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-sm btn-outline-primary position-absolute top-0 end-0 m-1 copy-code';
+                btn.title = '<?php echo lang('copy');?>';
+                btn.innerHTML = '<i class="ti ti-clipboard"></i>';
+                pre.insertBefore(btn, codeEl);
+            })(nodes[i]);
+        }
+    }
+    // 复制到剪贴板：优先 Clipboard API（需 HTTPS/localhost 安全上下文），不可用或失败时回退 execCommand
+    function copyCodeToClipboard(text) {
+        return new Promise(function (resolve, reject) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(resolve, function (err) {
+                    fallbackCopy(text) ? resolve() : reject(err);
+                });
+            } else {
+                fallbackCopy(text) ? resolve() : reject(new Error('clipboard API unavailable'));
+            }
         });
+    }
+    function fallbackCopy(text) {
+        try {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.top = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            return ok;
+        } catch (e) {
+            console.error('fallback copy error:', e);
+            return false;
+        }
+    }
+    bindCopyCode(document);
+    document.addEventListener('htmx:afterSwap', function (evt) {
+        bindCopyCode(evt.target);
     });
-    $(document).on('click', '.copy-code', function () {
-        var code = $(this).next('code').text();
-        navigator.clipboard.writeText(code).then(function () {
-            showToast('<?php echo lang('copied_to_clipboard');?>');
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest ? e.target.closest('.copy-code') : null;
+        if (!btn) return;
+        var codeEl = btn.parentNode.querySelector('code');
+        if (!codeEl) return;
+        copyCodeToClipboard(codeEl.textContent).then(function () {
+            if (typeof showToast === 'function') {
+                showToast('<?php echo lang('copied_to_clipboard');?>', 'success');
+            }
+        }, function (err) {
+            console.error('copy failed:', err);
+            if (typeof showToast === 'function') {
+                showToast('<?php echo lang('copy_failed');?>', 'error');
+            }
         });
     });
 </script>
@@ -584,13 +640,17 @@ document.body.addEventListener('htmx:after:swap', function(e) {
     });
 
     // 滚动时高亮当前目录项
+    // ponytail: 只调整目录容器的 scrollTop，禁止用 scrollIntoView —— 后者会连带滚动 window，
+    // 当文章很长、目录项超出容器可见区时会把页面"弹回"，已知 ceiling: 无平滑动画降级。
     var tocBody = navEl.parentElement;
     function scrollActiveTocItemIntoView(link) {
         if (!tocBody || !link) return;
         var containerRect = tocBody.getBoundingClientRect();
         var linkRect = link.getBoundingClientRect();
-        if (linkRect.top < containerRect.top || linkRect.bottom > containerRect.bottom) {
-            link.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+        if (linkRect.top < containerRect.top) {
+            tocBody.scrollTop -= (containerRect.top - linkRect.top);
+        } else if (linkRect.bottom > containerRect.bottom) {
+            tocBody.scrollTop += (linkRect.bottom - containerRect.bottom);
         }
     }
 
@@ -612,6 +672,104 @@ document.body.addEventListener('htmx:after:swap', function(e) {
 </script>
 
 <!--{hook thread_js.htm}-->
+
+<script>
+// ===== 长文章折叠：首楼正文超过 2 屏时自动折叠 =====
+(function() {
+    var FOLD_HEIGHT = window.innerHeight * 2; // 折叠阈值：2 屏高度
+    var EXPAND_TEXT = '<?php echo addslashes(lang('expand_full_text'));?>';
+    var COLLAPSE_TEXT = '<?php echo addslashes(lang('collapse_text'));?>';
+
+    function foldLongContent(content) {
+        if (!content || content.dataset.foldInit === '1') return;
+        content.dataset.foldInit = '1';
+
+        function tryFold() {
+            if (content.dataset.foldApplied === '1') return;
+            // ponytail: 用 scrollHeight 测量实际内容高度；图片未加载时高度不准，故等待 img load
+            if (content.scrollHeight <= FOLD_HEIGHT) return;
+            content.dataset.foldApplied = '1';
+            content.dataset.folded = '1';
+
+            content.style.maxHeight = FOLD_HEIGHT + 'px';
+            content.style.overflow = 'hidden';
+            content.style.position = 'relative';
+
+            // 渐变遮罩 + 展开/收起按钮
+            var overlay = document.createElement('div');
+            overlay.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:140px;background:linear-gradient(to bottom, transparent, var(--bs-body-bg, #fff) 75%);display:flex;align-items:flex-end;justify-content:center;padding-bottom:16px;z-index:5;pointer-events:none';
+
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm btn-outline-primary rounded-pill';
+            btn.style.pointerEvents = 'auto';
+            btn.innerHTML = '<i class="ti ti-chevron-down me-1"></i>' + EXPAND_TEXT;
+
+            btn.addEventListener('click', function() {
+                if (content.dataset.expanded === '1') {
+                    // 收起
+                    content.style.maxHeight = FOLD_HEIGHT + 'px';
+                    content.style.overflow = 'hidden';
+                    overlay.style.display = 'flex';
+                    btn.innerHTML = '<i class="ti ti-chevron-down me-1"></i>' + EXPAND_TEXT;
+                    content.dataset.expanded = '0';
+                    // 收起后若内容顶部在视口上方，滚回到内容顶部
+                    var rect = content.getBoundingClientRect();
+                    if (rect.top < 0) {
+                        window.scrollTo({top: window.pageYOffset + rect.top - 80, behavior: 'smooth'});
+                    }
+                } else {
+                    // 展开
+                    content.style.maxHeight = '';
+                    content.style.overflow = '';
+                    overlay.style.display = 'none';
+                    btn.innerHTML = '<i class="ti ti-chevron-up me-1"></i>' + COLLAPSE_TEXT;
+                    content.dataset.expanded = '1';
+                }
+            });
+
+            overlay.appendChild(btn);
+            content.appendChild(overlay);
+        }
+
+        // 等待图片加载后测量高度
+        var imgs = content.querySelectorAll('img');
+        if (imgs.length === 0) {
+            tryFold();
+        } else {
+            var loaded = 0;
+            var total = imgs.length;
+            function checkLoaded() {
+                loaded++;
+                if (loaded >= total) tryFold();
+            }
+            imgs.forEach(function(img) {
+                if (img.complete) {
+                    checkLoaded();
+                } else {
+                    img.addEventListener('load', checkLoaded);
+                    img.addEventListener('error', checkLoaded);
+                }
+            });
+            // 兜底：3 秒后强制测量（图片加载慢或卡住时）
+            setTimeout(tryFold, 3000);
+        }
+    }
+
+    var firstContent = document.querySelector('.message[isfirst="1"]');
+    if (firstContent) {
+        foldLongContent(firstContent);
+    }
+
+    // htmx 局部刷新后重新初始化
+    document.body.addEventListener('htmx:afterSwap', function(e) {
+        var target = e.detail && e.detail.target;
+        if (!target) return;
+        var fc = target.querySelector('.message[isfirst="1"]');
+        if (fc) foldLongContent(fc);
+    });
+})();
+</script>
 
 <script>
 // ===== 手机端postbar快速回复逻辑 =====

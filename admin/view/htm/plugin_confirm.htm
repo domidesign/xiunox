@@ -1,0 +1,88 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<?php
+// 根据操作类型确定表单提交地址与按钮样式
+$confirm_url = '';
+$confirm_btn_class = 'btn-primary';
+$confirm_btn_icon = 'ti-check';
+switch($confirm_action) {
+	case 'install':
+		$confirm_url = admin_plugin_install_url($confirm_dir);
+		$confirm_btn_class = 'btn-primary';
+		$confirm_btn_icon = 'ti-download';
+		break;
+	case 'unstall':
+		$confirm_url = admin_plugin_unstall_url($confirm_dir);
+		$confirm_btn_class = 'btn-danger';
+		$confirm_btn_icon = 'ti-trash';
+		break;
+	case 'enable':
+		$confirm_url = admin_plugin_enable_url($confirm_dir);
+		$confirm_btn_class = 'btn-primary';
+		$confirm_btn_icon = 'ti-player-play';
+		break;
+	case 'disable':
+		$confirm_url = admin_plugin_disable_url($confirm_dir);
+		$confirm_btn_class = 'btn-warning';
+		$confirm_btn_icon = 'ti-player-pause';
+		break;
+}
+?>
+
+<div class="row justify-content-center">
+	<div class="col-12 col-md-8 col-lg-6">
+		<div class="x-card card">
+			<div class="card-body p-4">
+				<div class="d-flex align-items-start gap-3 mb-4">
+					<?php if($confirm_action == 'unstall'):?>
+						<span class="avatar-text rounded-2 bg-danger bg-opacity-10 text-danger" style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;">
+							<i class="ti ti-alert-triangle ti-lg"></i>
+						</span>
+					<?php elseif($confirm_action == 'disable'):?>
+						<span class="avatar-text rounded-2 bg-warning bg-opacity-10 text-warning" style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;">
+							<i class="ti ti-alert-circle ti-lg"></i>
+						</span>
+					<?php else:?>
+						<span class="avatar-text rounded-2 bg-primary bg-opacity-10 text-primary" style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;">
+							<i class="ti ti-info-circle ti-lg"></i>
+						</span>
+					<?php endif;?>
+					<div class="flex-grow-1">
+						<h5 class="mb-1"><?php echo esc_html($confirm_name);?></h5>
+						<small class="text-secondary"><?php echo lang('plugin_dir');?>: <?php echo esc_html($confirm_dir);?></small>
+					</div>
+				</div>
+
+				<div class="alert <?php echo $confirm_action == 'unstall' ? 'alert-danger' : ($confirm_action == 'disable' ? 'alert-warning' : 'alert-info');?> mb-4" role="alert">
+					<?php echo lang('plugin_'.$confirm_action.'_confirm', array('name'=>$confirm_name));?>
+				</div>
+
+				<form method="post" action="<?php echo $confirm_url;?>" id="pluginConfirmForm">
+					<?php echo CsrfService::input();?>
+					<?php if($confirm_action == 'install' && !empty($confirm_force)):?>
+						<input type="hidden" name="force" value="1">
+					<?php endif;?>
+					<div class="d-flex gap-2 justify-content-end">
+						<a href="<?php echo admin_plugin_url();?>" class="btn btn-outline-secondary rounded-pill">
+							<i class="ti ti-x me-1"></i> <?php echo lang('cancel');?>
+						</a>
+						<button type="submit" class="btn <?php echo $confirm_btn_class;?> rounded-pill" id="pluginConfirmBtn">
+							<i class="ti <?php echo $confirm_btn_icon;?> me-1"></i> <?php echo lang('confirm');?>
+						</button>
+					</div>
+				</form>
+			</div>
+		</div>
+	</div>
+</div>
+
+<script>
+// 提交时禁用按钮防止重复提交
+document.getElementById('pluginConfirmForm').addEventListener('submit', function() {
+	var btn = document.getElementById('pluginConfirmBtn');
+	btn.disabled = true;
+	btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>...';
+});
+</script>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>

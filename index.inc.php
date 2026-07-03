@@ -77,6 +77,20 @@ $uid = intval(_SESSION('uid'));
 empty($uid) AND $uid = user_token_get() AND $_SESSION['uid'] = $uid;
 $user = user_read($uid);
 
+// 账号锁定检查：banned_until > 当前时间则强制退出登录（前台会话也失效）
+// 防止攻击者偷取前台 cookie 后，即使后台密码错误被锁，仍能持前台会话操作
+if(!empty($user) && isset($user['banned_until']) && $user['banned_until'] > $time) {
+	// 清除 session 中的 uid
+	unset($_SESSION['uid']);
+	// 清除 bbs_token cookie
+	if(function_exists('user_token_clear')) {
+		user_token_clear();
+	}
+	// 重置 $uid 和 $user，使本次请求以游客身份处理
+	$uid = 0;
+	$user = array();
+}
+
 $gid = empty($user) ? 0 : intval($user['gid']);
 $group = isset($grouplist[$gid]) ? $grouplist[$gid] : (isset($grouplist[0]) ? $grouplist[0] : array());
 
@@ -107,6 +121,46 @@ $_search_require_login = SecurityConfigService::get('security_search_require_log
 
 // 检测站点运行级别 / restricted access
 check_runlevel();
+
+// 在线升级维护模式检测：升级过程中前台非管理员返回 503
+$_maint_lock = isset($conf['tmp_path']) ? $conf['tmp_path'] . 'maintenance.lock' : APP_PATH . 'tmp/maintenance.lock';
+if (is_file($_maint_lock) && $gid != 1) {
+    header('HTTP/1.1 503 Service Unavailable');
+    header('Retry-After: 300');
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!DOCTYPE html><html lang="zh-cn"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>站点升级中</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f8f9fa;color:#495057;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}.card{background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.08);padding:3rem;text-align:center;max-width:420px}.icon{font-size:3rem;color:#0d6efd;margin-bottom:1rem}h1{font-size:1.5rem;margin:0 0 .5rem}p{margin:0;color:#6c757d}</style></head><body><div class="card"><div class="icon">&#9881;</div><h1>站点升级中</h1><p>系统正在升级，请稍后访问</p><p style="margin-top:.5rem;font-size:.875rem">预计 5 分钟内恢复</p></div></body></html>';
+    exit;
+}
+
+// 全局封禁检查：禁止访问(ban_type=2)/锁定(ban_type=3)用户跳转封禁提示页
+// 游客(uid=0)不检查；admin 上下文不检查（admin 有独立入口和权限体系）
+// 管理员组(gid=1,2)豁免，避免误封导致系统无法管理
+// 用 SCRIPT_NAME 检测 admin，兼容子目录安装（项目规则：admin 检测用 SCRIPT_NAME 而非 REQUEST_URI）
+$_ban_script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/index.php';
+$_ban_is_admin = (strpos($_ban_script_name, '/admin') !== false);
+if(!$_ban_is_admin && $uid > 0) {
+	if(!class_exists('UserBanService')) { include_once APP_PATH.'lib/UserBanService.php'; }
+	// 管理员组豁免：二次检查，避免误封导致系统无法管理
+	if(!in_array($gid, UserBanService::ADMIN_GIDS, true)) {
+		$ban_check = UserBanService::checkBanByScene($uid, 'browse');
+		// hook user_ban_check.php
+		if(!$ban_check['allowed']) {
+			// AJAX 请求返回 JSON，避免 htmx 等异步请求收到 HTML 页面
+			$_ban_is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest')
+				|| !empty($_SERVER['HTTP_HX_REQUEST']);
+			if($_ban_is_ajax) {
+				header('Content-Type: application/json');
+				echo json_encode(array('code' => -1003, 'message' => $ban_check['message']));
+				exit;
+			}
+			// 普通请求渲染封禁提示页（不用 message() 函数，message 会输出完整页面或跳转）
+			$ban_status = UserBanService::getBanStatus($uid);
+			$header['title'] = lang('user_ban_page_title');
+			include _include(APP_PATH.'view/htm/banned_notice.htm');
+			exit;
+		}
+	}
+}
 
 // 全站的设置数据，站点名称，描述，关键词
 // $setting = kv_get('setting');

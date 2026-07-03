@@ -416,32 +416,6 @@ jsend_code_btn.on('click', function() {
 	}
 })();
 
-$('#ai_provider').on('change', function() {
-	var v = $(this).val();
-	var endpointMap = {
-		'openai': 'https://api.openai.com',
-		'deepseek': 'https://api.deepseek.com',
-		'gitee': 'https://ai.gitee.com/api/inference/serverless/',
-		'spark': '',
-		'wenxin': '',
-		'custom': ''
-	};
-	var modelMap = {
-		'openai': 'gpt-4o-mini',
-		'deepseek': 'deepseek-chat',
-		'gitee': '',
-		'spark': 'v3.5',
-		'wenxin': '',
-		'custom': ''
-	};
-	if (!$('#ai_endpoint').val() && endpointMap[v]) {
-		$('#ai_endpoint').val(endpointMap[v]);
-	}
-	if (!$('#ai_model').val() && modelMap[v]) {
-		$('#ai_model').val(modelMap[v]);
-	}
-});
-
 // ========== Tab 切换函数（my 页面内 tab 切换） ==========
 function switchMyTab(tabName) {
 	document.querySelectorAll('#myTabContent > .tab-pane').forEach(function(pane) {

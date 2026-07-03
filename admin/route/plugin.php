@@ -138,17 +138,19 @@ if($action == 'local') {
 
 } elseif($action == 'install') {
 	
-	plugin_lock_start();
-	
 	$dir = param_word(2);
 	plugin_check_exists($dir);
 	$name = $plugins[$dir]['name'];
 	
 	// 安装前兼容性预扫描
 	$force = param('force', 0);
-	include APP_PATH . 'lib/PluginScannerRules.php';
+	
+	if($method == 'POST') {
+		// CSRF 校验
+		CsrfService::check();
+		plugin_lock_start();
+		include APP_PATH . 'lib/PluginScannerRules.php';
 	include APP_PATH . 'lib/PluginScannerSuggestion.php';
-	include APP_PATH . 'lib/PluginScannerAlpine.php';
 	include APP_PATH . 'lib/PluginScanner.php';
 	$scanner = new PluginScanner();
 	$scanResult = $scanner->scanBeforeInstall($dir);
@@ -208,14 +210,26 @@ if($action == 'local') {
 	
 	$msg = lang('plugin_install_sucessfully', array('name'=>$name));
 	message(0, $msg, array('redirect_url' => http_referer()));
+	} else {
+		// GET: 显示确认页面
+		$confirm_action = 'install';
+		$confirm_dir = $dir;
+		$confirm_name = $name;
+		$confirm_force = $force;
+		$header['title'] = lang('plugin_install_confirm', array('name'=>$name));
+		include _include(ADMIN_PATH."view/htm/plugin_confirm.htm");
+	}
 	
 } elseif($action == 'unstall') {
-	
-	plugin_lock_start();
 	
 	$dir = param_word(2);
 	plugin_check_exists($dir);
 	$name = $plugins[$dir]['name'];
+	
+	if($method == 'POST') {
+		// CSRF 校验
+		CsrfService::check();
+		plugin_lock_start();
 	
 	// 检查目录可写
 	// plugin_check_dir_is_writable();
@@ -243,14 +257,25 @@ if($action == 'local') {
 
 	$msg = lang('plugin_unstall_sucessfully', array('name'=>$name, 'dir'=>"plugin/$dir"));
 	message(0, $msg, array('redirect_url' => http_referer()));
+	} else {
+		// GET: 显示确认页面
+		$confirm_action = 'unstall';
+		$confirm_dir = $dir;
+		$confirm_name = $name;
+		$header['title'] = lang('plugin_unstall_confirm', array('name'=>$name));
+		include _include(ADMIN_PATH."view/htm/plugin_confirm.htm");
+	}
 	
 } elseif($action == 'enable') {
-	
-	plugin_lock_start();
 	
 	$dir = param_word(2);
 	plugin_check_exists($dir);
 	$name = $plugins[$dir]['name'];
+	
+	if($method == 'POST') {
+		// CSRF 校验
+		CsrfService::check();
+		plugin_lock_start();
 	
 	// 检查目录可写
 	//plugin_check_dir_is_writable();
@@ -267,14 +292,25 @@ if($action == 'local') {
 
 	$msg = lang('plugin_enable_sucessfully', array('name'=>$name));
 	message(0, $msg, array('redirect_url' => http_referer()));
+	} else {
+		// GET: 显示确认页面
+		$confirm_action = 'enable';
+		$confirm_dir = $dir;
+		$confirm_name = $name;
+		$header['title'] = lang('plugin_enable_confirm', array('name'=>$name));
+		include _include(ADMIN_PATH."view/htm/plugin_confirm.htm");
+	}
 	
 } elseif($action == 'disable') {
-	
-	plugin_lock_start();
 	
 	$dir = param_word(2);
 	plugin_check_exists($dir);
 	$name = $plugins[$dir]['name'];
+	
+	if($method == 'POST') {
+		// CSRF 校验
+		CsrfService::check();
+		plugin_lock_start();
 	
 	// 检查目录可写
 	//plugin_check_dir_is_writable();
@@ -291,34 +327,55 @@ if($action == 'local') {
 
 	$msg = lang('plugin_disable_sucessfully', array('name'=>$name));
 	message(0, $msg, array('redirect_url' => http_referer()));
-	
-} elseif($action == 'upgrade') {
-	
-	plugin_lock_start();
-	
-	$dir = param_word(2);
-	plugin_check_exists($dir);
-	$name = $plugins[$dir]['name'];
-
-	plugin_check_dependency($dir, 'install');
-
-	plugin_install($dir);
-
-	$upgradefile = APP_PATH."plugin/$dir/upgrade.php";
-	if(is_file($upgradefile)) {
-		// 注入安全 IO 包装，限制插件文件操作范围
-		require_once APP_PATH . 'lib/xn_safe_io.php';
-		$plugin_dir = $dir;
-		include _include($upgradefile);
+	} else {
+		// GET: 显示确认页面
+		$confirm_action = 'disable';
+		$confirm_dir = $dir;
+		$confirm_name = $name;
+		$header['title'] = lang('plugin_disable_confirm', array('name'=>$name));
+		include _include(ADMIN_PATH."view/htm/plugin_confirm.htm");
 	}
 	
-	plugin_lock_end();
+} elseif($action == 'upgrade') {
 
-	admin_log_create('plugin_upgrade', 'plugin', $dir, '升级插件：' . $name);
+	if($method == 'POST') {
+		// CSRF 校验
+		CsrfService::check();
 
-	$msg = lang('plugin_upgrade_sucessfully', array('name'=>$name));
-	message(0, $msg, array('redirect_url' => http_referer()));
-	
+		plugin_lock_start();
+
+		$dir = param_word(2);
+		plugin_check_exists($dir);
+		$name = $plugins[$dir]['name'];
+
+		plugin_check_dependency($dir, 'install');
+
+		plugin_install($dir);
+
+		$upgradefile = APP_PATH."plugin/$dir/upgrade.php";
+		if(is_file($upgradefile)) {
+			// 注入安全 IO 包装，限制插件文件操作范围
+			require_once APP_PATH . 'lib/xn_safe_io.php';
+			$plugin_dir = $dir;
+			include _include($upgradefile);
+		}
+
+		plugin_lock_end();
+
+		admin_log_create('plugin_upgrade', 'plugin', $dir, '升级插件：' . $name);
+
+		$msg = lang('plugin_upgrade_sucessfully', array('name'=>$name));
+		message(0, $msg, array('redirect_url' => http_referer()));
+	} else {
+		// GET: 显示确认页面
+		$dir = param_word(2);
+		plugin_check_exists($dir);
+		$name = $plugins[$dir]['name'];
+		$confirm_action = 'upgrade';
+		$header['title'] = lang('plugin_upgrade_confirm', array('name'=>$name));
+		include _include(ADMIN_PATH."view/htm/plugin_confirm.htm");
+	}
+
 } elseif($action == 'setting') {
 	
 	$dir = param_word(2);
@@ -327,6 +384,8 @@ if($action == 'local') {
 	
 	// 对插件设置的 POST 数据进行 XSS 过滤
 	if($method == 'POST' && !empty($_POST)) {
+		// CSRF 校验
+		CsrfService::check();
 		sanitize_plugin_setting($_POST);
 	}
 	
@@ -341,6 +400,9 @@ if($action == 'local') {
 	if($method != 'POST') {
 		message(-1, 'Method not allowed');
 	}
+
+	// CSRF 校验
+	CsrfService::check();
 
 	plugin_lock_start();
 
@@ -475,7 +537,6 @@ if($action == 'local') {
 		// PluginScanner 预扫描
 		include APP_PATH.'lib/PluginScannerRules.php';
 		include APP_PATH.'lib/PluginScannerSuggestion.php';
-		include APP_PATH.'lib/PluginScannerAlpine.php';
 		include APP_PATH.'lib/PluginScanner.php';
 		$scanner = new PluginScanner();
 		$scanResult = $scanner->scanBeforeInstall($pluginDir);

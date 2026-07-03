@@ -1,0 +1,317 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_online_upgrade_start.htm}-->
+
+<?php
+// 视图变量初始化
+if (!isset($action)) $action = '';
+if (!isset($steps) || !is_array($steps)) $steps = array();
+if (!isset($currentVersion)) $currentVersion = isset($conf['version']) ? $conf['version'] : '0.0.0';
+if (!isset($latestVersion)) $latestVersion = '';
+if (!isset($hasUpdate)) $hasUpdate = false;
+$csrfToken = CsrfService::getToken();
+?>
+
+<div class="mx-auto" style="max-width:48rem">
+	<div class="x-card card">
+		<div class="card-body">
+			<!-- 标题 + 当前版本 -->
+			<div class="d-flex justify-content-between align-items-center mb-4">
+				<h5 class="fw-bold d-flex align-items-center gap-2">
+					<i class="ti ti-cloud-upload"></i><?php echo lang('admin_online_upgrade_title');?>
+				</h5>
+				<span class="badge bg-secondary" id="currentVersionBadge"><?php echo htmlspecialchars($currentVersion);?></span>
+			</div>
+
+			<!-- 版本对比卡片 -->
+			<div class="mb-4">
+				<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+					<span class="fw-semibold"><?php echo lang('admin_online_upgrade_current_version');?></span>
+					<code id="currentVersionCode"><?php echo htmlspecialchars($currentVersion);?></code>
+					<i class="ti ti-arrow-right"></i>
+					<span class="fw-semibold"><?php echo lang('admin_online_upgrade_latest_version');?></span>
+					<code id="latestVersionCode">—</code>
+					<span class="badge bg-secondary d-none" id="updateBadge"></span>
+				</div>
+				<div class="fs-6 text-secondary d-none" id="releaseNotes"></div>
+			</div>
+
+			<!-- 4 个操作按钮 -->
+			<div class="d-flex gap-2 mb-4 flex-wrap">
+				<button type="button" class="btn btn-outline-primary" id="checkBtn" onclick="checkUpdate()">
+					<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>
+				</button>
+				<button type="button" class="btn btn-primary" id="startBtn" onclick="startUpgrade()" disabled>
+					<i class="ti ti-player-play-filled"></i><?php echo lang('admin_online_upgrade_start');?>
+				</button>
+				<button type="button" class="btn btn-outline-secondary" id="reinstallBtn" onclick="reinstall()">
+					<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>
+				</button>
+				<button type="button" class="btn btn-outline-danger d-none" id="rollbackBtn" onclick="rollback()">
+					<i class="ti ti-arrow-back-up"></i><?php echo lang('admin_online_upgrade_rollback');?>
+				</button>
+			</div>
+
+			<!-- 前置检查告警 -->
+			<div id="preflightAlert" class="alert alert-warning py-2 d-none"></div>
+
+			<!-- 步骤进度条 -->
+			<div id="stepsContainer">
+				<?php foreach($steps as $i => $step): ?>
+				<div class="step-item d-flex align-items-start mb-2 pb-2 border-bottom" id="step-<?php echo $step['id'];?>">
+					<div class="step-icon me-3 flex-shrink-0" style="width:32px; height:32px; border-radius:50%; background:var(--bs-gray-300); display:flex; align-items:center; justify-content:center;">
+						<span class="step-number fw-bold" style="font-size:0.75rem"><?php echo $i + 1;?></span>
+					</div>
+					<div class="flex-fill" style="min-width:0">
+						<div class="fw-semibold"><?php echo $step['name'];?></div>
+						<div class="fs-6 text-secondary"><?php echo $step['description'];?></div>
+						<div class="step-result fs-6 mt-1"></div>
+					</div>
+					<div class="step-status ms-2 flex-shrink-0">
+						<span class="text-secondary fs-6"><?php echo lang('admin_online_upgrade_waiting');?></span>
+					</div>
+				</div>
+				<?php endforeach; ?>
+			</div>
+
+			<!-- 日志区域 -->
+			<div class="mb-3" id="logArea"></div>
+		</div>
+	</div>
+</div>
+
+<script>
+var steps = <?php echo json_encode($steps);?>;
+var currentStep = 0;
+var isUpgrading = false;
+var csrfToken = <?php echo json_encode($csrfToken);?>;
+
+function checkUpdate() {
+	var btn = document.getElementById('checkBtn');
+	btn.disabled = true;
+	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_checking');?>';
+
+	$.ajax({
+		url: '<?php echo url('online_upgrade-check');?>',
+		type: 'POST',
+		data: { csrf_token: csrfToken },
+		dataType: 'json',
+		success: function(res) {
+			btn.disabled = false;
+			btn.innerHTML = '<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>';
+			var latestCode = document.getElementById('latestVersionCode');
+			var updateBadge = document.getElementById('updateBadge');
+			var releaseNotes = document.getElementById('releaseNotes');
+			var startBtn = document.getElementById('startBtn');
+			var logArea = document.getElementById('logArea');
+
+			if (res.ok) {
+				latestCode.textContent = res.latest_version || '—';
+				if (res.has_update) {
+					updateBadge.className = 'badge bg-success';
+					updateBadge.textContent = '<?php echo lang('admin_online_upgrade_has_update');?>';
+					updateBadge.classList.remove('d-none');
+					startBtn.disabled = false;
+				} else {
+					updateBadge.className = 'badge bg-secondary';
+					updateBadge.textContent = '<?php echo lang('admin_online_upgrade_no_update');?>';
+					updateBadge.classList.remove('d-none');
+					startBtn.disabled = true;
+				}
+				if (res.release_notes) {
+					releaseNotes.textContent = res.release_notes;
+					releaseNotes.classList.remove('d-none');
+				}
+				logArea.innerHTML = '<div class="alert alert-info py-2"><i class="ti ti-info-circle"></i>' + (res.message || '') + '</div>';
+			} else {
+				logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + (res.message || '<?php echo lang('admin_online_upgrade_check_failed');?>') + '</div>';
+			}
+		},
+		error: function(xhr) {
+			btn.disabled = false;
+			btn.innerHTML = '<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>';
+			var logArea = document.getElementById('logArea');
+			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + (xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
+		}
+	});
+}
+
+function startUpgrade() {
+	if (isUpgrading) return;
+	isUpgrading = true;
+
+	var btn = document.getElementById('startBtn');
+	btn.disabled = true;
+	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_upgrading');?>';
+	document.getElementById('checkBtn').disabled = true;
+	document.getElementById('reinstallBtn').disabled = true;
+	document.getElementById('preflightAlert').classList.add('d-none');
+	document.getElementById('rollbackBtn').classList.add('d-none');
+
+	// 重置步骤状态
+	currentStep = 0;
+	$('.step-icon').each(function(idx){
+		this.style.background = 'var(--bs-gray-300)';
+		this.style.color = '';
+		this.innerHTML = '<span class="step-number fw-bold" style="font-size:0.75rem">' + (idx + 1) + '</span>';
+	});
+	$('.step-status').html('<span class="text-secondary fs-6"><?php echo lang('admin_online_upgrade_waiting');?></span>');
+	$('.step-result').html('');
+
+	runNextStep();
+}
+
+function runNextStep() {
+	if (currentStep >= steps.length) {
+		finishUpgrade();
+		return;
+	}
+
+	var step = steps[currentStep];
+	var stepEl = document.getElementById('step-' + step.id);
+	var iconEl = stepEl.querySelector('.step-icon');
+	var statusEl = stepEl.querySelector('.step-status');
+	var resultEl = stepEl.querySelector('.step-result');
+
+	iconEl.style.background = 'var(--bs-primary)';
+	iconEl.style.color = '#fff';
+	iconEl.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+	statusEl.innerHTML = '<span class="text-primary fs-6"><?php echo lang('admin_online_upgrade_executing');?></span>';
+	resultEl.innerHTML = '';
+
+	$.ajax({
+		url: '<?php echo url('online_upgrade-run_step');?>',
+		type: 'POST',
+		data: { step: step.id, csrf_token: csrfToken },
+		dataType: 'json',
+		success: function(res) {
+			iconEl.innerHTML = res.ok ? '<i class="ti ti-check text-white"></i>' : '<i class="ti ti-exclamation-circle text-white"></i>';
+			iconEl.style.background = res.ok ? 'var(--bs-success, #198754)' : 'var(--bs-danger, #dc3545)';
+			statusEl.innerHTML = res.ok ? '<span class="text-success fs-6"><?php echo lang('admin_online_upgrade_complete');?></span>' : '<span class="text-danger fs-6"><?php echo lang('admin_online_upgrade_failed');?></span>';
+
+			var detailHtml = res.message || '';
+			if (res.results && res.results.length > 0) {
+				detailHtml += '<div class="mt-1" style="font-size:0.75rem">';
+				$.each(res.results, function(i, r) {
+					var icon = r.ok ? '<i class="ti ti-check text-success"></i>' : '<i class="ti ti-x text-danger"></i>';
+					detailHtml += '<div>' + icon + ' ' + (r.name || '') + ' — ' + r.message + '</div>';
+				});
+				detailHtml += '</div>';
+			}
+			resultEl.innerHTML = detailHtml;
+
+			if (!res.ok) {
+				showUpgradeError(res.message);
+				return;
+			}
+
+			currentStep++;
+			runNextStep();
+		},
+		error: function(xhr) {
+			iconEl.innerHTML = '<i class="ti ti-x text-white"></i>';
+			iconEl.style.background = 'var(--bs-danger, #dc3545)';
+			statusEl.innerHTML = '<span class="text-danger fs-6"><?php echo lang('admin_online_upgrade_failed');?></span>';
+			var errMsg = '<?php echo lang('admin_online_upgrade_request_failed');?>';
+			if (xhr.responseText) {
+				errMsg += xhr.responseText.substring(0, 200);
+			}
+			resultEl.innerHTML = errMsg;
+			showUpgradeError(errMsg);
+		}
+	});
+}
+
+function finishUpgrade() {
+	isUpgrading = false;
+	var btn = document.getElementById('startBtn');
+	btn.disabled = true;
+	btn.innerHTML = '<i class="ti ti-check"></i><?php echo lang('admin_online_upgrade_done');?>';
+	btn.className = 'btn btn-success';
+
+	document.getElementById('checkBtn').disabled = false;
+	document.getElementById('reinstallBtn').disabled = false;
+
+	var logArea = document.getElementById('logArea');
+	var latestVersion = document.getElementById('latestVersionCode').textContent;
+	logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i><?php echo lang('admin_online_upgrade_success_msg');?>' + (latestVersion && latestVersion !== '—' ? '<b>' + latestVersion + '</b>' : '') + '</div>';
+}
+
+function showUpgradeError(msg) {
+	isUpgrading = false;
+	var btn = document.getElementById('startBtn');
+	btn.innerHTML = '<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_retry');?>';
+	btn.className = 'btn btn-warning';
+	btn.disabled = false;
+
+	document.getElementById('checkBtn').disabled = false;
+	document.getElementById('reinstallBtn').disabled = false;
+	document.getElementById('rollbackBtn').classList.remove('d-none');
+
+	var logArea = document.getElementById('logArea');
+	logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + msg + '</div>';
+}
+
+function rollback() {
+	var btn = document.getElementById('rollbackBtn');
+	btn.disabled = true;
+	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_rolling_back');?>';
+
+	$.ajax({
+		url: '<?php echo url('online_upgrade-rollback');?>',
+		type: 'POST',
+		data: { csrf_token: csrfToken },
+		dataType: 'json',
+		success: function(res) {
+			btn.disabled = false;
+			btn.innerHTML = '<i class="ti ti-arrow-back-up"></i><?php echo lang('admin_online_upgrade_rollback');?>';
+			var logArea = document.getElementById('logArea');
+			if (res.ok) {
+				logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i>' + (res.message || '<?php echo lang('admin_online_upgrade_rollback_success');?>') + '</div>';
+			} else {
+				logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + (res.message || '<?php echo lang('admin_online_upgrade_rollback_failed');?>') + '</div>';
+			}
+		},
+		error: function(xhr) {
+			btn.disabled = false;
+			btn.innerHTML = '<i class="ti ti-arrow-back-up"></i><?php echo lang('admin_online_upgrade_rollback');?>';
+			var logArea = document.getElementById('logArea');
+			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + (xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
+		}
+	});
+}
+
+function reinstall() {
+	if (!confirm('<?php echo lang('admin_online_upgrade_reinstall_confirm');?>')) return;
+	var btn = document.getElementById('reinstallBtn');
+	btn.disabled = true;
+	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_reinstalling');?>';
+
+	$.ajax({
+		url: '<?php echo url('online_upgrade-reinstall');?>',
+		type: 'POST',
+		data: { csrf_token: csrfToken },
+		dataType: 'json',
+		success: function(res) {
+			btn.disabled = false;
+			btn.innerHTML = '<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>';
+			var logArea = document.getElementById('logArea');
+			if (res.ok) {
+				logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i>' + (res.message || '<?php echo lang('admin_online_upgrade_reinstall_success');?>') + '</div>';
+			} else {
+				logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + (res.message || '<?php echo lang('admin_online_upgrade_reinstall_failed');?>') + '</div>';
+			}
+		},
+		error: function(xhr) {
+			btn.disabled = false;
+			btn.innerHTML = '<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>';
+			var logArea = document.getElementById('logArea');
+			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + (xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
+		}
+	});
+}
+</script>
+
+<!--{hook admin_online_upgrade_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>

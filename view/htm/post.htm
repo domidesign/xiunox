@@ -169,15 +169,6 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 					</div>
 					<?php endif; ?>
 
-					<?php if($isfirst): ?>
-					<div class="x-card card">
-						<div class="card-body  ">
-							<h6 class="mb-1 fw-semibold small"><i class="ti ti-link me-1"></i><?php echo lang('ref_thread_title');?></h6>
-							<input type="text" id="ref-search-mobile" class="form-control form-control-sm mb-2" placeholder="<?php echo lang('ref_thread_search_placeholder');?>" autocomplete="off">
-							<div id="ref-search-mobile-results" style="max-height:150px;overflow-y:auto"></div>
-						</div>
-					</div>
-					<?php endif; ?>
 					<!--{hook post_ref_thread_after.htm}-->
 				</div>
 
@@ -256,6 +247,24 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 </div>
 
 <!--{hook post_end.htm}-->
+
+<?php if($isfirst): ?>
+<!-- 引用话题 Modal（工具栏按钮触发，桌面端/移动端共用） -->
+<div class="modal fade" id="xnx-ref-thread-modal" tabindex="-1" aria-labelledby="xnx-ref-thread-modal-label" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="xnx-ref-thread-modal-label"><i class="ti ti-link me-2"></i><?php echo lang('ref_thread_modal_title');?></h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+			</div>
+			<div class="modal-body">
+				<input type="text" id="ref-search-modal" class="form-control mb-2" placeholder="<?php echo lang('ref_thread_search_placeholder');?>" autocomplete="off">
+				<div id="ref-search-modal-results" style="max-height:300px;overflow-y:auto"></div>
+			</div>
+		</div>
+	</div>
+</div>
+<?php endif; ?>
 
 <?php foreach($editorAssets['css'] as $cssUrl): ?>
 <link rel="stylesheet" href="<?php echo $cssUrl . $static_version;?>">
@@ -593,24 +602,44 @@ $('li[data-active="fid-<?php echo $fid;?>"]').addClass('active');
 					ta.focus();
 				}
 			}
-			// 清空所有搜索框和结果
-			['ref-search-sidebar', 'ref-search-mobile'].forEach(function(id) {
+			// 清空所有搜索框和结果（桌面端右侧栏 + Modal 内）
+			['ref-search-sidebar', 'ref-search-modal'].forEach(function(id) {
 				var el = document.getElementById(id);
 				if (el) el.value = '';
 			});
-			['ref-search-sidebar-results', 'ref-search-mobile-results'].forEach(function(id) {
+			['ref-search-sidebar-results', 'ref-search-modal-results'].forEach(function(id) {
 				var el = document.getElementById(id);
 				if (el) el.innerHTML = '';
 			});
+			// 插入后关闭引用话题 Modal
+			var refModal = document.getElementById('xnx-ref-thread-modal');
+			if (refModal) {
+				var bs = bootstrap.Modal.getInstance(refModal);
+				if (bs) bs.hide();
+			}
 			if (typeof XN !== 'undefined' && XN.toast) XN.toast('<?php echo lang('ref_inserted');?>', 'success');
 		});
 	}
 
-	// 桌面端
+	// 桌面端右侧栏（常驻搜索框）
 	initRefSearch('ref-search-sidebar', 'ref-search-sidebar-results');
-	// 手机端
-	initRefSearch('ref-search-mobile', 'ref-search-mobile-results');
+	// 工具栏按钮触发的 Modal 内搜索框（桌面端/移动端共用）
+	initRefSearch('ref-search-modal', 'ref-search-modal-results');
 })();
+
+// 引用话题 Modal 打开函数（供 AIEditor 工具栏按钮调用）
+function openExtRefModal() {
+	var modal = document.getElementById('xnx-ref-thread-modal');
+	if (!modal) return;
+	var bsModal = bootstrap.Modal.getInstance(modal) || new bootstrap.Modal(modal);
+	bsModal.show();
+	// 打开后自动聚焦搜索框
+	modal.addEventListener('shown.bs.modal', function onFocus() {
+		var input = document.getElementById('ref-search-modal');
+		if (input) input.focus();
+		modal.removeEventListener('shown.bs.modal', onFocus);
+	});
+}
 </script>
 
 <!-- 积分消耗预检查 -->

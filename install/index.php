@@ -358,6 +358,10 @@ if(empty($action)) {
 		$setting['cache_config'] = $cache_config;
 		db_replace('kv', array('k'=>'setting', 'v'=>xn_json_encode($setting)));
 
+		// 记录已安装版本到 kv（install 流程下 kv_set 函数尚未加载，用 db_replace 直写）
+		// 与 UpgradeService::INSTALLED_VERSION_KEY 对齐，作为「已安装版本」的唯一可信来源
+		db_replace('kv', array('k'=>'installed_version', 'v'=>xn_json_encode(XIUNOX_VERSION)));
+
 		// 写入帖子状态标签默认配置（图标使用 ti ti-xxx 完整格式，与 TablerIconPicker 返回值对齐）
 		$status_labels = array(
 			'top' => array('icon' => 'ti ti-pin-filled', 'text' => '', 'color' => '#0d6efd', 'text_color' => '#ffffff', 'rank' => 1),

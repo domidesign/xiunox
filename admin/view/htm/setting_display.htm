@@ -25,17 +25,25 @@
 					<?php } ?>
 				</div>
 				<?php if(empty($all_forums)) { ?>
-				<p class="text-body-secondary small"><?php echo lang('admin_no_forum'); ?></p>
-				<?php } ?>
-			</div>
+			<p class="text-body-secondary small"><?php echo lang('admin_no_forum'); ?></p>
+			<?php } ?>
+		</div>
 
-			<hr class="my-4">
+		<hr class="my-4">
 
-			<h6 class="fw-semibold mb-3"><i class="ti ti-tags me-1"></i><?php echo lang('admin_thread_status_labels');?></h6>
+		<h6 class="fw-semibold mb-3"><i class="ti ti-info-circle me-1"></i><?php echo lang('admin_editor_tip');?></h6>
+		<p class="text-body-secondary small mb-3"><?php echo lang('admin_editor_tip_desc');?></p>
+		<div class="mb-4">
+			<textarea class="form-control" name="editor_tip" rows="3" placeholder="<?php echo lang('admin_editor_tip_desc');?>" maxlength="500"><?php echo esc_html($editor_tip);?></textarea>
+		</div>
+
+		<hr class="my-4">
+
+		<h6 class="fw-semibold mb-3"><i class="ti ti-tags me-1"></i><?php echo lang('admin_thread_status_labels');?></h6>
 			<p class="text-body-secondary small mb-3"><?php echo lang('admin_thread_status_labels_desc');?></p>
 
 			<div class="table-responsive">
-				<table class="table table-hover align-middle">
+				<table class="table table-hover align-middle table-min-w-xl">
 					<thead>
 						<tr>
 							<th style="width:100px"><?php echo lang('admin_col_status_type');?></th>

@@ -534,7 +534,8 @@ function user_token_get_do() {
 	$arr = explode("\t", $s);
 	if(count($arr) != 4) return FALSE;
 	list($_ip, $_time, $_uid, $_pwd) = $arr;
-	//if($ip != $_ip) return FALSE;
+	// IP 校验（防止 token 被盗后跨 IP 复用）
+	if($ip != $_ip) return FALSE;
 	//if($time - $_time > 86400) return FALSE;
 	// 检查密码是否被修改。
 	if($time - $_time > 1800) {
@@ -600,7 +601,8 @@ function user_token_set($uid) {
 	$token = user_token_gen($uid);
 	// cookie_path 为空时默认用 /，确保 token 在全站有效
 	$_cookie_path = !empty($conf['cookie_path']) ? $conf['cookie_path'] : '/';
-	setcookie('bbs_token', $token, user_cookie_options($time + 8640000, $_cookie_path));
+	// bbs_token 有效期 7 天（604800 秒，原 100 天 8640000，缩短以降低长期登录泄露风险）
+	setcookie('bbs_token', $token, user_cookie_options($time + 604800, $_cookie_path));
 
 	// hook model_user_token_set_end.php
 }

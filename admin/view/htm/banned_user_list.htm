@@ -1,0 +1,132 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_banned_user_list_start.htm}-->
+
+<!-- 顶部 nav-tabs：复用安全设置统一的 tab 导航（页面跳转风格，禁用 Bootstrap Tab 组件）-->
+<div class=""><?php echo admin_tab_active($menu['security']['tab'], 'banned_user');?></div>
+
+<!-- 搜索表单 -->
+<div class="x-card card">
+	<div class="card-body">
+		<div class="d-flex align-items-end gap-2 flex-wrap">
+			<div class="flex-grow-1" style="min-width:240px">
+				<label class="form-label"><?php echo lang('admin_banned_user_search_label');?></label>
+				<input type="text" id="keyword" value="<?php echo esc_html($keyword);?>" class="form-control" placeholder="<?php echo lang('admin_banned_user_search_placeholder');?>">
+			</div>
+			<div>
+				<button type="button" id="searchBtn" class="btn btn-primary"><i class="ti ti-search me-1"></i><?php echo lang('admin_banned_user_search_btn');?></button>
+				<?php if($keyword !== '') { ?>
+				<a href="<?php echo url('banned_user-list');?>" class="btn btn-outline-secondary ms-1"><?php echo lang('admin_banned_user_search_reset');?></a>
+				<?php } ?>
+			</div>
+			<!-- <div class="ms-auto text-body-secondary">
+				<span class="badge bg-secondary"><?php echo lang('admin_banned_user_total');?>: <?php echo $n;?></span>
+			</div> -->
+		</div>
+	</div>
+</div>
+
+<!-- 封禁用户列表 -->
+<div class="x-card card">
+	<div class="card-header d-flex justify-content-between align-items-center">
+		<h5 class="mb-0"><i class="ti ti-list me-2"></i><?php echo lang('admin_banned_user_list');?></h5>
+		<span class="badge bg-secondary"><?php echo $n;?></span>
+	</div>
+	<div class="card-body">
+		<?php if(empty($userlist)){ ?>
+		<div class="text-center text-body-secondary py-5">
+			<i class="ti ti-user-check fs-1 d-block mb-2"></i>
+			<?php echo lang('admin_banned_user_empty');?>
+		</div>
+		<?php } else { ?>
+		<div class="table-responsive">
+		<table class="table table-hover align-middle">
+			<thead>
+			<tr>
+				<th style="width:60px">#</th>
+				<th><?php echo lang('admin_banned_user_user');?></th>
+				<th><?php echo lang('admin_banned_user_type');?></th>
+				<th><?php echo lang('admin_banned_user_reason');?></th>
+				<th style="min-width:130px"><?php echo lang('admin_banned_user_ban_time');?></th>
+				<th style="min-width:130px"><?php echo lang('admin_banned_user_expire');?></th>
+				<th><?php echo lang('admin_banned_ip_admin');?></th>
+				<th style="width:80px"><?php echo lang('admin_banned_ip_op');?></th>
+			</tr>
+			</thead>
+			<tbody>
+			<?php $row_index = ($page - 1) * $pagesize; foreach($userlist as &$_user){ $row_index++; 
+				$_status = $_user['ban_status'];
+				$_display_name = esc_html($_user['display_name']);
+				$_user_url = url('user-update-'.$_user['uid'].'.htm');
+				$_ban_reason = isset($_status['ban_reason']) ? esc_html($_status['ban_reason']) : '';
+				$_expire = isset($_status['expire_formatted']) ? esc_html($_status['expire_formatted']) : '';
+				$_label = esc_html($_status['status_label']);
+				$_color = esc_attr($_status['status_color']);
+				$_ban_time_fmt = !empty($_status['ban_time']) ? date('Y-m-d H:i', $_status['ban_time']) : '-';
+				$_admin_username = esc_html($_user['ban_admin_username']);
+			?>
+			<!--{hook admin_banned_user_item_start.htm}-->
+			<tr id="row_<?php echo intval($_user['uid']);?>">
+				<td class="text-body-secondary"><?php echo $row_index;?></td>
+				<td>
+					<div class="d-flex align-items-center gap-2">
+						<?php echo avatar_component_from_data(
+							isset($_user['avatar_url']) ? $_user['avatar_url'] : '/view/img/avatar.png',
+							'sm',
+							isset($_user['group_icon_class']) ? $_user['group_icon_class'] : '',
+							isset($_user['group_color']) ? $_user['group_color'] : '',
+							isset($_user['gid']) ? $_user['gid'] : 0
+						);?>
+						<div>
+							<a href="<?php echo $_user_url;?>" class="fw-medium text-decoration-none"><?php echo $_display_name;?></a>
+							<div class="small text-body-secondary">UID: <?php echo intval($_user['uid']);?></div>
+						</div>
+					</div>
+				</td>
+				<td><span class="badge bg-<?php echo $_color;?>"><?php echo $_label;?></span></td>
+				<td class="text-body-secondary"><?php echo $_ban_reason ? $_ban_reason : '-';?></td>
+				<td class="text-body-secondary text-sm"><?php echo $_ban_time_fmt;?></td>
+				<td class="text-body-secondary text-sm">
+					<?php if(empty($_expire)){ ?>
+					<span class="badge bg-danger"><?php echo lang('admin_banned_ip_permanent');?></span>
+					<?php } else { ?>
+					<?php echo $_expire;?>
+					<?php } ?>
+				</td>
+				<td class="text-body-secondary"><?php echo $_admin_username;?></td>
+				<td>
+					<form method="post" action="<?php echo url('banned_user-unban');?>" style="display:inline" onsubmit="return confirm('<?php echo lang('admin_banned_user_unban_confirm');?>');">
+						<?php echo CsrfService::input();?>
+						<input type="hidden" name="uid" value="<?php echo intval($_user['uid']);?>">
+						<button type="submit" class="btn btn-outline-success btn-sm" title="<?php echo lang('admin_banned_user_unban_btn');?>"><i class="ti ti-key"></i></button>
+					</form>
+				</td>
+			</tr>
+			<!--{hook admin_banned_user_item_end.htm}-->
+			<?php } ?>
+			</tbody>
+		</table>
+		</div>
+		<nav><ul class="pagination pagination-boxed justify-content-center"><?php echo $pagination;?></ul></nav>
+		<?php } ?>
+	</div>
+</div>
+
+<!--{hook admin_banned_user_list_end.htm}-->
+
+<script>
+// 搜索表单：构造路径风格 URL 跳转，与 admin/route/user.php 风格一致
+(function(){
+	var jkw = document.getElementById('keyword');
+	var jbtn = document.getElementById('searchBtn');
+	function buildSearchUrl(){
+		var kw = jkw.value.trim();
+		// 空关键字回到第一页，避免 URL 出现空段
+		return xn.url('banned_user-list-' + xn.urlencode(kw) + '-1');
+	}
+	jbtn.addEventListener('click', function(){ window.location = buildSearchUrl(); });
+	jkw.addEventListener('keydown', function(e){ if(e.keyCode === 13){ e.preventDefault(); window.location = buildSearchUrl(); } });
+})();
+</script>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>

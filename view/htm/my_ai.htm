@@ -2,67 +2,105 @@
 
 <?php include _include(APP_PATH.'view/htm/my.layout.inc.htm');?>
 
-		<!-- AI设置 -->
-		<div class="x-card card">
-			<div class="card-body">
-				<form hx-post="<?php echo my_ai_url();?>" hx-target="#ai-msg" hx-swap="innerHTML" id="ai_form">
-					<?php echo CsrfService::input(); ?>
-					<div id="ai-msg"></div>
+		<!-- AI设置：按功能 mode 动态渲染，每个功能一个配置区 -->
+		<form hx-post="<?php echo my_ai_url();?>" hx-target="#ai-msg" hx-swap="innerHTML" id="ai_form">
+			<?php echo CsrfService::input(); ?>
+			<div id="ai-msg"></div>
 
-					<div id="ai_config_fields">
+			<?php if (empty($ai_features_for_user)): ?>
+				<!-- 所有功能均为系统提供（global 模式），用户无需自行配置 API key -->
+				<div class="x-card card mb-3">
+					<div class="card-body text-center py-5">
+						<i class="ti ti-rosette-discount-check" style="font-size:48px;color:var(--bs-primary);"></i>
+						<h5 class="mt-3 mb-2"><?php echo lang('ai_all_system_provided_title');?></h5>
+						<p class="text-body-secondary mb-0"><?php echo lang('ai_all_system_provided_desc');?></p>
+					</div>
+				</div>
+			<?php endif; ?>
+
+			<?php foreach ($ai_features_for_user as $feat_key => $feat):
+				$mode = isset($feat['mode']) ? $feat['mode'] : 'user_key';
+				$feat_config = isset($user_ai_config[$feat_key]) ? $user_ai_config[$feat_key] : [];
+				$feat_name = isset($feat['name']) ? $feat['name'] : lang('ai_feature_editor');
+			?>
+				<div class="x-card card mb-3">
+					<div class="card-body">
+						<!-- <h5 class="card-title mb-3">
+							<?php echo $feat_name;?>
+							<?php if ($mode == 'user_key'): ?>
+								<span class="badge bg-warning text-dark"><?php echo lang('ai_must_configure');?></span>
+							<?php endif; ?>
+						</h5> -->
+
+						<?php if ($mode == 'both'): ?>
+						<!-- both 模式：显示「用系统默认/自定义」开关 -->
+						<div class="form-check form-switch mb-3">
+							<input class="form-check-input" type="checkbox" name="<?php echo $feat_key;?>_use_default" id="<?php echo $feat_key;?>_use_default" value="1" <?php echo empty($feat_config) ? 'checked' : '';?>>
+							<label class="form-check-label" for="<?php echo $feat_key;?>_use_default"><?php echo lang('ai_use_system_default');?></label>
+							<div class="form-text"><?php echo lang('ai_use_system_default_tip');?></div>
+						</div>
+						<div class="feat-custom-fields" style="<?php echo empty($feat_config) ? 'display:none' : '';?>">
+						<?php endif; ?>
+
+						<!-- provider 下拉 -->
 						<div class="mb-3">
 							<label class="form-label fw-medium"><?php echo lang('ai_provider');?></label>
-							<select class="form-select" name="ai_provider" id="ai_provider">
+							<select class="form-select" name="<?php echo $feat_key;?>_ai_provider">
 								<?php if(empty($ai_providers)): ?>
 									<option value="" disabled selected><?php echo lang('ai_provider_empty');?></option>
 								<?php else: ?>
 									<?php foreach($ai_providers as $provider): ?>
-										<option value="<?php echo $provider['name']; ?>" <?php echo (!empty($ai_config['provider_name']) && $ai_config['provider_name'] == $provider['name']) ? 'selected' : ''; ?>>
-											<?php echo $provider['name']; ?>
+										<option value="<?php echo $provider['name'];?>" <?php echo (!empty($feat_config['provider_name']) && $feat_config['provider_name'] == $provider['name']) ? 'selected' : '';?>>
+											<?php echo $provider['name'];?>
 										</option>
-									<?php endforeach; ?>
-								<?php endif; ?>
+									<?php endforeach;?>
+								<?php endif;?>
 							</select>
 							<div class="form-text"><?php echo lang('ai_provider_tip');?></div>
 						</div>
 
+						<!-- apiKey -->
 						<div class="mb-3">
 							<label class="form-label fw-medium"><?php echo lang('api_key_label');?></label>
-							<input type="password" class="form-control" name="ai_apikey" id="ai_apikey"
-								placeholder="sk-..."
-								value="<?php echo !empty($ai_config['apiKey']) ? esc_html($ai_config['apiKey']) : '';?>">
+							<input type="password" class="form-control" name="<?php echo $feat_key;?>_ai_apikey" placeholder="sk-..." value="<?php echo !empty($feat_config['apiKey']) ? esc_html($feat_config['apiKey']) : '';?>">
 							<div class="form-text"><?php echo lang('ai_api_key_tip');?></div>
 						</div>
 
+						<!-- model -->
 						<div class="mb-3">
 							<label class="form-label fw-medium"><?php echo lang('ai_model_name');?></label>
-							<input type="text" class="form-control" name="ai_model" id="ai_model"
-								placeholder="gpt-4o-mini"
-								value="<?php echo !empty($ai_config['model']) ? esc_html($ai_config['model']) : '';?>">
+							<input type="text" class="form-control" name="<?php echo $feat_key;?>_ai_model" placeholder="gpt-4o-mini" value="<?php echo !empty($feat_config['model']) ? esc_html($feat_config['model']) : '';?>">
 							<div class="form-text"><?php echo lang('ai_model_name_tip');?></div>
 						</div>
 
-						<!-- AI 续写 Prompt -->
+						<?php if ($feat_key === 'editor'): ?>
+						<!-- AI 续写 Prompt（编辑器功能专属） -->
 						<div class="mb-3">
 							<label class="form-label fw-medium"><i class="ti ti-text-plus me-1"></i><?php echo lang('ai_prompt_continue');?></label>
-							<textarea class="form-control" name="ai_prompt_continue" id="ai_prompt_continue" rows="3" placeholder="<?php echo lang('ai_prompt_continue_placeholder');?>"><?php echo isset($ai_config['promptContinue']) ? esc_html($ai_config['promptContinue']) : '';?></textarea>
+							<textarea class="form-control" name="<?php echo $feat_key;?>_ai_prompt_continue" rows="3" placeholder="<?php echo lang('ai_prompt_continue_placeholder');?>"><?php echo isset($feat_config['promptContinue']) ? esc_html($feat_config['promptContinue']) : '';?></textarea>
 							<div class="form-text"><?php echo lang('ai_prompt_continue_tip');?></div>
 						</div>
-
-						<!-- AI 优化 Prompt -->
+						<!-- AI 优化 Prompt（编辑器功能专属） -->
 						<div class="mb-3">
 							<label class="form-label fw-medium"><i class="ti ti-sparkles me-1"></i><?php echo lang('ai_prompt_improve');?></label>
-							<textarea class="form-control" name="ai_prompt_improve" id="ai_prompt_improve" rows="3" placeholder="<?php echo lang('ai_prompt_improve_placeholder');?>"><?php echo isset($ai_config['promptImprove']) ? esc_html($ai_config['promptImprove']) : '';?></textarea>
+							<textarea class="form-control" name="<?php echo $feat_key;?>_ai_prompt_improve" rows="3" placeholder="<?php echo lang('ai_prompt_improve_placeholder');?>"><?php echo isset($feat_config['promptImprove']) ? esc_html($feat_config['promptImprove']) : '';?></textarea>
 							<div class="form-text"><?php echo lang('ai_prompt_improve_tip');?></div>
 						</div>
-					</div>
+						<?php endif; ?>
 
-					<div>
-						<button type="submit" class="btn btn-primary" id="ai_submit"><?php echo lang('save_setting');?></button>
+						<?php if ($mode == 'both'): ?>
+						</div><!-- /.feat-custom-fields -->
+						<?php endif; ?>
 					</div>
-				</form>
-			</div>
+				</div>
+			<?php endforeach; ?>
+
+		<?php if (!empty($ai_features_for_user)): ?>
+		<div>
+			<button type="submit" class="btn btn-primary" id="ai_submit"><?php echo lang('save_setting');?></button>
 		</div>
+		<?php endif; ?>
+	</form>
 
 	</div>
 
@@ -71,3 +109,13 @@
 </div>
 
 <?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<!-- both 模式开关 JS：use_default 勾选时隐藏自定义配置区 -->
+<script>
+document.querySelectorAll('input[name$="_use_default"]').forEach(function(cb) {
+	cb.addEventListener('change', function() {
+		var fields = this.closest('.card-body').querySelector('.feat-custom-fields');
+		if (fields) fields.style.display = this.checked ? 'none' : 'block';
+	});
+});
+</script>

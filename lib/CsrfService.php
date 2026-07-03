@@ -31,20 +31,17 @@ class CsrfService {
             error_log('[CSRF] check failed: ' . json_encode($debug));
 
             if ($is_htmx) {
-                // htmx 请求：返回 HTML 错误片段（含调试信息）
+                // htmx 请求：返回 HTML 错误片段（仅通用提示，调试信息已写入服务器日志）
                 header('Content-Type: text/html; charset=utf-8');
-                $debugHtml = 'SID:' . session_id() . ' Cookie:' . $debug['cookie_sid'] . ' Post:' . $debug['post_csrf'] . ' Session:' . $debug['session_token'];
-                echo '<div class="alert alert-danger py-2 small mb-2">CSRF验证失败，请刷新页面重试<br><small class="text-muted">' . $debugHtml . '</small></div>';
+                echo '<div class="alert alert-danger py-2 small mb-2">CSRF验证失败，请刷新页面重试</div>';
                 exit;
             }
 
-            // 非 htmx 请求：返回 JSON
+            // 非 htmx 请求：返回 JSON（仅 code 和 message，不泄露调试信息）
             header('Content-Type: application/json; charset=utf-8');
             echo xn_json_encode(array(
                 'code' => '-1',
                 'message' => 'CSRF token verification failed',
-                'debug_token_received' => $debug['token_received'],
-                'debug_session_token' => $debug['session_token'],
             ));
             exit;
         }

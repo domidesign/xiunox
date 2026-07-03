@@ -1,0 +1,254 @@
+<?php $conf = G('conf');?>
+<?php $static_version = $conf['static_version'];?>
+
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook banned_start.htm}-->
+
+<div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
+
+	<!-- 左侧栏：复用首页导航 -->
+	<div class="d-none d-lg-block col-lg-2 col-xl-2">
+		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
+	</div>
+
+	<!-- 中栏：标题 + nav-tabs + tab-content -->
+	<div class="col-lg-10 col-xl-7" style="min-width:0">
+		<!--{hook banned_left_before.htm}-->
+
+		<div class="x-card card mb-3">
+			<div class="card-body d-flex align-items-center gap-2">
+				<i class="ti ti-shield-lock text-danger fs-3"></i>
+				<div>
+					<h1 class="h5 mb-0"><?php echo lang('user_ban_public_list_title');?></h1>
+					<p class="text-body-secondary small mb-0"><?php echo lang('user_ban_public_list_title');?></p>
+				</div>
+			</div>
+		</div>
+
+		<!-- nav-tabs：纯样式，无 data-bs-toggle（避免 Bootstrap 把 href 当 CSS 选择器）；点击通过 JS 拦截切换 + pushState 更新 path -->
+		<!-- hx-disable：禁用父级 hx-boost 对 tab 链接的拦截，由下方 JS 自行处理切换 -->
+		<ul class="nav nav-tabs card-header-tabs" role="tablist" id="bannedTabs" hx-disable>
+			<li class="nav-item" role="presentation">
+				<a class="nav-link<?php echo $active_tab === 'current' ? ' active' : '';?>"
+				   href="<?php echo url('banned-current');?>"
+				   role="tab"
+				   data-banned-tab="current">
+					<i class="ti ti-gavel me-1"></i><?php echo lang('user_ban_currently_banned');?>
+					<span class="badge bg-danger rounded-pill ms-1"><?php echo count($banlist);?></span>
+				</a>
+			</li>
+			<li class="nav-item" role="presentation">
+				<a class="nav-link<?php echo $active_tab === 'recent' ? ' active' : '';?>"
+				   href="<?php echo url('banned-recent');?>"
+				   role="tab"
+				   data-banned-tab="recent">
+					<i class="ti ti-hand-finger-off me-1"></i><?php echo lang('user_ban_recently_released');?>
+					<span class="badge bg-success rounded-pill ms-1"><?php echo count($recent_unbanned);?></span>
+				</a>
+			</li>
+			<!--{hook banned_tab_item_after.htm}-->
+		</ul>
+
+		<!-- tab-content：两个 tab-pane 都预渲染，通过 active class 控制显示，切换时不重复请求 -->
+		<div class="tab-content mt-3">
+
+			<!-- 当前封禁中 -->
+			<div class="tab-pane fade<?php echo $active_tab === 'current' ? ' show active' : '';?>" id="banned-current" role="tabpanel">
+				<div class="card x-card" id="banned-current-card">
+					<!--{hook banned_current_body_before.htm}-->
+					<div class="card-body">
+						<?php if(empty($banlist)) { ?>
+						<!-- 空状态 -->
+						<div class="text-center py-5">
+							<i class="ti ti-mood-smile display-4 text-body-tertiary"></i>
+							<p class="mt-2 text-body-secondary mb-0"><?php echo lang('user_ban_no_banned_users');?></p>
+						</div>
+						<?php } else { ?>
+						<ul class="list-unstyled mb-0">
+							<?php foreach($banlist as $_user) {
+								$_status = $_user['ban_status'];
+								$_display_name = esc_html($_user['display_name']);
+								$_user_url = user_url($_user['uid']);
+								$_ban_reason = isset($_status['ban_reason']) ? esc_html($_status['ban_reason']) : '';
+								$_expire = isset($_status['expire_formatted']) ? esc_html($_status['expire_formatted']) : '';
+								$_label = esc_html($_status['status_label']);
+								$_color = esc_attr($_status['status_color']);
+								$_ban_time_fmt = !empty($_status['ban_time']) ? date('Y-m-d H:i', $_status['ban_time']) : '';
+							?>
+							<!--{hook banned_current_item_start.htm}-->
+							<li class="d-flex align-items-start gap-3 py-3">
+								<a href="<?php echo $_user_url;?>" class="flex-shrink-0" tabindex="-1">
+									<?php echo avatar_component_from_data(
+										isset($_user['avatar_url']) ? $_user['avatar_url'] : '/view/img/avatar.png',
+										'md',
+										isset($_user['group_icon_class']) ? $_user['group_icon_class'] : '',
+										isset($_user['group_color']) ? $_user['group_color'] : '',
+										isset($_user['gid']) ? $_user['gid'] : 0
+									);?>
+								</a>
+								<div class="flex-fill" style="min-width:0">
+									<div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+										<a href="<?php echo $_user_url;?>" class="fw-semibold text-decoration-none hover-text-primary">
+											<?php echo $_display_name;?>
+										</a>
+										<span class="badge bg-<?php echo $_color;?>"><?php echo $_label;?></span>
+										<?php if(!empty($_ban_time_fmt)) { ?>
+										<span class="badge bg-light text-secondary">
+											<i class="ti ti-gavel me-1"></i><?php echo $_ban_time_fmt;?>
+										</span>
+										<?php } ?>
+									</div>
+									<div class="d-flex flex-wrap align-items-center gap-3 small text-body-secondary">
+										<span>
+											<i class="ti ti-clock me-1"></i>
+											<?php echo lang('user_ban_expire_label');?>: <?php echo !empty($_expire) ? $_expire : lang('user_ban_permanent');?>
+										</span>
+									</div>
+									<?php if(!empty($_ban_reason)) { ?>
+									<div class="small text-body-secondary mt-1">
+										<i class="ti ti-message-2 me-1"></i>
+										<?php echo $_ban_reason;?>
+									</div>
+									<?php } ?>
+								</div>
+							</li>
+							<!--{hook banned_current_item_end.htm}-->
+							<?php } ?>
+						</ul>
+						<?php } ?>
+					</div>
+					<!--{hook banned_current_body_after.htm}-->
+				</div>
+			</div>
+
+			<!-- 近期释放 -->
+			<div class="tab-pane fade<?php echo $active_tab === 'recent' ? ' show active' : '';?>" id="banned-recent" role="tabpanel">
+				<div class="card x-card" id="banned-recent-card">
+					<!--{hook banned_recent_body_before.htm}-->
+					<div class="card-body">
+						<?php if(empty($recent_unbanned)) { ?>
+						<!-- 空状态 -->
+						<div class="text-center py-5">
+							<i class="ti ti-history display-4 text-body-tertiary"></i>
+							<p class="mt-2 text-body-secondary mb-0"><?php echo lang('user_ban_no_released_users');?></p>
+						</div>
+						<?php } else { ?>
+						<ul class="list-unstyled mb-0">
+							<?php foreach($recent_unbanned as $_log) {
+								$_log_user = user_read_cache(intval($_log['uid']));
+								$_log_display = !empty($_log_user) ? esc_html($_log_user['display_name']) : '';
+								$_log_url = !empty($_log_user) ? user_url($_log_user['uid']) : '#';
+								$_log_time_fmt = !empty($_log['create_time']) ? date('Y-m-d H:i', intval($_log['create_time'])) : '';
+								$_log_reason = isset($_log['reason']) ? esc_html($_log['reason']) : '';
+							?>
+							<!--{hook banned_recent_item_start.htm}-->
+							<li class="d-flex align-items-start gap-3 py-3">
+								<?php if(!empty($_log_user)) { ?>
+								<a href="<?php echo $_log_url;?>" class="flex-shrink-0" tabindex="-1">
+									<?php echo avatar_component_from_data(
+										isset($_log_user['avatar_url']) ? $_log_user['avatar_url'] : '/view/img/avatar.png',
+										'md',
+										isset($_log_user['group_icon_class']) ? $_log_user['group_icon_class'] : '',
+										isset($_log_user['group_color']) ? $_log_user['group_color'] : '',
+										isset($_log_user['gid']) ? $_log_user['gid'] : 0
+									);?>
+								</a>
+								<?php } else { ?>
+								<span class="flex-shrink-0 text-body-tertiary">
+									<i class="ti ti-user-off fs-2"></i>
+								</span>
+								<?php } ?>
+								<div class="flex-fill" style="min-width:0">
+									<div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+										<?php if(!empty($_log_user)) { ?>
+										<a href="<?php echo $_log_url;?>" class="fw-semibold text-decoration-none hover-text-primary">
+											<?php echo $_log_display;?>
+										</a>
+										<?php } else { ?>
+										<span class="fw-semibold text-body-tertiary"><?php echo lang('user_ban_no_users');?></span>
+										<?php } ?>
+										<span class="badge bg-success">
+											<i class="ti ti-check me-1"></i><?php echo lang('user_ban_status_normal');?>
+										</span>
+										<?php if(!empty($_log_time_fmt)) { ?>
+										<span class="badge bg-light text-secondary">
+											<i class="ti ti-history me-1"></i><?php echo $_log_time_fmt;?>
+										</span>
+										<?php } ?>
+									</div>
+									<?php if(!empty($_log_reason)) { ?>
+									<div class="small text-body-secondary mt-1">
+										<i class="ti ti-message-2 me-1"></i>
+										<?php echo $_log_reason;?>
+									</div>
+									<?php } ?>
+								</div>
+							</li>
+							<!--{hook banned_recent_item_end.htm}-->
+							<?php } ?>
+						</ul>
+						<?php } ?>
+					</div>
+					<!--{hook banned_recent_body_after.htm}-->
+				</div>
+			</div>
+
+			<!--{hook banned_bottom.htm}-->
+		</div>
+	</div>
+
+	<!-- 右侧栏：复用首页用户/站点信息卡 -->
+	<div class="d-none d-xl-block col-xl-3">
+		<?php include _include(APP_PATH.'view/htm/sidebar_right.inc.htm');?>
+	</div>
+
+</div>
+
+<!--{hook banned_end.htm}-->
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+// Tab 切换：纯 JS 实现，无 Bootstrap Tab 组件（避免 href 被当 CSS 选择器）
+// 点击 tab 链接：拦截默认跳转，切换 active + pushState 更新 path，不全页刷新
+(function(){
+	var tabs = document.querySelectorAll('[data-banned-tab]');
+	if(!tabs.length) return;
+
+	tabs.forEach(function(tab) {
+		tab.addEventListener('click', function(e){
+			// Ctrl/Cmd+点击或中键：新标签页打开，不拦截
+			if(e.ctrlKey || e.metaKey || e.button !== 0) return;
+
+			e.preventDefault();
+			var tabName = this.getAttribute('data-banned-tab');
+			var targetPane = document.getElementById('banned-' + tabName);
+			if(!targetPane) return;
+
+			// 切换 nav-link active
+			tabs.forEach(function(t){ t.classList.remove('active'); });
+			this.classList.add('active');
+
+			// 切换 tab-pane active show
+			document.querySelectorAll('.tab-pane').forEach(function(p){
+				p.classList.remove('show', 'active');
+			});
+			targetPane.classList.add('show', 'active');
+
+			// 更新 URL，刷新时根据 path 还原 active 状态
+			history.pushState({ bannedTab: tabName }, '', this.href);
+		});
+	});
+
+	// 浏览器前进/后退：根据 state 还原 tab（不需要重新请求数据，DOM 已存在）
+	window.addEventListener('popstate', function(e){
+		var state = e.state || {};
+		var tabName = state.bannedTab || 'current';
+		var targetLink = document.querySelector('[data-banned-tab="' + tabName + '"]');
+		if(targetLink) targetLink.click();
+	});
+})();
+</script>
+
+<!--{hook banned_js.htm}-->

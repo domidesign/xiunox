@@ -523,13 +523,8 @@ return array(
 	'theme_light'=>'สว่าง',
 	'theme_dark'=>'มืด',
 	'ai_provider'=>'ผู้ให้บริการ AI',
-	'ai_provider_spark'=>'Spark Model',
-	'ai_provider_wenxin'=>'Wenxin Yiyan',
-	'ai_provider_custom'=>'กำหนดเอง',
 	'ai_provider_tip'=>'เลือกผู้ให้บริการ AI และใช้ API Key ของคุณเอง',
 	'ai_api_key_tip'=>'API Key ของคุณจะถูกเก็บไว้ในฐานข้อมูลของเว็บไซต์เท่านั้น จะไม่รั่วไหลไปยังบุคคลที่สาม',
-	'ai_api_url'=>'API URL',
-	'ai_api_url_tip'=>'เว้นว่างเพื่อใช้ URL เริ่มต้น รองรับบริการที่เข้ากันได้กับ OpenAI',
 	'ai_model_name'=>'ชื่อโมเดล',
 	'ai_model_name_tip'=>'เช่น gpt-4o-mini, gpt-4o, deepseek-chat ฯลฯ',
 

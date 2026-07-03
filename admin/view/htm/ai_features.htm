@@ -1,0 +1,224 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_ai_features_start.htm}-->
+
+<div class="mb-3">
+	<?php echo admin_tab_active($menu['ai']['tab'], 'features');?>
+</div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo url('ai-features');?>" method="post" id="aiFeaturesForm">
+			<?php echo CsrfService::input(); ?>
+
+			<p class="text-body-secondary small mb-3"><?php echo lang('admin_ai_feature_desc'); ?></p>
+
+			<!-- 模式说明 -->
+			<div class="alert alert-info py-2 mb-3 small">
+				<div><strong><?php echo lang('admin_ai_mode_global');?>：</strong><?php echo lang('admin_ai_mode_global_tip');?></div>
+				<div><strong><?php echo lang('admin_ai_mode_user_key');?>：</strong><?php echo lang('admin_ai_mode_user_key_tip');?></div>
+				<div><strong><?php echo lang('admin_ai_mode_both');?>：</strong><?php echo lang('admin_ai_mode_both_tip');?></div>
+			</div>
+
+			<div class="table-responsive">
+				<table class="table table-hover align-middle">
+					<thead>
+						<tr>
+							<th style="width:160px"><?php echo lang('admin_ai_feature_name'); ?></th>
+							<th style="width:140px"><?php echo lang('admin_ai_feature_mode'); ?></th>
+							<th style="width:180px"><?php echo lang('admin_ai_feature_default_provider'); ?></th>
+							<th style="width:180px"><?php echo lang('admin_ai_feature_default_model'); ?></th>
+							<th><?php echo lang('admin_ai_feature_allowed_providers'); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php foreach($ai_features as $fkey => $feat):
+							$feat_mode = isset($feat['mode']) ? $feat['mode'] : 'user_key';
+							$feat_dp   = isset($feat['default_provider']) ? $feat['default_provider'] : '';
+							$feat_dm   = isset($feat['default_model']) ? $feat['default_model'] : '';
+							$feat_name = isset($feat['name']) ? $feat['name'] : $fkey;
+							$feat_type = isset($feat['type']) ? $feat['type'] : 'text';
+							$feat_allowed = isset($feat['allowed_providers']) ? $feat['allowed_providers'] : array();
+							if(!is_array($feat_allowed)) $feat_allowed = array();
+							// 按功能 type 过滤 providers（默认提供商下拉 + 允许的服务商 checkbox 都用此列表）
+							$typeProviders = $aiService->getProvidersByType($feat_type);
+						?>
+						<tr data-fkey="<?php echo esc_attr($fkey);?>" data-type="<?php echo esc_attr($feat_type);?>">
+							<td>
+								<div class="fw-medium"><?php echo esc_html($feat_name);?></div>
+								<div class="text-body-secondary small">
+									<span class="badge text-bg-secondary"><?php echo lang('admin_ai_provider_type_' . $feat_type);?></span>
+									<span class="ms-1"><?php echo esc_html($fkey);?></span>
+								</div>
+							</td>
+							<td>
+								<select class="form-select form-select-sm" name="feature_mode[<?php echo esc_attr($fkey);?>]">
+									<option value="global"<?php echo $feat_mode=='global'?' selected':'';?>><?php echo lang('admin_ai_mode_global');?></option>
+									<option value="user_key"<?php echo $feat_mode=='user_key'?' selected':'';?>><?php echo lang('admin_ai_mode_user_key');?></option>
+									<option value="both"<?php echo $feat_mode=='both'?' selected':'';?>><?php echo lang('admin_ai_mode_both');?></option>
+								</select>
+							</td>
+							<td>
+								<select class="form-select form-select-sm feature-provider" name="feature_default_provider[<?php echo esc_attr($fkey);?>]" data-fkey="<?php echo esc_attr($fkey);?>">
+									<option value=""><?php echo lang('admin_ai_please_select');?></option>
+									<?php foreach($typeProviders as $p):
+										$pname = isset($p['name']) ? $p['name'] : '';
+										if($pname === '') continue;
+										// 复用 AIService::getEnabledModels() 兼容旧逗号字符串 + 新 [{name,enabled}] 数组格式
+										$enabledModels = $aiService->getEnabledModels($p);
+										$dataModels = htmlspecialchars(json_encode($enabledModels), ENT_QUOTES, 'UTF-8');
+									?>
+									<option value="<?php echo esc_attr($pname);?>" data-models="<?php echo $dataModels;?>"<?php echo $feat_dp===$pname?' selected':'';?>><?php echo esc_html($pname);?></option>
+									<?php endforeach; ?>
+								</select>
+							</td>
+							<td>
+								<select class="form-select form-select-sm feature-model" name="feature_default_model[<?php echo esc_attr($fkey);?>]" id="model_<?php echo esc_attr($fkey);?>">
+									<option value=""><?php echo lang('admin_ai_please_select');?></option>
+									<?php
+								// 渲染当前已选提供商的模型列表（初始加载时显示已保存的默认模型）
+								if($feat_dp !== '') {
+									foreach($typeProviders as $p) {
+										if(isset($p['name']) && $p['name'] === $feat_dp) {
+											$enabledModels = $aiService->getEnabledModels($p);
+											foreach($enabledModels as $mname) {
+												echo '<option value="'.esc_attr($mname).'"'.($feat_dm===$mname?' selected':'').'>'.esc_html($mname).'</option>';
+											}
+											break;
+										}
+									}
+								}
+								?>
+								</select>
+							</td>
+							<td>
+								<!-- 多选 checkbox：必须至少勾选一个，否则该功能禁用 -->
+								<?php if(empty($typeProviders)): ?>
+									<span class="text-danger small"><?php echo lang('admin_ai_no_providers_for_type');?></span>
+								<?php else: ?>
+									<div class="d-flex flex-wrap gap-2 allowed-providers-group" data-fkey="<?php echo esc_attr($fkey);?>">
+									<?php foreach($typeProviders as $p):
+										$pname = isset($p['name']) ? $p['name'] : '';
+										if($pname === '') continue;
+										$checked = in_array($pname, $feat_allowed) ? ' checked' : '';
+										$cb_id = 'allow_' . esc_attr($fkey) . '_' . esc_attr($pname);
+									?>
+									<div class="form-check">
+										<input type="checkbox" class="form-check-input allowed-provider-cb" name="feature_allowed_providers[<?php echo esc_attr($fkey);?>][]" value="<?php echo esc_attr($pname);?>" id="<?php echo $cb_id;?>"<?php echo $checked;?>>
+										<label class="form-check-label small" for="<?php echo $cb_id;?>"><?php echo esc_html($pname);?></label>
+									</div>
+									<?php endforeach; ?>
+									</div>
+									<div class="form-text text-danger small d-none allowed-empty-tip"><?php echo lang('admin_ai_feature_allowed_providers_required');?></div>
+								<?php endif; ?>
+							</td>
+						</tr>
+						<?php endforeach; ?>
+					</tbody>
+				</table>
+			</div>
+
+			<div class="mt-4">
+				<button type="submit" class="btn btn-primary rounded-pill" id="featuresSubmitBtn"><?php echo lang('confirm');?></button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<!--{hook admin_ai_features_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+(function() {
+	// 提供商选择 → 联动加载该提供商的已启用模型到默认模型下拉
+	document.querySelectorAll('.feature-provider').forEach(function(sel) {
+		sel.addEventListener('change', function() {
+			var fkey = this.getAttribute('data-fkey');
+			var modelSel = document.getElementById('model_' + fkey);
+			if(!modelSel) return;
+			var selectedOption = this.options[this.selectedIndex];
+			var modelsJson = selectedOption ? selectedOption.getAttribute('data-models') : '[]';
+			var models = [];
+			try { models = JSON.parse(modelsJson); } catch(e) { models = []; }
+
+			// 保留第一个"请选择"选项
+			modelSel.innerHTML = '<option value=""><?php echo lang('admin_ai_please_select');?></option>';
+			models.forEach(function(m) {
+				var opt = document.createElement('option');
+				opt.value = m;
+				opt.textContent = m;
+				modelSel.appendChild(opt);
+			});
+		});
+	});
+
+	// 实时校验：每个功能的 allowed_providers 至少选一个
+	function checkAllowedProviders() {
+		var groups = document.querySelectorAll('.allowed-providers-group');
+		var allOk = true;
+		groups.forEach(function(group) {
+			var fkey = group.getAttribute('data-fkey');
+			var checked = group.querySelectorAll('.allowed-provider-cb:checked');
+			var tip = group.parentElement.querySelector('.allowed-empty-tip');
+			if(checked.length === 0) {
+				if(tip) tip.classList.remove('d-none');
+				allOk = false;
+			} else {
+				if(tip) tip.classList.add('d-none');
+			}
+		});
+		return allOk;
+	}
+	document.querySelectorAll('.allowed-provider-cb').forEach(function(cb) {
+		cb.addEventListener('change', checkAllowedProviders);
+	});
+
+	var form = document.getElementById('aiFeaturesForm');
+	var btn  = document.getElementById('featuresSubmitBtn');
+	form.addEventListener('submit', function(e) {
+		e.preventDefault();
+		// 提交前再次校验 allowed_providers 至少选一个
+		if(!checkAllowedProviders()) {
+			showToast('<?php echo lang('admin_ai_feature_allowed_providers_required');?>', 'error');
+			return;
+		}
+		btn.disabled = true;
+		var origText = btn.innerHTML;
+		btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('submiting');?>...';
+
+		var formData = new FormData(form);
+		fetch(form.getAttribute('action'), {
+			method: 'POST',
+			body: formData,
+			headers: { 'X-Requested-With': 'XMLHttpRequest' }
+		})
+		.then(function(res) { return res.json(); })
+		.then(function(data) {
+			if (parseInt(data.code) === 0) {
+				showToast(data.message, 'success');
+				btn.innerHTML = '<i class="ti ti-check me-1"></i>' + data.message;
+				btn.classList.remove('btn-primary');
+				btn.classList.add('btn-success');
+				setTimeout(function() {
+					btn.disabled = false;
+					btn.innerHTML = origText;
+					btn.classList.remove('btn-success');
+					btn.classList.add('btn-primary');
+				}, 1500);
+			} else {
+				showToast(data.message, 'error');
+				btn.disabled = false;
+				btn.innerHTML = origText;
+			}
+		})
+		.catch(function(err) {
+			showToast('<?php echo lang('admin_request_failed_retry')?>', 'error');
+			btn.disabled = false;
+			btn.innerHTML = origText;
+		});
+	});
+})();
+</script>
+
+<!--{hook admin_ai_features_js.htm}-->

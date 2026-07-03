@@ -11,7 +11,7 @@
 		<div class="card-body">
 			<div class="d-flex justify-content-between align-items-center mb-4">
 				<h5 class="fw-bold d-flex align-items-center gap-2"><i class="ti ti-circle-arrow-up"></i><?php echo lang('admin_upgrade_title');?></h5>
-				<span class="badge bg-secondary " id="currentVersion"><?php echo $conf['version'] ?? '?';?></span>
+				<span class="badge bg-secondary " id="currentVersion"><?php echo $installedVersion ?? '?';?></span>
 			</div>
 
 			<div id="prerequisitesAlert" class="alert alert-warning py-2 d-none"></div>
@@ -19,10 +19,10 @@
 			<div class="mb-4">
 				<div class="d-flex align-items-center gap-2 mb-2">
 					<span class="fw-semibold"><?php echo lang('admin_upgrade_current_version');?></span>
-					<code><?php echo $conf['version'] ?? '0.0.0';?></code>
+					<code><?php echo $installedVersion ?? '0.0.0';?></code>
 					<i class="ti ti-arrow-right"></i>
 					<span class="fw-semibold"><?php echo lang('admin_upgrade_target_version');?></span>
-					<code>1.0.1</code>
+					<code><?php echo defined('XIUNOX_VERSION') ? XIUNOX_VERSION : '?';?></code>
 				</div>
 			</div>
 
@@ -145,7 +145,7 @@ function finishUpgrade() {
 	btn.className = 'btn btn-success';
 
 	var logArea = document.getElementById('logArea');
-	logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i><?php echo lang('admin_upgrade_success_msg');?><b>1.0.1</b></div>';
+	logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i><?php echo lang('admin_upgrade_success_msg');?><b><?php echo defined('XIUNOX_VERSION') ? XIUNOX_VERSION : '?';?></b></div>';
 }
 
 function showUpgradeError(msg) {

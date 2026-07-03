@@ -862,7 +862,8 @@ function thread_format(&$thread) {
 	
 	$thread['top_class'] = $thread['top'] ? 'top_'.$thread['top'] : '';
 
-	$thread['pages'] = ceil($thread['posts'] / $conf['postlist_pagesize']);
+	// 分页基于一级评论数，但列表页无法精确计算，用总回帖数估算（详情页单独精确计算）
+	$thread['pages'] = ceil($thread['posts'] / max(1, $conf['postlist_pagesize']));
 
 	// is_liked 和 is_favorited 不在列表页查询，改为详情页单独查询
 	$thread['is_liked'] = 0;

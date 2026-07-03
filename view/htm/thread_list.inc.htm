@@ -49,7 +49,7 @@
 							<div class="subject break-all leading-snug">
 								<?php echo thread_status_label_html('top', $_status_labels); ?>
 								<?php if(!empty($_thread['digest'])) { ?><?php echo thread_status_label_html('digest', $_status_labels); ?><?php } ?>
-								<a href="<?php echo url("thread-$_thread[tid]");?>" class="hover-text-primary transition-colors"><?php echo $_thread['subject'];?></a>
+								<?php if((isset($_thread['user']['ban_type']) ? intval($_thread['user']['ban_type']) : 0) > 0 && !($gid == 1 || $gid == 2)) { ?><span class="badge bg-warning text-dark me-1" style="font-size:0.6em"><?php echo lang('user_ban_hidden_tag');?></span><?php } ?><a href="<?php echo url("thread-$_thread[tid]");?>" class="hover-text-primary transition-colors"><?php echo $_thread['subject'];?></a>
 								<?php if(isset($_thread['audit_status'])): ?>
 									<?php if($_thread['audit_status'] == 0): ?>
 										<span class="badge bg-warning text-dark ms-1"><?php echo lang('pending_audit');?></span>
@@ -67,7 +67,7 @@
 								<a href="<?php echo url("forum-$_thread[fid]");?>" class="bg-body-tertiary px-2 rounded-5 me-2 text-body-secondary text-decoration-none"><?php echo $_thread['forumname'];?></a>
 								<!-- <span class="mx-1 fw-bold">·</span> -->
 								<?php } ?>
-								<span class="username text-secondary me-2" uid="<?php echo $_thread['uid'];?>"><?php echo $_thread['username'];?>
+								<span class="username text-secondary me-2" uid="<?php echo $_thread['uid'];?>"><?php echo $_thread['username'];?><?php echo user_ban_badge_html(isset($_thread['user']) ? $_thread['user'] : array());?>
 									<!-- <span class="text-body-tertiary ms-1" style="font-size:0.85em">#<?php echo $_thread['uid'];?></span> -->
 								</span>
 								<!-- <span class="mx-1 fw-bold">·</span> -->
@@ -130,7 +130,7 @@
 								<!--{hook thread_list_inc_subject_top_after.htm}-->
 
 								<!--{hook thread_list_inc_subject_before.htm}-->
-								<a href="<?php echo url("thread-$_thread[tid]");?>" class="hover-text-primary transition-colors"><?php echo $_thread['subject'];?></a>
+								<?php if((isset($_thread['user']['ban_type']) ? intval($_thread['user']['ban_type']) : 0) > 0 && !($gid == 1 || $gid == 2)) { ?><span class="badge bg-warning text-dark me-1" style="font-size:0.6em"><?php echo lang('user_ban_hidden_tag');?></span><?php } ?><a href="<?php echo url("thread-$_thread[tid]");?>" class="hover-text-primary transition-colors"><?php echo $_thread['subject'];?></a>
 								<!--{hook thread_list_inc_subject_after.htm}-->
 								<?php if(isset($_thread['audit_status'])): ?>
 									<?php if($_thread['audit_status'] == 0): ?>
@@ -156,7 +156,7 @@
 								<a href="<?php echo url("forum-$_thread[fid]");?>" class=" bg-body-tertiary px-2 rounded-5 me-2 text-body-secondary text-decoration-none"><?php echo $_thread['forumname'];?></a>
 								<!-- <span class="mx-1 fw-bold">·</span> -->
 								<?php } ?>
-								<span class="username text-secondary me-2" uid="<?php echo $_thread['uid'];?>"><?php echo $_thread['username'];?>
+								<span class="username text-secondary me-2" uid="<?php echo $_thread['uid'];?>"><?php echo $_thread['username'];?><?php echo user_ban_badge_html(isset($_thread['user']) ? $_thread['user'] : array());?>
 									<!-- <span class="text-body-tertiary ms-1" style="font-size:0.85em">#<?php echo $_thread['uid'];?></span> -->
 								</span>
 								<!-- <span class="mx-1 fw-bold">·</span> -->
