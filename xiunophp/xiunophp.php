@@ -21,8 +21,8 @@ $get_magic_quotes_gpc = false;
 $starttime = microtime(1);
 $time = time();
 
-// 头部，判断是否运行在命令行下
-define('IN_CMD', !empty($_SERVER['SHELL']) || empty($_SERVER['REMOTE_ADDR']));
+// 头部，判断是否运行在命令行下（幂等：api/v1/index.php 与 bootstrap.php 可能重复 include 本文件）
+!defined('IN_CMD') AND define('IN_CMD', !empty($_SERVER['SHELL']) || empty($_SERVER['REMOTE_ADDR']));
 if(IN_CMD) {
 	!isset($_SERVER['REMOTE_ADDR']) AND $_SERVER['REMOTE_ADDR'] = '';
 	!isset($_SERVER['REQUEST_URI']) AND $_SERVER['REQUEST_URI'] = '';

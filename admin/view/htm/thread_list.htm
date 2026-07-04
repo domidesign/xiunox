@@ -14,12 +14,12 @@
 				<div>
 					<label class="form-label fs-6 mb-1"><?php echo lang('forum');?></label>
 					<select class="form-select form-select-sm" name="fid" id="fid">
-					<option value="0"></option>
-					<?php foreach ($forumlist as $forum) { ?>
-					<?php if(!empty($forum['type'])) continue; // 过滤分区 ?>
-					<option value="<?php echo $forum['fid']; ?>"><?php echo esc_html($forum['name']); ?></option>
-					<?php } ?>
-				</select>
+						<option value="0"></option>
+						<?php foreach ($forumlist as $forum) { ?>
+						<?php if(!empty($forum['type'])) continue; // 过滤分区 ?>
+						<option value="<?php echo $forum['fid']; ?>"><?php echo esc_html($forum['name']); ?></option>
+						<?php } ?>
+					</select>
 				</div>
 				<div>
 					<label class="form-label fs-6 mb-1"><?php echo lang('keyword');?></label>
@@ -40,6 +40,15 @@
 				<div>
 					<label class="form-label fs-6 mb-1"><?php echo lang('uid_username');?></label>
 					<input class="form-control form-control-sm" type="text" id="uid" name="uid" placeholder="<?php echo lang('uid_username');?>" value="" />
+				</div>
+				<div>
+					<label class="form-label fs-6 mb-1"><?php echo lang('admin_thread_order');?></label>
+					<select class="form-select form-select-sm" name="orderby" id="orderby_select">
+						<option value="tid_desc"><?php echo lang('admin_thread_order_tid_desc');?></option>
+						<option value="tid_asc"><?php echo lang('admin_thread_order_tid_asc');?></option>
+						<option value="create_desc"><?php echo lang('admin_thread_order_create_desc');?></option>
+						<option value="create_asc"><?php echo lang('admin_thread_order_create_asc');?></option>
+					</select>
 				</div>
 				<div class="flex-shrink-0">
 					<button type="button" id="search" class="btn btn-primary btn-sm rounded-pill" data-loading-text="<?php echo lang('searching');?>..."><i class="ti ti-search"></i> <?php echo lang('search');?></button>
@@ -103,7 +112,7 @@
 			<select id="pagesize_select" class="form-select form-select-sm" style="width:auto">
 				<option value="20">20</option>
 				<option value="50">50</option>
-				<option value="100" selected>100</option>
+				<option value="100">100</option>
 				<option value="200">200</option>
 			</select>
 			<span class="small text-secondary"><?php echo lang('admin_thread_pagesize');?></span>
@@ -126,24 +135,36 @@ var jbatch_toolbar = $('#batch_toolbar');
 var jbatch_btns = jbatch_toolbar.find('button[data-op]');
 var jmove_forum = $('#move_forum');
 var jpagesize = $('#pagesize_select');
+var jorderby = $('#orderby_select');
 var jresult_info = $('#result_info');
 var jpagination = $('#pagination_area');
 
 var queueid = '<?php echo $time;?>';
 var threads = 0;
+// 全表总帖子数（fid=0 时用于按当前 pagesize 重算 totalpage，修复 pagesize 不生效问题）
+var totalThreads = <?php echo isset($threads) ? intval($threads) : 0;?>;
 var pagesize = <?php echo $pagesize;?>;
 var totalpage = <?php echo $totalpage;?>;
-var totalpage_back = totalpage;
 var pagearr = [];
 var forumlist = <?php echo xn_json_encode($forumlist_simple);?>;
 var currentFoundPage = 1;
+
+// 从 localStorage 恢复 pagesize（修复刷新后无记忆问题）
+try {
+	var savedPagesize = parseInt(localStorage.getItem('admin_thread_pagesize'));
+	if(savedPagesize && [20, 50, 100, 200].indexOf(savedPagesize) !== -1) {
+		jpagesize.val(savedPagesize);
+		pagesize = savedPagesize;
+	}
+} catch(e) {}
 
 // 根据当前 fid 和 pagesize 重新计算扫描页数
 function rebuildPageArr() {
 	var curPs = parseInt(jpagesize.val()) || pagesize;
 	var fid = jfid.val();
 	if(fid == 0) {
-		totalpage = totalpage_back;
+		// 修复：fid=0 时按当前 pagesize 重算 totalpage（原代码复用 totalpage_back 导致 pagesize 切换无效）
+		totalpage = Math.max(1, Math.ceil(totalThreads / curPs));
 	} else if(forumlist[fid]) {
 		var n = forumlist[fid]['threads'];
 		totalpage = Math.max(1, Math.ceil(n / curPs));
@@ -155,7 +176,7 @@ function rebuildPageArr() {
 }
 rebuildPageArr();
 
-// 加载搜索结果（带翻页）
+// 加载搜索结果（带翻页，AJAX 不跳转）
 function loadThreadResults(page) {
 	page = page || 1;
 	currentFoundPage = page;
@@ -191,6 +212,16 @@ function loadThreadResults(page) {
 	});
 }
 
+// 拦截分页链接点击：AJAX 加载，避免跳转到独立 found 页面（修复第2页无工具栏问题）
+jpagination.on('click', 'a.page-link', function(e) {
+	e.preventDefault();
+	var href = $(this).attr('href') || '';
+	var match = href.match(/thread-found-(\d+)/);
+	if(match) {
+		loadThreadResults(parseInt(match[1], 10));
+	}
+});
+
 jfid.on('change', function() {
 	rebuildPageArr();
 });
@@ -204,6 +235,8 @@ jsubmit.on('click', function() {
 	// 否则 pagearr 基于新 pagesize 计算 totalpage，但 scan 用默认 100 查询，会漏掉数据
 	var scanPagesize = parseInt(jpagesize.val()) || pagesize;
 	postdata.pagesize = scanPagesize;
+	// 同步传 orderby 给 scan，让扫描按指定顺序推入队列
+	postdata.orderby = jorderby.val();
 	threads = 0;
 	var completedPages = 0;
 	$.each_sync(pagearr, function(i, callback) {
@@ -236,8 +269,10 @@ jsubmit.on('click', function() {
 	return false;
 });
 
-// 每页条数切换
+// 每页条数切换：保存到 localStorage + 重新计算 + 重新加载当前页
 jpagesize.on('change', function() {
+	// 保存到 localStorage（修复刷新后无记忆问题）
+	try { localStorage.setItem('admin_thread_pagesize', $(this).val()); } catch(e) {}
 	// 切换 pagesize 后重新计算扫描页数，确保下次搜索用新 pagesize
 	rebuildPageArr();
 	if(jsearch_result.is(':visible') && threads > 0) {

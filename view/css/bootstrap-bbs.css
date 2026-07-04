@@ -50,6 +50,7 @@ html {
 /* ===== Layout ===== */
 #header {
     flex: 0 0 auto;
+    padding: 12px 0;
 }
 
 #body {
@@ -837,8 +838,8 @@ a.hover-bg-body-secondary:hover {
 
     pre {
         overflow-x: auto;
-        white-space: pre-wrap;
-        word-wrap: break-word;
+        white-space: pre;
+        word-wrap: normal;
     }
 
     table {

@@ -887,7 +887,6 @@ class EditorService {
                     throw err;
                 });
             };
-            console.log('[AI Fetch Hook] fetch hook 已安装');
             // ===== END AI 生成防抖锁 =====
 
             // 粘贴 Markdown 自动转 HTML：在 capture 阶段拦截 paste 事件

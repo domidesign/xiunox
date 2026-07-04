@@ -157,7 +157,10 @@ $fup_forum = $forum['fup'] ? (isset($forumlist[$forum['fup']]) ? $forumlist[$for
 
 // hook forum_top_list_before.php
 
-$toplist = $page == 1 ? thread_top_find($fid) : array();
+// 置顶区始终显示（不受排序/翻页影响）：全局置顶(top=3) + 版块置顶(top=1)
+$toplist3 = thread_top_find(0);              // 全局置顶
+$toplist1 = $fid ? thread_top_find($fid) : array(); // 版块置顶
+$toplist = $toplist3 + $toplist1;            // PHP + 按 tid 去重合并
 if(!empty($toplist)) {
 	thread_list_access_filter($toplist, $gid);
 }
@@ -167,7 +170,10 @@ $thread_list_from_default = 1;
 
 // 精华帖子
 if($orderby == 'digest') {
-    $digest_cond = array('fid' => $fid, 'digest' => array('>' => 0));
+    $digest_cond = array('fid' => $fid, 'digest' => array('>' => 0), 'is_deleted' => 0, 'top' => 0);
+    if($gid == 0 || $gid > 2) {
+        $digest_cond['audit_status'] = 1;
+    }
     $totalnum = thread_count($digest_cond);
     $pagination = pagination(route_url('forum_page', array('fid'=>$fid), $extra), $totalnum, $page, $pagesize);
     $threadlist = thread_find($digest_cond, array('create_date' => -1), $page, $pagesize);
@@ -176,13 +182,12 @@ if($orderby == 'digest') {
 
 // 热门帖子
 if($orderby == 'hot') {
-    $threadlist = thread_find(array('fid'=>$fid), array('views'=>-1), $page, $pagesize);
-    // 第一页合并置顶帖（全局置顶在前，版块置顶在后）
-    if($page == 1) {
-        $toplist3 = thread_top_find(0);
-        $toplist1 = $fid ? thread_top_find($fid) : array();
-        $threadlist = $toplist3 + $toplist1 + $threadlist;
+    // 与默认分支保持一致的 cond：排除已删除/置顶/待审帖
+    $hot_cond = array('fid'=>$fid, 'is_deleted'=>0, 'top'=>0);
+    if($gid == 0 || $gid > 2) {
+        $hot_cond['audit_status'] = array('!=' => 0);
     }
+    $threadlist = thread_find($hot_cond, array('views'=>-1), $page, $pagesize);
     $thread_list_from_default = 0;
 }
 
@@ -199,7 +204,11 @@ if($orderby == 'follow') {
         if(empty($follow_uids)) {
             $threadlist = array();
         } else {
-            $threadlist = thread_find(array('fid'=>$fid, 'uid'=>$follow_uids), array('lastpid'=>-1), $page, $pagesize);
+            $follow_cond = array('fid'=>$fid, 'uid'=>$follow_uids, 'is_deleted'=>0, 'top'=>0);
+            if($gid == 0 || $gid > 2) {
+                $follow_cond['audit_status'] = array('!=' => 0);
+            }
+            $threadlist = thread_find($follow_cond, array('lastpid'=>-1), $page, $pagesize);
         }
     }
     $thread_list_from_default = 0;
@@ -208,16 +217,31 @@ if($orderby == 'follow') {
 // hook forum_thread_list_before.php
 
 if($thread_list_from_default) {
+	// totalnum 排除置顶帖（top=0），与 threadlist 的 cond 保持一致，确保分页数精确
 	// 非管理员只显示审核通过的帖子（排除待审和驳回）
 	if($gid == 0 || $gid > 2) {
-		// 版块帖子总数 60s 短缓存，使用 CacheHelper::remember
+		// 版块普通帖子总数 60s 短缓存，使用 CacheHelper::remember
+		// 显式传 is_deleted=0（thread_count 不会自动加，但 thread__find 会自动加，需保持一致）
 		$_forum_count_key = 'forum_tc_' . $fid . '_' . $gid;
 		$totalnum = CacheHelper::remember($_forum_count_key, 60, function() use ($fid) {
-			return thread_count(array('fid' => $fid, 'audit_status' => 1));
+			return thread_count(array('fid' => $fid, 'is_deleted' => 0, 'top' => 0, 'audit_status' => 1));
 		});
 	} else {
-		$totalnum = $forum['threads'];
+		// 管理员也用 thread_count 排除置顶帖（加 60s 缓存避免每次查库）
+		$_forum_count_key = 'forum_tc_' . $fid . '_' . $gid;
+		$totalnum = CacheHelper::remember($_forum_count_key, 60, function() use ($fid) {
+			return thread_count(array('fid' => $fid, 'is_deleted' => 0, 'top' => 0));
+		});
 	}
+
+	// page 越界自动跳转最后一页（批量删除/移动后当前页可能超出总页数）
+	$totalpage = $totalnum > 0 ? ceil($totalnum / $pagesize) : 1;
+	if($page > $totalpage) {
+		$last_page = max(1, $totalpage);
+		header('Location: ' . forum_page_url($fid, $last_page, $extra));
+		exit;
+	}
+
 	$pagination = pagination(route_url('forum_page', array('fid'=>$fid), $extra), $totalnum, $page, $pagesize);
 
 	// 版块帖子列表 60s 短缓存，使用 CacheHelper::remember

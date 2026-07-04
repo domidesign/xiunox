@@ -12,6 +12,9 @@
 </div>
 <?php } ?>
 
+<!-- 在线升级版本检查提醒（异步，localStorage 缓存 24 小时） -->
+<div id="upgradeNotice" class="alert d-none mb-4" role="alert"></div>
+
 <!--{hook admin_index_site_stat_before.htm}-->
 
 <style>
@@ -352,6 +355,71 @@
 <!--{hook admin_index_team_after.htm}-->
 
 <!--{hook admin_index_end.htm}-->
+
+<script>
+// 仪表盘版本检查：异步调用 ?online_upgrade-check.htm，localStorage 缓存 24 小时
+(function() {
+	var CACHE_KEY = 'xiunox_upgrade_check';
+	var CACHE_TTL = 24 * 60 * 60 * 1000; // 24 小时
+	var noticeEl = document.getElementById('upgradeNotice');
+	if (!noticeEl) return;
+
+	function showNotice(type, html) {
+		noticeEl.className = 'alert alert-' + type + ' d-flex align-items-center mb-4';
+		noticeEl.innerHTML = html;
+		noticeEl.classList.remove('d-none');
+	}
+
+	function renderResult(data) {
+		if (!data.ok) return; // 静默失败，不打扰站长
+		if (data.has_update) {
+			var ver = data.latest_version || '';
+			var notes = data.release_notes ? '<div class="small text-muted mt-1">' + escapeHtml(data.release_notes.substring(0, 200)) + '</div>' : '';
+			showNotice('info', '<i class="ti ti-cloud-download fs-4 me-2 d-none d-md-block"></i><div>'
+				+ '<strong><?php echo lang('admin_online_upgrade_dashboard_has_update');?></strong>'
+				+ (ver ? ' <span class="badge bg-success ms-1">v' + escapeHtml(ver) + '</span>' : '')
+				+ '<div class="small text-muted mt-1"><?php echo lang('admin_online_upgrade_dashboard_current_tip');?></div>'
+				+ notes
+				+ '<a href="<?php echo url('online_upgrade');?>" class="btn btn-sm btn-primary mt-2"><i class="ti ti-arrow-right"></i> <?php echo lang('admin_online_upgrade_dashboard_go_upgrade');?></a>'
+				+ '</div>');
+		}
+		// 无更新时不显示横幅，避免打扰
+	}
+
+	function escapeHtml(s) {
+		return String(s).replace(/[&<>"']/g, function(c) {
+			return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+		});
+	}
+
+	// 读缓存
+	var cached = null;
+	try { cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch(e) {}
+	var now = Date.now();
+
+	if (cached && cached.timestamp && (now - cached.timestamp < CACHE_TTL)) {
+		renderResult(cached.data);
+		return;
+	}
+
+	// 异步检查（不阻塞页面渲染）
+	setTimeout(function() {
+		$.ajax({
+			url: '<?php echo url('online_upgrade-check');?>',
+			type: 'POST',
+			data: { csrf_token: <?php echo json_encode(CsrfService::getToken());?> },
+			dataType: 'json',
+			success: function(res) {
+				if (res && res.ok) {
+					try { localStorage.setItem(CACHE_KEY, JSON.stringify({timestamp: now, data: res})); } catch(e) {}
+					renderResult(res);
+				}
+			},
+			error: function() { /* 静默失败 */ }
+		});
+	}, 800);
+})();
+</script>
 
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 

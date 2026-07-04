@@ -40,7 +40,10 @@ if($action == 'local') {
 		// 获取带数据库信息的插件数据
 		$plugin = plugin_read_by_dir_with_db($dir);
 		$plugin['dir'] = $dir;
-		
+
+		// 检测是否存在 upgrade.php（用于显示升级按钮）
+		$plugin['has_upgrade_file'] = is_file(APP_PATH."plugin/$dir/upgrade.php");
+
 		// 类型过滤
 		$plugin_type = $plugin['type'];
 		if($type_filter == 1 && $plugin_type == 1) continue; // 只看插件，过滤模板
@@ -209,17 +212,12 @@ if($action == 'local') {
 	}
 	
 	$msg = lang('plugin_install_sucessfully', array('name'=>$name));
-	message(0, $msg, array('redirect_url' => http_referer()));
+	message(0, $msg, array('redirect_url' => admin_plugin_url()));
 	} else {
-		// GET: 显示确认页面
-		$confirm_action = 'install';
-		$confirm_dir = $dir;
-		$confirm_name = $name;
-		$confirm_force = $force;
-		$header['title'] = lang('plugin_install_confirm', array('name'=>$name));
-		include _include(ADMIN_PATH."view/htm/plugin_confirm.htm");
+		// GET: 已改为弹窗确认，直接返回列表页
+		http_location(admin_plugin_url());
 	}
-	
+
 } elseif($action == 'unstall') {
 	
 	$dir = param_word(2);
@@ -256,86 +254,74 @@ if($action == 'local') {
 	admin_log_create('plugin_uninstall', 'plugin', $dir, '卸载插件：' . $name);
 
 	$msg = lang('plugin_unstall_sucessfully', array('name'=>$name, 'dir'=>"plugin/$dir"));
-	message(0, $msg, array('redirect_url' => http_referer()));
+	message(0, $msg, array('redirect_url' => admin_plugin_url()));
 	} else {
-		// GET: 显示确认页面
-		$confirm_action = 'unstall';
-		$confirm_dir = $dir;
-		$confirm_name = $name;
-		$header['title'] = lang('plugin_unstall_confirm', array('name'=>$name));
-		include _include(ADMIN_PATH."view/htm/plugin_confirm.htm");
+		// GET: 已改为弹窗确认，直接返回列表页
+		http_location(admin_plugin_url());
 	}
-	
+
 } elseif($action == 'enable') {
-	
+
 	$dir = param_word(2);
 	plugin_check_exists($dir);
 	$name = $plugins[$dir]['name'];
-	
+
 	if($method == 'POST') {
 		// CSRF 校验
 		CsrfService::check();
 		plugin_lock_start();
-	
+
 	// 检查目录可写
 	//plugin_check_dir_is_writable();
-	
+
 	// 插件依赖检查
 	plugin_check_dependency($dir, 'install');
-	
+
 	// 启用插件
 	plugin_enable($dir);
-	
+
 	plugin_lock_end();
 
 	admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 
 	$msg = lang('plugin_enable_sucessfully', array('name'=>$name));
-	message(0, $msg, array('redirect_url' => http_referer()));
+	message(0, $msg, array('redirect_url' => admin_plugin_url()));
 	} else {
-		// GET: 显示确认页面
-		$confirm_action = 'enable';
-		$confirm_dir = $dir;
-		$confirm_name = $name;
-		$header['title'] = lang('plugin_enable_confirm', array('name'=>$name));
-		include _include(ADMIN_PATH."view/htm/plugin_confirm.htm");
+		// GET: 已改为弹窗确认，直接返回列表页
+		http_location(admin_plugin_url());
 	}
-	
+
 } elseif($action == 'disable') {
-	
+
 	$dir = param_word(2);
 	plugin_check_exists($dir);
 	$name = $plugins[$dir]['name'];
-	
+
 	if($method == 'POST') {
 		// CSRF 校验
 		CsrfService::check();
 		plugin_lock_start();
-	
+
 	// 检查目录可写
 	//plugin_check_dir_is_writable();
-	
+
 	// 插件依赖检查
 	plugin_check_dependency($dir, 'unstall');
-	
+
 	// 禁用插件
 	plugin_disable($dir);
-	
+
 	plugin_lock_end();
 
 	admin_log_create('plugin_disable', 'plugin', $dir, '禁用插件：' . $name);
 
 	$msg = lang('plugin_disable_sucessfully', array('name'=>$name));
-	message(0, $msg, array('redirect_url' => http_referer()));
+	message(0, $msg, array('redirect_url' => admin_plugin_url()));
 	} else {
-		// GET: 显示确认页面
-		$confirm_action = 'disable';
-		$confirm_dir = $dir;
-		$confirm_name = $name;
-		$header['title'] = lang('plugin_disable_confirm', array('name'=>$name));
-		include _include(ADMIN_PATH."view/htm/plugin_confirm.htm");
+		// GET: 已改为弹窗确认，直接返回列表页
+		http_location(admin_plugin_url());
 	}
-	
+
 } elseif($action == 'upgrade') {
 
 	if($method == 'POST') {
@@ -365,15 +351,12 @@ if($action == 'local') {
 		admin_log_create('plugin_upgrade', 'plugin', $dir, '升级插件：' . $name);
 
 		$msg = lang('plugin_upgrade_sucessfully', array('name'=>$name));
-		message(0, $msg, array('redirect_url' => http_referer()));
+	message(0, $msg, array('redirect_url' => admin_plugin_url()));
 	} else {
-		// GET: 显示确认页面
+		// GET: 已改为弹窗确认，直接返回列表页
 		$dir = param_word(2);
 		plugin_check_exists($dir);
-		$name = $plugins[$dir]['name'];
-		$confirm_action = 'upgrade';
-		$header['title'] = lang('plugin_upgrade_confirm', array('name'=>$name));
-		include _include(ADMIN_PATH."view/htm/plugin_confirm.htm");
+		http_location(admin_plugin_url());
 	}
 
 } elseif($action == 'setting') {
@@ -573,7 +556,7 @@ if($action == 'local') {
 		admin_log_create('plugin_install', 'plugin', $pluginDir, '上传安装插件：'.$pluginName);
 
 		$msg = lang('plugin_upload_install_success', array('name'=>$pluginName, 'version'=>$newVersion));
-		message(0, $msg, array('redirect_url' => http_referer()));
+		message(0, $msg, array('redirect_url' => admin_plugin_url()));
 
 	} else {
 		// ----- 升级 -----
@@ -670,7 +653,7 @@ if($action == 'local') {
 		admin_log_create('plugin_upgrade', 'plugin', $pluginDir, '上传升级插件：'.$pluginName);
 
 		$msg = lang('plugin_upload_upgrade_success', array('name'=>$pluginName, 'version'=>$newVersion));
-		message(0, $msg, array('redirect_url' => http_referer()));
+		message(0, $msg, array('redirect_url' => admin_plugin_url()));
 	}
 
 } elseif($action == 'scanner') {

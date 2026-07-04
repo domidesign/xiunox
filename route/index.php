@@ -79,15 +79,26 @@ if($thread_list_from_default) {
 		$fids = array_intersect($fids, $_home_forum_ids);
 		$fids = array_values($fids);
 	}
-	// 首页帖子总数：60s 短缓存，使用 CacheHelper::remember 统一缓存键命名（core_ 前缀）
+	// 首页普通帖子总数（排除置顶帖 top=0 + 已删除 is_deleted=0）：60s 短缓存
+	// 必须与 threadlist 的 cond 保持一致，否则 count 虚高导致分页错乱
+	// （thread__find 会自动加 is_deleted=0，但 thread_count 不会，需显式传入）
 	$_count_cache_key = 'index_thread_count_' . md5(implode(',', $fids)) . '_' . $gid;
 	$totalnum = CacheHelper::remember($_count_cache_key, 60, function() use ($fids, $gid) {
 		if($gid == 0 || $gid > 2) {
-			return thread_count(array('fid' => $fids, 'audit_status' => 1));
+			return thread_count(array('fid' => $fids, 'is_deleted' => 0, 'top' => 0, 'audit_status' => 1));
 		} else {
-			return thread_count(array('fid' => $fids));
+			return thread_count(array('fid' => $fids, 'is_deleted' => 0, 'top' => 0));
 		}
 	});
+
+	// page 越界自动跳转最后一页（批量删除/移动后当前页可能超出总页数）
+	$totalpage = $totalnum > 0 ? ceil($totalnum / $pagesize) : 1;
+	if($page > $totalpage) {
+		$last_page = max(1, $totalpage);
+		header('Location: ' . str_replace('{page}', $last_page, url("$route-{page}", array('order' => $order))));
+		exit;
+	}
+
 	$pagination = pagination(url("$route-{page}", array('order' => $order)), $totalnum, $page, $pagesize);
 
 	// hook thread_find_by_fids_before.php
@@ -103,13 +114,10 @@ if($thread_list_from_default) {
 	});
 }
 
-// 查找置顶帖（在主要浏览排序的第一页显示，排除精华/关注等过滤视图）
-$toplist = array();
-if($page == 1 && !in_array($order, array('digest', 'follow'))) {
-	// 使用缓存版（全站置顶 fid=0，缓存 300 秒，置顶变化时主动失效）
-	$toplist = thread_top_find_cache();
-	thread_list_access_filter($toplist, $gid);
-}
+// 置顶区始终显示（不受排序/翻页影响）：首页只显示全局置顶
+// 使用缓存版（全站置顶 fid=0，缓存 300 秒，置顶变化时主动失效）
+$toplist = thread_top_find_cache();
+thread_list_access_filter($toplist, $gid);
 
 // 过滤没有权限访问的主题 / filter no permission thread
 thread_list_access_filter($threadlist, $gid);

@@ -468,7 +468,7 @@ document.querySelectorAll('.btn-clear-plugin').forEach(function(btn) {
             if(typeof showToast === 'function') {
                 showToast(data.message, type);
             } else {
-                alert(data.message);
+                XN.alert(data.message, {type:'danger'});
             }
             btn.disabled = false;
         })

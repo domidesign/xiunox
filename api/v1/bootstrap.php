@@ -6,7 +6,8 @@
 !defined('APP_PATH') AND define('APP_PATH', dirname(__DIR__, 2) . '/');
 !defined('XIUNOPHP_PATH') AND define('XIUNOPHP_PATH', APP_PATH . 'xiunophp/');
 
-if (!class_exists('db_mysql')) {
+// xiunophp.php 加载的是 db_pdo_mysql 类（非 db_mysql）；用 defined('IN_CMD') 判断是否已加载
+if (!defined('IN_CMD')) {
     include APP_PATH . 'xiunophp/xiunophp.php';
 }
 if (!interface_exists('DatabaseInterface')) {

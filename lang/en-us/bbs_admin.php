@@ -734,6 +734,7 @@ return array(
 	'admin_btn_disable'=>'Disable',
 	'admin_btn_enable'=>'Enable',
 	'admin_btn_uninstall'=>'Uninstall',
+	'admin_btn_upgrade'=>'Upgrade',
 	'admin_add_forum'=>'Add Forum',
 	'admin_label_icon'=>'Icon: ',
 	'admin_icon_upload_tip'=>'Supports jpg/png/gif/webp, max 2MB',
@@ -854,6 +855,11 @@ return array(
 	'admin_thread_total_found'=>'Found {n} results',
 	'admin_thread_move_to_forum'=>'Move to Forum',
 	'admin_thread_please_select_forum'=>'Please select target forum',
+	'admin_thread_order'=>'Sort',
+	'admin_thread_order_tid_desc'=>'TID Desc',
+	'admin_thread_order_tid_asc'=>'TID Asc',
+	'admin_thread_order_create_desc'=>'Date Desc',
+	'admin_thread_order_create_asc'=>'Date Asc',
 	'admin_thread_col_tid'=>'TID',
 	'admin_thread_col_subject'=>'Subject',
 	'admin_thread_col_author'=>'Author',
@@ -1701,6 +1707,12 @@ return array(
 	'admin_online_upgrade_reinstall_confirm'=>'Are you sure you want to reinstall the current version? This will download and overwrite all code files.',
 	'admin_online_upgrade_reinstalling'=>'Reinstalling...',
 	'admin_online_upgrade_reinstall_failed'=>'Reinstall failed',
+	'admin_online_upgrade_preflight_running'=>'Running preflight check...',
+	'admin_online_upgrade_preflight_block'=>'Preflight check failed. Upgrade blocked. Please fix the following issues first:',
+	'admin_online_upgrade_preflight_request_failed'=>'Preflight check request failed: ',
+	'admin_online_upgrade_dashboard_has_update'=>'A new version is available',
+	'admin_online_upgrade_dashboard_current_tip'=>'Recommended to back up data before upgrading during off-peak hours',
+	'admin_online_upgrade_dashboard_go_upgrade'=>'Go to upgrade',
 
 	// ========== AI Settings Sub-tab Architecture ==========
 	// Sub-tab titles

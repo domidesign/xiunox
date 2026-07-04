@@ -84,7 +84,8 @@ if($action == 'doc') {
 			$response = curl_exec($ch);
 			$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 			$error = curl_error($ch);
-			curl_close($ch);
+			// PHP 8.0+ curl 句柄自动释放，curl_close() 在 8.5 已废弃
+			if (PHP_VERSION_ID < 80000) curl_close($ch);
 
 			$result = [
 				'http_code' => $httpCode,

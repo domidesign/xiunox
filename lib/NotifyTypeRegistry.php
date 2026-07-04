@@ -24,17 +24,18 @@ class NotifyTypeRegistry {
 
     // tab 定义（顺序即菜单顺序）。tab 的 name 是 tab 菜单名（短词，如"点赞"）；
     // 与 type 的 label（操作描述，如"赞了你的帖子"）独立。
+    // name 在 get_all_tabs() 时通过 lang_or() 国际化，避免硬编码中文。
     private static array $tabs = array(
-        0              => array('name' => '全部',      'class' => 'info',      'icon' => ''),
-        'like'         => array('name' => '点赞',      'class' => 'danger',    'icon' => 'heart'),
-        'reply'        => array('name' => '评论/回复',   'class' => 'primary',   'icon' => 'message'),
-        'favorite'     => array('name' => '收藏',      'class' => 'warning',   'icon' => 'star'),
-        'mention'      => array('name' => '@',         'class' => 'info',      'icon' => 'at'),
-        'follow'       => array('name' => '关注',      'class' => 'success',   'icon' => 'user-plus'),
-        'thread'       => array('name' => '帖子',      'class' => 'primary',   'icon' => 'file-text'),
-        'announcement' => array('name' => '公告',      'class' => 'info',      'icon' => 'speakerphone'),
-        'system'       => array('name' => '系统',      'class' => 'danger',    'icon' => 'file-text'),
-        'other'        => array('name' => '其他',      'class' => 'secondary', 'icon' => 'bell'),
+        0              => array('name_key' => 'notify_tab_all',           'class' => 'info',      'icon' => ''),
+        'like'         => array('name_key' => 'notify_tab_like',          'class' => 'danger',    'icon' => 'heart'),
+        'reply'        => array('name_key' => 'notify_tab_reply',         'class' => 'primary',   'icon' => 'message'),
+        'favorite'     => array('name_key' => 'notify_tab_favorite',      'class' => 'warning',   'icon' => 'star'),
+        'mention'      => array('name_key' => 'notify_tab_mention',       'class' => 'info',      'icon' => 'at'),
+        'follow'       => array('name_key' => 'notify_tab_follow',        'class' => 'success',   'icon' => 'user-plus'),
+        'thread'       => array('name_key' => 'notify_tab_thread',        'class' => 'primary',   'icon' => 'file-text'),
+        'announcement' => array('name_key' => 'notify_tab_announcement',  'class' => 'info',      'icon' => 'speakerphone'),
+        'system'       => array('name_key' => 'notify_tab_system',        'class' => 'danger',    'icon' => 'file-text'),
+        'other'        => array('name_key' => 'notify_tab_other',         'class' => 'secondary', 'icon' => 'bell'),
     );
 
     // 默认 tab（兜底）
@@ -179,9 +180,42 @@ class NotifyTypeRegistry {
     /**
      * 获取所有 tab 列表（用于构建 $notice_menu）
      * 返回 key => array(name/class/icon)
+     * name 字段通过 lang_or() 国际化（找不到 key 时回退到中文兜底）
      */
     public static function get_all_tabs(): array {
-        return self::$tabs;
+        $result = array();
+        foreach(self::$tabs as $k => $tab) {
+            $name_key = isset($tab['name_key']) ? $tab['name_key'] : '';
+            $result[$k] = array(
+                'name'  => $name_key ? self::lang_or($name_key, '') : '',
+                'class' => isset($tab['class']) ? $tab['class'] : 'info',
+                'icon'  => isset($tab['icon']) ? $tab['icon'] : '',
+            );
+            // 兜底：lang_or 找不到 key 时返回原 key，此时按 tab key 给中文兜底
+            if(empty($result[$k]['name'])) {
+                $result[$k]['name'] = self::fallback_tab_name($k);
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * tab 中文名兜底（仅当语言包未提供翻译时使用）
+     */
+    private static function fallback_tab_name($key): string {
+        $fallback = array(
+            0              => '全部',
+            'like'         => '点赞',
+            'reply'        => '评论/回复',
+            'favorite'     => '收藏',
+            'mention'      => '@',
+            'follow'       => '关注',
+            'thread'       => '帖子',
+            'announcement' => '公告',
+            'system'       => '系统',
+            'other'        => '其他',
+        );
+        return isset($fallback[$key]) ? $fallback[$key] : (string)$key;
     }
 
     /**

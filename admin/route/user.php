@@ -52,13 +52,18 @@ if(empty($action) || $action == 'list') {
 	}
 
 	// hook admin_user_list_cond_after.php
-	$n = user_count($cond);
-	$userlist = user_find($cond, array('uid'=>-1), $page, $pagesize);
-	$ban_type_query = ($ban_type_filter !== '') ? '?ban_type='.intval($ban_type_filter) : '';
-	$pagination = pagination(url("user-list-$srchtype-".urlencode($keyword).'-{page}').$ban_type_query, $n, $page, $pagesize);
-	$pager = pager(url("user-list-$srchtype-".urlencode($keyword).'-{page}').$ban_type_query, $n, $page, $pagesize);
+// 后台需要精确的用户数用于分页：cond 为空时 db_count 会走 information_schema.TABLE_ROWS（InnoDB 估算值，误差大）
+// 强制加 uid>0 条件触发精确 COUNT(*) 分支（uid 从 1 开始，uid>0 等价于全表）
+if(empty($cond)) {
+	$cond['uid'] = array('>' => 0);
+}
+$n = user_count($cond);
+$userlist = user_find($cond, array('uid'=>-1), $page, $pagesize);
+$ban_type_query = ($ban_type_filter !== '') ? '?ban_type='.intval($ban_type_filter) : '';
+$pagination = pagination(url("user-list-$srchtype-".urlencode($keyword).'-{page}').$ban_type_query, $n, $page, $pagesize);
+$pager = pager(url("user-list-$srchtype-".urlencode($keyword).'-{page}').$ban_type_query, $n, $page, $pagesize);
 
-	foreach ($userlist as &$_user) {
+foreach ($userlist as &$_user) {
 		$_user['group'] = array_value($grouplist, $_user['gid'], '');
 		$_user['ban_status'] = UserBanService::getBanStatus($_user['uid']);
 	}

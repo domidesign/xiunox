@@ -118,10 +118,18 @@ if($action == 'top') {
 		// 批量更新关闭状态
 		if(!empty($close_tids)) {
 			db_update('thread', array('tid'=>$close_tids), array('closed'=>$close));
+			// db_update 绕过模型层，手动清理受影响版块的帖子列表缓存（避免 60s 短缓存不刷新）
+			$_close_fid_set = array();
+			foreach($threadlist as $_thread) {
+				$_close_fid_set[intval($_thread['fid'])] = 1;
+			}
+			foreach(array_keys($_close_fid_set) as $_fid) {
+				thread_forum_list_cache_delete($_fid);
+			}
 		}
 		// 批量插入版主日志，消除 N+1 INSERT
 		!empty($modlog_records) AND modlog_create_batch($modlog_records);
-		
+
 		// hook mod_close_end.php
 		
 		header('Content-Type: application/json; charset=utf-8');
@@ -242,10 +250,21 @@ if($action == 'top') {
 		}
 		// 批量插入版主日志，消除 N+1 INSERT
 		!empty($modlog_records) AND modlog_create_batch($modlog_records);
-		
+
 		// 清理下缓存
 		forum_list_cache_delete();
-		
+		// db_update 绕过模型层，需手动清理原版块/目标版块帖子列表缓存，置顶帖 fid 信息可能错乱
+		$_move_old_fid_set = array();
+		foreach($threadlist as $_thread) {
+			$_move_old_fid_set[intval($_thread['fid'])] = 1;
+		}
+		unset($_move_old_fid_set[intval($newfid)]);
+		foreach(array_keys($_move_old_fid_set) as $_fid) {
+			thread_forum_list_cache_delete($_fid);
+		}
+		thread_forum_list_cache_delete($newfid);
+		thread_top_cache_delete();
+
 		// hook mod_move_end.php
 		
 		header('Content-Type: application/json; charset=utf-8');

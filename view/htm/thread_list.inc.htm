@@ -1,109 +1,23 @@
 					<!--{hook thread_list_inc_start.htm}-->
 
-					<?php
-				// 计算管理权限
-				$_status_labels = thread_status_labels();
-				$have_allowtop = 0;
-				// 收集已在置顶区显示的帖子 tid，用于普通列表去重
-				$_toplist_tids = array();
-				if(!empty($toplist)) {
-					foreach($toplist as &$_t) {
-						$_t['allowtop'] = forum_access_mod($_t['fid'], $gid, 'allowtop');
+				<?php
+			// 计算管理权限（仅基于普通帖子列表，置顶区权限在 thread_top_list.inc.htm 独立计算）
+			$_status_labels = thread_status_labels();
+			$have_allowtop = 0;
+				if(!empty($threadlist)) {
+					foreach($threadlist as &$_t) {
+						$_t['allowtop'] = !empty($_t['fid']) ? forum_access_mod($_t['fid'], $gid, 'allowtop') : false;
 						if($_t['allowtop']) $have_allowtop = 1;
-						if(isset($_t['tid'])) {
-							$_toplist_tids[$_t['tid']] = true;
-						}
 					}
 					unset($_t);
 				}
-					if(!empty($threadlist)) {
-						foreach($threadlist as &$_t) {
-							$_t['allowtop'] = !empty($_t['fid']) ? forum_access_mod($_t['fid'], $gid, 'allowtop') : false;
-							if($_t['allowtop']) $have_allowtop = 1;
-						}
-						unset($_t);
-					}
-					if(!empty($force_show_checkbox)) $have_allowtop = 1;
-					?>
+				if(!empty($force_show_checkbox)) $have_allowtop = 1;
+				?>
 
 					<?php
-					// 渲染置顶帖
-					if(!empty($toplist)) {
-						foreach($toplist as &$_thread) {
-							if(!isset($_thread['top_class']) || !isset($_thread['tid'])){ continue; }
-					?>
-					<li class="d-flex align-items-center thread-list-item <?php echo $_thread['top_class'];?>" data-tid="<?php echo $_thread['tid'];?>">
-						<?php if($have_allowtop) { ?>
-							<?php if(!empty($force_show_checkbox) || $_thread['allowtop']) { ?>
-							<input type="checkbox" name="modtid" class="form-check-input  me-2  flex-shrink-0" value="<?php echo $_thread['tid']; ?>" <?php echo empty($mod_input_checked) ? '' : 'checked disabled';?> />
-							<?php } ?>
-						<?php } ?>
-
-						<div class="me-2 flex-shrink-0">
-							<a href="<?php echo url("user-$_thread[uid]");?>" tabindex="-1">
-								<?php echo avatar_component_from_data($_thread['user_avatar_url'], 'md', isset($_thread['group_icon_class']) ? $_thread['group_icon_class'] : '', isset($_thread['group_color']) ? $_thread['group_color'] : '', isset($_thread['gid']) ? $_thread['gid'] : 0);?>
-							</a>
-						</div>
-
-						<div class="flex-fill py-0.5" style="min-width:0">
-							<div class="subject break-all leading-snug">
-								<?php echo thread_status_label_html('top', $_status_labels); ?>
-								<?php if(!empty($_thread['digest'])) { ?><?php echo thread_status_label_html('digest', $_status_labels); ?><?php } ?>
-								<?php if((isset($_thread['user']['ban_type']) ? intval($_thread['user']['ban_type']) : 0) > 0 && !($gid == 1 || $gid == 2)) { ?><span class="badge bg-warning text-dark me-1" style="font-size:0.6em"><?php echo lang('user_ban_hidden_tag');?></span><?php } ?><a href="<?php echo url("thread-$_thread[tid]");?>" class="hover-text-primary transition-colors"><?php echo $_thread['subject'];?></a>
-								<?php if(isset($_thread['audit_status'])): ?>
-									<?php if($_thread['audit_status'] == 0): ?>
-										<span class="badge bg-warning text-dark ms-1"><?php echo lang('pending_audit');?></span>
-									<?php elseif($_thread['audit_status'] == 2): ?>
-										<span class="badge bg-danger ms-1"><?php echo lang('rejected_audit');?></span>
-									<?php endif; ?>
-								<?php endif; ?>
-								<?php if(!empty($_thread['images'])) { ?><?php echo thread_status_label_html('image', $_status_labels); ?><?php } ?>
-								<?php if(!empty($_thread['videos'])) { ?><?php echo thread_status_label_html('video', $_status_labels); ?><?php } ?>
-								<?php if(!empty($_thread['files'])) { ?><?php echo thread_status_label_html('attachment', $_status_labels); ?><?php } ?>
-								<?php if($_thread['closed'] > 0) { ?><?php echo thread_status_label_html('closed', $_status_labels); ?><?php } ?>
-							</div>
-							<div class="d-flex align-items-center small mt-1 thread-list-meta">
-								<?php if(!empty($_thread['forumname'])) { ?>
-								<a href="<?php echo url("forum-$_thread[fid]");?>" class="bg-body-tertiary px-2 rounded-5 me-2 text-body-secondary text-decoration-none"><?php echo $_thread['forumname'];?></a>
-								<!-- <span class="mx-1 fw-bold">·</span> -->
-								<?php } ?>
-								<span class="username text-secondary me-2" uid="<?php echo $_thread['uid'];?>"><?php echo $_thread['username'];?><?php echo user_ban_badge_html(isset($_thread['user']) ? $_thread['user'] : array());?>
-									<!-- <span class="text-body-tertiary ms-1" style="font-size:0.85em">#<?php echo $_thread['uid'];?></span> -->
-								</span>
-								<!-- <span class="mx-1 fw-bold">·</span> -->
-								<span class="text-secondary"><?php echo $_thread['create_date_fmt'];?></span>
-								<span class="  thread-list-interact ms-auto">
-									<!-- <span><i class="ti ti-eye"></i> <?php echo $_thread['views'];?></span>
-									<?php if(isset($_thread['likes']) && $_thread['likes'] > 0) { ?>
-									<span><i class="ti ti-heart"></i> <?php echo $_thread['likes'];?></span>
-									<?php } ?> -->
-									<!-- <?php if($_thread['posts'] > 0) { ?> -->
-									<span><i class="ti ti-message-circle"></i> <?php echo $_thread['posts'];?></span>
-									<!-- <?php } ?> -->
-								</span>
-							</div>
-						</div>
-					</li>
-					<?php
-						}
-						unset($_thread);
-						// 置顶帖与普通帖之间的分隔线
-						if(!empty($threadlist)) {
-					?>
-					<!-- <li class="thread-list-divider">
-						<hr class="my-0">
-					</li> -->
-					<?php
-						}
-					}
-					?>
-
-					<?php
-				// 渲染普通帖子（排除已在置顶区显示的帖子）
+				// 渲染普通帖子（置顶帖已在 thread_top_list.inc.htm 独立渲染）
 				if(!empty($threadlist)) { foreach($threadlist as &$_thread) {
 					if(!isset($_thread['top_class']) || !isset($_thread['tid'])){ continue; }
-					// 只跳过已在置顶区显示的帖子（按 tid 去重，避免重复显示）
-					if(isset($_toplist_tids[$_thread['tid']])) { continue; }
 				?>
 					<li class="d-flex align-items-center thread-list-item <?php echo $_thread['top_class'];?>" data-tid="<?php echo $_thread['tid'];?>">
 						<?php if($have_allowtop) { ?>
@@ -123,9 +37,6 @@
 							<div class="subject break-all leading-snug">
 
 								<!--{hook thread_list_inc_top_icon_before.htm}-->
-								<?php if($_thread['top'] > 0) { ?>
-									<?php echo thread_status_label_html('top', $_status_labels); ?>
-								<?php } ?>
 								<?php if(!empty($_thread['digest'])) { ?><?php echo thread_status_label_html('digest', $_status_labels); ?><?php } ?>
 								<!--{hook thread_list_inc_subject_top_after.htm}-->
 

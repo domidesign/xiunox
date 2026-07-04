@@ -9,6 +9,21 @@ $action = param(1);
 $pagesize = param('pagesize', 100);
 if(!in_array($pagesize, array(20, 50, 100, 200))) $pagesize = 100;
 
+// 排序参数白名单，防止 SQL 注入
+$orderby_key = param('orderby', 'tid_desc');
+$allow_orderby = array('tid_desc', 'tid_asc', 'create_desc', 'create_asc');
+if(!in_array($orderby_key, $allow_orderby)) $orderby_key = 'tid_desc';
+
+// 排序键 -> thread_find 排序数组
+function admin_thread_orderby_to_sql($key) {
+	switch($key) {
+		case 'tid_asc':        return array('tid'=>1);
+		case 'create_desc':    return array('create_date'=>-1);
+		case 'create_asc':     return array('create_date'=>1);
+		default:               return array('tid'=>-1);
+	}
+}
+
 if(empty($action) || $action == 'list') {
 
 	$header['title'] = lang('thread_admin');
@@ -22,24 +37,31 @@ if(empty($action) || $action == 'list') {
 	$threads = thread_count(array('is_deleted'=>0));
 	$page = 1; // 从第一页开始
 	$totalpage = ceil($threads / $pagesize);
-	
+
 	$queueid = _SESSION('thread_find_queueid');
 	$queueid AND queue_destory($queueid);
 	$queueid = $time;
 	$_SESSION['thread_find_queueid'] = $queueid;
+	// 保存排序到 session，found 路由按相同顺序重新排序展示
+	$_SESSION['admin_thread_orderby'] = $orderby_key;
 
+	// 一次性 GROUP BY 查询各版块帖子数，避免循环 N+1 全表 count
 	$forumlist_simple = array();
-	foreach($forumlist as $k=>$v) {
-		// 用实时 count 替代 forum['threads']，确保后台管理员能看到待审帖子
-		// forum['threads'] 仅统计已审核通过的帖子，会漏掉待审帖子
-		$forumlist_simple[$k] = array(
-			'name'=>$v['name'],
-			'threads'=>db_count('thread', array('fid'=>$k, 'is_deleted'=>0)),
-		);
+	$group_counts = db_find_group('thread', array('is_deleted'=>0), array('fid'), array(), array(), 1, 1000, 'fid', array('fid', 'COUNT(*) AS cnt'));
+	if($group_counts) {
+		foreach($group_counts as $row) {
+			$fid = $row['fid'];
+			if(isset($forumlist[$fid])) {
+				$forumlist_simple[$fid] = array(
+					'name'=>$forumlist[$fid]['name'],
+					'threads'=>intval($row['cnt']),
+				);
+			}
+		}
 	}
-	
+
 	// hook admin_thread_list_end.php
-	
+
 	include _include(ADMIN_PATH."view/htm/thread_list.htm");
 	
 // 全表扫描，每次扫描 1000 条记录
@@ -47,7 +69,11 @@ if(empty($action) || $action == 'list') {
 	
 	$queueid = _SESSION('thread_find_queueid');
 	empty($queueid) AND message(-1, lang('thread_queue_not_exists'));
-	
+
+	// 同步 SESSION 中的 orderby：found 路由从 SESSION 取 orderby 重新排序展示，
+	// 若不同步则用户切换排序后点搜索，scan 按新 orderby 扫描但 found 用旧 orderby 重排，列表排序不变
+	$_SESSION['admin_thread_orderby'] = $orderby_key;
+
 	$_uid = param('uid');
 	if(!is_numeric($_uid)) {
 		$_user = user_read_by_username($_uid);
@@ -77,7 +103,7 @@ if(empty($action) || $action == 'list') {
 	$scan_cond = array('is_deleted'=>0);
 	$fid AND $scan_cond['fid'] = $fid;
 	// 管理员不需要过滤 audit_status，gid=1,2 在后台上下文
-	$threadlist = thread_find($scan_cond, array('tid'=>-1), $page, $pagesize);
+	$threadlist = thread_find($scan_cond, admin_thread_orderby_to_sql($orderby_key), $page, $pagesize);
 	
 	if($page == 1) $queueid AND queue_destory($queueid);
 	
@@ -188,16 +214,34 @@ if(empty($action) || $action == 'list') {
 				}
 			}
 		} elseif($op == 'close') {
-			// 批量更新
-			db_update('thread', array('tid'=>$valid_tids), array('closed'=>1));
-			$success_count = count($valid_tids);
-		} elseif($op == 'open') {
-			db_update('thread', array('tid'=>$valid_tids), array('closed'=>0));
-			$success_count = count($valid_tids);
-		} elseif($op == 'top') {
-			db_update('thread', array('tid'=>$valid_tids), array('top'=>1));
-			$success_count = count($valid_tids);
-		} elseif($op == 'digest') {
+		// 批量更新
+		db_update('thread', array('tid'=>$valid_tids), array('closed'=>1));
+		$success_count = count($valid_tids);
+		// 清除受影响版块的帖子列表缓存（db_update 绕过模型层缓存清理）
+		$_affected_fids = array();
+		foreach(thread_find_by_tids($valid_tids) as $_t) { $_affected_fids[$_t['fid']] = 1; }
+		foreach($_affected_fids as $_fid => $_) { thread_forum_list_cache_delete($_fid); }
+	} elseif($op == 'open') {
+		db_update('thread', array('tid'=>$valid_tids), array('closed'=>0));
+		$success_count = count($valid_tids);
+		// 清除受影响版块的帖子列表缓存（db_update 绕过模型层缓存清理）
+		$_affected_fids = array();
+		foreach(thread_find_by_tids($valid_tids) as $_t) { $_affected_fids[$_t['fid']] = 1; }
+		foreach($_affected_fids as $_fid => $_) { thread_forum_list_cache_delete($_fid); }
+	} elseif($op == 'top') {
+	// 读取用户选择的置顶级别（0=取消，1=版块置顶，3=全局置顶），默认 1
+	$top_value = param('top', 1);
+	$top_value = in_array($top_value, array(0, 1, 3), true) ? intval($top_value) : 1;
+
+	// 用 thread_top_change_batch 同步 thread.top + thread_top 表（避免状态不一致）
+	$_top_threadlist = thread_find_by_tids($valid_tids);
+	$success_count = thread_top_change_batch($valid_tids, $_top_threadlist, $top_value);
+
+	// 清除受影响版块的帖子列表缓存（thread_top_change_batch 已清理置顶缓存）
+	$_affected_fids = array();
+	foreach($_top_threadlist as $_t) { $_affected_fids[$_t['fid']] = 1; }
+	foreach($_affected_fids as $_fid => $_) { thread_forum_list_cache_delete($_fid); }
+} elseif($op == 'digest') {
 			// 批量读取 thread，然后逐条调用 thread_digest_change（涉及积分等复杂逻辑）
 			$threadlist = thread_find_by_tids($valid_tids);
 			if($threadlist) {
@@ -211,9 +255,14 @@ if(empty($action) || $action == 'list') {
 				}
 			}
 		} elseif($op == 'announcement') {
-			db_update('thread', array('tid'=>$valid_tids), array('announcement'=>1));
-			$success_count = count($valid_tids);
-		} elseif($op == 'move') {
+		db_update('thread', array('tid'=>$valid_tids), array('announcement'=>1));
+		$success_count = count($valid_tids);
+		// 清除公告侧边栏缓存和受影响版块的帖子列表缓存（db_update 绕过模型层缓存清理）
+		cache_delete('sidebar_announcements');
+		$_affected_fids = array();
+		foreach(thread_find_by_tids($valid_tids) as $_t) { $_affected_fids[$_t['fid']] = 1; }
+		foreach($_affected_fids as $_fid => $_) { thread_forum_list_cache_delete($_fid); }
+	} elseif($op == 'move') {
 			// move 涉及 fid 变更和 forum 计数更新，保持循环
 			$target_fid = param('target_fid', 0);
 			if($target_fid > 0) {
@@ -240,18 +289,20 @@ if(empty($action) || $action == 'list') {
 	message(0, lang('admin_thread_batch_success') . ' (' . $success_count . ')');
 
 // 搜索结果展示
-} elseif($action == 'found') {	
+} elseif($action == 'found') {
 
 	$queueid = _SESSION('thread_find_queueid');
 	empty($queueid) AND message(-1, lang('thread_queue_not_exists'));
-	
+
 	$page = param(2, 1);
 	$total = queue_count($queueid);
 	$pagination = pagination(route_url('admin_thread_found'), $total, $page, $pagesize);
 	// hook admin_thread_found_start.php
 	$tids = queue_find($queueid, $page, $pagesize);
-	$threadlist = thread_find_by_tids($tids);
-	
+	// 从 SESSION 取排序，重新排序展示（queue 顺序可能与 scan 推入顺序不一致，必须重新排序）
+	$orderby_key = isset($_SESSION['admin_thread_orderby']) ? $_SESSION['admin_thread_orderby'] : 'tid_desc';
+	$threadlist = thread_find_by_tids($tids, admin_thread_orderby_to_sql($orderby_key));
+
 	// hook admin_thread_found_end.php
 	include _include(ADMIN_PATH."view/htm/thread_found.htm");
 

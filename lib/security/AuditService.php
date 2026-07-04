@@ -385,6 +385,22 @@ class AuditService {
 
         // 记录日志
         self::log_audit($operator_uid, $target_type, $target_id, 'approve', '');
+
+        // 清除版块帖子列表缓存（审核通过后帖子对非管理员可见，需刷新分页/列表缓存）
+        if ($target_type === 'thread' && !empty($fid)) {
+            if(function_exists('thread_forum_list_cache_delete')) {
+                thread_forum_list_cache_delete($fid);
+            }
+        } elseif ($target_type === 'post' && !empty($fid)) {
+            if(function_exists('thread_forum_list_cache_delete')) {
+                thread_forum_list_cache_delete($fid);
+            }
+        }
+        // 清除首页帖子列表缓存（审核通过后帖子出现在首页，无法按 fid 删除）
+        if(function_exists('index_list_cache_delete')) {
+            index_list_cache_delete();
+        }
+
         return true;
     }
 
@@ -456,27 +472,47 @@ class AuditService {
                 'reject_reason' => '',
             ]);
             if ($r === false) return ['ok'=>false, 'message'=>'更新失败'];
+
+            // 清除受影响版块帖子列表缓存 + 首页缓存（与单条 approve() 对齐）
+            $_fid = intval($thread['fid']);
+            if($_fid > 0 && function_exists('thread_forum_list_cache_delete')) {
+                thread_forum_list_cache_delete($_fid);
+            }
+            if(function_exists('index_list_cache_delete')) {
+                index_list_cache_delete();
+            }
         } else {
             $post = post__read($target_id);
             if (empty($post)) return ['ok'=>false, 'message'=>'回帖不存在'];
-            
+
             if (intval($post['audit_status']) !== self::STATUS_REJECTED) {
                 return ['ok'=>false, 'message'=>'当前状态不允许重新提交'];
             }
-            
+
             $count = intval($post['resubmit_count'] ?? 0);
             if ($count >= self::MAX_RESUBMIT_COUNT) {
                 return ['ok'=>false, 'message'=>'已达重新提交上限（'.self::MAX_RESUBMIT_COUNT.'次），请联系管理员'];
             }
-            
+
             $r = db_update('post', ['pid' => $target_id], [
                 'audit_status' => self::STATUS_PENDING,
                 'resubmit_count' => $count + 1,
                 'reject_reason' => '',
             ]);
             if ($r === false) return ['ok'=>false, 'message'=>'更新失败'];
+
+            // 清除受影响版块帖子列表缓存 + 首页缓存（与单条 approve() 对齐）
+            $_tid = intval($post['tid']);
+            $_thread = thread__read($_tid);
+            $_fid = $_thread ? intval($_thread['fid']) : 0;
+            if($_fid > 0 && function_exists('thread_forum_list_cache_delete')) {
+                thread_forum_list_cache_delete($_fid);
+            }
+            if(function_exists('index_list_cache_delete')) {
+                index_list_cache_delete();
+            }
         }
-        
+
         return ['ok'=>true, 'message'=>'已重新提交审核'];
     }
 
@@ -559,6 +595,7 @@ class AuditService {
             // 4. 批量发放积分 + 补发延迟通知（关注者/版块关注者/@提及）
             // 这部分逻辑涉及各自的关注关系查询、@提及解析、防抖去重，难以完全合并为单条 SQL
             // 仍按 tid 循环处理，但 audit_status 已批量更新，主要 N+1 UPDATE 已消除
+            $affected_fids = array();
             foreach($valid_tids as $tid) {
                 $thread = $threads[$tid];
 
@@ -575,11 +612,24 @@ class AuditService {
 
                 // 补发延迟通知（关注该发帖人的用户 / 关注该版块的用户 / @提及）
                 self::sendDelayedNotificationsForThread($thread, $operator_uid);
+
+                // 收集受影响版块用于缓存清理
+                if($fid > 0) $affected_fids[$fid] = true;
             }
 
             // 5. 批量记录审核日志
             foreach($valid_tids as $tid) {
                 self::log_audit($operator_uid, 'thread', $tid, 'approve', '');
+            }
+
+            // 6. 清除受影响版块帖子列表缓存 + 首页缓存（审核通过后帖子对非管理员可见）
+            foreach($affected_fids as $_fid => $_) {
+                if(function_exists('thread_forum_list_cache_delete')) {
+                    thread_forum_list_cache_delete($_fid);
+                }
+            }
+            if(function_exists('index_list_cache_delete')) {
+                index_list_cache_delete();
             }
 
             return count($valid_tids);
@@ -634,6 +684,7 @@ class AuditService {
             }
 
             // 补加帖子评论数和用户回帖数（创建时因待审未计入）+ 积分发放 + 补发延迟通知（仍按 pid 循环）
+            $affected_fids = array();
             foreach($valid_pids as $pid) {
                 $post = $posts[$pid];
                 $thread = $post_threads[$pid];
@@ -655,11 +706,24 @@ class AuditService {
 
                 // 补发延迟通知（回复/提及）
                 self::sendDelayedNotificationsForPost($post, $thread, $operator_uid);
+
+                // 收集受影响版块用于缓存清理
+                if($fid > 0) $affected_fids[$fid] = true;
             }
 
             // 批量记录审核日志
             foreach($valid_pids as $pid) {
                 self::log_audit($operator_uid, 'post', $pid, 'approve', '');
+            }
+
+            // 清除受影响版块帖子列表缓存 + 首页缓存（审核通过后回帖对非管理员可见）
+            foreach($affected_fids as $_fid => $_) {
+                if(function_exists('thread_forum_list_cache_delete')) {
+                    thread_forum_list_cache_delete($_fid);
+                }
+            }
+            if(function_exists('index_list_cache_delete')) {
+                index_list_cache_delete();
             }
 
             return count($valid_pids);
@@ -694,6 +758,7 @@ class AuditService {
 
             $valid_tids = array();
             $notify_records = array();
+            $affected_fids = array();
             foreach($threads as $tid=>$thread) {
                 if(intval($thread['audit_status']) === self::STATUS_REJECTED) continue;
                 $valid_tids[] = intval($tid);
@@ -711,6 +776,10 @@ class AuditService {
                     'create_date' => $time,
                     'is_read' => 0,
                 );
+
+                // 收集受影响版块用于缓存清理
+                $_fid = intval($thread['fid']);
+                if($_fid > 0) $affected_fids[$_fid] = true;
             }
 
             if(empty($valid_tids)) return 0;
@@ -730,6 +799,16 @@ class AuditService {
             // 4. 批量记录审核日志
             foreach($valid_tids as $tid) {
                 self::log_audit($operator_uid, 'thread', $tid, 'reject', $reason);
+            }
+
+            // 5. 清除受影响版块帖子列表缓存 + 首页缓存（驳回后帖子状态变化影响列表）
+            foreach($affected_fids as $_fid => $_) {
+                if(function_exists('thread_forum_list_cache_delete')) {
+                    thread_forum_list_cache_delete($_fid);
+                }
+            }
+            if(function_exists('index_list_cache_delete')) {
+                index_list_cache_delete();
             }
 
             return count($valid_tids);
@@ -787,6 +866,25 @@ class AuditService {
             // 批量记录审核日志
             foreach($valid_pids as $pid) {
                 self::log_audit($operator_uid, 'post', $pid, 'reject', $reason);
+            }
+
+            // 清除受影响版块帖子列表缓存 + 首页缓存（驳回后回帖状态变化影响列表）
+            $affected_fids = array();
+            foreach($posts as $pid=>$post) {
+                if(!in_array(intval($pid), $valid_pids)) continue;
+                $tid = intval($post['tid']);
+                if(isset($tmp_threads[$tid])) {
+                    $_fid = intval($tmp_threads[$tid]['fid']);
+                    if($_fid > 0) $affected_fids[$_fid] = true;
+                }
+            }
+            foreach($affected_fids as $_fid => $_) {
+                if(function_exists('thread_forum_list_cache_delete')) {
+                    thread_forum_list_cache_delete($_fid);
+                }
+            }
+            if(function_exists('index_list_cache_delete')) {
+                index_list_cache_delete();
             }
 
             return count($valid_pids);

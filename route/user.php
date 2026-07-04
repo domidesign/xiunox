@@ -32,14 +32,27 @@ if(empty($action)) {
 
 	// 只加载帖子 tab，其他 tab 由 htmx 按需请求
 	// 直接查 thread 表（与 user-thread 页一致），避免 mythread 表不同步
+	// 版块权限过滤必须在 SQL 层完成，否则 thread_list_access_filter 在分页后删除无权限版块帖子，会导致每页条数不一致
 	$thread_cond = array('uid' => $_uid);
+	$threadlist = NULL; // 标记是否已查询，避免无可见版块时仍执行 thread_find
 	if($gid == 0 || ($gid > 2 && $uid != $_uid)) {
-		$thread_cond['audit_status'] = 1;
-		$totalnum = thread_count($thread_cond);
+		$forumlist_tmp = forum_list_cache();
+		$accessible_fids = array_keys(forum_list_access_filter($forumlist_tmp, $gid));
+		if(empty($accessible_fids)) {
+			// 无可见版块：直接置空，跳过 thread_find 避免 fid IN() 无效 SQL
+			$totalnum = 0;
+			$threadlist = array();
+		} else {
+			$thread_cond['audit_status'] = 1;
+			$thread_cond['fid'] = $accessible_fids; // db_find 展开为 fid=v1 OR fid=v2 ... 等价 IN
+			$totalnum = thread_count($thread_cond);
+		}
 	} else {
 		$totalnum = $_user['threads'];
 	}
-	$threadlist = thread_find($thread_cond, array('tid' => -1), $page, $pagesize);
+	if($threadlist === NULL) {
+		$threadlist = thread_find($thread_cond, array('tid' => -1), $page, $pagesize);
+	}
 	thread_list_access_filter($threadlist, $gid);
 	// 加载版块列表，仅供管理工具栏（移动帖子）使用，普通用户（gid>=5）无需加载
 	$forumlist = array();
@@ -79,12 +92,12 @@ if(empty($action)) {
 	$pagesize = 10;
 	$is_user_post_list = TRUE; // 标记为用户中心回帖列表，用于截断内容
 
-	$postlist = array();
-	if(function_exists('post_find_by_uid')) {
-		$postlist = post_find_by_uid($_uid, $page, $pagesize);
-	} else {
-		$postlist = post_find(array('uid'=>$_uid, 'isfirst'=>0), array('pid'=>-1), $page, $pagesize);
-	}
+	// 版块权限过滤必须在 SQL 层完成，避免 post_list_access_filter 分页后删除无权限版塔回帖导致每页条数不一致
+	if(!isset($forumlist)) $forumlist = forum_list_cache();
+	$accessible_fids = array_keys(forum_list_access_filter($forumlist, $gid));
+	// 非管理员看他人回帖只看 audit_status=1；管理员/自己看所有
+	$audit_only = ($gid == 0 || ($gid > 2 && $uid != $_uid));
+	list($_total, $postlist) = post_find_by_uid_with_forum_access($_uid, $accessible_fids, $audit_only, $page, $pagesize);
 	post_list_access_filter($postlist, $gid);
 
 	// 为回帖添加帖子标题信息
@@ -293,17 +306,30 @@ if(empty($action)) {
 
         $page = param(3, 1);
         $pagesize = 10;
-        // 非管理员查看他人帖子时，只显示审核通过的帖子（排除待审和驳回）
+        // 非管理员查看他人帖子时，只显示审核通过且版块可见的帖子
+        // 版块权限过滤必须在 SQL 层完成，否则 thread_list_access_filter 在分页后删除无权限版块帖子，会导致每页条数不一致
         $thread_cond = array('uid' => $_uid);
+        $threadlist = NULL; // 标记是否已查询，避免无可见版块时仍执行 thread_find
         if($gid == 0 || ($gid > 2 && $uid != $_uid)) {
-            $totalnum = thread_count(array('uid' => $_uid, 'audit_status' => 1));
-            $thread_cond['audit_status'] = 1;
+            if(!isset($forumlist)) $forumlist = forum_list_cache();
+            $accessible_fids = array_keys(forum_list_access_filter($forumlist, $gid));
+            if(empty($accessible_fids)) {
+                // 无可见版块：直接置空，跳过 thread_find 避免 fid IN() 无效 SQL
+                $totalnum = 0;
+                $threadlist = array();
+            } else {
+                $thread_cond['audit_status'] = 1;
+                $thread_cond['fid'] = $accessible_fids; // db_find 展开为 fid=v1 OR fid=v2 ... 等价 IN
+                $totalnum = thread_count($thread_cond);
+            }
         } else {
             $totalnum = $_user['threads'];
         }
         $pagination = pagination(route_url('user_thread_page', array('uid'=>$_uid)), $totalnum, $page, $pagesize);
-        // 直接用 thread_find 查询（含 audit_status 过滤），避免 mythread 表无法过滤待审帖子
-        $threadlist = thread_find($thread_cond, array('tid' => -1), $page, $pagesize);
+        // 直接用 thread_find 查询（含 audit_status + 版块权限过滤），避免 mythread 表无法过滤待审帖子
+        if($threadlist === NULL) {
+            $threadlist = thread_find($thread_cond, array('tid' => -1), $page, $pagesize);
+        }
 	thread_list_access_filter($threadlist, $gid);
 	// 加载版块列表，供管理工具栏（移动帖子）使用
 	$forumlist = forum_list_cache();
@@ -583,6 +609,10 @@ if(empty($action)) {
 } elseif($action == 'logout') {
 
 	// hook user_logout_start.php
+
+	// 退出前清除用户缓存（cache 类型为 mysql/pdo_mysql 时由 DB 层处理，与 user_update 一致）
+	// 必须在 $uid = 0 之前执行，否则会误清 user-0 缓存
+	!empty($uid) AND !in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
 
 	$uid = 0;
 	$_SESSION['uid'] = $uid;
@@ -1053,21 +1083,15 @@ if(empty($action)) {
 
 	$page = param(3, 1);
 	$pagesize = 10;
-	// 非管理员查看他人回帖时，只显示审核通过的回帖（排除待审和驳回）
-	if($gid == 0 || ($gid > 2 && $uid != $_uid)) {
-		$totalnum = post_count(array('uid' => $_uid, 'isfirst' => 0, 'audit_status' => 1));
-	} else {
-		$totalnum = $_user['posts'];
-	}
+	// 版块权限过滤必须在 SQL 层完成，避免 post_list_access_filter 分页后删除无权限版塔回帖导致每页条数不一致
+	if(!isset($forumlist)) $forumlist = forum_list_cache();
+	$accessible_fids = array_keys(forum_list_access_filter($forumlist, $gid));
+	// 非管理员看他人回帖只看 audit_status=1；管理员/自己看所有
+	$audit_only = ($gid == 0 || ($gid > 2 && $uid != $_uid));
+	list($totalnum, $postlist) = post_find_by_uid_with_forum_access($_uid, $accessible_fids, $audit_only, $page, $pagesize);
 	$pagination = pagination(route_url('user_post_page', array('uid'=>$_uid)), $totalnum, $page, $pagesize);
 
 	$is_user_post_list = TRUE; // 标记为用户中心回帖列表，用于截断内容
-
-	if(function_exists('post_find_by_uid')) {
-		$postlist = post_find_by_uid($_uid, $page, $pagesize);
-	} else {
-		$postlist = post_find(array('uid'=>$_uid, 'isfirst'=>0), array('pid'=>-1), $page, $pagesize);
-	}
 	post_list_access_filter($postlist, $gid);
 
 	// 为回帖添加帖子标题信息

@@ -12,7 +12,7 @@ class UpgradeService {
     public function __construct($db, array $conf) {
         $this->db = $db;
         $this->conf = $conf;
-        $this->backupPath = $conf['tmp_path'] . 'upgrade_backup_' . date('Ymd_His') . '/';
+        $this->backupPath = $conf['tmp_path'] . 'upgrade_backup_' . date('Ymd_His') . '_' . substr(bin2hex(random_bytes(3)), 0, 6) . '/';
     }
 
     /**

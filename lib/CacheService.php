@@ -64,11 +64,6 @@ class CacheService
     {
         global $conf;
 
-        // 如果已经降级过，不再尝试重新连接原驱动
-        if (!empty($_SERVER['cache_degraded_from'])) {
-            return $_SERVER['cache'];
-        }
-
         // 从 setting 读取缓存配置
         $cacheConfig = function_exists('setting_get') ? setting_get('cache_config') : NULL;
 
@@ -82,6 +77,21 @@ class CacheService
             $cacheConfig['type'] = 'mysql';
         }
 
+        // 后台 enable=0 时强制关闭缓存，即使 earlyInit 阶段已降级到 MySQL 也必须尊重开关
+        // 修复降级绕过开关的 bug：降级只影响"用哪个驱动"，不影响"是否启用缓存"
+        $newEnable = !empty($cacheConfig['enable']);
+        if (!$newEnable) {
+            $_SERVER['cache'] = NULL;
+            // 清除降级标记，避免后续逻辑误判
+            unset($_SERVER['cache_degraded_from']);
+            return NULL;
+        }
+
+        // 如果已经降级过，不再尝试重新连接原驱动（但仍尊重后台 enable=1）
+        if (!empty($_SERVER['cache_degraded_from'])) {
+            return $_SERVER['cache'];
+        }
+
         // 检查是否需要重建：比较后台配置的驱动类型与当前实例
         $currentCache = $_SERVER['cache'];
         $currentType = NULL;
@@ -91,7 +101,6 @@ class CacheService
         elseif ($currentCache instanceof cache_mysql) $currentType = 'mysql';
 
         // 驱动类型相同且启用状态一致，无需重建
-        $newEnable = !empty($cacheConfig['enable']);
         $currentEnable = $currentCache !== NULL;
         if ($currentType === $cacheConfig['type'] && $currentEnable === $newEnable) {
             // 类型/开关一致时，再比较驱动配置（host/port/password/database）是否变化

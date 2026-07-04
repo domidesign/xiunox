@@ -484,7 +484,7 @@ class CacheHelper {
         // 注意：thread_count 返回 0 也是合法值（版块无帖子），不能用作失败判断
         $_count_key = 'core_index_thread_count_' . md5(implode(',', $fids)) . '_0';
         self::remember($_count_key, 60, function() use ($fids) {
-            return thread_count(array('fid' => $fids, 'audit_status' => 1));
+            return thread_count(array('fid' => $fids, 'is_deleted' => 0, 'top' => 0, 'audit_status' => 1));
         });
         $results['首页帖子总数'] = true;
 
@@ -506,7 +506,7 @@ class CacheHelper {
             // 版块帖子总数
             $_fc_key = 'core_forum_tc_' . $fid . '_0';
             self::remember($_fc_key, 60, function() use ($fid) {
-                return thread_count(array('fid' => $fid, 'audit_status' => 1));
+                return thread_count(array('fid' => $fid, 'is_deleted' => 0, 'top' => 0, 'audit_status' => 1));
             });
             $results['版块#' . $fid . '帖子总数'] = true;
 

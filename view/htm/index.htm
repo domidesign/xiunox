@@ -31,6 +31,9 @@
 		</div>
 	</div>
 	<?php } ?>
+	<!--{hook index_thread_list_top_item_before.htm}-->
+	<?php include _include(APP_PATH.'view/htm/thread_top_list.inc.htm');?>
+	<!--{hook index_thread_list_top_item_after.htm}-->
 		<div class="index-threadlist list-mode">
 		<div class="  py-1 pe-3">
 			<div class="d-flex justify-content-between align-items-center flex-wrap">
@@ -53,6 +56,7 @@
 		</div>
 		<div class="mt-0 ">
 			<!--{hook index_threadlist_before.htm}-->
+			
 			<ul class="list-none threadlist x-card card  mb-0">
 				<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm');?>
 			</ul>

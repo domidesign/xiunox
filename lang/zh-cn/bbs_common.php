@@ -606,6 +606,7 @@ return array(
 
 	// ========== 版块相关 (原 bbs_forum.php) ==========
 	'forum_anouncement'=>'版块公告',
+	'forum_top_threads'=>'置顶主题',
 	'forum_moderator'=>'论坛版主',
 	'forum_type'=>'版块类型',
 	'forum_type_forum'=>'版块',
@@ -710,6 +711,17 @@ return array(
 	'notify_type_label_audit_approve'=>'审核通过',
 	'notify_type_label_audit_reject'=>'审核驳回',
 	'notify_type_label_digest'=>'帖子加精',
+// 通知页面 tab 名称（NotifyTypeRegistry 使用）
+'notify_tab_all'=>'全部',
+'notify_tab_like'=>'点赞',
+'notify_tab_reply'=>'评论/回复',
+'notify_tab_favorite'=>'收藏',
+'notify_tab_mention'=>'@',
+'notify_tab_follow'=>'关注',
+'notify_tab_thread'=>'帖子',
+'notify_tab_announcement'=>'公告',
+'notify_tab_system'=>'系统',
+'notify_tab_other'=>'其他',
 	// 审核通知摘要
 	'notify_summary_audit_pending'=>'内容正在审核中',
 	'notify_summary_audit_approve'=>'内容审核已通过',

@@ -47,6 +47,9 @@ function thread_digest_change($tid, $digest, $uid, $fid) {
 		}
 	}
 	thread_update($tid, array('digest'=>$digest));
+	// 清除版块帖子列表缓存和 forumlist 缓存：thread_update 仅在 fid 变化时清缓存，digest 变化需在此补充
+	thread_forum_list_cache_delete($fid);
+	forum_list_cache_delete();
 }
 
 /**
@@ -214,6 +217,18 @@ function thread_digest_change_batch($tids, $threadlist, $digest) {
 	} elseif($total_inc < 0) {
 		runtime_set('digests-', abs($total_inc));
 	}
+
+	// 9. 清除受影响版块的帖子列表缓存和 forumlist 缓存
+	// 从 $valid_threads 提取去重 fid，避免额外 db 查询；确保版块列表页精华标识和 forum.digests 统计及时刷新
+	$affected_fids = array();
+	foreach($valid_threads as $_tid => $_thread) {
+		$_fid = intval($_thread['fid']);
+		if($_fid > 0) $affected_fids[$_fid] = $_fid;
+	}
+	foreach($affected_fids as $_fid) {
+		thread_forum_list_cache_delete($_fid);
+	}
+	forum_list_cache_delete();
 
 	// hook model_thread_digest_change_batch_end.php
 	return count($valid_tids);

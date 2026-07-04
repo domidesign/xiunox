@@ -57,11 +57,12 @@ class PluginScannerRules {
                 'input-group-append' => 'BS4 input-group-append → BS5 直接 input-group-text',
             ],
             'bs4_data_attrs' => [
-                'data-toggle' => 'BS4 data-toggle → BS5 data-bs-toggle',
-                'data-dismiss' => 'BS4 data-dismiss → BS5 data-bs-dismiss',
-                'data-target' => 'BS4 data-target → BS5 data-bs-target',
-                'data-slide-to' => 'BS4 data-slide-to → BS5 data-bs-slide-to',
-                'data-slide' => 'BS4 data-slide → BS5 data-bs-slide',
+                // 带词边界正则：前后不能是 [-\w]，避免 data-bs-target（BS5 正确写法）和 data-count-target 等自定义属性被误匹配
+                '(?<![-\w])data-toggle(?![\w-])' => 'BS4 data-toggle → BS5 data-bs-toggle',
+                '(?<![-\w])data-dismiss(?![\w-])' => 'BS4 data-dismiss → BS5 data-bs-dismiss',
+                '(?<![-\w])data-target(?![\w-])' => 'BS4 data-target → BS5 data-bs-target',
+                '(?<![-\w])data-slide-to(?![\w-])' => 'BS4 data-slide-to → BS5 data-bs-slide-to',
+                '(?<![-\w])data-slide(?![\w-])' => 'BS4 data-slide → BS5 data-bs-slide',
             ],
             'fontello_icons' => [
                 'icon-lock' => 'ti-lock',
@@ -125,7 +126,6 @@ class PluginScannerRules {
                 'img-responsive' => 'BS3 .img-responsive → BS5 .img-fluid',
                 'img-circle' => 'BS3 .img-circle → BS5 .rounded-circle',
                 'img-rounded' => 'BS3 .img-rounded → BS5 .rounded',
-                'img-thumbnail' => 'BS3 .img-thumbnail → BS5 .img-thumbnail（已保留）',
                 'col-xs-' => 'BS3 .col-xs- → BS5 .col-（xs 已移除）',
             ],
             'bs_js_api' => [

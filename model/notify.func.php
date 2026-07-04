@@ -34,7 +34,7 @@ function notify__delete($nid) {
  * @return mixed
  */
 function notify_create($uid, $from_uid, $type, $tid = 0, $pid = 0, $content = '', $extra = array()) {
-	global $time, $db;
+	global $time, $db, $conf;
 	// 系统通知（announcement/system）允许自己通知自己；其他类型不允许
 	if($uid == $from_uid && !in_array($type, array('announcement', 'system', 'audit_pending'))) return TRUE;
 
@@ -74,6 +74,8 @@ function notify_create($uid, $from_uid, $type, $tid = 0, $pid = 0, $content = ''
 	if($r && !empty($db)) {
 		$tablepre = $db->tablepre;
 		db_exec("UPDATE {$tablepre}user SET unread_notices = unread_notices + 1 WHERE uid = '$uid'");
+		// 直接 SQL 更新绕过了 user_update()，需手动清理 user 缓存，否则 user_read_cache() 仍读到旧 unread_notices
+		!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
 	}
 	return $r;
 }
@@ -91,7 +93,7 @@ function notify_create($uid, $from_uid, $type, $tid = 0, $pid = 0, $content = ''
  * @return int 成功插入的记录数
  */
 function notify_create_batch($records) {
-	global $time, $db;
+	global $time, $db, $conf;
 	if(empty($records) || !is_array($records)) return 0;
 	if(empty($db)) return 0;
 	$tablepre = $db->tablepre;
@@ -198,6 +200,12 @@ function notify_create_batch($records) {
 		$uid_in = implode(',', $uid_list);
 		$case_sql = "CASE uid ".implode(' ', $case_parts)." ELSE 0 END";
 		db_exec("UPDATE {$tablepre}user SET unread_notices = unread_notices + $case_sql WHERE uid IN ($uid_in)");
+		// 直接 SQL 更新绕过了 user_update()，需为每个受影响 uid 清理 user 缓存
+		if(!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql'))) {
+			foreach($uid_counts as $u => $cnt) {
+				cache_delete("user-".intval($u));
+			}
+		}
 	}
 
 	return $inserted;
@@ -305,7 +313,7 @@ function notify_count_by_uid($uid) {
 }
 
 function notify_mark_read($nid) {
-	global $db;
+	global $db, $conf;
 	$tablepre = $db->tablepre;
 	// 先读取通知获取 uid
 	$notify = notify__read($nid);
@@ -314,16 +322,20 @@ function notify_mark_read($nid) {
 	if($r && !empty($notify)) {
 		$uid = intval($notify['uid']);
 		db_exec("UPDATE {$tablepre}user SET unread_notices = GREATEST(0, unread_notices - 1) WHERE uid = '$uid' AND unread_notices > 0");
+		// 直接 SQL 更新绕过了 user_update()，需手动清理 user 缓存
+		!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
 	}
 	return $r;
 }
 
 function notify_mark_all_read($uid) {
-	global $db;
+	global $db, $conf;
 	$tablepre = $db->tablepre;
 	db_exec("UPDATE {$tablepre}notify SET is_read=1 WHERE uid='$uid' AND is_read=0");
 	// 重置 user.unread_notices 计数器
 	db_exec("UPDATE {$tablepre}user SET unread_notices=0 WHERE uid='$uid'");
+	// 直接 SQL 更新绕过了 user_update()，需手动清理 user 缓存
+	!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
 	return TRUE;
 }
 
@@ -338,7 +350,7 @@ function notify_delete_by_tid($tid) {
 }
 
 function notify_delete($nid) {
-	global $db;
+	global $db, $conf;
 	$tablepre = $db->tablepre;
 	// 先读取通知获取 uid
 	$notify = notify__read($nid);
@@ -347,6 +359,8 @@ function notify_delete($nid) {
 	if($r && !empty($notify) && empty($notify['is_read'])) {
 		$uid = intval($notify['uid']);
 		db_exec("UPDATE {$tablepre}user SET unread_notices = GREATEST(0, unread_notices - 1) WHERE uid = '$uid' AND unread_notices > 0");
+		// 直接 SQL 更新绕过了 user_update()，需手动清理 user 缓存
+		!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
 	}
 	return $r;
 }

@@ -21,8 +21,8 @@ $get_magic_quotes_gpc = false;
 $starttime = microtime(1);
 $time = time();
 
-// 头部，判断是否运行在命令行下
-define('IN_CMD', !empty($_SERVER['SHELL']) || empty($_SERVER['REMOTE_ADDR']));
+// 头部，判断是否运行在命令行下（幂等：api/v1/index.php 与 bootstrap.php 可能重复 include 本文件）
+!defined('IN_CMD') AND define('IN_CMD', !empty($_SERVER['SHELL']) || empty($_SERVER['REMOTE_ADDR']));
 if(IN_CMD) {
 	!isset($_SERVER['REMOTE_ADDR']) AND $_SERVER['REMOTE_ADDR'] = '';
 	!isset($_SERVER['REQUEST_URI']) AND $_SERVER['REQUEST_URI'] = '';
@@ -2816,7 +2816,8 @@ function https_post($url, $post = '', $cookie = '', $timeout = 30, $times = 1, $
 		return xn_error(-1, 'Errno'.curl_error($ch));
 	}
 	if(!$data) {
-		curl_close($ch);
+		// PHP 8.0+ curl 句柄自动释放，curl_close() 在 8.5 已废弃
+		if(PHP_VERSION_ID < 80000) curl_close($ch);
 		return '';
 	}
 
@@ -2830,7 +2831,8 @@ function https_post($url, $post = '', $cookie = '', $timeout = 30, $times = 1, $
 		curl_setopt($ch, CURLOPT_HEADER, false);
 		$data = curl_exec($ch);
 	}
-	curl_close($ch);
+	// PHP 8.0+ curl 句柄自动释放，curl_close() 在 8.5 已废弃
+	if(PHP_VERSION_ID < 80000) curl_close($ch);
 	return $data;
 }
 
@@ -2877,7 +2879,8 @@ function http_multi_get($urls) {
 	foreach($urls as $i => $url) {
 		$data[$i] = curl_multi_getcontent($conn[$i]);
 		curl_multi_remove_handle($multi_handle, $conn[$i]);
-		curl_close($conn[$i]);
+		// PHP 8.0+ curl 句柄自动释放，curl_close() 在 8.5 已废弃
+		if(PHP_VERSION_ID < 80000) curl_close($conn[$i]);
 	}
 	return $data;
 }

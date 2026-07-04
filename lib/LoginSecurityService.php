@@ -7,6 +7,15 @@ class LoginSecurityService {
 		if(!db_check_column_exists('user', 'banned_until')) return;
 		$_user = user_read($uid);
 		if(empty($_user)) return;
+
+		// 仅对未被 UserBanService 封禁（ban_type=0）的用户检查登录失败锁定
+		// ban_type>0（禁言/禁止访问/锁定）的登录拦截由 UserBanService::checkBanByScene('login') 处理
+		// ponytail: banned_until 字段被两个系统复用——LoginSecurityService 写入登录失败锁定，
+		// UserBanService::ban 写入封禁到期。两者无法区分，必须靠 ban_type 字段判断来源
+		// 已知天花板：ban_type 字段不存在的旧表结构（升级前），退回旧行为检查 banned_until
+		$ban_type = isset($_user['ban_type']) ? intval($_user['ban_type']) : 0;
+		if($ban_type > 0) return;
+
 		if(isset($_user['banned_until']) && $_user['banned_until'] > time()) {
 			$remaining = $_user['banned_until'] - time();
 			message(-1003, lang('login_banned', array('seconds'=>$remaining)), array('wait'=>$remaining));

@@ -22,7 +22,8 @@ class OnlineUpgradeService {
         }
         $this->tmpPath = $tmpPath;
         $this->lockFile = $this->tmpPath . 'maintenance.lock';
-        $this->backupBasePath = $this->tmpPath . 'upgrade_backup_' . date('YmdHis') . '/';
+        // 备份目录名含 6 位随机串，防止时间戳目录名被爆破猜中后下载备份代码
+        $this->backupBasePath = $this->tmpPath . 'upgrade_backup_' . date('YmdHis') . '_' . substr(bin2hex(random_bytes(3)), 0, 6) . '/';
     }
 
     /**
@@ -156,6 +157,17 @@ class OnlineUpgradeService {
         if (!is_writable($this->tmpPath)) {
             $ok = false;
             $warnings[] = 'tmp 目录不可写：' . $this->tmpPath;
+        }
+
+        // 检查 tmp/ 和 log/ 目录的 Web 访问保护文件，缺失时自动创建
+        $htaccessContent = "# 禁止所有 Web 访问，保护敏感文件\n# Apache 生效；Nginx 需在 server 配置中加：location ^~ /{dir}/ { deny all; }\nDeny from all\n";
+        $tmpHtaccess = $this->tmpPath . '.htaccess';
+        if (!is_file($tmpHtaccess)) {
+            @file_put_contents($tmpHtaccess, str_replace('{dir}', 'tmp', $htaccessContent));
+        }
+        $logHtaccess = APP_PATH . 'log/.htaccess';
+        if (is_dir(APP_PATH . 'log') && !is_file($logHtaccess)) {
+            @file_put_contents($logHtaccess, str_replace('{dir}', 'log', $htaccessContent));
         }
 
         return [
@@ -446,6 +458,10 @@ class OnlineUpgradeService {
                 if ($baseName === 'cache') {
                     continue;
                 }
+                // 保留 .htaccess 安全保护文件（防止 tmp/ 目录被 Web 访问）
+                if ($baseName === '.htaccess') {
+                    continue;
+                }
                 if (is_dir($entry)) {
                     if ($this->recursiveDelete($entry)) {
                         $deleted++;
@@ -731,7 +747,8 @@ class OnlineUpgradeService {
             $errno = curl_errno($ch);
             $errmsg = curl_error($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+            // PHP 8.0+ curl 句柄自动释放，curl_close() 在 8.5 已废弃
+            if (PHP_VERSION_ID < 80000) curl_close($ch);
             if ($errno !== 0) {
                 return ['ok' => false, 'data' => '', 'message' => 'cURL 错误[' . $errno . ']: ' . $errmsg];
             }
@@ -787,7 +804,8 @@ class OnlineUpgradeService {
             $errno = curl_errno($ch);
             $errmsg = curl_error($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+            // PHP 8.0+ curl 句柄自动释放，curl_close() 在 8.5 已废弃
+            if (PHP_VERSION_ID < 80000) curl_close($ch);
             fclose($fp);
             if ($errno !== 0) {
                 @unlink($savePath);

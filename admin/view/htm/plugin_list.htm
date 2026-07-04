@@ -139,24 +139,43 @@
                             <?php endif;?>
                             
                             <?php if($plugin['installed'] && $plugin['enable']):?>
-                                <a class="btn btn-sm btn-outline rounded-pill" 
-                                   href="<?php echo admin_plugin_disable_url($dir);?>">
+                                <button type="button" class="btn btn-sm btn-outline rounded-pill"
+                                    data-action="disable"
+                                    data-dir="<?php echo esc_attr($dir);?>"
+                                    data-name="<?php echo esc_attr($plugin['name'] ?? '');?>"
+                                    data-url="<?php echo admin_plugin_disable_url($dir);?>">
                                     <i class="ti ti-player-pause"></i> <?php echo lang('admin_btn_disable')?>
-                                </a>
+                                </button>
                             <?php endif;?>
-                            
+
                             <?php if($plugin['installed'] && !$plugin['enable']):?>
-                                <a class="btn btn-sm btn-outline rounded-pill" 
-                                   href="<?php echo admin_plugin_enable_url($dir);?>">
+                                <button type="button" class="btn btn-sm btn-outline rounded-pill"
+                                    data-action="enable"
+                                    data-dir="<?php echo esc_attr($dir);?>"
+                                    data-name="<?php echo esc_attr($plugin['name'] ?? '');?>"
+                                    data-url="<?php echo admin_plugin_enable_url($dir);?>">
                                     <i class="ti ti-player-play"></i> <?php echo lang('admin_btn_enable')?>
-                                </a>
+                                </button>
                             <?php endif;?>
-                            
+
                             <?php if($plugin['installed']):?>
-                                <a class="btn btn-sm btn-outline rounded-pill"
-                                   href="<?php echo admin_plugin_unstall_url($dir);?>">
+                                <button type="button" class="btn btn-sm btn-outline rounded-pill"
+                                    data-action="unstall"
+                                    data-dir="<?php echo esc_attr($dir);?>"
+                                    data-name="<?php echo esc_attr($plugin['name'] ?? '');?>"
+                                    data-url="<?php echo admin_plugin_unstall_url($dir);?>">
                                     <i class="ti ti-trash"></i> <?php echo lang('admin_btn_uninstall')?>
-                                </a>
+                                </button>
+                            <?php endif;?>
+
+                            <?php if($plugin['installed'] && !empty($plugin['has_upgrade_file'])):?>
+                                <button type="button" class="btn btn-sm btn-outline rounded-pill"
+                                    data-action="upgrade"
+                                    data-dir="<?php echo esc_attr($dir);?>"
+                                    data-name="<?php echo esc_attr($plugin['name'] ?? '');?>"
+                                    data-url="<?php echo admin_plugin_upgrade_url($dir);?>">
+                                    <i class="ti ti-arrow-up"></i> <?php echo lang('admin_btn_upgrade')?>
+                                </button>
                             <?php endif;?>
                         </div>
                     </div>
@@ -250,7 +269,7 @@ function renderPreinstallResult(data) {
         // 无任何问题
         html = '<div class="alert alert-success py-2"><i class="ti ti-circle-check me-1"></i><?php echo lang('plugin_preinstall_pass');?></div>';
         document.getElementById('preinstallScanResult').innerHTML = html;
-        actionsEl.innerHTML = '<a class="btn btn-primary rounded-pill" href="' + preinstallUrl + '"><i class="ti ti-download me-1"></i><?php echo lang('admin_btn_install');?></a>';
+        actionsEl.innerHTML = '<button type="button" class="btn btn-primary rounded-pill" onclick="submitPluginInstallFromPreinstall()"><i class="ti ti-download me-1"></i><?php echo lang('admin_btn_install');?></button>';
         actionsEl.classList.remove('d-none');
         return;
     }
@@ -284,12 +303,48 @@ function renderPreinstallResult(data) {
     // 操作按钮
     if (data.can_install) {
         // 无致命问题，可以安装
-        actionsEl.innerHTML = '<a class="btn btn-primary rounded-pill" href="' + preinstallUrl + '"><i class="ti ti-download me-1"></i><?php echo lang('admin_btn_install');?></a>';
+        actionsEl.innerHTML = '<button type="button" class="btn btn-primary rounded-pill" onclick="submitPluginInstallFromPreinstall()"><i class="ti ti-download me-1"></i><?php echo lang('admin_btn_install');?></button>';
     } else {
         // 有致命问题，只显示强制安装按钮
-        actionsEl.innerHTML = '<a class="btn btn-outline-danger rounded-pill" href="' + preinstallUrl + '&force=1" onclick="var href=this.href;event.preventDefault();XN.confirm(\'<?php echo lang('plugin_preinstall_force_confirm');?>\',function(){window.location.href=href;});return false;"><i class="ti ti-alert-triangle me-1"></i><?php echo lang('plugin_preinstall_force_install');?></a>';
+        actionsEl.innerHTML = '<button type="button" class="btn btn-outline-danger rounded-pill" onclick="submitPluginInstallFromPreinstall(1)"><i class="ti ti-alert-triangle me-1"></i><?php echo lang('plugin_preinstall_force_install');?></button>';
     }
     actionsEl.classList.remove('d-none');
+}
+
+// preinstall 扫描通过后直接 POST 安装
+function submitPluginInstallFromPreinstall(force) {
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
+    var url = preinstallUrl;
+    if (force) {
+        url += (url.indexOf('?') !== -1 ? '&' : '?') + 'force=1';
+    }
+    var formData = new FormData();
+    formData.append('csrf_token', csrfToken);
+    if (force) formData.append('force', '1');
+
+    fetch(url, {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (parseInt(data.code) === 0) {
+            // 关闭 preinstall 弹窗
+            var modalEl = document.getElementById('preinstallModal');
+            var modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+            showToast(data.message, 'success');
+            setTimeout(function() {
+                window.location.href = data.redirect_url || window.location.href;
+            }, 800);
+        } else {
+            showToast(data.message || '安装失败', 'error');
+        }
+    })
+    .catch(function() {
+        showToast('安装失败', 'error');
+    });
 }
 
 function escapeHtml(str) {
@@ -306,7 +361,7 @@ function handlePluginUploadChange(input) {
     if (input.files && input.files[0]) {
         var file = input.files[0];
         if (!file.name.toLowerCase().endsWith('.zip')) {
-            alert('<?php echo lang('plugin_upload_invalid_zip');?>');
+            XN.alert('<?php echo lang('plugin_upload_invalid_zip');?>', {type:'danger'});
             input.value = '';
             btn.disabled = true;
             selectText.textContent = '<?php echo lang('plugin_upload_select');?>';
@@ -344,20 +399,94 @@ function submitPluginUpload() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (parseInt(data.code) === 0) {
-            alert(data.message);
-            window.location.href = data.redirect_url || window.location.href;
+            showToast(data.message, 'success');
+            setTimeout(function() {
+                window.location.href = data.redirect_url || window.location.href;
+            }, 800);
         } else {
-            alert(data.message || '<?php echo lang('plugin_upload_failed');?>');
+            showToast(data.message || '<?php echo lang('plugin_upload_failed');?>', 'error');
             btn.disabled = false;
             btn.innerHTML = '<i class="ti ti-upload me-1"></i><?php echo lang('plugin_upload_btn');?>';
         }
     })
     .catch(function() {
-        alert('<?php echo lang('plugin_upload_failed');?>');
+        showToast('<?php echo lang('plugin_upload_failed');?>', 'error');
         btn.disabled = false;
         btn.innerHTML = '<i class="ti ti-upload me-1"></i><?php echo lang('plugin_upload_btn');?>';
     });
 }
+
+// ===== 插件禁用/启用/卸载/升级：弹窗确认 + fetch POST =====
+function bindPluginActionButtons() {
+    document.querySelectorAll('button[data-action="disable"], button[data-action="enable"], button[data-action="unstall"], button[data-action="upgrade"]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var action = this.getAttribute('data-action');
+            var dir = this.getAttribute('data-dir');
+            var name = this.getAttribute('data-name');
+            var url = this.getAttribute('data-url');
+
+            // 确认文案（name 转义防 XSS）
+            var safeName = XN.escapeHtml ? XN.escapeHtml(name) : name;
+            var msg = '';
+            var type = 'warning';
+            var okText = '<?php echo lang("confirm");?>';
+            if (action === 'disable') {
+                msg = '<?php echo lang('plugin_disable_confirm', array('name'=>'__NAME__'));?>'.replace('__NAME__', safeName);
+            } else if (action === 'enable') {
+                msg = '<?php echo lang('plugin_enable_confirm', array('name'=>'__NAME__'));?>'.replace('__NAME__', safeName);
+            } else if (action === 'unstall') {
+                msg = '<?php echo lang('plugin_unstall_confirm', array('name'=>'__NAME__'));?>'.replace('__NAME__', safeName);
+                type = 'danger';
+                okText = '<?php echo lang('admin_btn_uninstall');?>';
+            } else if (action === 'upgrade') {
+                msg = '<?php echo lang('plugin_upgrade_confirm', array('name'=>'__NAME__'));?>'.replace('__NAME__', safeName);
+                type = 'info';
+                okText = '<?php echo lang('admin_btn_upgrade');?>';
+            }
+
+            XN.confirm(msg, function() {
+                submitPluginAction(btn, url);
+            }, { type: type, okText: okText });
+        });
+    });
+}
+
+function submitPluginAction(btn, url) {
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
+    var originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    var formData = new FormData();
+    formData.append('csrf_token', csrfToken);
+
+    fetch(url, {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (parseInt(data.code) === 0) {
+            showToast(data.message, 'success');
+            setTimeout(function() {
+                window.location.href = data.redirect_url || window.location.href;
+            }, 800);
+        } else {
+            showToast(data.message || '操作失败', 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    })
+    .catch(function() {
+        showToast('操作失败', 'error');
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    });
+}
+
+// 初始化按钮绑定
+bindPluginActionButtons();
 </script>
 
 <!-- 安装前预扫描弹窗 -->

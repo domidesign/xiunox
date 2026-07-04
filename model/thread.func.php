@@ -2,6 +2,25 @@
 
 // hook model_thread_start.php
 
+// 清除版块帖子列表缓存（forum_tc_ 帖子总数 + forum_tl_ 帖子列表）
+// 在帖子创建/删除/移动/审核状态变更时调用，避免 60s 短缓存导致分页错乱
+function thread_forum_list_cache_delete($fid) {
+	if(empty($fid) || !class_exists('CacheHelper', false)) return;
+	$fid = intval($fid);
+	// 用前缀删除清除该版块所有 gid/orderby/page 组合的缓存
+	CacheHelper::deleteByPrefix('core_forum_tc_' . $fid . '_');
+	CacheHelper::deleteByPrefix('core_forum_tl_' . $fid . '_');
+}
+
+// 清除首页帖子列表缓存（core_index_tl_ 列表 + core_index_thread_count_ 总数）
+// 缓存键由 fid 列表的 md5 组合而成，无法按 fid 单独删除——直接清掉所有首页列表/计数缓存
+// 在帖子创建/回复/删除/软删除时调用，确保新内容在首页 60s 内可见
+function index_list_cache_delete() {
+	if(!class_exists('CacheHelper', false)) return;
+	CacheHelper::deleteByPrefix('core_index_tl_');
+	CacheHelper::deleteByPrefix('core_index_thread_count_');
+}
+
 // ------------> 积分事件中文名称映射
 
 function credits_event_name($event) {
@@ -190,6 +209,9 @@ function thread_create($arr, &$pid) {
 	
 	// 更新板块信息。
 	forum_list_cache_delete();
+	thread_forum_list_cache_delete($fid);
+	// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
+	index_list_cache_delete();
 
 	// 仅审核通过的帖子才通知关注者（待审帖子审核通过后在 AuditService::approve 中补发）
 	if($audit_status == 1) {
@@ -222,6 +244,11 @@ function thread_update($tid, $arr) {
 		forum__update($arr['fid'], array('threads+'=>1));
 		forum__update($thread['fid'], array('threads-'=>1));
 		thread_top_update_by_tid($tid, $arr['fid']);
+		// 清除新旧版块的帖子列表缓存
+		thread_forum_list_cache_delete($arr['fid']);
+		thread_forum_list_cache_delete($thread['fid']);
+		// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
+		index_list_cache_delete();
 	}
 	
 	if(!$arr) return TRUE;
@@ -285,10 +312,13 @@ function thread_delete($tid) {
 
 	// 清除相关缓存
 	forum_list_cache_delete();
-	
+	thread_forum_list_cache_delete($fid);
+	// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
+	index_list_cache_delete();
+
 	$r = thread__delete($tid);
 	if($r === FALSE) return FALSE;
-	
+
 	// 更新统计（待审帖子创建时未计入 threads，删除时也不应减少）
 	// 已软删除的帖子在软删除时已减过统计，彻底删除时不应再减
 	$is_deleted = isset($thread['is_deleted']) ? intval($thread['is_deleted']) : 0;
@@ -376,6 +406,13 @@ function thread_delete_batch($tids) {
 	// 9. 全站统计（仅计审核通过且非软删的）
 	runtime_set('threads-', $approved_count);
 
+	// 10. 清除所有受影响版块的帖子列表缓存
+	foreach($forum_threads_dec as $_fid => $_dec) {
+		thread_forum_list_cache_delete($_fid);
+	}
+	// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
+	index_list_cache_delete();
+
 	// hook model_thread_delete_batch_end.php
 
 	return count($valid_tids);
@@ -432,6 +469,9 @@ function thread_soft_delete($tid, $deleted_by) {
 
 	// 清除 forum_list 缓存
 	forum_list_cache_delete();
+	thread_forum_list_cache_delete($fid);
+	// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
+	index_list_cache_delete();
 
 	// hook model_thread_soft_delete_end.php
 	return TRUE;
@@ -517,6 +557,12 @@ function thread_soft_delete_batch($tids, $deleted_by) {
 
 	// 7. 清除 forum_list 缓存
 	forum_list_cache_delete();
+	// 清除所有受影响版块的帖子列表缓存
+	foreach($forum_threads_dec as $_fid => $_dec) {
+		thread_forum_list_cache_delete($_fid);
+	}
+	// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
+	index_list_cache_delete();
 
 	// hook model_thread_soft_delete_batch_end.php
 	return count($valid_tids);
@@ -572,6 +618,9 @@ function thread_restore($tid) {
 
 	// 清除 forum_list 缓存
 	forum_list_cache_delete();
+	thread_forum_list_cache_delete($fid);
+	// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
+	index_list_cache_delete();
 
 	// hook model_thread_restore_end.php
 	return TRUE;
@@ -661,6 +710,11 @@ function thread_restore_batch($tids) {
 
 	// 7. 清除 forum_list 缓存
 	forum_list_cache_delete();
+	foreach($forum_threads_inc as $_fid => $_inc) {
+		thread_forum_list_cache_delete($_fid);
+	}
+	// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
+	index_list_cache_delete();
 
 	// hook model_thread_restore_batch_end.php
 	return count($valid_tids);
@@ -699,12 +753,13 @@ function thread__find_by_fid($fid, $page = 1, $pagesize = 20, $order = 'lastpid'
 
 	$cond = array();
 	$cond['is_deleted'] = 0;
+	$cond['top'] = 0; // 排除置顶帖，置顶帖由 thread_top_find 独立获取
 	$fid AND $cond['fid'] = $fid;
 	// 非管理员查询时排除待审帖子，避免获取后过滤导致每页数量不足
 	if($gid == 0 || $gid > 2) {
 		$cond['audit_status'] = array('!=' => 0);
 	}
-	
+
 	$desc = TRUE;
 	$limitpage = 50000; // 如果需要防止 CC 攻击，可以调整为 5000
 	if($page > 100) {
@@ -731,7 +786,7 @@ function thread__find_by_fid($fid, $page = 1, $pagesize = 20, $order = 'lastpid'
 }
 
 // $order: tid/lastpid
-// 按照: 发帖时间/最后回复时间 倒序，包含置顶帖
+// 按照: 发帖时间/最后回复时间 倒序，不包含置顶帖（置顶帖由调用方通过 thread_top_find 独立获取）
 function thread_find_by_fid($fid, $page = 1, $pagesize = 20, $order = 'lastpid') {
 	global $conf, $forumlist, $runtime;
 
@@ -746,14 +801,6 @@ function thread_find_by_fid($fid, $page = 1, $pagesize = 20, $order = 'lastpid')
 	$threadlist = thread__find_by_fid($fid, $page, $pagesize, $order);
 
 	// hook model_thread_find_by_fid_middle.php
-	
-	// 查找置顶帖
-	if($page == 1) { // 所有排序方式第一页都显示置顶帖，全局置顶在前
-		$toplist3 = thread_top_find(0);
-		$toplist1 = $fid ? thread_top_find($fid) : array();
-		$threadlist = $toplist3 + $toplist1 + $threadlist;
-	}
-	
 	// hook model_thread_find_by_fid_end.php
 	return $threadlist;
 }
@@ -773,6 +820,7 @@ function thread_find_by_fids($fids, $page = 1, $pagesize = 20, $order = 'lastpid
 
 	$cond = array('fid'=>$fids);
 	$cond['is_deleted'] = 0;
+	$cond['top'] = 0; // 排除置顶帖，置顶帖由调用方通过 thread_top_find 独立获取
 	// 非管理员查询时排除待审帖子，避免获取后过滤导致每页数量不足
 	if($gid == 0 || $gid > 2) {
 		$cond['audit_status'] = array('!=' => 0);

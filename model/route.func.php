@@ -159,12 +159,13 @@ function route_table() {
 			'theme'                 => 'theme',
 
 			// ===== 后台 - 插件 =====
-			'admin_plugin'                  => 'plugin',
-			'admin_plugin_setting'          => 'plugin-setting-{dir}',
-			'admin_plugin_install'          => 'plugin-install-{dir}',
-			'admin_plugin_disable'          => 'plugin-disable-{dir}',
-			'admin_plugin_enable'           => 'plugin-enable-{dir}',
-			'admin_plugin_unstall'          => 'plugin-unstall-{dir}',
+		'admin_plugin'                  => 'plugin',
+		'admin_plugin_setting'          => 'plugin-setting-{dir}',
+		'admin_plugin_install'          => 'plugin-install-{dir}',
+		'admin_plugin_disable'          => 'plugin-disable-{dir}',
+		'admin_plugin_enable'           => 'plugin-enable-{dir}',
+		'admin_plugin_unstall'          => 'plugin-unstall-{dir}',
+		'admin_plugin_upgrade'          => 'plugin-upgrade-{dir}',
 			'admin_plugin_scanner'          => 'plugin-scanner',
 			'admin_plugin_scanner_preinstall' => 'plugin-scanner-preinstall',
 			'admin_plugin_scanner_do'       => 'plugin-scanner-do',
@@ -433,6 +434,7 @@ function admin_plugin_install_url($dir, $query = array())            { return ro
 function admin_plugin_disable_url($dir, $query = array())           { return route_url('admin_plugin_disable', ['dir' => $dir], $query); }
 function admin_plugin_enable_url($dir, $query = array())             { return route_url('admin_plugin_enable', ['dir' => $dir], $query); }
 function admin_plugin_unstall_url($dir, $query = array())            { return route_url('admin_plugin_unstall', ['dir' => $dir], $query); }
+function admin_plugin_upgrade_url($dir, $query = array())           { return route_url('admin_plugin_upgrade', ['dir' => $dir], $query); }
 function admin_plugin_scanner_url($query = array())                 { return route_url('admin_plugin_scanner', [], $query); }
 function admin_plugin_scanner_preinstall_url($query = array())      { return route_url('admin_plugin_scanner_preinstall', [], $query); }
 function admin_plugin_scanner_do_url($query = array())              { return route_url('admin_plugin_scanner_do', [], $query); }

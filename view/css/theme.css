@@ -238,7 +238,8 @@ fieldset:disabled .btn {
     background-color: var(--x-page-bg);
     --bs-btn-border-color: var(--x-page-bg);
 }
-
+.modal-footer,
+.modal-header,
 .dropdown-menu,
 .modal-content {
     border: none;

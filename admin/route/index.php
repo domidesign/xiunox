@@ -152,10 +152,12 @@ if($action == 'login') {
 	
 	
 	$stat = array();
-	$stat['threads'] = thread_count();
-	$stat['posts'] = post_count();
-	$stat['users'] = user_count();
-	$stat['attachs'] = attach_count();
+	// 后台仪表盘需精确统计：传非空 cond 触发 COUNT(*) 分支，避免 InnoDB 空 cond 走 information_schema 估算值
+	// thread/post 排除已软删除，user/attach 传主键>0（无软删除字段）
+	$stat['threads'] = thread_count(array('is_deleted' => 0));
+	$stat['posts'] = post_count(array('is_deleted' => 0));
+	$stat['users'] = user_count(array('uid' => array('>' => 0)));
+	$stat['attachs'] = attach_count(array('aid' => array('>' => 0)));
 	$stat['disk_free_space'] = function_exists('disk_free_space') ? humansize(disk_free_space(APP_PATH)) : lang('unknown');
 	
 	// 安全与审核统计

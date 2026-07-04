@@ -138,27 +138,76 @@ function checkUpdate() {
 
 function startUpgrade() {
 	if (isUpgrading) return;
-	isUpgrading = true;
 
 	var btn = document.getElementById('startBtn');
 	btn.disabled = true;
-	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_upgrading');?>';
+	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_preflight_running');?>';
 	document.getElementById('checkBtn').disabled = true;
 	document.getElementById('reinstallBtn').disabled = true;
 	document.getElementById('preflightAlert').classList.add('d-none');
 	document.getElementById('rollbackBtn').classList.add('d-none');
 
-	// 重置步骤状态
-	currentStep = 0;
-	$('.step-icon').each(function(idx){
-		this.style.background = 'var(--bs-gray-300)';
-		this.style.color = '';
-		this.innerHTML = '<span class="step-number fw-bold" style="font-size:0.75rem">' + (idx + 1) + '</span>';
-	});
-	$('.step-status').html('<span class="text-secondary fs-6"><?php echo lang('admin_online_upgrade_waiting');?></span>');
-	$('.step-result').html('');
+	// 先执行前置检查，通过后再启动升级步骤
+	runPreflight(function(passed) {
+		if (!passed) {
+			btn.disabled = false;
+			btn.innerHTML = '<i class="ti ti-player-play-filled"></i><?php echo lang('admin_online_upgrade_start');?>';
+			document.getElementById('checkBtn').disabled = false;
+			document.getElementById('reinstallBtn').disabled = false;
+			return;
+		}
+		// 前置检查通过，开始升级
+		isUpgrading = true;
+		btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_upgrading');?>';
+		// 重置步骤状态
+		currentStep = 0;
+		$('.step-icon').each(function(idx){
+			this.style.background = 'var(--bs-gray-300)';
+			this.style.color = '';
+			this.innerHTML = '<span class="step-number fw-bold" style="font-size:0.75rem">' + (idx + 1) + '</span>';
+		});
+		$('.step-status').html('<span class="text-secondary fs-6"><?php echo lang('admin_online_upgrade_waiting');?></span>');
+		$('.step-result').html('');
 
-	runNextStep();
+		runNextStep();
+	});
+}
+
+// 前置检查：调 ?online_upgrade-preflight.htm，未通过则展示问题清单
+function runPreflight(callback) {
+	var alertEl = document.getElementById('preflightAlert');
+	$.ajax({
+		url: '<?php echo url('online_upgrade-preflight');?>',
+		type: 'POST',
+		data: { csrf_token: csrfToken },
+		dataType: 'json',
+		success: function(res) {
+			if (res.ok) {
+				alertEl.classList.add('d-none');
+				callback(true);
+			} else {
+				var warnings = res.warnings || [];
+				var html = '<strong><i class="ti ti-alert-triangle"></i> <?php echo lang('admin_online_upgrade_preflight_block');?></strong>';
+				if (warnings.length > 0) {
+					html += '<ul class="mb-0 mt-1 ps-3">';
+					for (var i = 0; i < warnings.length; i++) {
+						html += '<li>' + warnings[i] + '</li>';
+					}
+					html += '</ul>';
+				}
+				alertEl.className = 'alert alert-danger py-2';
+				alertEl.innerHTML = html;
+				alertEl.classList.remove('d-none');
+				callback(false);
+			}
+		},
+		error: function(xhr) {
+			alertEl.className = 'alert alert-danger py-2';
+			alertEl.innerHTML = '<strong><i class="ti ti-alert-triangle"></i> <?php echo lang('admin_online_upgrade_preflight_request_failed');?></strong>' + (xhr.responseText ? xhr.responseText.substring(0, 200) : '');
+			alertEl.classList.remove('d-none');
+			callback(false);
+		}
+	});
 }
 
 function runNextStep() {

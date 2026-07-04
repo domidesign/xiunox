@@ -87,6 +87,10 @@ function post_create($arr, $fid, $gid) {
 
 	// 更新板块信息。
 	forum_list_cache_delete();
+	// 清除首页帖子列表缓存（新回复更新 lastpid 影响首页排序，60s 内可见）
+	if(function_exists('index_list_cache_delete')) {
+		index_list_cache_delete();
+	}
 	
 	// 关联附件
 	$message = $arr['message'];
@@ -118,9 +122,12 @@ function post_update($pid, $arr, $tid = 0) {
 	// hook model_post_create_post__create_before.php
 	
 	$r = post__update($pid, $arr);
-	
+
+	// 失效该帖子的回帖列表缓存（编辑后立即生效，与 post_create/post_delete 对称）
+	post_list_cache_bump_version($tid);
+
 	attach_assoc_post($pid);
-	
+
 	// hook model_post_update_end.php
 	return $r;
 }
@@ -746,6 +753,51 @@ function post_find_by_pids($pids, $order = array('pid'=>-1)) {
 	}
 	// hook model_post_find_by_pids_end.php
 	return $postlist;
+}
+
+/**
+ * 按用户 id 分页查询回帖（带版块读权限过滤，SQL 层完成，避免分页后过滤导致每页条数不一致）
+ * post 表无 fid 字段，需 JOIN thread 表才能按版块权限过滤，故无法用 post_count/post_find 封装
+ *
+ * @param int $uid 被查看的用户 id
+ * @param array $accessible_fids 可读版块 fid 列表；为 NULL 表示不做版块过滤（管理员/自己）
+ * @param bool $audit_only 是否只查 audit_status=1（非管理员看他人回帖时为 TRUE）
+ * @param int $page 页码
+ * @param int $pagesize 每页条数
+ * @return array [totalnum, postlist]
+ */
+function post_find_by_uid_with_forum_access($uid, $accessible_fids, $audit_only, $page, $pagesize) {
+	global $db;
+	// hook model_post_find_by_uid_with_forum_access_start.php
+	$tablepre = $db->tablepre;
+	$uid = intval($uid);
+	$page = max(1, intval($page));
+	$pagesize = max(1, intval($pagesize));
+	$offset = ($page - 1) * $pagesize;
+
+	$where = "p.uid={$uid} AND p.isfirst=0 AND p.is_deleted=0";
+	if($audit_only) $where .= " AND p.audit_status=1";
+
+	// 无可见版块：直接返回空，避免 fid IN() 无效 SQL
+	if(is_array($accessible_fids)) {
+		if(empty($accessible_fids)) return array(0, array());
+		$fid_in = implode(',', array_map('intval', $accessible_fids));
+		$where .= " AND t.fid IN ({$fid_in})";
+	}
+
+	// JOIN thread 查询，db_find 不支持 JOIN，保留 db_sql_find
+	$count_sql = "SELECT COUNT(*) AS cnt FROM {$tablepre}post p INNER JOIN {$tablepre}thread t ON p.tid=t.tid WHERE {$where}";
+	$row = db_sql_find_one($count_sql);
+	$totalnum = empty($row['cnt']) ? 0 : intval($row['cnt']);
+	if($totalnum == 0) return array(0, array());
+
+	// JOIN thread 查询，db_find 不支持 JOIN，保留 db_sql_find
+	$pids_sql = "SELECT p.pid FROM {$tablepre}post p INNER JOIN {$tablepre}thread t ON p.tid=t.tid WHERE {$where} ORDER BY p.pid DESC LIMIT {$offset}, {$pagesize}";
+	$rows = db_sql_find($pids_sql, 'pid');
+	if(empty($rows)) return array($totalnum, array());
+	$pids = array_keys($rows);
+	$postlist = post_find_by_pids($pids);
+	return array($totalnum, $postlist);
 }
 
 /**

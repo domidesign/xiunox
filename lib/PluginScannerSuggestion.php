@@ -67,9 +67,11 @@ class PluginScannerSuggestion {
     public static function extractContext(string $line, string $pattern, string $category): string {
         $shortCategories = ['fontello_icons', 'bs4_classes', 'bs4_data_attrs', 'bs3_classes', 'icon_libraries'];
         if (in_array($category, $shortCategories)) {
-            $pos = stripos($line, $pattern);
+            // pattern 可能是带词边界的正则（如 '(?<![-\w])data-target(?![\w-])'），提取字面量子串用于定位
+            $needle = (preg_match('/(data-[a-z-]+)/i', $pattern, $m)) ? $m[1] : $pattern;
+            $pos = stripos($line, $needle);
             if ($pos !== false) {
-                return trim(substr($line, max(0, $pos - 10), strlen($pattern) + 20));
+                return trim(substr($line, max(0, $pos - 10), strlen($needle) + 20));
             }
         }
         return trim($line);
@@ -123,16 +125,21 @@ class PluginScannerSuggestion {
     // ===== BS4 data 属性 =====
 
     private static function bs4DataAttr(string $pattern, string $line): string {
-        $map = [
+        static $map = [
             'data-toggle' => 'data-bs-toggle', 'data-dismiss' => 'data-bs-dismiss',
             'data-target' => 'data-bs-target', 'data-slide-to' => 'data-bs-slide-to',
             'data-slide' => 'data-bs-slide',
         ];
-        $newAttr = $map[$pattern] ?? 'data-bs-' . substr($pattern, 5);
-        if (preg_match('/' . preg_quote($pattern, '/') . '="([^"]*)"/i', $line, $m)) {
-            return "{$pattern}=\"{$m[1]}\" → {$newAttr}=\"{$m[1]}\"";
+        // pattern 现为带词边界正则（如 '(?<![-\w])data-target(?![\w-])'），从中提取原始属性名
+        if (!preg_match('/(data-[a-z-]+)/i', $pattern, $pm)) {
+            return $pattern;
         }
-        return "{$pattern} → {$newAttr}";
+        $attr = $pm[1];
+        $newAttr = $map[$attr] ?? 'data-bs-' . substr($attr, 5);
+        if (preg_match('/' . preg_quote($attr, '/') . '="([^"]*)"/i', $line, $m)) {
+            return "{$attr}=\"{$m[1]}\" → {$newAttr}=\"{$m[1]}\"";
+        }
+        return "{$attr} → {$newAttr}";
     }
 
     // ===== 图标库 =====
@@ -179,7 +186,6 @@ class PluginScannerSuggestion {
             'label-info' => 'badge.bg-info', 'label-warning' => 'badge.bg-warning',
             'label-danger' => 'badge.bg-danger', 'img-responsive' => 'img-fluid',
             'img-circle' => 'rounded-circle', 'img-rounded' => 'rounded',
-            'img-thumbnail' => 'img-thumbnail（已保留）',
         ];
         if (isset($map[$pattern])) return ".{$pattern} → .{$map[$pattern]}";
         if ($pattern === 'col-xs-') {

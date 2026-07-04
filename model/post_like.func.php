@@ -80,6 +80,8 @@ function post_like_create($uid, $tid, $pid) {
 			notify_create($post['uid'], $uid, 'like', $tid, $pid);
 		}
 	}
+	// 失效回帖列表缓存（点赞后 likes 数和 is_liked 状态需立即更新）
+	post_list_cache_bump_version($tid);
 	// hook model_post_like_create_end.php
 	return $r;
 }
@@ -95,6 +97,8 @@ function post_like_delete($uid, $tid, $pid) {
 		db_exec("UPDATE `{$tablepre}post` SET likes=IF(likes>0,likes-1,0) WHERE pid='$pid'");
 		db_exec("UPDATE `{$tablepre}thread` SET likes=IF(likes>0,likes-1,0) WHERE tid='$tid'");
 	}
+	// 失效回帖列表缓存（取消点赞后 likes 数和 is_liked 状态需立即更新）
+	post_list_cache_bump_version($tid);
 	// hook model_post_like_delete_end.php
 	return $r;
 }

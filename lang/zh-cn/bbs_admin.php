@@ -905,6 +905,7 @@ return array(
 	'admin_btn_disable'=>'禁用',
 	'admin_btn_enable'=>'启用',
 	'admin_btn_uninstall'=>'卸载',
+	'admin_btn_upgrade'=>'升级',
 	'admin_add_forum'=>'添加版块',
 	'admin_label_icon'=>'图标：',
 	'admin_icon_upload_tip'=>'支持 jpg/png/gif/webp，不超过 2MB',
@@ -1081,6 +1082,11 @@ return array(
 	'admin_thread_total_found'=>'共找到 {n} 条结果',
 	'admin_thread_move_to_forum'=>'移动到版块',
 	'admin_thread_please_select_forum'=>'请选择目标版块',
+	'admin_thread_order'=>'排序',
+	'admin_thread_order_tid_desc'=>'TID 倒序',
+	'admin_thread_order_tid_asc'=>'TID 正序',
+	'admin_thread_order_create_desc'=>'发帖时间倒序',
+	'admin_thread_order_create_asc'=>'发帖时间正序',
 	'admin_thread_col_tid'=>'TID',
 	'admin_thread_col_subject'=>'标题',
 	'admin_thread_col_author'=>'作者',
@@ -1763,6 +1769,12 @@ return array(
 	'admin_online_upgrade_reinstall_confirm'=>'确定要重装当前版本吗？将下载并覆盖当前版本的全部代码文件。',
 	'admin_online_upgrade_reinstalling'=>'正在重装...',
 	'admin_online_upgrade_reinstall_failed'=>'重装失败',
+	'admin_online_upgrade_preflight_running'=>'前置检查中...',
+	'admin_online_upgrade_preflight_block'=>'前置检查未通过，已阻止升级。请先解决以下问题：',
+	'admin_online_upgrade_preflight_request_failed'=>'前置检查请求失败：',
+	'admin_online_upgrade_dashboard_has_update'=>'发现新版本可用',
+	'admin_online_upgrade_dashboard_current_tip'=>'建议在低峰期备份数据后进行升级',
+	'admin_online_upgrade_dashboard_go_upgrade'=>'前往升级',
 
 	// ========== AI 设置子tab 架构 ==========
 	// 子tab 标题

@@ -1348,7 +1348,12 @@ xn.image_resize = function(file_base64_data, callback, options) {
 			console.log(message.width);
 			console.log(message.height);
 		} else {
-			alert(message);
+			// ponytail: 上传错误消息用 XN.alert 统一弹窗样式（替代原生 alert）
+			if (typeof XN !== 'undefined' && XN.alert) {
+				XN.alert(message, {type: 'danger'});
+			} else {
+				alert(message);
+			}
 		}
 	}, progress);
 

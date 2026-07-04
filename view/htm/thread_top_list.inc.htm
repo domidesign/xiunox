@@ -1,0 +1,33 @@
+<?php
+// 独立置顶区：只显示帖子状态图标 + 标题，不显示头像/用户名/统计/checkbox
+// 与普通帖子列表(thread_list.inc.htm)完全分离，避免重复显示和分页错乱
+// $toplist 由 forum.php/index.php 传入（全局置顶 + 版块置顶）
+if(!empty($toplist)) {
+	$_top_status_labels = thread_status_labels();
+	?>
+	<div class="thread-top-list x-card card  ">
+		<ul class="list-none mb-0">
+			<?php foreach($toplist as &$_thread) {
+				if(!isset($_thread['tid'])) continue;
+			?>
+			<li class="d-flex align-items-center px-3 py-2   <?php echo $_thread['top_class'];?>" data-tid="<?php echo $_thread['tid'];?>">
+				<div class="flex-fill" style="min-width:0">
+					<span class="subject break-all leading-snug">
+						<?php echo thread_status_label_html('top', $_top_status_labels); ?>
+						<?php if(!empty($_thread['digest'])) { ?><?php echo thread_status_label_html('digest', $_top_status_labels); ?><?php } ?>
+						<?php if($_thread['closed'] > 0) { ?><?php echo thread_status_label_html('closed', $_top_status_labels); ?><?php } ?>
+						<?php if(!empty($_thread['images'])) { ?><?php echo thread_status_label_html('image', $_top_status_labels); ?><?php } ?>
+						<?php if(!empty($_thread['videos'])) { ?><?php echo thread_status_label_html('video', $_top_status_labels); ?><?php } ?>
+						<?php if(!empty($_thread['files'])) { ?><?php echo thread_status_label_html('attachment', $_top_status_labels); ?><?php } ?>
+						<?php if(isset($_thread['audit_status']) && $_thread['audit_status'] == 0) { ?><span class="badge bg-warning text-dark ms-1"><?php echo lang('pending_audit');?></span><?php } ?>
+						<?php if(isset($_thread['audit_status']) && $_thread['audit_status'] == 2) { ?><span class="badge bg-danger ms-1"><?php echo lang('rejected_audit');?></span><?php } ?>
+						<a href="<?php echo url("thread-$_thread[tid]");?>" class="hover-text-primary transition-colors"><?php echo $_thread['subject'];?></a>
+					</span>
+				</div>
+			</li>
+			<?php } unset($_thread); ?>
+		</ul>
+	</div>
+	<?php
+}
+?>
