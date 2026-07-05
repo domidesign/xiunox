@@ -91,6 +91,13 @@ if($action == 'check') {
     echo json_encode($result, JSON_UNESCAPED_UNICODE);
     exit;
 
+} elseif($action == 'diagnose') {
+    // 诊断：排查升级后版本号未变等问题，只读，不修改任何文件
+    $result = $onlineUpgradeService->diagnose();
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit;
+
 } else {
     // 默认页面 - 升级主页
     $header['title'] = lang('admin_online_upgrade_title');

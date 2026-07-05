@@ -1696,6 +1696,7 @@ return array(
 	'admin_online_upgrade_reinstall_failed'=>'重裝失敗',
 	'admin_online_upgrade_preflight_running'=>'前置檢查中...',
 	'admin_online_upgrade_preflight_block'=>'前置檢查未通過，已阻止升級。請先解決以下問題：',
+	'admin_online_upgrade_preflight_warning'=>'前置檢查通過，但存在非阻斷警告（不影響升級，覆蓋失敗時會在對應步驟標紅報錯）：',
 	'admin_online_upgrade_preflight_request_failed'=>'前置檢查請求失敗：',
 	'admin_online_upgrade_dashboard_has_update'=>'發現新版本可用',
 	'admin_online_upgrade_dashboard_current_tip'=>'建議在低峰期備份資料後進行升級',

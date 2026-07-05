@@ -182,11 +182,24 @@ function runPreflight(callback) {
 		data: { csrf_token: csrfToken },
 		dataType: 'json',
 		success: function(res) {
+			var warnings = res.warnings || [];
 			if (res.ok) {
-				alertEl.classList.add('d-none');
+				// 通过：若仍有非阻断警告（如 APP_PATH 不可写），黄色提示但允许继续
+				if (warnings.length > 0) {
+					var html = '<strong><i class="ti ti-info-circle"></i> <?php echo lang('admin_online_upgrade_preflight_warning');?></strong>';
+					html += '<ul class="mb-0 mt-1 ps-3">';
+					for (var i = 0; i < warnings.length; i++) {
+						html += '<li>' + warnings[i] + '</li>';
+					}
+					html += '</ul>';
+					alertEl.className = 'alert alert-warning py-2';
+					alertEl.innerHTML = html;
+					alertEl.classList.remove('d-none');
+				} else {
+					alertEl.classList.add('d-none');
+				}
 				callback(true);
 			} else {
-				var warnings = res.warnings || [];
 				var html = '<strong><i class="ti ti-alert-triangle"></i> <?php echo lang('admin_online_upgrade_preflight_block');?></strong>';
 				if (warnings.length > 0) {
 					html += '<ul class="mb-0 mt-1 ps-3">';

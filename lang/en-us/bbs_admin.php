@@ -1709,6 +1709,7 @@ return array(
 	'admin_online_upgrade_reinstall_failed'=>'Reinstall failed',
 	'admin_online_upgrade_preflight_running'=>'Running preflight check...',
 	'admin_online_upgrade_preflight_block'=>'Preflight check failed. Upgrade blocked. Please fix the following issues first:',
+	'admin_online_upgrade_preflight_warning'=>'Preflight passed, but there are non-blocking warnings (won\'t block upgrade; failed overwrites will mark the step red):',
 	'admin_online_upgrade_preflight_request_failed'=>'Preflight check request failed: ',
 	'admin_online_upgrade_dashboard_has_update'=>'A new version is available',
 	'admin_online_upgrade_dashboard_current_tip'=>'Recommended to back up data before upgrading during off-peak hours',

@@ -149,9 +149,10 @@ class OnlineUpgradeService {
             $warnings[] = '既无 cURL 扩展也未开启 allow_url_fopen，无法下载升级包';
         }
 
+        // APP_PATH 不可写改为非阻断警告：升级包覆盖阶段若涉及根目录文件会失败，
+        // extractAndOverwrite 会逐文件报错；此处不阻断以便宝塔等严格权限环境可继续尝试
         if (!is_writable(APP_PATH)) {
-            $ok = false;
-            $warnings[] = 'APP_PATH 目录不可写：' . APP_PATH;
+            $warnings[] = 'APP_PATH 目录不可写（不阻断，建议 chown -R www:www ' . APP_PATH . '）：覆盖根目录文件时可能失败';
         }
 
         if (!is_writable($this->tmpPath)) {
@@ -337,6 +338,7 @@ class OnlineUpgradeService {
 
         $extracted = 0;
         $skipped = 0;
+        $failed = []; // 收集覆盖失败的文件，避免静默吞错（典型场景：根目录无写权限）
         $it = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($projectRoot, FilesystemIterator::SKIP_DOTS),
             RecursiveIteratorIterator::SELF_FIRST
@@ -374,11 +376,26 @@ class OnlineUpgradeService {
             }
             if (@copy($f->getPathname(), $dst)) {
                 $extracted++;
+            } else {
+                $failed[] = $relativePath;
             }
         }
 
         // 清理解压临时目录
         $this->recursiveDelete($extractDir);
+
+        // 有文件覆盖失败：返回失败列表，前端会标红步骤并提示用户修权限后重试
+        if (!empty($failed)) {
+            $show = array_slice($failed, 0, 20);
+            $more = count($failed) > 20 ? '（共 ' . count($failed) . ' 个，仅展示前 20 个）' : '';
+            return [
+                'ok' => false,
+                'extracted' => $extracted,
+                'skipped' => $skipped,
+                'failed' => $failed,
+                'message' => "覆盖失败 " . count($failed) . " 个文件{$more}：\n" . implode("\n", $show) . "\n\n建议执行：chown -R www:www " . APP_PATH,
+            ];
+        }
 
         return [
             'ok' => true,
@@ -843,5 +860,151 @@ class OnlineUpgradeService {
             return ['ok' => false, 'message' => '写入文件失败：' . $savePath];
         }
         return ['ok' => true, 'message' => ''];
+    }
+
+    /**
+     * 诊断：用于排查「升级后版本号未变」问题
+     * 输出当前 version.php 内容、Gitee release 信息、升级包内 version.php 内容、tmp 缓存状态、备份目录对比
+     * 不修改任何文件，只读
+     */
+    public function diagnose(): array {
+        $result = [];
+
+        // 1. 运行时常量与配置
+        $result['runtime'] = [
+            'XIUNOX_VERSION' => defined('XIUNOX_VERSION') ? XIUNOX_VERSION : '(未定义)',
+            'conf.version' => isset($this->conf['version']) ? $this->conf['version'] : '(未设置)',
+            'APP_PATH' => APP_PATH,
+            'tmpPath' => $this->tmpPath,
+            'APP_PATH_writable' => is_writable(APP_PATH),
+            'tmpPath_writable' => is_writable($this->tmpPath),
+            'DEBUG' => defined('DEBUG') ? DEBUG : '(未定义)',
+        ];
+
+        // 2. 服务器上 version.php 实际内容
+        $versionFile = APP_PATH . 'version.php';
+        $result['server_version_php'] = [
+            'path' => $versionFile,
+            'exists' => is_file($versionFile),
+            'mtime' => is_file($versionFile) ? date('Y-m-d H:i:s', filemtime($versionFile)) : '',
+            'content' => is_file($versionFile) ? file_get_contents($versionFile) : '(文件不存在)',
+        ];
+
+        // 3. tmp/ 目录下的合并缓存文件（DEBUG=0 时会走 model.min.php 合并加载）
+        $tmpFiles = [];
+        if (is_dir($this->tmpPath)) {
+            $dirIt = new DirectoryIterator($this->tmpPath);
+            foreach ($dirIt as $f) {
+                if ($f->isDot() || $f->isDir()) continue;
+                $name = $f->getFilename();
+                // 只关注 min.php、upgrade_*.zip、maintenance.lock
+                if (preg_match('/\.min\.php$/', $name) || preg_match('/^upgrade_.*\.zip$/', $name) || $name === 'maintenance.lock') {
+                    $content = '';
+                    if (preg_match('/\.min\.php$/', $name)) {
+                        // 检查合并缓存里是否含 XIUNOX_VERSION 定义
+                        $raw = @file_get_contents($f->getPathname());
+                        if ($raw !== false && strpos($raw, 'XIUNOX_VERSION') !== false) {
+                            // 提取匹配行
+                            if (preg_match("/define\('XIUNOX_VERSION',\s*'[^']+'\)/", $raw, $m)) {
+                                $content = $m[0];
+                            } else {
+                                $content = '(包含 XIUNOX_VERSION 但格式不匹配)';
+                            }
+                        } else {
+                            $content = '(不含 XIUNOX_VERSION)';
+                        }
+                    }
+                    $tmpFiles[] = [
+                        'name' => $name,
+                        'mtime' => date('Y-m-d H:i:s', $f->getMTime()),
+                        'size' => $f->getSize(),
+                        'xiunox_version_line' => $content,
+                    ];
+                }
+            }
+        }
+        $result['tmp_files'] = $tmpFiles;
+
+        // 4. 列出升级备份目录及其 version.php 内容（对比升级前后是否变化）
+        $backups = [];
+        if (is_dir($this->tmpPath)) {
+            $dirs = glob($this->tmpPath . 'upgrade_backup_*', GLOB_ONLYDIR);
+            if ($dirs) {
+                // 按 mtime 倒序，最新的在前
+                usort($dirs, function($a, $b) {
+                    return filemtime($b) - filemtime($a);
+                });
+                foreach ($dirs as $dir) {
+                    $bkVersionFile = $dir . '/version.php';
+                    $version = '(无 version.php)';
+                    if (is_file($bkVersionFile)) {
+                        $raw = @file_get_contents($bkVersionFile);
+                        if (preg_match("/define\('XIUNOX_VERSION',\s*'([^']+)'\)/", $raw, $m)) {
+                            $version = $m[1];
+                        }
+                    }
+                    $backups[] = [
+                        'dir' => basename($dir),
+                        'mtime' => date('Y-m-d H:i:s', filemtime($dir)),
+                        'version' => $version,
+                    ];
+                }
+            }
+        }
+        $result['backups'] = $backups;
+
+        // 5. Gitee 最新 release 信息 + 升级包内 version.php 内容
+        $releaseInfo = $this->checkLatestVersion();
+        $giteeInfo = [
+            'ok' => $releaseInfo['ok'],
+            'message' => isset($releaseInfo['message']) ? $releaseInfo['message'] : '',
+            'latest_version' => isset($releaseInfo['latest_version']) ? $releaseInfo['latest_version'] : '',
+            'current_version' => isset($releaseInfo['current_version']) ? $releaseInfo['current_version'] : '',
+            'has_update' => isset($releaseInfo['has_update']) ? $releaseInfo['has_update'] : false,
+            'zip_url' => isset($releaseInfo['zip_url']) ? $releaseInfo['zip_url'] : '',
+            'release_notes_preview' => isset($releaseInfo['release_notes']) ? mb_substr($releaseInfo['release_notes'], 0, 200) : '',
+        ];
+
+        // 6. 下载升级包到 tmp/diagnose_{ts}.zip，用 ZipArchive 直接读 version.php 内容（不解压）
+        if (!empty($giteeInfo['zip_url'])) {
+            $diagZip = $this->tmpPath . 'diagnose_' . date('YmdHis') . '.zip';
+            $dl = $this->httpDownload($giteeInfo['zip_url'], $diagZip);
+            if (!$dl['ok']) {
+                $giteeInfo['zip_download'] = '失败：' . $dl['message'];
+            } else {
+                $giteeInfo['zip_download'] = '成功，size=' . filesize($diagZip);
+                if (class_exists('ZipArchive')) {
+                    $zip = new ZipArchive();
+                    $openRes = $zip->open($diagZip);
+                    if ($openRes === true) {
+                        $zipVersionContent = '(未找到 version.php)';
+                        // 升级包可能含一层仓库名目录，遍历找 version.php
+                        for ($i = 0; $i < $zip->numFiles; $i++) {
+                            $entry = $zip->getNameIndex($i);
+                            if (preg_match('#(^|/)version\.php$#', $entry)) {
+                                $zipVersionContent = $zip->getFromIndex($i);
+                                // 提取版本号
+                                if (preg_match("/define\('XIUNOX_VERSION',\s*'([^']+)'\)/", $zipVersionContent, $m)) {
+                                    $giteeInfo['zip_version_php_version'] = $m[1];
+                                }
+                                $giteeInfo['zip_version_php_path'] = $entry;
+                                $giteeInfo['zip_version_php_content'] = $zipVersionContent;
+                                break;
+                            }
+                        }
+                        $zip->close();
+                    } else {
+                        $giteeInfo['zip_open_error'] = 'ZipArchive::open 失败，错误码：' . $openRes;
+                    }
+                } else {
+                    $giteeInfo['zip_open_error'] = '未安装 ZipArchive 扩展';
+                }
+                // 清理诊断临时 zip
+                @unlink($diagZip);
+            }
+        }
+        $result['gitee'] = $giteeInfo;
+
+        return ['ok' => true, 'data' => $result];
     }
 }

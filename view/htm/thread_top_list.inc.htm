@@ -10,7 +10,7 @@ if(!empty($toplist)) {
 			<?php foreach($toplist as &$_thread) {
 				if(!isset($_thread['tid'])) continue;
 			?>
-			<li class="d-flex align-items-center px-3 py-2   <?php echo $_thread['top_class'];?>" data-tid="<?php echo $_thread['tid'];?>">
+			<li class="d-flex align-items-center py-1   <?php echo $_thread['top_class'];?>" data-tid="<?php echo $_thread['tid'];?>">
 				<div class="flex-fill" style="min-width:0">
 					<span class="subject break-all leading-snug">
 						<?php echo thread_status_label_html('top', $_top_status_labels); ?>
