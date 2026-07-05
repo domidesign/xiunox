@@ -872,13 +872,32 @@ if($action == 'create') {
 	});
 	$_sort_query = $sort != 'asc' ? '?sort=' . $sort : '';
 	$pagination = pagination(url("thread-$tid-{page}$keywordurl") . $_sort_query, $_main_count, $page, $pagesize);
-	
-	$header['title'] = $thread['subject'].'-'.$forum['name'].'-'.$conf['sitename']; 
-	//$header['mobile_title'] = lang('thread_detail');
-	$header['mobile_title'] = $forum['name'];
-	$header['mobile_link'] = forum_url($fid);
-	$header['keywords'] = ''; 
-	$header['description'] = $thread['subject'];
+
+	// SEO: 帖子完整 URL（canonical/og/json-ld 复用，提前定义避免后续使用未初始化变量）
+	$thread_url = http_url_path() . thread_url($tid);
+
+	$header['title'] = $thread['subject'].'-'.$forum['name'].'-'.$conf['sitename'];
+//$header['mobile_title'] = lang('thread_detail');
+$header['mobile_title'] = $forum['name'];
+$header['mobile_link'] = forum_url($fid);
+$header['keywords'] = '';
+// SEO: description 优先用正文前 120 字摘要，正文为空时回退到标题
+$_seo_desc = isset($first['message']) ? strip_tags($first['message']) : '';
+$_seo_desc = trim(preg_replace('/\s+/', ' ', $_seo_desc));
+$header['description'] = $_seo_desc !== '' ? mb_substr($_seo_desc, 0, 120, 'UTF-8') : $thread['subject'];
+// SEO: canonical / Open Graph / Twitter Card
+$header['canonical'] = $thread_url;
+$header['og_type'] = 'article';
+// SEO: og:image 取正文第一张图片
+$header['og_image'] = '';
+if(!empty($first['message']) && preg_match('/<img[^>]+src=["\']([^"\']+)["\']/i', $first['message'], $_m)) {
+	$_img = $_m[1];
+	if(strpos($_img, 'http') !== 0 && strpos($_img, '//') !== 0) {
+		$_img = (strpos($_img, '/') === 0 ? '' : '/') . $_img;
+		$_img = rtrim(http_url_path(), '/') . $_img;
+	}
+	$header['og_image'] = $_img;
+}
 	$_SESSION['fid'] = $fid;
 	
 	
@@ -890,6 +909,77 @@ if($action == 'create') {
 	// 作者完整数据
 	$author = user_read($thread['uid']);
 	$author_group = isset($grouplist[$author['gid']]) ? $grouplist[$author['gid']] : group_read($author['gid']);
+
+	// SEO: 作者 Person（含 url，便于 AI 关联作者主页）
+	$_author_jsonld = array(
+		'@type' => 'Person',
+		'name' => $author['display_name'] ?? $author['username'] ?? '',
+		'url' => http_url_path() . ltrim(user_url($thread['uid']), '/'),
+	);
+
+	// SEO: 智能判断问答型 vs 讨论型
+	// 启发式：标题包含 ? 或 ？（全角/半角问号），符合中文发帖习惯
+	$_is_qa_thread = strpos($thread['subject'], '?') !== false
+		|| strpos($thread['subject'], '？') !== false;
+
+	if($_is_qa_thread) {
+		// QAPage：首帖=Question，回帖=SuggestedAnswer/AcceptedAnswer
+		$_answers = array();
+		if(!empty($postlist)) {
+			foreach($postlist as $_p) {
+				if(!empty($_p['is_deleted']) || (isset($_p['audit_status']) && $_p['audit_status'] != 1)) continue;
+				$_ans = array(
+					'@type' => 'Answer',
+					'text' => trim(preg_replace('/\s+/', ' ', strip_tags($_p['message_fmt'] ?? $_p['message'] ?? ''))),
+					'dateCreated' => date('c', $_p['create_date']),
+					'author' => array(
+						'@type' => 'Person',
+						'name' => $_p['username'] ?? '',
+						'url' => http_url_path() . ltrim(user_url($_p['uid']), '/'),
+					),
+					'upvoteCount' => intval($_p['likes'] ?? 0),
+					'url' => $thread_url . '#pid-' . $_p['pid'],
+				);
+				// 最高赞回帖作为 acceptedAnswer
+				if(!isset($_accepted) || intval($_p['likes'] ?? 0) > intval($_accepted['upvoteCount'] ?? 0)) {
+					$_accepted = $_ans;
+				}
+				$_answers[] = $_ans;
+			}
+		}
+		$_qa_main = array(
+			'@type' => 'Question',
+			'name' => $thread['subject'],
+			'text' => $header['description'],
+			'dateCreated' => date('c', $thread['create_date']),
+			'author' => $_author_jsonld,
+			'answerCount' => intval($thread['posts']),
+			'url' => $thread_url,
+		);
+		if(!empty($_accepted)) {
+			$_qa_main['acceptedAnswer'] = $_accepted;
+		}
+		if(!empty($_answers)) {
+			$_qa_main['suggestedAnswer'] = $_answers;
+		}
+		$header['json_ld'] = array(
+			'@context' => 'https://schema.org',
+			'@type' => 'QAPage',
+			'mainEntity' => $_qa_main,
+		);
+	} else {
+		// DiscussionForumPosting：讨论型
+		$header['json_ld'] = array(
+			'@context' => 'https://schema.org',
+			'@type' => 'DiscussionForumPosting',
+			'headline' => $thread['subject'],
+			'url' => $thread_url,
+			'datePublished' => date('c', $thread['create_date']),
+			'dateModified' => date('c', $thread['last_date']),
+			'author' => $_author_jsonld,
+			'description' => $header['description'],
+		);
+	}
 
 	// 作者关注状态 — 直接查询
 	$author_followed = false;
@@ -934,8 +1024,7 @@ if($action == 'create') {
 	// 附件下载权限
 	$allowdown = forum_access_user($fid, $gid, 'allowdown') ? 1 : 0;
 
-	// 帖子完整URL（用于二维码）
-	$thread_url = http_url_path() . thread_url($tid);
+	// $thread_url 已在上方 SEO 区块提前定义（canonical/og/json-ld 复用）
 
 	include _include(APP_PATH.'view/htm/thread.htm');
 }

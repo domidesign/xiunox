@@ -28,14 +28,41 @@ $header['description'] = esc_attr($header['description'] ?? '');
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	
 	<?php if(!empty($header['keywords'])) { ?>
-	<meta name="keywords" content="<?php echo $header['keywords'];?>" />
-	<?php } ?>
+<meta name="keywords" content="<?php echo $header['keywords'];?>" />
+<?php } ?>
 
-	<meta name="description" content="<?php echo $header['description'];?>" />
-	<meta name="renderer" content="webkit">
-	<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1" >
-	<meta http-equiv="Cache-Control" content="no-transform"/>
-	<meta http-equiv="Cache-Control" content="no-siteapp"/>
+<meta name="description" content="<?php echo $header['description'];?>" />
+<meta name="renderer" content="webkit">
+<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1" >
+<meta http-equiv="Cache-Control" content="no-transform"/>
+<meta http-equiv="Cache-Control" content="no-siteapp"/>
+
+<?php if(!empty($header['canonical'])) { ?>
+<link rel="canonical" href="<?php echo $header['canonical'];?>" />
+<?php } ?>
+
+<?php if(!empty($header['og_type'])) { ?>
+<meta property="og:title" content="<?php echo $header['title'];?>" />
+<meta property="og:description" content="<?php echo $header['description'];?>" />
+<meta property="og:type" content="<?php echo $header['og_type'];?>" />
+<meta property="og:site_name" content="<?php echo $conf['sitename'];?>" />
+<?php if(!empty($header['canonical'])) { ?>
+<meta property="og:url" content="<?php echo $header['canonical'];?>" />
+<?php } ?>
+<?php if(!empty($header['og_image'])) { ?>
+<meta property="og:image" content="<?php echo $header['og_image'];?>" />
+<?php } ?>
+<meta name="twitter:card" content="<?php echo !empty($header['og_image']) ? 'summary_large_image' : 'summary';?>" />
+<meta name="twitter:title" content="<?php echo $header['title'];?>" />
+<meta name="twitter:description" content="<?php echo $header['description'];?>" />
+<?php if(!empty($header['og_image'])) { ?>
+<meta name="twitter:image" content="<?php echo $header['og_image'];?>" />
+<?php } ?>
+<?php } ?>
+
+<?php if(!empty($header['json_ld'])) { ?>
+<script type="application/ld+json"><?php echo json_encode($header['json_ld'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);?></script>
+<?php } ?>
 	
 	<meta name="csrf-token" content="<?php echo isset($header['csrf_token']) ? $header['csrf_token'] : '';?>">
 	<meta name="api-app-id" content="<?php echo $conf['api_default_appid'] ?? ''; ?>">

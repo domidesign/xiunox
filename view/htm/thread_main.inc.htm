@@ -49,10 +49,10 @@ $_allow_ban_user = !empty($uid) && forum_access_mod($fid, $gid, 'allowbanuser');
 $_ban_is_admin = in_array($gid, array(1, 2));
 ?>
 
-<div class="x-card card card-thread  ">
+<article class="x-card card card-thread" itemscope itemtype="https://schema.org/DiscussionForumPosting">
     <div class="card-body">
         <!--{hook thread_subject_before.htm}-->
-        <h4 class="break-all">
+        <h1 class="break-all mb-2 h4" itemprop="headline">
             <!--{hook thread_subject_start.htm}-->
             <?php if(!empty($thread['digest'])) { ?><span class="badge bg-warning text-dark me-1"><i
                     class="ti ti-star-filled"></i>
@@ -70,16 +70,16 @@ $_ban_is_admin = in_array($gid, array(1, 2));
             </span>
             <?php endif; ?>
             <!--{hook thread_subject_badge_after.htm}-->
-            <?php echo $thread['subject'];?>
+            <span itemprop="name"><?php echo $thread['subject'];?></span>
             <!--{hook thread_subject_end.htm}-->
-        </h4>
+        </h1>
         <!--{hook thread_subject_after.htm}-->
         <div class="d-flex justify-content-between align-items-center small">
             <div>
                 <!--{hook thread_username_before.htm}-->
-                <span class="username">
-                    <a href="<?php echo user_url($thread['uid']);?>" class="text-body-secondary fw-semibold">
-                        <?php echo $thread['username'];?>
+                <span class="username" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <a href="<?php echo user_url($thread['uid']);?>" class="text-body-secondary fw-semibold" itemprop="url">
+                        <span itemprop="name"><?php echo $thread['username'];?></span>
                     </a>
                     <?php echo user_ban_badge_html(isset($thread['user']) ? $thread['user'] : $first['user']);?>
                 </span>
@@ -87,7 +87,7 @@ $_ban_is_admin = in_array($gid, array(1, 2));
                 <span class="badge bg-primary bg-opacity-10 text-primary "  ><?php echo $thread['group_name'];?></span>
                 <?php endif; ?>
                 <span class="date text-body-secondary ms-2">
-                    <?php echo $thread['create_date_fmt'];?>
+                    <time itemprop="datePublished" datetime="<?php echo date('c', $thread['create_date']);?>"><?php echo $thread['create_date_fmt'];?></time>
                 </span>
                 <!--{hook thread_info_end.htm}-->
             </div>
@@ -131,7 +131,7 @@ $_ban_is_admin = in_array($gid, array(1, 2));
         </div>
 
         <div class=" ">
-            <div class="message aie-content break-all py-3" isfirst="1" style="line-height:1.8">
+            <div class="message aie-content break-all py-3" isfirst="1" style="line-height:1.8" itemprop="articleBody">
                 <?php if($page == 1) { ?>
 
                 <!--{hook thread_message_before.htm}-->
@@ -197,7 +197,7 @@ $_ban_is_admin = in_array($gid, array(1, 2));
         <!--{hook thread_message_actions_end.htm}-->
     </div>
 
-</div>
+</article>
     <!--{hook thread_plugin_before.htm}-->
     <div class="d-flex align-items-center gap-3 flex-wrap m-2">
         <!--{hook thread_plugin_body.htm}-->

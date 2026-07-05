@@ -258,6 +258,19 @@ $header['mobile_title'] = $forum['name'];
 $header['mobile_link'] = forum_url($fid);
 $header['keywords'] = '';
 $header['description'] = $forum['brief'];
+// SEO: canonical / Open Graph
+$header['canonical'] = http_url_path() . ltrim(forum_url($fid), '/');
+$header['og_type'] = 'website';
+$header['og_image'] = '';
+// SEO: JSON-LD BreadcrumbList（首页 > 版块）
+$header['json_ld'] = array(
+	'@context' => 'https://schema.org',
+	'@type' => 'BreadcrumbList',
+	'itemListElement' => array(
+		array('@type' => 'ListItem', 'position' => 1, 'name' => $conf['sitename'], 'item' => http_url_path()),
+		array('@type' => 'ListItem', 'position' => 2, 'name' => $forum['name'], 'item' => $header['canonical']),
+	),
+);
 
 $_SESSION['fid'] = $fid;
 
