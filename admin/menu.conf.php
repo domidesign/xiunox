@@ -116,15 +116,18 @@ return array(
 		'tab'=> array (
 		)
 	),
+	// ponytail: 隐藏 API 菜单，路由仍可通过 url('api-doc') 直接访问
+	/*
 	'api' => array(
-		'url'=>url('api-doc'), 
-		'text'=>'API', 
+		'url'=>url('api-doc'),
+		'text'=>'API',
 		'icon'=>'ti-code',
 		'tab'=> array (
 			'doc'=>array('url'=>url('api-doc'), 'text'=>lang('admin_api_doc')),
 			'debug'=>array('url'=>url('api-debug'), 'text'=>lang('admin_api_debug')),
 		)
 	),
+	*/
 	'scanner' => array(
 		'url'=>url('plugin-scanner'), 
 		'text'=>lang('admin_compatibility_check'), 

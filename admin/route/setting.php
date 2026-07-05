@@ -342,13 +342,16 @@ if($action == 'base') {
 
 		$nav_items = array();
 		foreach ($nav_name as $k=>$v) {
-			if(empty($nav_name[$k])) continue;
+			// name 和 icon 均为空才跳过（允许只填名称或只填图标）
+			if(empty($nav_name[$k]) && empty($nav_icon[$k])) continue;
+			// slug 留空时自动生成（避免前端 data-active 标识缺失）
+			$slug = !empty($nav_slug[$k]) ? $nav_slug[$k] : 'nav-'.substr(md5(($nav_name[$k] ?? '').$k.microtime(true)), 0, 8);
 			$nav_items[] = array(
 				'type'=>isset($nav_type[$k]) ? $nav_type[$k] : 'link',
-				'icon'=>$nav_icon[$k],
-				'name'=>$nav_name[$k],
-				'slug'=>$nav_slug[$k],
-				'url'=>$nav_url[$k],
+				'icon'=>$nav_icon[$k] ?? '',
+				'name'=>$nav_name[$k] ?? '',
+				'slug'=>$slug,
+				'url'=>$nav_url[$k] ?? '',
 				'rank'=>intval($nav_rank[$k]),
 			);
 		}
@@ -363,13 +366,16 @@ if($action == 'base') {
 
 		$sidebar_nav_items = array();
 		foreach ($sidebar_icon as $k=>$v) {
-			if(empty($sidebar_name[$k])) continue;
+			// name 和 icon 均为空才跳过
+			if(empty($sidebar_name[$k]) && empty($sidebar_icon[$k])) continue;
+			// slug 留空时自动生成
+			$slug = !empty($sidebar_slug[$k]) ? $sidebar_slug[$k] : 'side-'.substr(md5(($sidebar_name[$k] ?? '').$k.microtime(true)), 0, 8);
 			$sidebar_nav_items[] = array(
 				'type'=>isset($sidebar_type[$k]) ? $sidebar_type[$k] : 'link',
-				'icon'=>$sidebar_icon[$k],
-				'name'=>$sidebar_name[$k],
-				'slug'=>$sidebar_slug[$k],
-				'url'=>$sidebar_url[$k],
+				'icon'=>$sidebar_icon[$k] ?? '',
+				'name'=>$sidebar_name[$k] ?? '',
+				'slug'=>$slug,
+				'url'=>$sidebar_url[$k] ?? '',
 				'rank'=>intval($sidebar_rank[$k]),
 			);
 		}
@@ -386,11 +392,14 @@ if($action == 'base') {
 		$discover_ranks = param('discover_rank', array());
 		$discover_items = array();
 		for($i = 0; $i < count($discover_names); $i++) {
-			if(empty($discover_names[$i]) && empty($discover_urls[$i])) continue;
+			// name/icon/url 均为空才跳过
+			if(empty($discover_names[$i]) && empty($discover_urls[$i]) && empty($discover_icons[$i])) continue;
+			// slug 留空时自动生成
+			$disc_slug = !empty($discover_slugs[$i]) ? $discover_slugs[$i] : 'disc-'.substr(md5(($discover_names[$i] ?? '').$i.microtime(true)), 0, 8);
 			$discover_items[] = array(
 				'icon' => $discover_icons[$i] ?? '',
 				'name' => $discover_names[$i] ?? '',
-				'slug' => $discover_slugs[$i] ?? '',
+				'slug' => $disc_slug,
 				'url' => $discover_urls[$i] ?? '',
 				'rank' => intval($discover_ranks[$i] ?? 0),
 			);
@@ -406,7 +415,8 @@ if($action == 'base') {
 		$mobile_need_login = param('mobile_need_login', array());
 		$mobile_items = array();
 		for($i = 0; $i < count($mobile_names); $i++) {
-			if(empty($mobile_names[$i])) continue;
+			// name/icon/icon_active 均为空才跳过
+			if(empty($mobile_names[$i]) && empty($mobile_icons[$i]) && empty($mobile_icons_active[$i])) continue;
 			$mobile_items[] = array(
 				'icon' => $mobile_icons[$i] ?? '',
 				'icon_active' => $mobile_icons_active[$i] ?? '',

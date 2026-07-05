@@ -1,0 +1,7 @@
+# 禁止执行 PHP 文件，防止 webshell 攻击
+<FilesMatch "\.(php|phtml|phar|php\d+)$">
+    Deny from all
+</FilesMatch>
+
+# 禁止目录浏览
+Options -Indexes

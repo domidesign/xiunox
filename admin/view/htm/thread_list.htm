@@ -8,7 +8,7 @@
 
 <div class="x-card  card">
 	<div class="card-body">
-		<form action="<?php echo admin_thread_scan_url();?>" method="post" id="form">
+		<form id="form" onsubmit="return false;">
 			<?php echo CsrfService::input(); ?>
 			<div class="d-flex flex-wrap gap-3 align-items-end">
 				<div>
@@ -42,12 +42,22 @@
 					<input class="form-control form-control-sm" type="text" id="uid" name="uid" placeholder="<?php echo lang('uid_username');?>" value="" />
 				</div>
 				<div>
+					<label class="form-label fs-6 mb-1"><?php echo lang('admin_thread_status');?></label>
+					<select class="form-select form-select-sm" name="status" id="status_select">
+						<option value="all"><?php echo lang('admin_thread_status_all');?></option>
+						<option value="digest"><?php echo lang('digest');?></option>
+						<option value="top"><?php echo lang('top');?></option>
+						<option value="announcement"><?php echo lang('admin_thread_announcement');?></option>
+						<option value="closed"><?php echo lang('closed');?></option>
+					</select>
+				</div>
+				<div>
 					<label class="form-label fs-6 mb-1"><?php echo lang('admin_thread_order');?></label>
 					<select class="form-select form-select-sm" name="orderby" id="orderby_select">
-						<option value="tid_desc"><?php echo lang('admin_thread_order_tid_desc');?></option>
-						<option value="tid_asc"><?php echo lang('admin_thread_order_tid_asc');?></option>
 						<option value="create_desc"><?php echo lang('admin_thread_order_create_desc');?></option>
 						<option value="create_asc"><?php echo lang('admin_thread_order_create_asc');?></option>
+						<option value="tid_desc"><?php echo lang('admin_thread_order_tid_desc');?></option>
+						<option value="tid_asc"><?php echo lang('admin_thread_order_tid_asc');?></option>
 					</select>
 				</div>
 				<div class="flex-shrink-0">
@@ -66,13 +76,36 @@
 				<input type="checkbox" class="form-check-input" id="checkall" />
 				<label class="form-check-label small" for="checkall"><?php echo lang('admin_thread_select_all');?></label>
 			</div>
-			<span class="text-secondary small" id="selected_count">0 <?php echo lang('admin_thread_col_posts');?></span>
 			<div class="vr mx-1"></div>
 			<button type="button" class="btn btn-sm btn-outline-success" data-op="open" disabled><i class="ti ti-lock-open"></i> <?php echo lang('open');?></button>
 			<button type="button" class="btn btn-sm btn-outline-warning" data-op="close" disabled><i class="ti ti-lock"></i> <?php echo lang('close');?></button>
-			<button type="button" class="btn btn-sm btn-outline-primary" data-op="top" disabled><i class="ti ti-pin"></i> <?php echo lang('top');?></button>
-			<button type="button" class="btn btn-sm btn-outline-info" data-op="digest" disabled><i class="ti ti-star"></i> <?php echo lang('digest');?></button>
-			<button type="button" class="btn btn-sm btn-outline-info" data-op="announcement" disabled><i class="ti ti-megaphone"></i> <?php echo lang('admin_thread_announcement');?></button>
+			<div class="dropdown d-inline-block">
+				<button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" id="top_dropdown_btn" data-bs-toggle="dropdown" data-bs-auto-close="true" disabled><i class="ti ti-pin"></i> <?php echo lang('top');?></button>
+				<ul class="dropdown-menu">
+					<li><a class="dropdown-item" href="javascript:;" data-op="top" data-top="1"><i class="ti ti-pin"></i> <?php echo lang('admin_thread_top_forum');?></a></li>
+					<li><a class="dropdown-item" href="javascript:;" data-op="top" data-top="3"><i class="ti ti-pin-filled"></i> <?php echo lang('admin_thread_top_global');?></a></li>
+					<li><hr class="dropdown-divider"></li>
+					<li><a class="dropdown-item text-danger" href="javascript:;" data-op="top" data-top="0"><i class="ti ti-pinned-off"></i> <?php echo lang('admin_thread_top_cancel');?></a></li>
+				</ul>
+			</div>
+			<div class="dropdown d-inline-block">
+				<button type="button" class="btn btn-sm btn-outline-info dropdown-toggle" id="digest_dropdown_btn" data-bs-toggle="dropdown" data-bs-auto-close="true" disabled><i class="ti ti-star"></i> <?php echo lang('digest');?></button>
+				<ul class="dropdown-menu">
+					<li><a class="dropdown-item" href="javascript:;" data-op="digest" data-digest="1"><i class="ti ti-star"></i> <?php echo lang('digest_1');?></a></li>
+					<li><a class="dropdown-item" href="javascript:;" data-op="digest" data-digest="2"><i class="ti ti-star-filled"></i> <?php echo lang('digest_2');?></a></li>
+					<li><a class="dropdown-item" href="javascript:;" data-op="digest" data-digest="3"><i class="ti ti-award"></i> <?php echo lang('digest_3');?></a></li>
+					<li><hr class="dropdown-divider"></li>
+					<li><a class="dropdown-item text-danger" href="javascript:;" data-op="digest" data-digest="0"><i class="ti ti-star-off"></i> <?php echo lang('digest_0');?></a></li>
+				</ul>
+			</div>
+			<div class="dropdown d-inline-block">
+			<button type="button" class="btn btn-sm btn-outline-info dropdown-toggle" id="announcement_dropdown_btn" data-bs-toggle="dropdown" data-bs-auto-close="true" disabled><i class="ti ti-megaphone"></i> <?php echo lang('admin_thread_announcement');?></button>
+			<ul class="dropdown-menu">
+				<li><a class="dropdown-item" href="javascript:;" data-op="announcement" data-announcement="1"><i class="ti ti-megaphone"></i> <?php echo lang('admin_thread_set_announcement');?></a></li>
+				<li><hr class="dropdown-divider"></li>
+				<li><a class="dropdown-item text-danger" href="javascript:;" data-op="announcement" data-announcement="0"><i class="ti ti-megaphone-off"></i> <?php echo lang('admin_thread_cancel_announcement');?></a></li>
+			</ul>
+		</div>
 			<button type="button" class="btn btn-sm btn-outline-secondary" data-op="move" disabled><i class="ti ti-arrows-move"></i> <?php echo lang('move');?></button>
 			<button type="button" class="btn btn-sm btn-outline-danger" data-op="delete" disabled><i class="ti ti-trash"></i> <?php echo lang('delete');?></button>
 			<!-- 移动版块选择（默认隐藏） -->
@@ -139,49 +172,42 @@ var jorderby = $('#orderby_select');
 var jresult_info = $('#result_info');
 var jpagination = $('#pagination_area');
 
-var queueid = '<?php echo $time;?>';
-var threads = 0;
-// 全表总帖子数（fid=0 时用于按当前 pagesize 重算 totalpage，修复 pagesize 不生效问题）
-var totalThreads = <?php echo isset($threads) ? intval($threads) : 0;?>;
-var pagesize = <?php echo $pagesize;?>;
-var totalpage = <?php echo $totalpage;?>;
-var pagearr = [];
-var forumlist = <?php echo xn_json_encode($forumlist_simple);?>;
+// 当前搜索条件（翻页时保留）
+var currentSearch = {};
 var currentFoundPage = 1;
+var lastTotal = 0;
 
-// 从 localStorage 恢复 pagesize（修复刷新后无记忆问题）
+// 从 localStorage 恢复 pagesize
 try {
 	var savedPagesize = parseInt(localStorage.getItem('admin_thread_pagesize'));
 	if(savedPagesize && [20, 50, 100, 200].indexOf(savedPagesize) !== -1) {
 		jpagesize.val(savedPagesize);
-		pagesize = savedPagesize;
 	}
 } catch(e) {}
 
-// 根据当前 fid 和 pagesize 重新计算扫描页数
-function rebuildPageArr() {
-	var curPs = parseInt(jpagesize.val()) || pagesize;
-	var fid = jfid.val();
-	if(fid == 0) {
-		// 修复：fid=0 时按当前 pagesize 重算 totalpage（原代码复用 totalpage_back 导致 pagesize 切换无效）
-		totalpage = Math.max(1, Math.ceil(totalThreads / curPs));
-	} else if(forumlist[fid]) {
-		var n = forumlist[fid]['threads'];
-		totalpage = Math.max(1, Math.ceil(n / curPs));
-	} else {
-		totalpage = 1;
-	}
-	pagearr = [];
-	for(var i=1; i <= totalpage; i++) pagearr.push(i);
+// 收集表单搜索条件
+function collectSearch() {
+	return {
+		fid: jfid.val(),
+		keyword: $('#keyword').val(),
+		create_date_start: $('#create_date_start').val(),
+		create_date_end: $('#create_date_end').val(),
+		userip: $('#userip').val(),
+		uid: $('#uid').val(),
+		status: $('#status_select').val(),
+		orderby: jorderby.val(),
+		pagesize: parseInt(jpagesize.val()) || 100
+	};
 }
-rebuildPageArr();
 
-// 加载搜索结果（带翻页，AJAX 不跳转）
-function loadThreadResults(page) {
+// 加载搜索结果（直接 GET found 路由，搜索条件作为 query string 传递，后端 SELECT 查询+排序+分页）
+function loadThreadResults(page, callback) {
 	page = page || 1;
 	currentFoundPage = page;
-	var ps = parseInt(jpagesize.val()) || 100;
-	var url = <?php echo json_encode(route_url('admin_thread_found', ['page' => '__PAGE__']));?>.replace('__PAGE__', page) + '&pagesize=' + ps;
+	currentSearch = collectSearch();
+	var baseUrl = <?php echo json_encode(route_url('admin_thread_found', ['page' => '__PAGE__']));?>.replace('__PAGE__', page);
+	var query = $.param(currentSearch);
+	var url = baseUrl + '&' + query;
 	$.get(url, function(html) {
 		var $html = $('<div>').html(html.replace(/<script[\s\S]*?<\/script>/gi, ''));
 		var $tbody = $html.find('tbody');
@@ -192,27 +218,20 @@ function loadThreadResults(page) {
 		}
 		// 提取分页
 		var $pagination = $html.find('.pagination');
-		if($pagination.length) {
-			jpagination.html($pagination);
-		} else {
-			jpagination.html('');
-		}
-		// 提取总数：仅当 queue 总数比当前 threads 大时才采纳（首次加载或重新搜索场景）
-		// 批量删除后 threads 已被扣减，queue_count 仍为旧值，不能覆盖回去
+		jpagination.html($pagination.length ? $pagination : '');
+		// 提取总数（found 路由 db_count 的真实结果）
 		var totalText = $html.find('[data-total]').data('total');
-		if(totalText) {
-			var queueTotal = parseInt(totalText);
-			if(queueTotal > threads) {
-				threads = queueTotal;
-			}
+		if(typeof totalText !== 'undefined') {
+			lastTotal = parseInt(totalText) || 0;
 		}
-		jresult_info.html('<?php echo lang('admin_thread_total_found');?>'.replace('{n}', '<b>' + threads + '</b>'));
+		jresult_info.html('<?php echo lang('admin_thread_total_found');?>'.replace('{n}', '<b>' + lastTotal + '</b>'));
 		jbatch_toolbar.show();
 		updateBatchButtons();
+		if(typeof callback === 'function') callback();
 	});
 }
 
-// 拦截分页链接点击：AJAX 加载，避免跳转到独立 found 页面（修复第2页无工具栏问题）
+// 拦截分页链接点击：AJAX 加载，保留当前搜索条件
 jpagination.on('click', 'a.page-link', function(e) {
 	e.preventDefault();
 	var href = $(this).attr('href') || '';
@@ -222,60 +241,24 @@ jpagination.on('click', 'a.page-link', function(e) {
 	}
 });
 
-jfid.on('change', function() {
-	rebuildPageArr();
-});
-
-// 搜索
+// 搜索：直接加载 found 第1页（无需 scan 扫描入队列）
 jsubmit.on('click', function() {
 	jsubmit.button('loading');
-	var postdata = jform.serializeObject();
-	var url = jform.attr('action');
-	// scan 后端 pagesize 来自 param('pagesize')，前端必须同步传当前 pagesize
-	// 否则 pagearr 基于新 pagesize 计算 totalpage，但 scan 用默认 100 查询，会漏掉数据
-	var scanPagesize = parseInt(jpagesize.val()) || pagesize;
-	postdata.pagesize = scanPagesize;
-	// 同步传 orderby 给 scan，让扫描按指定顺序推入队列
-	postdata.orderby = jorderby.val();
-	threads = 0;
-	var completedPages = 0;
-	$.each_sync(pagearr, function(i, callback) {
-		var currentPage = pagearr[i];
-		var currentPostdata = $.extend({}, postdata, {page: currentPage});
-		$.xpost(url, currentPostdata, function(code, message) {
-			completedPages++;
-			if(parseInt(code) == 0) {
-				var tids = message;
-				threads += tids.length;
-			} else {
-				showToast(message, 'error');
-			}
-			// 所有页面扫描完毕
-			if(completedPages >= pagearr.length) {
-				jsubmit.button('reset');
-				jsearch_result.show();
-				jresult_info.html('<?php echo lang('admin_thread_total_found');?>'.replace('{n}', '<b>' + threads + '</b>'));
-				if(threads > 0) {
-					loadThreadResults(1);
-				} else {
-					$('#thread_result_list').html('<tr><td colspan="7" class="text-center py-4 text-secondary"><?php echo lang('no_search_result');?></td></tr>');
-					jpagination.html('');
-				}
-				showToast('<?php echo lang('search_complete');?>', 'success');
-			}
-			callback();
-		});
+	jsearch_result.show();
+	loadThreadResults(1, function() {
+		jsubmit.button('reset');
+		if(lastTotal > 0) {
+			showToast('<?php echo lang('search_complete');?>', 'success');
+		} else {
+			showToast('<?php echo lang('no_search_result');?>', 'warning');
+		}
 	});
-	return false;
 });
 
-// 每页条数切换：保存到 localStorage + 重新计算 + 重新加载当前页
+// 每页条数切换：保存到 localStorage + 重新加载当前页
 jpagesize.on('change', function() {
-	// 保存到 localStorage（修复刷新后无记忆问题）
 	try { localStorage.setItem('admin_thread_pagesize', $(this).val()); } catch(e) {}
-	// 切换 pagesize 后重新计算扫描页数，确保下次搜索用新 pagesize
-	rebuildPageArr();
-	if(jsearch_result.is(':visible') && threads > 0) {
+	if(jsearch_result.is(':visible') && lastTotal > 0) {
 		loadThreadResults(1);
 	}
 });
@@ -297,10 +280,12 @@ function updateBatchButtons() {
 	var checked = $('#thread_result_list input[name="modtid"]:checked');
 	var total = $('#thread_result_list input[name="modtid"]');
 	var count = checked.length;
-	$('#selected_count').text(count + ' <?php echo lang('admin_thread_col_posts');?>');
 	jbatch_btns.prop('disabled', count === 0);
+	// 置顶/精华/公告 dropdown 按钮单独控制
+	$('#top_dropdown_btn').prop('disabled', count === 0);
+	$('#digest_dropdown_btn').prop('disabled', count === 0);
+	$('#announcement_dropdown_btn').prop('disabled', count === 0);
 	jmove_forum.prop('disabled', count === 0);
-	// 全选状态同步
 	jcheckall.prop('checked', total.length > 0 && count === total.length);
 }
 
@@ -313,16 +298,14 @@ function getSelectedTids() {
 	return tids;
 }
 
-// 批量操作
-jbatch_btns.on('click', function() {
-	var op = $(this).data('op');
+// 批量操作（按钮 + 置顶 dropdown 项统一处理）
+function doBatch(op, extra) {
 	var tids = getSelectedTids();
 	if(tids.length === 0) {
 		showToast('<?php echo lang('admin_thread_no_selection');?>', 'warning');
 		return;
 	}
 
-	// 移动操作需要选择目标版块
 	if(op === 'move') {
 		var targetFid = jmove_forum.val();
 		if(!targetFid) {
@@ -332,20 +315,32 @@ jbatch_btns.on('click', function() {
 		}
 	}
 
-	// 确认对话框
 	var confirmMsg = '';
 	if(op === 'close') confirmMsg = '<?php echo lang('admin_thread_confirm_batch_close');?>';
 	else if(op === 'open') confirmMsg = '<?php echo lang('admin_thread_confirm_batch_open');?>';
 	else if(op === 'delete') confirmMsg = '<?php echo lang('admin_thread_confirm_batch_delete');?>';
-	else if(op === 'announcement') confirmMsg = '<?php echo lang('admin_thread_confirm_batch_announcement');?>';
-	else if(op === 'top') confirmMsg = '<?php echo lang('admin_thread_confirm_batch_top');?>';
-	else if(op === 'digest') confirmMsg = '<?php echo lang('admin_thread_confirm_batch_digest');?>';
+	else if(op === 'announcement') {
+		var annVal = extra && typeof extra.announcement !== 'undefined' ? parseInt(extra.announcement) : 1;
+		if(annVal === 0) confirmMsg = '<?php echo lang('admin_thread_confirm_batch_announcement_cancel');?>';
+		else confirmMsg = '<?php echo lang('admin_thread_confirm_batch_announcement_set');?>';
+	}
+	else if(op === 'top') {
+		var topVal = extra && typeof extra.top !== 'undefined' ? parseInt(extra.top) : 1;
+		if(topVal === 0) confirmMsg = '<?php echo lang('admin_thread_confirm_batch_top_cancel');?>';
+		else if(topVal === 3) confirmMsg = '<?php echo lang('admin_thread_confirm_batch_top_global');?>';
+		else confirmMsg = '<?php echo lang('admin_thread_confirm_batch_top_forum');?>';
+	}
+	else if(op === 'digest') {
+		var digestVal = extra && typeof extra.digest !== 'undefined' ? parseInt(extra.digest) : 1;
+		if(digestVal === 0) confirmMsg = '<?php echo lang('admin_thread_confirm_batch_digest_cancel');?>';
+		else if(digestVal === 1) confirmMsg = '<?php echo lang('admin_thread_confirm_batch_digest_1');?>';
+		else if(digestVal === 2) confirmMsg = '<?php echo lang('admin_thread_confirm_batch_digest_2');?>';
+		else confirmMsg = '<?php echo lang('admin_thread_confirm_batch_digest_3');?>';
+	}
 	else if(op === 'move') confirmMsg = '<?php echo lang('admin_thread_move_to_forum');?>';
 	else return;
 
 	XN.confirm(confirmMsg, function() {
-
-	// 执行批量操作
 	var url = '<?php echo admin_thread_batch_url();?>';
 	var postdata = {
 		tids: tids.join(','),
@@ -355,11 +350,19 @@ jbatch_btns.on('click', function() {
 	if(op === 'move') {
 		postdata.target_fid = jmove_forum.val();
 	}
+	if(op === 'top') {
+		postdata.top = extra.top;
+	}
+	if(op === 'digest') {
+		postdata.digest = extra.digest;
+	}
+	if(op === 'announcement') {
+		postdata.announcement = extra.announcement;
+	}
 	$.xpost(url, postdata, function(code, message) {
 		if(parseInt(code) == 0) {
-			// 删除操作会减少可见帖子数，同步更新 threads 计数避免 result_info 显示陈旧总数
 			if(op === 'delete') {
-				threads = Math.max(0, threads - tids.length);
+				lastTotal = Math.max(0, lastTotal - tids.length);
 			}
 			showToast('<?php echo lang('admin_thread_batch_success');?>', 'success');
 			loadThreadResults(currentFoundPage);
@@ -368,6 +371,24 @@ jbatch_btns.on('click', function() {
 		}
 	});
 	});
+}
+
+// 按钮（除置顶/精华外）直接触发
+jbatch_btns.on('click', function() {
+	doBatch($(this).data('op'));
+});
+
+// 置顶/精华/公告 dropdown 项触发
+$('#batch_toolbar').on('click', 'a.dropdown-item[data-op="top"], a.dropdown-item[data-op="digest"], a.dropdown-item[data-op="announcement"]', function(e) {
+	e.preventDefault();
+	var op = $(this).data('op');
+	if(op === 'top') {
+		doBatch('top', { top: $(this).data('top') });
+	} else if(op === 'digest') {
+		doBatch('digest', { digest: $(this).data('digest') });
+	} else if(op === 'announcement') {
+		doBatch('announcement', { announcement: $(this).data('announcement') });
+	}
 });
 
 // 移动按钮点击时显示版块选择

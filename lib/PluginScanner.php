@@ -363,6 +363,14 @@ class PluginScanner {
             $this->suppressDirectDbUntil[$shortPath] = max($current, $lineNumber + 10);
         }
 
+        // JS-only 分类（js_eval_call/js_dom_xss/jquery_html_xss）：仅在 JS 上下文扫描
+        // 避免 PHP 代码中字符串里的 JS 函数名被误报
+        static $jsOnlyCats = null;
+        if ($jsOnlyCats === null) {
+            $jsOnlyCats = PluginScannerRules::getJsOnlyCategories();
+        }
+        $isJsContext = ($contextExt === 'js');
+
         foreach ($this->rules as $category => $patterns) {
             if ($category === 'missing_csrf') continue;
 
@@ -372,10 +380,19 @@ class PluginScanner {
             // 纯 PHP 代码跳过 HTML-only 规则
             if ($contextExt === 'php' && in_array($category, $htmlOnlyCats)) continue;
 
+            // 非 JS 上下文跳过 JS-only 规则（如 js_eval_call/js_dom_xss/jquery_html_xss）
+            if (!$isJsContext && in_array($category, $jsOnlyCats)) continue;
+
             foreach ($patterns as $pattern => $suggestion) {
                 if (is_int($pattern)) { $pattern = $suggestion; $suggestion = null; }
 
-                $found = (strpos($pattern, '.*') !== false || strpos($pattern, '\b') !== false || strpos($pattern, '\$') !== false)
+                // 含正则元字符（反斜杠转义、.*、(、[、|）的模式用 preg_match，否则用 stripos 字面匹配
+                $isRegex = strpos($pattern, '\\') !== false
+                    || strpos($pattern, '.*') !== false
+                    || strpos($pattern, '(') !== false
+                    || strpos($pattern, '[') !== false
+                    || strpos($pattern, '|') !== false;
+                $found = $isRegex
                     ? @preg_match('#' . $pattern . '#i', $line)
                     : stripos($line, $pattern) !== false;
 

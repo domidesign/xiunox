@@ -13,7 +13,7 @@
 		</div>
 		<p class="text-secondary fs-6 mb-3">
 			<?php echo lang('plugin_scanner_desc');?>
-			<?php echo lang('plugin_scanner_scanned');?> <b class="text-success"><?php echo count($pluginList);?></b> <?php echo lang('plugin_scanner_plugins');?> <?php echo lang('plugin_scanner_with_issues');?> <b class="text-primary"><?php echo array_sum(array_column($rulesSummary, 'count'));?></b> <?php echo lang('plugin_scanner_rules');?>
+			<?php echo lang('plugin_scanner_total');?> <b class="text-success"><?php echo count($pluginList);?></b> <?php echo lang('plugin_scanner_installed');?> <b class="text-primary"><?php echo array_sum(array_column($rulesSummary, 'count'));?></b> <?php echo lang('plugin_scanner_rules');?>
 		</p>
 
 		<div class="d-flex flex-wrap align-items-center gap-2 mb-3">

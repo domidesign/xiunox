@@ -2,6 +2,132 @@
 
 <!--{hook admin_setting_nav_start.htm}-->
 
+<style>
+/* 拖拽排序样式 */
+.drag-handle {
+	cursor: grab;
+	color: var(--bs-secondary-color, #6c757d);
+	user-select: none;
+	text-align: center;
+	vertical-align: middle;
+	/* 仅 handle 可拖，避免误触 input/select */
+	-webkit-user-drag: element;
+}
+.drag-handle:active { cursor: grabbing; }
+.drag-handle i { pointer-events: none; }
+.nav-row-dragging { opacity: 0.4; }
+.nav-row-dragging td { background: var(--bs-tertiary-bg, #f8f9fa) !important; }
+/* 上半/下半指示线分别显示在上/下边框 */
+.nav-row-drag-over-before { box-shadow: inset 0 3px 0 0 var(--bs-primary, #0d6efd); }
+.nav-row-drag-over-after  { box-shadow: inset 0 -3px 0 0 var(--bs-primary, #0d6efd); }
+
+/* 树形层级样式 */
+.nav-row-title {
+	background-color: var(--bs-tertiary-bg, #f8f9fa);
+	font-weight: 600;
+	border-left: 4px solid var(--bs-primary, #0d6efd);
+}
+.nav-row-title td { font-weight: 600; }
+.nav-row-child .nav-name-cell {
+	padding-left: 28px;
+	position: relative;
+}
+.nav-row-child .nav-name-cell::before {
+	content: '└';
+	position: absolute;
+	left: 10px;
+	top: 50%;
+	transform: translateY(-50%);
+	color: var(--bs-secondary-color, #6c757d);
+	font-weight: 400;
+}
+
+/* URL 预设下拉宽度 */
+.url-preset-select { max-width: 130px; flex: 0 0 auto; }
+
+/* 预览面板 */
+.nav-preview-panel {
+	border: 1px dashed var(--bs-border-color, #dee2e6);
+	border-radius: 0.375rem;
+	padding: 0.75rem 1rem;
+	background: var(--bs-body-bg, #fff);
+	min-height: 48px;
+}
+.nav-preview-empty { color: var(--bs-secondary-color, #6c757d); font-size: 0.875rem; }
+.nav-preview-bar { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
+.nav-preview-item { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.875rem; }
+.nav-preview-group { display: inline-flex; align-items: center; }
+.nav-preview-title { font-weight: 600; color: var(--bs-primary, #0d6efd); margin-right: 0.25rem; }
+.nav-preview-children { display: inline-flex; gap: 0.5rem; }
+.nav-preview-children .nav-preview-item { color: var(--bs-secondary-color, #6c757d); }
+
+/* 手机导航预览：模拟手机框架 + 底部 tabbar */
+.mobile-preview-wrap {
+	display: flex;
+	justify-content: center;
+	margin-top: 0.5rem;
+}
+.mobile-preview-frame {
+	width: 320px;
+	max-width: 100%;
+	background: var(--bs-body-bg, #fff);
+	border: 8px solid #2b2d31;
+	border-radius: 28px;
+	box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+	overflow: hidden;
+}
+.mobile-preview-screen {
+	min-height: 180px;
+	background: var(--bs-tertiary-bg, #f8f9fa);
+	padding: 1rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--bs-secondary-color, #6c757d);
+	font-size: 0.8rem;
+	position: relative;
+}
+.mobile-preview-screen::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 80px;
+	height: 18px;
+	background: #2b2d31;
+	border-bottom-left-radius: 10px;
+	border-bottom-right-radius: 10px;
+}
+.mobile-preview-tabbar {
+	display: flex;
+	justify-content: space-around;
+	align-items: stretch;
+	background: var(--bs-body-bg, #fff);
+	border-top: 1px solid var(--bs-border-color, #dee2e6);
+	padding: 6px 0 calc(6px + env(safe-area-inset-bottom, 0px));
+}
+.mobile-preview-tab {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+	padding: 4px 2px;
+	flex: 1 1 0;
+	min-width: 0;
+	color: var(--bs-secondary-color, #6c757d);
+	font-size: 0.7rem;
+	text-align: center;
+}
+.mobile-preview-tab i { font-size: 1.25rem; line-height: 1; }
+.mobile-preview-tab.is-login-required::after {
+	content: '🔒';
+	font-size: 0.6rem;
+	margin-left: 2px;
+}
+.mobile-preview-empty { color: var(--bs-secondary-color, #6c757d); font-size: 0.875rem; }
+</style>
+
 <div class=" ">
 	<?php echo admin_tab_active($menu['setting']['tab'], 'nav');?>
 </div>
@@ -45,23 +171,25 @@
 
 				<!-- 顶部导航 -->
 				<div class="nav-tab-pane" id="topNavPane">
+					<p class="text-body-secondary small mb-2">
+						<i class="ti ti-info-circle me-1"></i><?php echo lang('admin_nav_drag_tip');?>
+					</p>
 					<div class="table-responsive">
-						<table class="table table-hover align-middle table-min-w-lg">
+						<table class="table table-hover align-middle table-min-w-lg mb-2">
 							<thead>
 								<tr>
+									<th style="width:36px"></th>
 									<th style="width:110px"><?php echo lang('admin_col_type')?></th>
 									<th style="width:140px"><?php echo lang('admin_col_icon')?></th>
 									<th><?php echo lang('admin_col_name')?></th>
-									<th><?php echo lang('admin_col_slug'); ?></th>
 									<th><?php echo lang('admin_col_url'); ?></th>
 									<th style="width:50px"></th>
-									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
 								</tr>
 							</thead>
 							<tbody id="topNavBody"></tbody>
 						</table>
 					</div>
-					<div class="d-flex gap-3">
+					<div class="d-flex gap-3 mb-3">
 						<a role="button" class="text-primary text-decoration-none" id="addTopNav">
 							<i class="ti ti-plus"></i> <?php echo lang('admin_add_top_nav_item')?>
 						</a>
@@ -69,21 +197,27 @@
 							<i class="ti ti-plus"></i> <?php echo lang('admin_add_category_title')?>
 						</a>
 					</div>
+					<!-- 实时预览 -->
+					<div class="nav-preview-panel" id="topNavPreview">
+						<span class="nav-preview-empty"><?php echo lang('admin_nav_preview_empty');?></span>
+					</div>
 				</div>
 
 				<!-- 左侧导航 -->
 				<div class="nav-tab-pane" id="sideNavPane" style="display:none;">
+					<p class="text-body-secondary small mb-2">
+						<i class="ti ti-info-circle me-1"></i><?php echo lang('admin_nav_drag_tip');?>
+					</p>
 					<div class="table-responsive">
-						<table class="table table-hover align-middle table-min-w-lg">
+						<table class="table table-hover align-middle table-min-w-lg mb-2">
 							<thead>
 								<tr>
+									<th style="width:36px"></th>
 									<th style="width:110px"><?php echo lang('admin_col_type')?></th>
 									<th style="width:140px"><?php echo lang('admin_col_icon')?></th>
 									<th><?php echo lang('admin_col_name')?></th>
-									<th><?php echo lang('admin_col_slug'); ?></th>
 									<th><?php echo lang('admin_col_url'); ?></th>
 									<th style="width:50px"></th>
-									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
 								</tr>
 							</thead>
 							<tbody id="sideNavBody"></tbody>
@@ -108,16 +242,16 @@
 					</div>
 					<p class="text-body-secondary small mb-3"><?php echo lang('admin_mobile_nav_desc')?></p>
 					<div class="table-responsive">
-						<table class="table table-hover align-middle table-min-w-lg">
+						<table class="table table-hover align-middle table-min-w-lg mb-2">
 							<thead>
 								<tr>
+									<th style="width:36px"></th>
 									<th style="width:140px"><?php echo lang('admin_col_icon')?></th>
 									<th style="width:140px"><?php echo lang('admin_col_icon_active');?></th>
 									<th><?php echo lang('admin_col_name')?></th>
 									<th><?php echo lang('admin_col_url'); ?></th>
 									<th style="width:80px" class="text-center"><?php echo lang('admin_mobile_nav_need_login')?></th>
 									<th style="width:50px"></th>
-									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
 								</tr>
 							</thead>
 							<tbody id="mobileNavBody"></tbody>
@@ -126,21 +260,30 @@
 					<a role="button" class="text-primary text-decoration-none" id="addMobileNav">
 						<i class="ti ti-plus"></i> <?php echo lang('admin_add_mobile_nav_item')?>
 					</a>
+					<!-- 实时预览：手机框架 -->
+					<div class="mobile-preview-wrap">
+						<div class="mobile-preview-frame">
+							<div class="mobile-preview-screen"><?php echo lang('admin_mobile_preview_screen');?></div>
+							<div class="mobile-preview-tabbar" id="mobileNavPreview">
+								<span class="mobile-preview-empty"><?php echo lang('admin_nav_preview_empty');?></span>
+							</div>
+						</div>
+					</div>
 				</div>
 
 				<!-- 发现导航 -->
 				<div class="nav-tab-pane" id="discoverPane" style="display:none;">
 					<p class="text-body-secondary small mb-3"><?php echo lang('admin_discover_nav_desc')?></p>
 					<div class="table-responsive">
-						<table class="table table-hover align-middle table-min-w-lg">
+						<table class="table table-hover align-middle table-min-w-lg mb-2">
 							<thead>
 								<tr>
+									<th style="width:36px"></th>
 									<th style="width:140px"><?php echo lang('admin_col_icon')?></th>
 									<th><?php echo lang('admin_col_name')?></th>
 									<th><?php echo lang('admin_col_slug'); ?></th>
 									<th><?php echo lang('admin_col_url'); ?></th>
 									<th style="width:50px"></th>
-									<th style="width:80px" class="text-center"><?php echo lang('admin_col_sort')?></th>
 								</tr>
 							</thead>
 							<tbody id="discoverBody"></tbody>
@@ -230,7 +373,6 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
     });
 });
 
-// 页面加载时根据 URL hash 恢复 tab
 (function() {
     var hash = location.hash.replace('#', '');
     if(hash && navTabMap[hash]) {
@@ -245,9 +387,254 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 	var discoverItems = <?php echo xn_json_encode($discover_items);?>;
 	var mobileNavItems = <?php echo xn_json_encode($mobile_nav_items);?>;
 
-	// ====== 导航行创建（通用，用于发现导航） ======
+	// URL 预设映射：value -> {url, placeholder, readOnly}
+	var URL_PRESETS = {
+		'custom':    { url: '',  placeholder: 'URL',                                    readOnly: false },
+		'/':         { url: '/',  placeholder: '',                                      readOnly: true  },
+		'/forums':   { url: '/forums',  placeholder: '',                                readOnly: true  },
+		'/rank':     { url: '/rank',    placeholder: '',                                readOnly: true  },
+		'/my':       { url: '/my',      placeholder: '',                                readOnly: true  },
+		'user-login':   { url: 'user-login',   placeholder: '',                         readOnly: true  },
+		'user-create':  { url: 'user-create',  placeholder: '',                         readOnly: true  },
+		'external':  { url: '',  placeholder: 'https://',                              readOnly: false }
+	};
+
+	// 根据 URL 值反推 preset key
+	function detectPreset(url) {
+		if (!url) return 'custom';
+		if (url.indexOf('http://') === 0 || url.indexOf('https://') === 0) return 'external';
+		for (var k in URL_PRESETS) {
+			if (k === 'custom' || k === 'external') continue;
+			if (URL_PRESETS[k].url === url) return k;
+		}
+		return 'custom';
+	}
+
+	function escHtml(s) {
+		if (s == null) return '';
+		return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+	}
+
+	// ====== URL 单元格（预设 + 自定义） ======
+	function buildUrlCell(prefix, urlVal, inputName) {
+		var preset = detectPreset(urlVal);
+		var cfg = URL_PRESETS[preset] || URL_PRESETS.custom;
+		var opts = '';
+		var labels = {
+			'custom': '<?php echo lang('admin_url_type_custom');?>',
+			'/': '<?php echo lang('admin_url_type_home');?>',
+			'/forums': '<?php echo lang('admin_url_type_forums');?>',
+			'/rank': '<?php echo lang('admin_url_type_rank');?>',
+			'/my': '<?php echo lang('admin_url_type_user_center');?>',
+			'user-login': '<?php echo lang('admin_url_type_login');?>',
+			'user-create': '<?php echo lang('admin_url_type_register');?>',
+			'external': '<?php echo lang('admin_url_type_external');?>'
+		};
+		for (var k in URL_PRESETS) {
+			opts += '<option value="' + k + '"' + (k === preset ? ' selected' : '') + '>' + (labels[k] || k) + '</option>';
+		}
+		var html =
+			'<div class="input-group input-group-sm">' +
+				'<select class="form-select form-select-sm url-preset-select">' + opts + '</select>' +
+				'<input type="text" class="form-control form-control-sm" name="' + inputName + '" value="' + escHtml(urlVal) + '" placeholder="' + (cfg.placeholder || 'URL') + '"' + (cfg.readOnly ? ' readonly' : '') + '>' +
+			'</div>';
+		return html;
+	}
+
+	function bindUrlCell(td, urlInput) {
+		var sel = td.querySelector('.url-preset-select');
+		var inp = td.querySelector('input[type="text"]');
+		sel.addEventListener('change', function() {
+			var cfg = URL_PRESETS[this.value] || URL_PRESETS.custom;
+			if (this.value === 'custom') {
+				// 保持原值不变，便于编辑
+				inp.removeAttribute('readonly');
+				inp.placeholder = 'URL';
+			} else if (this.value === 'external') {
+				inp.removeAttribute('readonly');
+				inp.placeholder = 'https://';
+				// 如果原值是内部预设路由，清空避免混淆
+				if (URL_PRESETS[inp.value] && inp.value !== 'custom' && inp.value !== 'external') {
+					inp.value = '';
+				}
+			} else {
+				inp.value = cfg.url;
+				inp.setAttribute('readonly', 'readonly');
+				inp.placeholder = '';
+			}
+			refreshAllPreviews();
+		});
+		inp.addEventListener('input', refreshAllPreviews);
+	}
+
+	// ====== 拖拽排序（原生 HTML5，仅 handle 可拖） ======
+	function bindDragSort(tbody) {
+		var dragRow = null;
+		tbody.addEventListener('dragstart', function(e) {
+			// 只响应 .drag-handle 触发的拖拽
+			var handle = e.target.closest('.drag-handle');
+			if (!handle) { e.preventDefault(); return; }
+			var tr = handle.closest('tr');
+			if (!tr) return;
+			dragRow = tr;
+			tr.classList.add('nav-row-dragging');
+			e.dataTransfer.effectAllowed = 'move';
+			try { e.dataTransfer.setData('text/plain', ''); } catch(_) {}
+			// 拖动虚影显示整行而非仅 handle
+			if (e.dataTransfer.setDragImage) {
+				try { e.dataTransfer.setDragImage(tr, 20, tr.offsetHeight / 2); } catch(_) {}
+			}
+		});
+		tbody.addEventListener('dragover', function(e) {
+			if (!dragRow) return;
+			var tr = e.target.closest('tr');
+			if (!tr || tr === dragRow) return;
+			e.preventDefault();
+			e.dataTransfer.dropEffect = 'move';
+			// 清除所有标记
+			tbody.querySelectorAll('.nav-row-drag-over-before, .nav-row-drag-over-after').forEach(function(r) {
+				r.classList.remove('nav-row-drag-over-before', 'nav-row-drag-over-after');
+			});
+			// 按鼠标位置（上半/下半）显示对应边的指示线
+			var rect = tr.getBoundingClientRect();
+			var isAfter = (e.clientY - rect.top) > rect.height / 2;
+			tr.classList.add(isAfter ? 'nav-row-drag-over-after' : 'nav-row-drag-over-before');
+		});
+		tbody.addEventListener('dragleave', function(e) {
+			if (!tbody.contains(e.relatedTarget)) {
+				tbody.querySelectorAll('.nav-row-drag-over-before, .nav-row-drag-over-after').forEach(function(r) {
+					r.classList.remove('nav-row-drag-over-before', 'nav-row-drag-over-after');
+				});
+			}
+		});
+		tbody.addEventListener('drop', function(e) {
+			if (!dragRow) return;
+			e.preventDefault();
+			var tr = e.target.closest('tr');
+			if (!tr || tr === dragRow) { dragRow = null; return; }
+			var rect = tr.getBoundingClientRect();
+			var isAfter = (e.clientY - rect.top) > rect.height / 2;
+			if (isAfter) {
+				tr.parentNode.insertBefore(dragRow, tr.nextSibling);
+			} else {
+				tr.parentNode.insertBefore(dragRow, tr);
+			}
+			tbody.querySelectorAll('.nav-row-drag-over-before, .nav-row-drag-over-after').forEach(function(r) {
+				r.classList.remove('nav-row-drag-over-before', 'nav-row-drag-over-after');
+			});
+		});
+		tbody.addEventListener('dragend', function() {
+			if (dragRow) dragRow.classList.remove('nav-row-dragging');
+			dragRow = null;
+			// 兜底清除所有残留指示
+			tbody.querySelectorAll('.nav-row-drag-over-before, .nav-row-drag-over-after').forEach(function(r) {
+				r.classList.remove('nav-row-drag-over-before', 'nav-row-drag-over-after');
+			});
+			refreshIndentAndRank(tbody);
+			refreshAllPreviews();
+		});
+	}
+
+	// ====== 刷新行层级缩进 + 重写 rank ======
+	function refreshIndentAndRank(tbody) {
+		var rows = tbody.querySelectorAll('tr');
+		var inGroup = false;
+		rows.forEach(function(tr, i) {
+			// 重写 rank（按 DOM 顺序）
+			var rankInput = tr.querySelector('input[name$="_rank[]"]');
+			if (rankInput) rankInput.value = i;
+
+			var type = tr.getAttribute('data-nav-type') || 'link';
+			if (type === 'title') {
+				inGroup = true;
+				tr.classList.add('nav-row-title');
+				tr.classList.remove('nav-row-child');
+			} else {
+				if (inGroup) {
+					tr.classList.add('nav-row-child');
+					tr.classList.remove('nav-row-title');
+				} else {
+					tr.classList.remove('nav-row-title', 'nav-row-child');
+				}
+			}
+		});
+	}
+
+	// ====== 实时预览（仅顶部导航） ======
+	function refreshTopNavPreview() {
+		var preview = document.getElementById('topNavPreview');
+		if (!preview) return;
+		var tbody = document.getElementById('topNavBody');
+		var rows = tbody.querySelectorAll('tr');
+		var items = [];
+		rows.forEach(function(tr) {
+			var type = tr.getAttribute('data-nav-type') || 'link';
+			var icon = (tr.querySelector('input[name="nav_icon[]"]') || {}).value || '';
+			var name = (tr.querySelector('input[name="nav_name[]"]') || {}).value || '';
+			var url  = (tr.querySelector('input[name="nav_url[]"]') || {}).value || '';
+			// name 和 icon 均为空才跳过（与后端 setting.php 一致）
+			if (!name && !icon) return;
+			items.push({ type: type, icon: icon, name: name, url: url });
+		});
+		if (!items.length) {
+			preview.innerHTML = '<span class="nav-preview-empty"><?php echo lang('admin_nav_preview_empty');?></span>';
+			return;
+		}
+		// 渲染：title 作为分组标题，后续 link 作为子项；无 title 的 link 作为独立项
+		var html = '<div class="nav-preview-bar">';
+		var currentTitle = null;
+		var children = [];
+		function flushGroup() {
+			if (currentTitle === null) return;
+			if (!children.length) {
+				// title 后无 link：作为独立项
+				html += '<span class="nav-preview-item">';
+				if (currentTitle.icon) html += '<i class="ti ' + escHtml(currentTitle.icon) + '"></i>';
+				html += escHtml(currentTitle.name) + '</span>';
+			} else {
+				html += '<span class="nav-preview-group">';
+				html += '<span class="nav-preview-title">';
+				if (currentTitle.icon) html += '<i class="ti ' + escHtml(currentTitle.icon) + '"></i>';
+				html += escHtml(currentTitle.name) + ':</span>';
+				html += '<span class="nav-preview-children">';
+				children.forEach(function(c) {
+					html += '<span class="nav-preview-item">';
+					if (c.icon) html += '<i class="ti ' + escHtml(c.icon) + '"></i>';
+					html += escHtml(c.name) + '</span>';
+				});
+				html += '</span></span>';
+			}
+			currentTitle = null;
+			children = [];
+		}
+		items.forEach(function(it) {
+			if (it.type === 'title') {
+				flushGroup();
+				currentTitle = it;
+			} else {
+				if (currentTitle !== null) children.push(it);
+				else {
+					html += '<span class="nav-preview-item">';
+					if (it.icon) html += '<i class="ti ' + escHtml(it.icon) + '"></i>';
+					html += escHtml(it.name) + '</span>';
+				}
+			}
+		});
+		flushGroup();
+		html += '</div>';
+		preview.innerHTML = html;
+	}
+
+	function refreshAllPreviews() {
+		refreshTopNavPreview();
+		refreshMobileNavPreview();
+	}
+
+	// ====== 通用导航行（用于发现导航，仅 link 类型） ======
 	function createNavRow(prefix, item) {
 		var tr = document.createElement('tr');
+		// ponytail: 仅 handle 可拖（设 draggable 在 innerHTML 之后），避免误触 input/select
+
 		var iconVal = item.icon || '';
 		var nameVal = item.name || '';
 		var slugVal = item.slug || '';
@@ -255,32 +642,32 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 		var rankVal = item.rank || 0;
 
 		tr.innerHTML =
+			'<td class="drag-handle" draggable="true"><i class="ti ti-grip-vertical"></i></td>' +
 			'<td>' +
 				'<div class="input-group input-group-sm">' +
 					'<span class="input-group-text p-0 px-2 icon-preview" style="min-width:32px;justify-content:center">' +
 						(iconVal ? '<i class="ti ' + iconVal + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
 					'</span>' +
-					'<input type="text" class="form-control form-control-sm" name="' + prefix + '_icon[]" value="' + iconVal + '" placeholder="<?php echo lang('admin_click_to_select')?>" readonly style="cursor:pointer">' +
+					'<input type="text" class="form-control form-control-sm" name="' + prefix + '_icon[]" value="' + escHtml(iconVal) + '" placeholder="<?php echo lang('admin_click_to_select')?>" readonly style="cursor:pointer">' +
 				'</div>' +
 			'</td>' +
-			'<td><input type="text" class="form-control form-control-sm" name="' + prefix + '_name[]" value="' + nameVal + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
-			'<td><input type="text" class="form-control form-control-sm" name="' + prefix + '_slug[]" value="' + slugVal + '" placeholder="slug"></td>' +
-			'<td><input type="text" class="form-control form-control-sm" name="' + prefix + '_url[]" value="' + urlVal + '" placeholder="URL"></td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="' + prefix + '_name[]" value="' + escHtml(nameVal) + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="' + prefix + '_slug[]" value="' + escHtml(slugVal) + '" placeholder="<?php echo lang('admin_slug_auto_placeholder')?>"></td>' +
+			'<td>' + buildUrlCell(prefix, urlVal, prefix + '_url[]') + '</td>' +
 			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>' +
-			'<td><input type="number" class="form-control form-control-sm text-center" name="' + prefix + '_rank[]" value="' + rankVal + '"></td>';
+			'<input type="hidden" name="' + prefix + '_rank[]" value="' + rankVal + '">';
 
 		var iconInput = tr.querySelector('input[name="' + prefix + '_icon[]"]');
 		var iconPreview = tr.querySelector('.icon-preview');
-		new TablerIconPicker({
-			input: iconInput,
-			preview: iconPreview
-		});
+		new TablerIconPicker({ input: iconInput, preview: iconPreview });
+
+		var urlTd = tr.querySelectorAll('td')[4];
+		bindUrlCell(urlTd, tr.querySelector('input[name="' + prefix + '_url[]"]'));
 
 		var deleteBtn = tr.querySelector('a[title="<?php echo lang('delete')?>"]');
-		deleteBtn.addEventListener('click', function(e) {
-			e.preventDefault();
-			tr.remove();
-		});
+		deleteBtn.addEventListener('click', function(e) { e.preventDefault(); tr.remove(); refreshAllPreviews(); });
+
+		tr.querySelector('input[name="' + prefix + '_name[]"]').addEventListener('input', refreshAllPreviews);
 
 		return tr;
 	}
@@ -288,6 +675,8 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 	// ====== 顶部导航行（支持类型：link/title） ======
 	function createTopNavRow(item) {
 		var tr = document.createElement('tr');
+		// ponytail: 仅 handle 可拖（设 draggable 在 innerHTML 之后），避免误触 input/select
+
 		var typeVal = item.type || 'link';
 		var iconVal = item.icon || '';
 		var nameVal = item.name || '';
@@ -297,6 +686,7 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 
 		tr.setAttribute('data-nav-type', typeVal);
 		tr.innerHTML =
+			'<td class="drag-handle" draggable="true"><i class="ti ti-grip-vertical"></i></td>' +
 			'<td>' +
 				'<select class="form-select form-select-sm topnav-type-select" name="nav_type[]">' +
 					'<option value="link"' + (typeVal === 'link' ? ' selected' : '') + '><?php echo lang('admin_type_link');?></option>' +
@@ -308,29 +698,33 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 					'<span class="input-group-text p-0 px-2 icon-preview" style="min-width:32px;justify-content:center">' +
 						(iconVal ? '<i class="ti ' + iconVal + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
 					'</span>' +
-					'<input type="text" class="form-control form-control-sm" name="nav_icon[]" value="' + iconVal + '" placeholder="<?php echo lang('admin_click_to_select')?>" readonly style="cursor:pointer">' +
+					'<input type="text" class="form-control form-control-sm" name="nav_icon[]" value="' + escHtml(iconVal) + '" placeholder="<?php echo lang('admin_click_to_select')?>" readonly style="cursor:pointer">' +
 				'</div>' +
 			'</td>' +
-			'<td><input type="text" class="form-control form-control-sm" name="nav_name[]" value="' + nameVal + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
-			'<td><input type="text" class="form-control form-control-sm" name="nav_slug[]" value="' + slugVal + '" placeholder="slug"></td>' +
-			'<td><input type="text" class="form-control form-control-sm" name="nav_url[]" value="' + urlVal + '" placeholder="URL"></td>' +
+			'<td class="nav-name-cell"><input type="text" class="form-control form-control-sm" name="nav_name[]" value="' + escHtml(nameVal) + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
+			'<td>' + buildUrlCell('nav', urlVal, 'nav_url[]') + '</td>' +
 			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>' +
-			'<td><input type="number" class="form-control form-control-sm text-center" name="nav_rank[]" value="' + rankVal + '"></td>';
+			'<input type="hidden" name="nav_slug[]" value="' + escHtml(slugVal) + '">' +
+			'<input type="hidden" name="nav_rank[]" value="' + rankVal + '">';
 
-		// 图标选择器
 		var iconInput = tr.querySelector('input[name="nav_icon[]"]');
 		var iconPreview = tr.querySelector('.icon-preview');
-		new TablerIconPicker({
-			input: iconInput,
-			preview: iconPreview
+		new TablerIconPicker({ input: iconInput, preview: iconPreview });
+
+		var urlTd = tr.querySelectorAll('td')[4];
+		bindUrlCell(urlTd, tr.querySelector('input[name="nav_url[]"]'));
+
+		var typeSelect = tr.querySelector('select.topnav-type-select');
+		typeSelect.addEventListener('change', function() {
+			tr.setAttribute('data-nav-type', this.value);
+			refreshIndentAndRank(document.getElementById('topNavBody'));
+			refreshAllPreviews();
 		});
 
-		// 删除
 		var deleteBtn = tr.querySelector('a[title="<?php echo lang('delete')?>"]');
-		deleteBtn.addEventListener('click', function(e) {
-			e.preventDefault();
-			tr.remove();
-		});
+		deleteBtn.addEventListener('click', function(e) { e.preventDefault(); tr.remove(); refreshAllPreviews(); });
+
+		tr.querySelector('input[name="nav_name[]"]').addEventListener('input', refreshAllPreviews);
 
 		return tr;
 	}
@@ -338,53 +732,21 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 	function renderNavList(prefix, items, tbodyId) {
 		var tbody = document.getElementById(tbodyId);
 		tbody.innerHTML = '';
-		items.forEach(function(item) {
-			tbody.appendChild(createNavRow(prefix, item));
-		});
+		items.forEach(function(item) { tbody.appendChild(createNavRow(prefix, item)); });
 	}
 
 	function renderTopNavList(items) {
 		var tbody = document.getElementById('topNavBody');
 		tbody.innerHTML = '';
-		items.forEach(function(item) {
-			tbody.appendChild(createTopNavRow(item));
-		});
+		items.forEach(function(item) { tbody.appendChild(createTopNavRow(item)); });
+		refreshIndentAndRank(tbody);
 	}
 
 	// ====== 侧边栏导航行（支持类型：link/title） ======
-	// 分类标题模式下，icon/slug/url 三个字段整个隐藏掉（display:none）
-	// 关键：display:none 的 input 只要不加 disabled 属性，FormData 仍会提交空值，
-	// 后端 setting.php 按 sidebar_icon 数组索引遍历不会错位
-	function applySideNavRowState(tr) {
-		var typeVal = tr.getAttribute('data-nav-type') || 'link';
-		var isTitle = (typeVal === 'title');
-		var iconInput = tr.querySelector('input[name="sidebar_icon[]"]');
-		var slugInput = tr.querySelector('input[name="sidebar_slug[]"]');
-		var urlInput  = tr.querySelector('input[name="sidebar_url[]"]');
-		var iconGroup = iconInput ? iconInput.closest('.input-group') : null;
-
-		// 切换显示的元素：icon 的整组 input-group、slug input、url input
-		[iconGroup, slugInput, urlInput].forEach(function(el) {
-			if (!el) return;
-			if (isTitle) {
-				// 备份 input 原值，切回 link 时恢复
-				if (el.tagName === 'INPUT' && el.getAttribute('data-orig-value') === null) {
-					el.setAttribute('data-orig-value', el.value);
-					el.value = '';
-				}
-				el.style.display = 'none';
-			} else {
-				el.style.display = '';
-				if (el.tagName === 'INPUT' && el.getAttribute('data-orig-value') !== null) {
-					el.value = el.getAttribute('data-orig-value');
-					el.removeAttribute('data-orig-value');
-				}
-			}
-		});
-	}
-
 	function createSideNavRow(item) {
 		var tr = document.createElement('tr');
+		// ponytail: 仅 handle 可拖（设 draggable 在 innerHTML 之后），避免误触 input/select
+
 		var typeVal = item.type || 'link';
 		var iconVal = item.icon || '';
 		var nameVal = item.name || '';
@@ -393,6 +755,7 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 		var rankVal = item.rank || 0;
 		tr.setAttribute('data-nav-type', typeVal);
 		tr.innerHTML =
+			'<td class="drag-handle" draggable="true"><i class="ti ti-grip-vertical"></i></td>' +
 			'<td>' +
 				'<select class="form-select form-select-sm sidebar-type-select" name="sidebar_type[]">' +
 					'<option value="link"' + (typeVal === 'link' ? ' selected' : '') + '><?php echo lang('admin_type_link');?></option>' +
@@ -404,39 +767,30 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 					'<span class="input-group-text p-0 px-2 icon-preview" style="min-width:32px;justify-content:center">' +
 						(iconVal ? '<i class="ti ' + iconVal + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
 					'</span>' +
-					'<input type="text" class="form-control form-control-sm" name="sidebar_icon[]" value="' + iconVal + '" placeholder="<?php echo lang('admin_click_to_select')?>" readonly style="cursor:pointer">' +
+					'<input type="text" class="form-control form-control-sm" name="sidebar_icon[]" value="' + escHtml(iconVal) + '" placeholder="<?php echo lang('admin_click_to_select')?>" readonly style="cursor:pointer">' +
 				'</div>' +
 			'</td>' +
-			'<td><input type="text" class="form-control form-control-sm" name="sidebar_name[]" value="' + nameVal + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
-			'<td><input type="text" class="form-control form-control-sm" name="sidebar_slug[]" value="' + slugVal + '" placeholder="slug"></td>' +
-			'<td><input type="text" class="form-control form-control-sm" name="sidebar_url[]" value="' + urlVal + '" placeholder="URL"></td>' +
+			'<td class="nav-name-cell"><input type="text" class="form-control form-control-sm" name="sidebar_name[]" value="' + escHtml(nameVal) + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
+			'<td>' + buildUrlCell('sidebar', urlVal, 'sidebar_url[]') + '</td>' +
 			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>' +
-			'<td><input type="number" class="form-control form-control-sm text-center" name="sidebar_rank[]" value="' + rankVal + '"></td>';
+			'<input type="hidden" name="sidebar_slug[]" value="' + escHtml(slugVal) + '">' +
+			'<input type="hidden" name="sidebar_rank[]" value="' + rankVal + '">';
 
-		// 图标选择器
 		var iconInput = tr.querySelector('input[name="sidebar_icon[]"]');
 		var iconPreview = tr.querySelector('.icon-preview');
-		new TablerIconPicker({
-			input: iconInput,
-			preview: iconPreview
-		});
+		new TablerIconPicker({ input: iconInput, preview: iconPreview });
 
-		// 类型切换：更新 data-nav-type 并重置字段状态
+		var urlTd = tr.querySelectorAll('td')[4];
+		bindUrlCell(urlTd, tr.querySelector('input[name="sidebar_url[]"]'));
+
 		var typeSelect = tr.querySelector('select.sidebar-type-select');
 		typeSelect.addEventListener('change', function() {
 			tr.setAttribute('data-nav-type', this.value);
-			applySideNavRowState(tr);
+			refreshIndentAndRank(document.getElementById('sideNavBody'));
 		});
 
-		// 删除
 		var deleteBtn = tr.querySelector('a[title="<?php echo lang('delete')?>"]');
-		deleteBtn.addEventListener('click', function(e) {
-			e.preventDefault();
-			tr.remove();
-		});
-
-		// 初始应用字段状态（分类标题行需立即置空只读）
-		applySideNavRowState(tr);
+		deleteBtn.addEventListener('click', function(e) { e.preventDefault(); tr.remove(); });
 
 		return tr;
 	}
@@ -444,9 +798,8 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 	function renderSideNavList(items) {
 		var tbody = document.getElementById('sideNavBody');
 		tbody.innerHTML = '';
-		items.forEach(function(item) {
-			tbody.appendChild(createSideNavRow(item));
-		});
+		items.forEach(function(item) { tbody.appendChild(createSideNavRow(item)); });
+		refreshIndentAndRank(tbody);
 	}
 
 	renderTopNavList(topNavItems);
@@ -456,6 +809,8 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 	// ====== 手机导航行 ======
 	function createMobileNavRow(item) {
 		var tr = document.createElement('tr');
+		// ponytail: 仅 handle 可拖（设 draggable 在 innerHTML 之后），避免误触 input/select
+
 		var iconVal = item.icon || '';
 		var iconActiveVal = item.icon_active || '';
 		var nameVal = item.name || '';
@@ -469,75 +824,130 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 					'<span class="input-group-text p-0 px-2 icon-preview" style="min-width:32px;justify-content:center">' +
 						(iconValue ? '<i class="ti ' + iconValue + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
 					'</span>' +
-					'<input type="text" class="form-control form-control-sm" name="' + inputName + '" value="' + iconValue + '" placeholder="<?php echo lang('admin_click_to_select')?>" readonly style="cursor:pointer">' +
+					'<input type="text" class="form-control form-control-sm" name="' + inputName + '" value="' + escHtml(iconValue) + '" placeholder="<?php echo lang('admin_click_to_select')?>" readonly style="cursor:pointer">' +
 				'</div>' +
 			'</td>';
 		}
 
 		tr.innerHTML =
+			'<td class="drag-handle" draggable="true"><i class="ti ti-grip-vertical"></i></td>' +
 			iconPickerHtml('mobile_icon[]', iconVal) +
 			iconPickerHtml('mobile_icon_active[]', iconActiveVal) +
-			'<td><input type="text" class="form-control form-control-sm" name="mobile_name[]" value="' + nameVal + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
-			'<td><input type="text" class="form-control form-control-sm" name="mobile_url[]" value="' + urlVal + '" placeholder="URL"></td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="mobile_name[]" value="' + escHtml(nameVal) + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
+			'<td>' + buildUrlCell('mobile', urlVal, 'mobile_url[]') + '</td>' +
 			'<td class="text-center"><div class="form-check form-switch d-inline-block"><input type="hidden" name="mobile_need_login[]" value="0"><input class="form-check-input" type="checkbox" name="mobile_need_login_chk[]" value="1"' + (needLoginVal ? ' checked' : '') + ' onchange="this.previousElementSibling.value=this.checked?\'1\':\'0\'"></div></td>' +
 			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>' +
-			'<td><input type="number" class="form-control form-control-sm text-center" name="mobile_rank[]" value="' + rankVal + '"></td>';
+			'<input type="hidden" name="mobile_rank[]" value="' + rankVal + '">';
 
-		// 默认图标选择器
 		var iconInput = tr.querySelector('input[name="mobile_icon[]"]');
-		var iconPreview = iconInput.closest('.input-group').querySelector('.icon-preview');
 		new TablerIconPicker({
 			input: iconInput,
-			preview: iconPreview
+			preview: iconInput.closest('.input-group').querySelector('.icon-preview'),
+			onSelect: refreshAllPreviews
 		});
 
-		// 选中图标选择器
 		var iconActiveInput = tr.querySelector('input[name="mobile_icon_active[]"]');
-		var iconActivePreview = iconActiveInput.closest('.input-group').querySelector('.icon-preview');
 		new TablerIconPicker({
 			input: iconActiveInput,
-			preview: iconActivePreview
+			preview: iconActiveInput.closest('.input-group').querySelector('.icon-preview'),
+			onSelect: refreshAllPreviews
 		});
+
+		var urlTd = tr.querySelectorAll('td')[4];
+		bindUrlCell(urlTd, tr.querySelector('input[name="mobile_url[]"]'));
+
+		// name 输入框、need_login 切换 → 刷新预览
+		tr.querySelector('input[name="mobile_name[]"]').addEventListener('input', refreshAllPreviews);
+		var loginChk = tr.querySelector('input[name="mobile_need_login_chk[]"]');
+		if (loginChk) loginChk.addEventListener('change', refreshAllPreviews);
 
 		var deleteBtn = tr.querySelector('a[title="<?php echo lang('delete')?>"]');
-		deleteBtn.addEventListener('click', function(e) {
-			e.preventDefault();
-			tr.remove();
-		});
+		deleteBtn.addEventListener('click', function(e) { e.preventDefault(); tr.remove(); refreshAllPreviews(); });
 
 		return tr;
+	}
+
+	// ====== 手机导航预览：模拟底部 tabbar ======
+	function refreshMobileNavPreview() {
+		var preview = document.getElementById('mobileNavPreview');
+		if (!preview) return;
+		var tbody = document.getElementById('mobileNavBody');
+		var rows = tbody.querySelectorAll('tr');
+		var items = [];
+		rows.forEach(function(tr) {
+			var icon = (tr.querySelector('input[name="mobile_icon[]"]') || {}).value || '';
+			var iconActive = (tr.querySelector('input[name="mobile_icon_active[]"]') || {}).value || '';
+			var name = (tr.querySelector('input[name="mobile_name[]"]') || {}).value || '';
+			var url  = (tr.querySelector('input[name="mobile_url[]"]') || {}).value || '';
+			var needLoginHidden = tr.querySelector('input[name="mobile_need_login[]"]');
+			var needLogin = needLoginHidden ? (needLoginHidden.value === '1') : false;
+			if (!name && !icon) return;
+			items.push({ icon: icon, iconActive: iconActive, name: name, url: url, needLogin: needLogin });
+		});
+		if (!items.length) {
+			preview.innerHTML = '<span class="mobile-preview-empty"><?php echo lang('admin_nav_preview_empty');?></span>';
+			return;
+		}
+		var html = '';
+		items.forEach(function(it) {
+			// 优先用 iconActive 作展示（预览为"选中态"），fallback 到 icon
+			var iconClass = it.iconActive || it.icon || 'ti-circle-dot';
+			if (iconClass.indexOf('ti ') !== 0) iconClass = 'ti ' + iconClass;
+			html += '<span class="mobile-preview-tab' + (it.needLogin ? ' is-login-required' : '') + '" title="' + escHtml(it.url || '') + '">';
+			html += '<i class="' + escHtml(iconClass) + '"></i>';
+			html += '<span>' + escHtml(it.name || '') + '</span>';
+			html += '</span>';
+		});
+		preview.innerHTML = html;
 	}
 
 	function renderMobileNavList(items) {
 		var tbody = document.getElementById('mobileNavBody');
 		tbody.innerHTML = '';
-		items.forEach(function(item) {
-			tbody.appendChild(createMobileNavRow(item));
-		});
+		items.forEach(function(item) { tbody.appendChild(createMobileNavRow(item)); });
 	}
 
 	renderMobileNavList(mobileNavItems);
 
+	// 绑定拖拽
+	bindDragSort(document.getElementById('topNavBody'));
+	bindDragSort(document.getElementById('sideNavBody'));
+	bindDragSort(document.getElementById('mobileNavBody'));
+	bindDragSort(document.getElementById('discoverBody'));
+
+	// 初始预览
+	refreshAllPreviews();
+
 	document.getElementById('addMobileNav').addEventListener('click', function(e) {
 		e.preventDefault();
 		document.getElementById('mobileNavBody').appendChild(createMobileNavRow({}));
+		refreshAllPreviews();
 	});
-
 	document.getElementById('addTopNav').addEventListener('click', function(e) {
 		e.preventDefault();
-		document.getElementById('topNavBody').appendChild(createTopNavRow({type: 'link'}));
+		var tbody = document.getElementById('topNavBody');
+		tbody.appendChild(createTopNavRow({type: 'link'}));
+		refreshIndentAndRank(tbody);
+		refreshAllPreviews();
 	});
 	document.getElementById('addTopNavTitle').addEventListener('click', function(e) {
 		e.preventDefault();
-		document.getElementById('topNavBody').appendChild(createTopNavRow({type: 'title'}));
+		var tbody = document.getElementById('topNavBody');
+		tbody.appendChild(createTopNavRow({type: 'title'}));
+		refreshIndentAndRank(tbody);
+		refreshAllPreviews();
 	});
 	document.getElementById('addSideNav').addEventListener('click', function(e) {
 		e.preventDefault();
-		document.getElementById('sideNavBody').appendChild(createSideNavRow({type: 'link'}));
+		var tbody = document.getElementById('sideNavBody');
+		tbody.appendChild(createSideNavRow({type: 'link'}));
+		refreshIndentAndRank(tbody);
 	});
 	document.getElementById('addSideNavTitle').addEventListener('click', function(e) {
 		e.preventDefault();
-		document.getElementById('sideNavBody').appendChild(createSideNavRow({type: 'title'}));
+		var tbody = document.getElementById('sideNavBody');
+		tbody.appendChild(createSideNavRow({type: 'title'}));
+		refreshIndentAndRank(tbody);
 	});
 	document.getElementById('addDiscover').addEventListener('click', function(e) {
 		e.preventDefault();
@@ -549,6 +959,12 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 	var submitBtn = document.getElementById('submitBtn');
 	form.addEventListener('submit', function(e) {
 		e.preventDefault();
+
+		// 提交前重排所有 rank，确保和 DOM 顺序一致
+		['topNavBody','sideNavBody','mobileNavBody','discoverBody'].forEach(function(id) {
+			var tbody = document.getElementById(id);
+			if (tbody) refreshIndentAndRank(tbody);
+		});
 
 		submitBtn.disabled = true;
 		submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('submiting');?>...';

@@ -63,25 +63,38 @@ document.getElementById('cache-clear-form').addEventListener('submit', function(
     var form = this;
     var formData = new FormData(form);
     var btn = document.getElementById('btn-clear');
+    var msgEl = document.getElementById('cache-clear-msg');
     btn.disabled = true;
-    btn.innerHTML = '<i class="ti ti-loader me-1"></i><?php echo lang('submiting');?>...';
+    btn.innerHTML = '<i class="ti ti-loader me-1 spin"></i><?php echo lang('submiting');?>...';
+
+    // 30 秒超时：后端 deleteByPrefix 已有 5 秒时间预算，正常应在 10 秒内返回
+    // 超时则提示用户检查日志而非无限等待
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function() { controller.abort(); }, 30000);
 
     fetch(form.action, {
         method: 'POST',
         body: formData,
-        headers: {'X-Requested-With': 'XMLHttpRequest'}
+        headers: {'X-Requested-With': 'XMLHttpRequest'},
+        signal: controller.signal
     })
     .then(function(res) { return res.json(); })
     .then(function(data) {
-        var msgEl = document.getElementById('cache-clear-msg');
+        clearTimeout(timeoutId);
         var type = parseInt(data.code) === 0 ? 'success' : 'danger';
         msgEl.innerHTML = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' + data.message + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
         btn.disabled = false;
         btn.innerHTML = '<i class="ti ti-trash me-1"></i><?php echo lang('confirm');?>';
     })
     .catch(function(err) {
+        clearTimeout(timeoutId);
         btn.disabled = false;
         btn.innerHTML = '<i class="ti ti-trash me-1"></i><?php echo lang('confirm');?>';
+        if(err.name === 'AbortError') {
+            msgEl.innerHTML = '<div class="alert alert-warning alert-dismissible fade show" role="alert">清除超时（30秒未返回），可能缓存键较多，请稍后查看 xiunophp.log 中 cache_clear 日志确认实际清理结果<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+        } else {
+            msgEl.innerHTML = '<div class="alert alert-danger alert-dismissible fade show" role="alert">请求失败：' + (err.message || err) + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+        }
     });
 });
 </script>

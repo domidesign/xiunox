@@ -38,9 +38,6 @@ if($action == 'check') {
         case 'maintenance_on':
             $result = $onlineUpgradeService->maintenanceOn(intval($uid));
             break;
-        case 'backup':
-            $result = $onlineUpgradeService->backup();
-            break;
         case 'download':
             // 从 session 或临时文件获取版本信息
             $versionInfo = $onlineUpgradeService->checkLatestVersion();
@@ -77,13 +74,6 @@ if($action == 'check') {
     echo json_encode($result, JSON_UNESCAPED_UNICODE);
     exit;
 
-} elseif($action == 'rollback') {
-    // 一键回滚
-    $result = $onlineUpgradeService->rollback();
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode($result, JSON_UNESCAPED_UNICODE);
-    exit;
-
 } elseif($action == 'reinstall') {
     // 重装当前版本
     $result = $onlineUpgradeService->reinstall();
@@ -108,10 +98,9 @@ if($action == 'check') {
     $latestVersion = '';
     $hasUpdate = false;
 
-    // 步骤列表
+    // 步骤列表（已移除 backup 步骤：备份责任由用户在升级前确认 Modal 中手动完成）
     $steps = array(
         array('id' => 'maintenance_on', 'name' => lang('admin_online_upgrade_step_maintenance_on'), 'description' => lang('admin_online_upgrade_step_maintenance_on_desc')),
-        array('id' => 'backup', 'name' => lang('admin_online_upgrade_step_backup'), 'description' => lang('admin_online_upgrade_step_backup_desc')),
         array('id' => 'download', 'name' => lang('admin_online_upgrade_step_download'), 'description' => lang('admin_online_upgrade_step_download_desc')),
         array('id' => 'extract', 'name' => lang('admin_online_upgrade_step_extract'), 'description' => lang('admin_online_upgrade_step_extract_desc')),
         array('id' => 'db_upgrade', 'name' => lang('admin_online_upgrade_step_db_upgrade'), 'description' => lang('admin_online_upgrade_step_db_upgrade_desc')),

@@ -1104,7 +1104,54 @@ class cache_redis {
         }
         public function truncate() {
                 if(!$this->link && !$this->connect()) return FALSE;
-                return $this->link->flushdb();
+                // 不用 flushdb 避免误删 session 等其他数据，只清当前 cachepre 前缀的键
+                $count = $this->deleteByPrefix('');
+                return $count > 0;
+        }
+        /**
+         * 按前缀删除缓存键（生产安全，用 SCAN 代替 KEYS，带时间预算）
+         * ponytail: ceiling=5s 内能删多少删多少，剩余键下次清理或自然过期
+         */
+        public function deleteByPrefix($prefix) {
+                if(!$this->link && !$this->connect()) return 0;
+                $fullPrefix = $this->cachepre . $prefix;
+                $deleted = 0;
+                $scanned = 0;
+                $iterator = NULL;
+                $start = microtime(TRUE);
+                $timeBudget = 5.0;
+                $useUnlink = NULL;
+                try {
+                        while($keys = $this->link->scan($iterator, $fullPrefix . '*', 100)) {
+                                if(!empty($keys)) {
+                                        $scanned += count($keys);
+                                        if($useUnlink === NULL) {
+                                                try {
+                                                        $this->link->unlink($keys);
+                                                        $useUnlink = TRUE;
+                                                } catch(\Throwable $unlinkEx) {
+                                                        $this->link->del($keys);
+                                                        $useUnlink = FALSE;
+                                                }
+                                        } else {
+                                                $useUnlink ? $this->link->unlink($keys) : $this->link->del($keys);
+                                        }
+                                        $deleted += count($keys);
+                                }
+                                if($iterator === 0) break;
+                                if(microtime(TRUE) - $start > $timeBudget) {
+                                        $this->error(-1, 'Redis deleteByPrefix 时间预算 ' . $timeBudget . 's 用尽，已删 ' . $deleted . '/' . $scanned . ' 键，剩余稍后清理');
+                                        break;
+                                }
+                        }
+                } catch(\Throwable $e) {
+                        $this->error(-1, 'Redis deleteByPrefix 异常：' . $e->getMessage());
+                }
+                if(function_exists('xn_log')) {
+                        $elapsed = round(microtime(TRUE) - $start, 3);
+                        xn_log('deleteByPrefix(' . $prefix . ') scanned=' . $scanned . ' deleted=' . $deleted . ' elapsed=' . $elapsed . 's unlink=' . ($useUnlink ? '1' : ($useUnlink === FALSE ? '0' : 'N/A')), 'cache_clear');
+                }
+                return $deleted;
         }
         public function error($errno = 0, $errstr = '') {
 		$this->errno = $errno;

@@ -36,21 +36,18 @@ $csrfToken = CsrfService::getToken();
 				<div class="fs-6 text-secondary d-none" id="releaseNotes"></div>
 			</div>
 
-			<!-- 4 个操作按钮 -->
-			<div class="d-flex gap-2 mb-4 flex-wrap">
-				<button type="button" class="btn btn-outline-primary" id="checkBtn" onclick="checkUpdate()">
-					<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>
-				</button>
-				<button type="button" class="btn btn-primary" id="startBtn" onclick="startUpgrade()" disabled>
-					<i class="ti ti-player-play-filled"></i><?php echo lang('admin_online_upgrade_start');?>
-				</button>
-				<button type="button" class="btn btn-outline-secondary" id="reinstallBtn" onclick="reinstall()">
-					<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>
-				</button>
-				<button type="button" class="btn btn-outline-danger d-none" id="rollbackBtn" onclick="rollback()">
-					<i class="ti ti-arrow-back-up"></i><?php echo lang('admin_online_upgrade_rollback');?>
-				</button>
-			</div>
+			<!-- 3 个操作按钮（已移除「立即回滚」：自动备份步骤已下线，回滚无备份源） -->
+		<div class="d-flex gap-2 mb-4 flex-wrap">
+			<button type="button" class="btn btn-outline-primary" id="checkBtn" onclick="checkUpdate()">
+				<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>
+			</button>
+			<button type="button" class="btn btn-primary" id="startBtn" onclick="startUpgrade()" disabled>
+				<i class="ti ti-player-play-filled"></i><?php echo lang('admin_online_upgrade_start');?>
+			</button>
+			<button type="button" class="btn btn-outline-secondary" id="reinstallBtn" onclick="reinstall()">
+				<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>
+			</button>
+		</div>
 
 			<!-- 前置检查告警 -->
 			<div id="preflightAlert" class="alert alert-warning py-2 d-none"></div>
@@ -75,7 +72,47 @@ $csrfToken = CsrfService::getToken();
 			</div>
 
 			<!-- 日志区域 -->
-			<div class="mb-3" id="logArea"></div>
+		<div class="mb-3" id="logArea"></div>
+	</div>
+</div>
+
+<!-- 升级前确认 Modal：用户必须勾选全部 4 项才能开始升级 -->
+<div class="modal fade" id="upgradeConfirmModal" tabindex="-1" aria-labelledby="upgradeConfirmModalLabel" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="upgradeConfirmModalLabel">
+					<i class="ti ti-alert-triangle text-warning"></i> <?php echo lang('admin_online_upgrade_confirm_title');?>
+				</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+			</div>
+			<div class="modal-body">
+				<div class="alert alert-warning py-2 mb-3">
+					<i class="ti ti-info-circle"></i> <?php echo lang('admin_online_upgrade_confirm_warning');?>
+				</div>
+				<div class="d-flex flex-column gap-2">
+					<div class="form-check">
+						<input class="form-check-input upgrade-confirm-checkbox" type="checkbox" id="confirmBackupDb" value="db">
+						<label class="form-check-label" for="confirmBackupDb"><?php echo lang('admin_online_upgrade_confirm_backup_db');?></label>
+					</div>
+					<div class="form-check">
+						<input class="form-check-input upgrade-confirm-checkbox" type="checkbox" id="confirmBackupFiles" value="files">
+						<label class="form-check-label" for="confirmBackupFiles"><?php echo lang('admin_online_upgrade_confirm_backup_files');?></label>
+					</div>
+					<div class="form-check">
+						<input class="form-check-input upgrade-confirm-checkbox" type="checkbox" id="confirmMaintenance" value="maintenance">
+						<label class="form-check-label" for="confirmMaintenance"><?php echo lang('admin_online_upgrade_confirm_maintenance');?></label>
+					</div>
+					<div class="form-check">
+						<input class="form-check-input upgrade-confirm-checkbox" type="checkbox" id="confirmOffpeak" value="offpeak">
+						<label class="form-check-label" for="confirmOffpeak"><?php echo lang('admin_online_upgrade_confirm_offpeak');?></label>
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><?php echo lang('admin_online_upgrade_confirm_cancel');?></button>
+				<button type="button" class="btn btn-primary" id="confirmStartUpgradeBtn" disabled onclick="confirmStartUpgrade()"><?php echo lang('admin_online_upgrade_confirm_continue');?></button>
+			</div>
 		</div>
 	</div>
 </div>
@@ -138,14 +175,28 @@ function checkUpdate() {
 
 function startUpgrade() {
 	if (isUpgrading) return;
+	// 弹出升级前确认 Modal，由用户勾选全部确认项后才能继续
+	var modalEl = document.getElementById('upgradeConfirmModal');
+	// 重置勾选状态（每次进入都强制重新确认，避免残留勾选直接放行）
+	document.querySelectorAll('.upgrade-confirm-checkbox').forEach(function(cb){ cb.checked = false; });
+	document.getElementById('confirmStartUpgradeBtn').disabled = true;
+	var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+	modal.show();
+}
 
+// Modal 中「确认开始升级」按钮：所有勾选项都勾选后才会启用
+function confirmStartUpgrade() {
 	var btn = document.getElementById('startBtn');
 	btn.disabled = true;
 	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_preflight_running');?>';
 	document.getElementById('checkBtn').disabled = true;
 	document.getElementById('reinstallBtn').disabled = true;
 	document.getElementById('preflightAlert').classList.add('d-none');
-	document.getElementById('rollbackBtn').classList.add('d-none');
+
+	// 关闭 Modal
+	var modalEl = document.getElementById('upgradeConfirmModal');
+	var modal = bootstrap.Modal.getInstance(modalEl);
+	if (modal) modal.hide();
 
 	// 先执行前置检查，通过后再启动升级步骤
 	runPreflight(function(passed) {
@@ -172,6 +223,19 @@ function startUpgrade() {
 		runNextStep();
 	});
 }
+
+// 监听勾选变化：4 项全部勾选才启用「确认开始升级」按钮
+(function() {
+	var checkboxes = document.querySelectorAll('.upgrade-confirm-checkbox');
+	var confirmBtn = document.getElementById('confirmStartUpgradeBtn');
+	checkboxes.forEach(function(cb) {
+		cb.addEventListener('change', function() {
+			var allChecked = true;
+			checkboxes.forEach(function(c) { if (!c.checked) allChecked = false; });
+			confirmBtn.disabled = !allChecked;
+		});
+	});
+})();
 
 // 前置检查：调 ?online_upgrade-preflight.htm，未通过则展示问题清单
 function runPreflight(callback) {
@@ -294,6 +358,9 @@ function finishUpgrade() {
 	document.getElementById('checkBtn').disabled = false;
 	document.getElementById('reinstallBtn').disabled = false;
 
+	// 升级完成后立即清除仪表盘的版本检查缓存，避免旧 has_update=true 还显示
+	try { localStorage.removeItem('xiunox_upgrade_check'); } catch(e) {}
+
 	var logArea = document.getElementById('logArea');
 	var latestVersion = document.getElementById('latestVersionCode').textContent;
 	logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i><?php echo lang('admin_online_upgrade_success_msg');?>' + (latestVersion && latestVersion !== '—' ? '<b>' + latestVersion + '</b>' : '') + '</div>';
@@ -308,39 +375,9 @@ function showUpgradeError(msg) {
 
 	document.getElementById('checkBtn').disabled = false;
 	document.getElementById('reinstallBtn').disabled = false;
-	document.getElementById('rollbackBtn').classList.remove('d-none');
 
 	var logArea = document.getElementById('logArea');
 	logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + msg + '</div>';
-}
-
-function rollback() {
-	var btn = document.getElementById('rollbackBtn');
-	btn.disabled = true;
-	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_rolling_back');?>';
-
-	$.ajax({
-		url: '<?php echo url('online_upgrade-rollback');?>',
-		type: 'POST',
-		data: { csrf_token: csrfToken },
-		dataType: 'json',
-		success: function(res) {
-			btn.disabled = false;
-			btn.innerHTML = '<i class="ti ti-arrow-back-up"></i><?php echo lang('admin_online_upgrade_rollback');?>';
-			var logArea = document.getElementById('logArea');
-			if (res.ok) {
-				logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i>' + (res.message || '<?php echo lang('admin_online_upgrade_rollback_success');?>') + '</div>';
-			} else {
-				logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + (res.message || '<?php echo lang('admin_online_upgrade_rollback_failed');?>') + '</div>';
-			}
-		},
-		error: function(xhr) {
-			btn.disabled = false;
-			btn.innerHTML = '<i class="ti ti-arrow-back-up"></i><?php echo lang('admin_online_upgrade_rollback');?>';
-			var logArea = document.getElementById('logArea');
-			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + (xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
-		}
-	});
 }
 
 function reinstall() {

@@ -396,10 +396,19 @@
 	var cached = null;
 	try { cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch(e) {}
 	var now = Date.now();
+	// 当前页面渲染时的代码版本（服务端 $conf['version']），用作缓存失效依据
+	var currentVer = <?php echo json_encode(isset($conf['version']) ? $conf['version'] : ''); ?>;
 
 	if (cached && cached.timestamp && (now - cached.timestamp < CACHE_TTL)) {
-		renderResult(cached.data);
-		return;
+		// 缓存命中：校验缓存时的版本号与当前版本号是否一致，不一致说明已升级/回滚，作废重查
+		var cachedVer = cached.data && cached.data.current_version ? cached.data.current_version : '';
+		if (cachedVer && currentVer && cachedVer !== currentVer) {
+			try { localStorage.removeItem(CACHE_KEY); } catch(e) {}
+			cached = null;
+		} else {
+			renderResult(cached.data);
+			return;
+		}
 	}
 
 	// 异步检查（不阻塞页面渲染）

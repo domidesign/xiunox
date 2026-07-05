@@ -158,6 +158,8 @@ class UpgradeService {
             ['user', 'nickname', "ALTER TABLE `{$tablepre}user` ADD COLUMN `nickname` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '昵称' AFTER `username`"],
             ['credits_rule_global', 'daily_limit', "ALTER TABLE `{$tablepre}credits_rule_global` ADD COLUMN `daily_limit` INT NOT NULL DEFAULT 0 COMMENT '每日防刷限制次数，0使用全局设置' AFTER `enabled`"],
             ['credits_rule_forum', 'daily_limit', "ALTER TABLE `{$tablepre}credits_rule_forum` ADD COLUMN `daily_limit` INT NOT NULL DEFAULT 0 COMMENT '每日防刷限制次数，0使用全局设置' AFTER `enabled`"],
+            ['thread', 'is_announcement', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `is_announcement` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT '是否公告: 0否/1是' AFTER `audit_status`"],
+            ['thread', 'announcement_order', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `announcement_order` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '公告排序' AFTER `is_announcement`"],
         ];
 
         foreach ($columns as $col) {

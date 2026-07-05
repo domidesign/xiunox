@@ -129,21 +129,49 @@ class cache_redis {
                 // 拼接完整前缀：cachepre + 用户传入的 prefix
                 $fullPrefix = $this->cachepre . $prefix;
                 $deleted = 0;
+                $scanned = 0;
                 $iterator = NULL;
+                $start = microtime(TRUE);
+                // 时间预算（秒）：键多时避免阻塞整个请求，超出就停止并返回已删除数量
+                // ponytail: 简单粗暴的 ceiling——5 秒内能删多少删多少，剩余键下次清理或自然过期
+                $timeBudget = 5.0;
+                // 探测 Redis 是否支持 UNLINK（异步删除，不阻塞主线程），失败则回退 DEL
+                $useUnlink = NULL;
                 // Redis SCAN 是非阻塞迭代器，避免 KEYS 命令阻塞服务器
                 // 每次迭代返回 100 个键，比 KEYS 安全得多
                 try {
                         while($keys = $this->link->scan($iterator, $fullPrefix . '*', 100)) {
                                 if(!empty($keys)) {
-                                        $this->link->del($keys);
+                                        $scanned += count($keys);
+                                        if($useUnlink === NULL) {
+                                                try {
+                                                        $this->link->unlink($keys);
+                                                        $useUnlink = TRUE;
+                                                } catch(\Throwable $unlinkEx) {
+                                                        $this->link->del($keys);
+                                                        $useUnlink = FALSE;
+                                                }
+                                        } else {
+                                                $useUnlink ? $this->link->unlink($keys) : $this->link->del($keys);
+                                        }
                                         $deleted += count($keys);
                                 }
                                 // SCAN 返回的 iterator 为 0 表示迭代完成
                                 if($iterator === 0) break;
+                                // 超过时间预算就停止，剩余键下次清理或自然过期
+                                if(microtime(TRUE) - $start > $timeBudget) {
+                                        $this->error(-1, 'Redis deleteByPrefix 时间预算 ' . $timeBudget . 's 用尽，已删 ' . $deleted . '/' . $scanned . ' 键，剩余稍后清理');
+                                        break;
+                                }
                         }
                 } catch(\Throwable $e) {
                         // SCAN 失败时记录错误但不中断业务
                         $this->error(-1, 'Redis deleteByPrefix 异常：' . $e->getMessage());
+                }
+                // 记录耗时和键数，便于排查"卡住"问题根因
+                if(function_exists('xn_log')) {
+                        $elapsed = round(microtime(TRUE) - $start, 3);
+                        xn_log('deleteByPrefix(' . $prefix . ') scanned=' . $scanned . ' deleted=' . $deleted . ' elapsed=' . $elapsed . 's unlink=' . ($useUnlink ? '1' : ($useUnlink === FALSE ? '0' : 'N/A')), 'cache_clear');
                 }
                 return $deleted;
         }

@@ -56,6 +56,14 @@ class PluginScannerSuggestion {
                 return 'APP_PATH 是文件系统绝对路径，浏览器无法访问，必须用 $conf[\'view_url\'] 生成资源 URL';
             case 'install_non_idempotent':
                 return 'install.php 所有建表语句必须用 IF NOT EXISTS 保证幂等';
+            case 'php_superglobal_output':
+                return self::phpSuperglobalOutput($pattern, $line);
+            case 'js_eval_call':
+                return 'JS eval() 调用存在代码注入风险，应避免使用；如需解析 JSON 请用 JSON.parse()';
+            case 'js_dom_xss':
+                return self::jsDomXss($pattern, $line);
+            case 'jquery_html_xss':
+                return self::jqueryHtmlXss($pattern, $line);
             default:
                 return $fallback;
         }
@@ -267,5 +275,44 @@ class PluginScannerSuggestion {
         ];
         if (isset($simple[$method])) return "$.{$method}() → {$simple[$method]}";
         return "{$pattern} → 迁移到 htmx 4 属性或原生 JS";
+    }
+
+    // ===== PHP 超全局直接输出（反射型 XSS） =====
+
+    private static function phpSuperglobalOutput(string $pattern, string $line): string {
+        // 提取具体的超全局名（$_GET/$_POST/$_REQUEST/$_SERVER/$_COOKIE）
+        $var = '超全局变量';
+        if (preg_match('/\$_(GET|POST|REQUEST|SERVER|COOKIE)/i', $line, $m)) {
+            $var = '$_' . strtoupper($m[1]);
+        }
+        return "直接 {$var} 输出会导致反射型 XSS，必须用 esc_html() / esc_attr() 转义后再输出";
+    }
+
+    // ===== JS DOM XSS =====
+
+    private static function jsDomXss(string $pattern, string $line): string {
+        if (strpos($pattern, 'document\.write') !== false) {
+            return 'document.write() 会直接执行字符串中的 HTML/JS 代码导致 DOM XSS，应使用 document.createElement() + textContent 构建 DOM';
+        }
+        if (strpos($pattern, 'innerHTML') !== false) {
+            return '.innerHTML = 会解析 HTML 导致 DOM XSS，应改用 .textContent =（自动转义）';
+        }
+        if (strpos($pattern, 'outerHTML') !== false) {
+            return '.outerHTML = 会解析 HTML 导致 DOM XSS，应改用 DOM API（createElement/replaceChild）';
+        }
+        if (strpos($pattern, 'insertAdjacentHTML') !== false) {
+            return 'insertAdjacentHTML() 会解析 HTML 导致 DOM XSS，应改用 insertAdjacentText() 或 DOM API';
+        }
+        return 'JS DOM XSS 风险，避免直接设置 HTML 字符串';
+    }
+
+    // ===== jQuery .html() XSS =====
+
+    private static function jqueryHtmlXss(string $pattern, string $line): string {
+        // 尝试提取选择器上下文，给出更具体的建议
+        if (preg_match('/\$\(window\)\.html\s*\(/i', $line)) {
+            return '$(window).html() 用法异常，应使用 document.body.innerHTML 或 DOM API';
+        }
+        return 'jQuery .html() 内部调用 .innerHTML 会导致 DOM XSS；若内容非可信，应改用 .text()（自动转义 HTML 特殊字符）';
     }
 }
