@@ -27,9 +27,8 @@ function paginateResult(array $list, int $page, int $pagesize, int $total): arra
 $postAuthToken = ApiAuthService::getBearerToken();
 $postAuthUser = $postAuthToken ? $apiAuth->validateAccessToken($postAuthToken) : null;
 $postIsAdmin = $postAuthUser && in_array(intval($postAuthUser['gid']), [1, 2], true);
-
-// 构建审核条件：非管理员只看 audit_status=1
-$postAuditCond = $postIsAdmin ? [] : ['audit_status' => 1];
+$postGid = $postAuthUser ? intval($postAuthUser['gid']) : 0;
+$postUid = $postAuthUser ? intval($postAuthUser['uid']) : 0;
 
 $id = intval($segments[1] ?? 0);
 $isBatch = ($segments[1] ?? '') === 'batch';
@@ -56,15 +55,18 @@ switch ($method) {
             $fields = $_GET['fields'] ?? '';
 
             if ($tid > 0) {
-                $cond = array_merge(['tid' => $tid], $postAuditCond);
+                $cond = ['tid' => $tid];
+                ApiResponse::filterByAuditStatus($cond, $postGid, $postUid);
                 $list = $db->find('post', $cond, ['pid' => 1], $page, $pagesize, 'pid');
                 $total = $db->count('post', $cond);
             } elseif ($uid > 0) {
-                $cond = array_merge(['uid' => $uid], $postAuditCond);
+                $cond = ['uid' => $uid];
+                ApiResponse::filterByAuditStatus($cond, $postGid, $postUid);
                 $list = $db->find('post', $cond, [], $page, $pagesize, 'pid');
                 $total = $db->count('post', $cond);
             } else {
-                $cond = array_merge([], $postAuditCond);
+                $cond = [];
+                ApiResponse::filterByAuditStatus($cond, $postGid, $postUid);
                 $list = $db->find('post', $cond, [], $page, $pagesize, 'pid');
                 $total = $db->count('post', $cond);
             }
@@ -115,6 +117,27 @@ switch ($method) {
         if (!$thread) {
             ApiResponse::notFound('Thread not found');
         }
+
+        // ===== 验证码能力开关（Task 2.4）=====
+        global $apiApp, $apiAppServerAuth, $apiAuth;
+        $skipCaptcha = $apiAppServerAuth && $apiAuth->checkAppCapability($apiApp, 'skip_captcha');
+        if (!$skipCaptcha) {
+            if (!class_exists('CaptchaService')) {
+                include_once APP_PATH . 'lib/security/CaptchaService.php';
+            }
+            $gid = intval($authUser['gid'] ?? 0);
+            if (CaptchaService::is_enabled('reply', $gid)) {
+                $captchaCode = param('captcha_code', '', false);
+                if (!CaptchaService::verify('reply', $captchaCode, $gid)) {
+                    ApiResponse::error(422, lang('captcha_error'));
+                }
+            }
+        }
+
+        // ===== 审核能力开关（Task 2.5）=====
+        $skipAudit = $apiAppServerAuth && $apiAuth->checkAppCapability($apiApp, 'skip_audit');
+        $auditStatus = $skipAudit ? 1 : (in_array(intval($authUser['gid']), [1, 2]) ? 1 : 0);
+
         $pid = $postService->createPost([
             'tid' => $tid,
             'uid' => intval($authUser['uid']),
@@ -124,6 +147,7 @@ switch ($method) {
             'message' => $message,
             'doctype' => param('doctype', 1),
             'quotepid' => param('quotepid', 0),
+            'audit_status' => $auditStatus,
         ]);
         if ($pid <= 0) {
             ApiResponse::error(500, 'Failed to create post');

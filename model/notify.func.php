@@ -370,10 +370,18 @@ function notify_format(&$notify, $prefetched = array()) {
 	include_once APP_PATH . 'lib/NotifyTypeRegistry.php';
 	global $conf, $forumlist;
 	$notify['create_date_fmt'] = humandate($notify['create_date']);
-	// 用户数据：user_preload 已填充 $g_static_users 缓存，user_read_cache 会命中
-	$from_user = user_read_cache($notify['from_uid']);
-	$notify['from_username'] = $from_user ? (!empty($from_user['display_name']) ? $from_user['display_name'] : $from_user['username']) : lang('system');
-	$notify['from_avatar_url'] = $from_user ? $from_user['avatar_url'] : '/view/img/avatar.png';
+	// from_uid=0 表示系统通知，user_read_cache(0) 会返回 user_guest()（非空），导致 from_username 误取“游客”，这里直接短路
+	if(intval($notify['from_uid']) === 0) {
+		$notify['from_username'] = lang('system');
+		$notify['from_avatar_url'] = '/view/img/avatar.png';
+		$notify['from_is_system'] = TRUE;
+	} else {
+		// 用户数据：user_preload 已填充 $g_static_users 缓存，user_read_cache 会命中
+		$from_user = user_read_cache($notify['from_uid']);
+		$notify['from_username'] = $from_user ? (!empty($from_user['display_name']) ? $from_user['display_name'] : $from_user['username']) : lang('system');
+		$notify['from_avatar_url'] = $from_user ? $from_user['avatar_url'] : '/view/img/avatar.png';
+		$notify['from_is_system'] = FALSE;
+	}
 
 	$notify['url'] = '';
 	if($notify['tid'] > 0) {

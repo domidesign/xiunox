@@ -17,7 +17,7 @@
 			<div class="mb-4">
 				<div class="d-flex flex-wrap gap-2">
 					<?php foreach($all_forums as $_forum) { ?>
-					<?php if(empty($_forum['fup'])) continue; // 跳过分区（fup=0），只显示子版块 ?>
+				<?php if(!empty($_forum['type']) && $_forum['type'] == 1) continue; // 跳过分区（type=1），保留无分类版块（type=0, fup=0） ?>
 					<div class="form-check">
 						<input class="form-check-input" type="checkbox" name="home_forum_ids[]" value="<?php echo $_forum['fid'];?>" id="forum_<?php echo $_forum['fid'];?>" <?php echo in_array($_forum['fid'], $home_forum_ids) ? 'checked' : '';?>>
 						<label class="form-check-label small" for="forum_<?php echo $_forum['fid'];?>"><?php echo esc_html($_forum['name'] ?? '');?></label>
@@ -197,12 +197,7 @@
 				submitBtn.innerHTML = '<i class="ti ti-check me-1"></i>' + data.message;
 				submitBtn.classList.remove('btn-primary');
 				submitBtn.classList.add('btn-success');
-				setTimeout(function() {
-					submitBtn.disabled = false;
-					submitBtn.innerHTML = '<?php echo lang('confirm');?>';
-					submitBtn.classList.remove('btn-success');
-					submitBtn.classList.add('btn-primary');
-				}, 1500);
+				setTimeout(function(){ window.location.reload(); }, 1000);
 			} else {
 				showToast(data.message, 'error');
 				submitBtn.disabled = false;

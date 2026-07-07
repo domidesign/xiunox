@@ -826,6 +826,14 @@ return array(
 	'discover_plugin_name_magic'=>'Magic Heal',
 	'discover_plugin_name_tag'=>'Tags',
 
+	// Nav plugin default names (top/sidebar nav registration)
+	'nav_plugin_name_medal'=>'Medals',
+	'nav_plugin_name_checkin'=>'Check-in',
+	'nav_plugin_name_invite'=>'Invite',
+	'nav_plugin_name_friendlink'=>'Friend Links',
+	'nav_plugin_name_magic'=>'Magic Heal',
+	'nav_plugin_name_tag'=>'Tags',
+
 	// Thread table of contents
 	'table_of_contents'=>'Table of Contents',
 
@@ -904,7 +912,8 @@ return array(
 	'user_ban_cannot_clear_admin'=>'Cannot clear an administrator\'s content',
 	'user_ban_field_missing'=>'Missing required field',
 	'user_ban_notice_ban'=>'You have been {type}. Reason: {reason}. Duration: {duration}. Unban time: {expire}',
-	'user_ban_notice_unban'=>'You have been unbanned. Reason: {reason}',
+	'user_ban_notice_unban'=>'Your account has been unbanned. Reason: {reason}',
+	'user_ban_notice_unban_no_reason'=>'Your account has been unbanned and is now fully accessible.',
 	'user_ban_login_denied'=>'You have been banned from access',
 	'user_ban_browse_denied'=>'You have been banned from access',
 	'user_ban_post_denied'=>'You have been silenced and cannot post',

@@ -51,21 +51,32 @@ class DiscoverService {
 
     /**
      * 获取所有已启用的插件发现项（用于 more.php 展示）
+     * @param bool $for_admin 后台调用时传 true：URL 用前台固定链接格式，附加 source/slug 字段
      * @return array
      */
-    public static function getPluginDiscoverItems() {
+    public static function getPluginDiscoverItems($for_admin = false) {
         $items = array();
         $config = self::getAllConfig();
 
         foreach (self::$registry as $plugin_id => $defaults) {
             if (empty($config[$plugin_id]['enabled'])) continue;
 
-            $items[] = array(
+            // 后台调用时用 NavService::url_frontend 生成前台固定链接格式（绕过 admin 强制 ?xxx.htm）
+            $url = ($for_admin && class_exists('NavService', false))
+                ? NavService::url_frontend($defaults['url'])
+                : url($defaults['url']);
+
+            $item = array(
                 'icon' => !empty($config[$plugin_id]['icon']) ? $config[$plugin_id]['icon'] : $defaults['icon'],
                 'name' => !empty($config[$plugin_id]['name']) ? $config[$plugin_id]['name'] : lang($defaults['name_lang']),
-                'url'  => url($defaults['url']),
+                'url'  => $url,
                 'rank' => intval(isset($config[$plugin_id]['rank']) ? $config[$plugin_id]['rank'] : $defaults['rank']),
             );
+            if ($for_admin) {
+                $item['source'] = 'plugin_' . $plugin_id;
+                $item['slug'] = 'plugin-' . $plugin_id;
+            }
+            $items[] = $item;
         }
         return $items;
     }

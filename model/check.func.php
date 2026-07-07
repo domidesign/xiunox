@@ -21,7 +21,7 @@ function is_mobile($mobile, &$err) {
 function is_email($email, &$err) {
 	// hook model_is_email_start.php
 	$len = mb_strlen($email, 'UTF-8');
-	if(strlen($len) > 32) {
+	if($len > 32) {
 		$err = lang('email_too_long', array('length'=>$len));
 		return FALSE;
 	} elseif(!preg_match('/^[\w\-\.]+@[\w\-\.]+(\.\w+)+$/i', $email)) {
@@ -57,7 +57,7 @@ function is_password($password, &$err = '') {
 		$err = lang('password_is_empty');
 		return FALSE;
 	} elseif($len == 32) {
-		if($password == 'd41d8cd98f00b204e9800998ecf8427e') {
+		if(hash_equals('d41d8cd98f00b204e9800998ecf8427e', $password)) {
 			$err = lang('password_is_empty');
 			return FALSE;
 		}

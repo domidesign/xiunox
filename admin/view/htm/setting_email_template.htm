@@ -66,11 +66,11 @@ jform.on('submit', function() {
 	$.xpost(jform.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
 			showToast(message, 'success');
-			$('#template-result').html('<div class="alert alert-success py-2 mt-3">' + message + '</div>');
+			setTimeout(function(){ window.location.reload(); }, 1000);
 		} else {
 			showToast(message, 'error');
+			jsubmit.button('reset');
 		}
-		jsubmit.button('reset');
 	});
 	return false;
 });

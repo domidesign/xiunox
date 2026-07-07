@@ -67,12 +67,14 @@ function _notice_action_text($type, $notify) {
 				<!-- 左侧头像 -->
 				<div class="flex-shrink-0">
 					<?php if($_is_audit) { ?>
-					<span class="avatar avatar-md rounded-circle bg-info bg-opacity-10 d-flex align-items-center justify-content-center"><i class="ti ti-shield-check text-info"></i></span>
-					<?php } elseif($_is_report) { ?>
-					<span class="avatar avatar-md rounded-circle bg-warning bg-opacity-10 d-flex align-items-center justify-content-center"><i class="ti ti-flag text-warning"></i></span>
-					<?php } else { ?>
-					<?php echo avatar_component_from_data($_notice['from_user_avatar_url'], 'md', '', '', $_from_gid);?>
-					<?php } ?>
+				<span class="avatar avatar-md rounded-circle bg-info bg-opacity-10 d-flex align-items-center justify-content-center"><i class="ti ti-shield-check text-info"></i></span>
+				<?php } elseif($_is_report) { ?>
+				<span class="avatar avatar-md rounded-circle bg-warning bg-opacity-10 d-flex align-items-center justify-content-center"><i class="ti ti-flag text-warning"></i></span>
+				<?php } elseif($_from_uid == 0) { ?>
+				<span class="avatar avatar-md rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"><i class="ti ti-bell text-primary"></i></span>
+				<?php } else { ?>
+				<?php echo avatar_component_from_data($_notice['from_user_avatar_url'], 'md', '', '', $_from_gid);?>
+				<?php } ?>
 				</div>
 				<!-- 右侧内容区 -->
 				<div class="flex-fill" style="min-width:0">

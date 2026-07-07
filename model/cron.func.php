@@ -58,7 +58,7 @@ function cron_run($force = 0) {
 			queue_gc();
 			
 			list($y, $n, $d) = explode(' ', date('Y n j', $time)); 	// 0 点
-			$today = mktime(0, 0, 0, $n, $d, $y);			// -8 hours
+			$today = mktime(0, 0, 0, (int)$n, (int)$d, (int)$y);			// -8 hours
 			runtime_set('cron_2_last_date', $today, TRUE);		// 加到1天后
 			
 			// 往前推8个小时，尽量保证在前一天

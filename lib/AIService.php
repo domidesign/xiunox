@@ -896,10 +896,10 @@ class AIService {
 
         // user_update 仅过滤 password/password_hash 字段，ai_config 可正常更新
         if (function_exists('user_update')) {
-            return user_update($uid, array('ai_config' => $json));
+            return (bool)user_update($uid, array('ai_config' => $json));
         }
         // 兜底：直接走 db（绕过缓存清理，仅在 user_update 不可用时使用）
-        return $this->db->update('user', array('uid' => $uid), array('ai_config' => $json));
+        return (bool)$this->db->update('user', array('uid' => $uid), array('ai_config' => $json));
     }
 
     // ---- 私有方法 ----

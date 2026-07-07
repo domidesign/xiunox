@@ -1279,6 +1279,12 @@ a.hover-bg-body-secondary:hover {
     color: var(--bs-primary);
 }
 
+/* 下拉菜单子项高亮（active 在 <li data-active> 上） */
+.navbar-nav [data-active].active>.dropdown-item {
+    color: var(--bs-primary);
+    font-weight: 600;
+}
+
 .navbar .dropdown-menu .dropdown-item {
     transition: background-color .15s ease, color .15s ease;
     border-radius: .375rem;

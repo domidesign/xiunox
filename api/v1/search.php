@@ -37,19 +37,22 @@ if (!empty($conf['security_search_require_login']) && !$searchAuthUser) {
 
 // 审核条件：非管理员只搜 audit_status=1
 $searchIsAdmin = $searchAuthUser && in_array(intval($searchAuthUser['gid']), [1, 2], true);
-$searchAuditCond = $searchIsAdmin ? [] : ['audit_status' => 1];
+$searchGid = $searchAuthUser ? intval($searchAuthUser['gid']) : 0;
+$searchUid = $searchAuthUser ? intval($searchAuthUser['uid']) : 0;
 
 $like = '%' . $q . '%';
 
 switch ($type) {
     case 'thread':
-        $cond = array_merge(['subject' => ['LIKE' => $like]], $searchAuditCond);
+        $cond = ['subject' => ['LIKE' => $like]];
+        ApiResponse::filterByAuditStatus($cond, $searchGid, $searchUid);
         $list = $db->find('thread', $cond, ['tid' => -1], $page, $pagesize, 'tid');
         $total = $db->count('thread', $cond);
         break;
 
     case 'post':
-        $cond = array_merge(['message' => ['LIKE' => $like]], $searchAuditCond);
+        $cond = ['message' => ['LIKE' => $like]];
+        ApiResponse::filterByAuditStatus($cond, $searchGid, $searchUid);
         $list = $db->find('post', $cond, ['pid' => -1], $page, $pagesize, 'pid');
         $total = $db->count('post', $cond);
         break;

@@ -94,16 +94,20 @@ if($action == 'do') {
 	$csv = "插件名,版本,文件,行号,类别,匹配内容,严重级别,建议\n";
 	foreach($results as $plugin) {
 		foreach($plugin['issues'] as $issue) {
-			$csv .= implode(',', [
-				'"' . $plugin['dir'] . '"',
-				'"' . $plugin['version'] . '"',
-				'"' . $issue['file'] . '"',
-				$issue['line'],
-				'"' . $issue['category'] . '"',
-				'"' . str_replace('"', '""', $issue['match']) . '"',
-				'"' . $issue['severity'] . '"',
-				'"' . str_replace('"', '""', $issue['suggestion']) . '"',
-			]) . "\n";
+			// CSV 保持原始粒度：合并后的 issue 通过 lines 数组展开为多行
+			$lines = isset($issue['lines']) && !empty($issue['lines']) ? $issue['lines'] : [$issue['line']];
+			foreach($lines as $ln) {
+				$csv .= implode(',', [
+					'"' . $plugin['dir'] . '"',
+					'"' . $plugin['version'] . '"',
+					'"' . $issue['file'] . '"',
+					$ln,
+					'"' . $issue['category'] . '"',
+					'"' . str_replace('"', '""', $issue['match']) . '"',
+					'"' . $issue['severity'] . '"',
+					'"' . str_replace('"', '""', $issue['suggestion']) . '"',
+				]) . "\n";
+			}
 		}
 	}
 

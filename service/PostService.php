@@ -45,6 +45,7 @@ class PostService {
             'message_fmt' => $data['message_fmt'] ?? '',
             'doctype' => $data['doctype'] ?? 0,
             'quotepid' => $data['quotepid'] ?? 0,
+            'audit_status' => $data['audit_status'] ?? 1,
         ];
 
         return $this->db->insert('post', $insert);

@@ -128,6 +128,48 @@ switch ($method) {
             if (!$authUser) {
                 ApiResponse::unauthorized();
             }
+            // /user/me/permissions - 返回当前用户在各版块的权限矩阵
+            if ($seg2 === 'permissions') {
+                // model.inc.php 已通过 _include() 加载过编译版本，此处仅兜底
+                if (!function_exists('forum_access_user')) {
+                    include_once APP_PATH . 'model/forum_access.func.php';
+                }
+                if (!function_exists('group_list_cache')) {
+                    include_once APP_PATH . 'model/group.func.php';
+                }
+                if (!function_exists('forum_list_cache')) {
+                    include_once APP_PATH . 'model/forum.func.php';
+                }
+                // forum_access_user / forum_access_mod 依赖全局变量
+                $GLOBALS['uid'] = intval($authUser['uid']);
+                try {
+                    $GLOBALS['grouplist'] = group_list_cache();
+                    $GLOBALS['forumlist'] = forum_list_cache();
+                    $gid = intval($authUser['gid']);
+                    $userPerms = ['allowread', 'allowthread', 'allowpost', 'allowattach', 'allowdown'];
+                    $modPerms = ['allowtop', 'allowupdate', 'allowdelete', 'allowmove', 'allowbanuser', 'allowdeleteuser', 'allowviewip'];
+                    $permissions = [];
+                    foreach ($GLOBALS['forumlist'] as $f) {
+                        $fid = intval($f['fid']);
+                        $perms = [];
+                        foreach ($userPerms as $key) {
+                            $perms[$key] = forum_access_user($fid, $gid, $key);
+                        }
+                        foreach ($modPerms as $key) {
+                            $perms[$key] = forum_access_mod($fid, $gid, $key);
+                        }
+                        $permissions[] = [
+                            'fid' => $fid,
+                            'name' => $f['name'] ?? '',
+                            'permissions' => $perms,
+                        ];
+                    }
+                    ApiResponse::success(['uid' => intval($authUser['uid']), 'permissions' => $permissions]);
+                } catch (\Throwable $e) {
+                    // forum_access 相关函数可能依赖未加载的模型，返回空权限矩阵而不是 500
+                    ApiResponse::success(['uid' => intval($authUser['uid']), 'permissions' => [], 'error' => $e->getMessage()]);
+                }
+            }
             $authUser = sanitizeUserData($authUser, $authUser, true, intval($authUser['gid']) === 1);
             if (!empty($fields)) {
                 $authUser = filterFields($authUser, $fields);
@@ -188,7 +230,7 @@ switch ($method) {
             $page = max(1, intval($_GET['page'] ?? 1));
             $pagesize = min(100, max(1, intval($_GET['pagesize'] ?? 20)));
             $favorites = $threadService->getFavoritesByUid($uid, $page, $pagesize);
-            $total = $threadService->getFavoriteCountByUid($uid);
+            $total = $threadService->getFavoriteCount($uid);
             $result = paginateResult($favorites, $page, $pagesize, $total);
             ApiResponse::success($result);
         }

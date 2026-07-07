@@ -28,22 +28,57 @@ if (typeof jQuery !== 'undefined' && typeof bootstrap !== 'undefined') {
 // ========== 通用函数 ==========
 
 // 提取导航高亮逻辑为独立函数
+// ponytail: 客户端 URL 匹配，已知 ceiling 是无法处理配置错误的 URL（如路由名格式与实际页面 URL 不一致），
+// 升级路径为服务端传递 current_nav_slug
 function highlightNav() {
-	var currentPath = window.location.pathname;
+	var current = normalizeNavPath(window.location.pathname);
+
+	// 清除所有 active
 	document.querySelectorAll('[data-active^="nav-"]').forEach(function(el) {
 		el.classList.remove('active');
 	});
+
+	// 选择最长匹配（避免首页 / 误匹配所有页面，优先匹配更具体的导航项）
+	var bestEl = null;
+	var bestLen = 0;
+
 	document.querySelectorAll('[data-active^="nav-"]').forEach(function(el) {
 		var link = el.querySelector('a');
-		if(link) {
-			var navHref = link.getAttribute('href');
-			if(navHref && navHref.length > 1) {
-				if(currentPath === navHref || currentPath === '/' + navHref.replace(/^\//, '')) {
-					el.classList.add('active');
-				}
+		if(!link) return;
+		var navHref = link.getAttribute('href');
+		if(!navHref || navHref === '#') return;
+
+		var navPath = normalizeNavPath(navHref);
+		if(!navPath) return;
+
+		// 精确匹配 或 前缀匹配（分页场景 /forum-7/2 匹配 /forum-7）
+		if(current === navPath || (navPath !== '/' && current.indexOf(navPath + '/') === 0)) {
+			if(navPath.length > bestLen) {
+				bestEl = el;
+				bestLen = navPath.length;
 			}
 		}
 	});
+
+	if(bestEl) bestEl.classList.add('active');
+}
+
+// 规范化 URL 路径用于导航高亮匹配
+// 去除 query、确保 / 开头、去除末尾斜杠（首页保留 /）、去除 .htm/.html 后缀
+function normalizeNavPath(href) {
+	if(!href || href === '#') return '';
+	var qIdx = href.indexOf('?');
+	var path = qIdx >= 0 ? href.substring(0, qIdx) : href;
+	if(!path) return '';
+	// 相对路径转绝对路径（避免 /a vs a 不匹配）
+	if(path[0] !== '/' && path.indexOf('http') !== 0) {
+		path = '/' + path;
+	}
+	// 去除末尾斜杠（首页保留 /）
+	path = path.replace(/\/+$/, '') || '/';
+	// 去除 .htm/.html 后缀（url_rewrite_on=1/4 风格）
+	path = path.replace(/\.(htm|html)$/i, '');
+	return path;
 }
 
 // 发送验证码（用户注册、重置密码、修改邮箱）

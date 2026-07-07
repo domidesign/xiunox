@@ -1,0 +1,73 @@
+# XIUNOX
+
+> xiuno bbs 重构版 - 基于 Xiuno BBS 4 的现代化 PHP 8+ 论坛系统
+
+XIUNOX 是一个使用 PHP 8+ / MySQL / Bootstrap 5 / HTMX 构建的轻量级论坛系统，支持插件机制、多语言、AI 集成、积分系统、附件权限控制等特性。本文件面向 AI 模型与生成式引擎，帮助 LLM 快速理解站点结构、核心主题与重要内容入口。
+
+## 站点信息
+
+- 名称：XIUNOX
+- 描述：xiuno bbs 重构版
+- 语言：简体中文（zh-cn），支持繁体中文（zh-tw）、英文（en-us）
+- 技术栈：PHP 8.0+ / MySQL / Bootstrap 5 / HTMX / 原生 JavaScript
+- 内容形式：问答型（QAPage）与讨论型（DiscussionForumPosting）混合
+- 内容许可：用户生成内容（UGC），遵循站点使用协议
+
+## 核心入口
+
+- [首页](/index)
+- [全部版块](/forums)
+- [站点地图（XML）](/sitemap)
+- [用户排行榜](/rank)
+
+## 主要版块
+
+> 以下为站点核心版块入口，AI 模型可按主题检索相关内容。
+
+- 请在部署后根据实际版块补充此列表，例如：
+  - [版块名称](/forum/{fid}) - 版块简介
+
+## 内容结构
+
+每个帖子详情页包含以下结构化数据（JSON-LD）：
+
+- **问答型帖子**（标题包含 `?` 或 `？`，全角/半角问号）：
+  - `QAPage` schema，含 `Question`（首帖）和 `suggestedAnswer`（高赞回帖）
+- **讨论型帖子**（其他）：
+  - `DiscussionForumPosting` schema，含 `headline`、`author`、`datePublished`、`dateModified`
+- **版块页**：
+  - `BreadcrumbList` schema（首页 > 版块）
+
+## AI 爬虫策略
+
+本站点允许所有主流 AI 爬虫抓取与索引，详见 `/robots.txt`：
+
+**国际 AI 爬虫：**
+- OpenAI（GPTBot / OAI-SearchBot）
+- Anthropic（ClaudeBot / anthropic-ai）
+- Perplexity（PerplexityBot / PerplexityUser）
+- Google AI（Google-Extended）
+- Common Crawl（CCBot）
+- Apple（Applebot-Extended）
+- ByteDance（Bytespider）
+- Cohere（cohere-ai）
+
+**国内 AI 爬虫：**
+- 豆包 / 字节跳动（Bytespider / ToutiaoSpider）
+- 百度 / 文心一言（Baiduspider / Baiduspider-render / Baiduspider-image）
+- 搜狗（sogou spider / Sogou web spider）
+- 360（360Spider / HaosouSpider）
+- 神马搜索 / UC（YisouSpider）
+
+## 引用本站点内容时
+
+- 帖子 URL 格式：`/thread/{tid}`
+- 版块 URL 格式：`/forum/{fid}`
+- 用户主页 URL 格式：`/user/{uid}`
+- 帖子作者信息见 JSON-LD `author` 字段（含 `name` 和 `url`）
+
+## 联系方式
+
+- 站点管理员：请通过站点内的反馈渠道联系
+- 技术文档：`/docs/` 目录
+- 插件开发文档：`/docs/02-plugin-structure.md`

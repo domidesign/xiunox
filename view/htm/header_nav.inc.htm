@@ -3,6 +3,26 @@
 $_search_require_login = isset($_search_require_login) ? $_search_require_login : 1;
 $_search_disabled = ($_search_require_login && (empty($uid) || $uid == 0));
 $_nav_items = isset($conf['nav_items']) ? $conf['nav_items'] : array();
+
+// 合并插件注册的顶部导航项（已启用的）
+if(!class_exists('NavService', false)) {
+	$_navservice_file = APP_PATH.'lib/NavService.php';
+	if(is_file($_navservice_file)) include $_navservice_file;
+}
+if(class_exists('NavService', false)) {
+	$_plugin_nav_items = NavService::getPluginNavItems('top');
+	if(!empty($_plugin_nav_items)) $_nav_items = array_merge($_nav_items, $_plugin_nav_items);
+}
+
+// 按 rank 排序，同 rank 时 title 排在前，top_link 次之
+usort($_nav_items, function($a, $b) {
+	$ra = intval($a['rank'] ?? 0);
+	$rb = intval($b['rank'] ?? 0);
+	if($ra !== $rb) return $ra - $rb;
+	$_type_order = function($t) { return $t === 'title' ? 0 : ($t === 'top_link' ? 1 : 2); };
+	return $_type_order($a['type'] ?? 'link') - $_type_order($b['type'] ?? 'link');
+});
+
 $_categories = array();
 $_uncategorized = array();
 foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show : array()) as $_forum) {
@@ -38,79 +58,75 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 			<div class="d-none d-xl-flex col-xl-7 align-items-center justify-content-between gap-2">
 				<!--{hook header_nav_custom_before.htm}-->
 				<ul class="navbar-nav flex-row   px-1">
-				<?php if(empty($_nav_items)) { ?>
-				<li class="nav-item">
-					<a class="nav-link transition-colors" href="<?php echo index_url();?>"><i class="ti ti-home me-1"></i><?php echo lang('index_page');?></a>
-				</li>
-				<?php } else { ?>
-				<?php usort($_nav_items, function($a, $b) {
-				$ra = intval($a['rank'] ?? 0);
-				$rb = intval($b['rank'] ?? 0);
-				return $ra - $rb;
-			}); ?>
-			<?php
-			// 分组渲染：title 类型作为分组标题，其后的 link 归入该分组
-			// 如果 title 后面没有 link，则 title 作为一级链接直接展示（使用其 url）
-			$_current_group = null;
-			$_group_links = array();
-			$_flush_group = function() use(&$_current_group, &$_group_links) {
-				if($_current_group === null) return '';
-				if(empty($_group_links)) {
-					// 分类后没有链接：作为一级菜单直接展示
-					$url = !empty($_current_group['url']) ? esc_attr($_current_group['url']) : '#';
-					$html = '<li class="nav-item" data-active="nav-' . esc_attr($_current_group['slug'] ?? '') . '">';
-					$html .= '<a class="nav-link transition-colors" href="' . $url . '">';
-					if(!empty($_current_group['icon'])) $html .= '<i class="' . esc_attr($_current_group['icon']) . ' me-1"></i>';
-					$html .= esc_html($_current_group['name']);
-					$html .= '</a></li>';
-					echo $html;
-				} else {
-					// 分类后有链接：渲染为下拉菜单
-					$html = '<li class="nav-item dropdown">';
-					$html .= '<a class="nav-link transition-colors dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">';
-					if(!empty($_current_group['icon'])) $html .= '<i class="' . esc_attr($_current_group['icon']) . ' me-1"></i>';
-					$html .= esc_html($_current_group['name']);
-					$html .= '</a>';
-					$html .= '<ul class="dropdown-menu shadow border-0">';
-					foreach($_group_links as $_link) {
-						$html .= '<li><a class="dropdown-item py-2" href="' . esc_attr($_link['url']) . '">';
-						if(!empty($_link['icon'])) $html .= '<i class="' . esc_attr($_link['icon']) . ' me-2"></i>';
-						$html .= esc_html($_link['name']);
-						$html .= '</a></li>';
-					}
-					$html .= '</ul></li>';
-					echo $html;
+			<?php if(empty($_nav_items)) { ?>
+		<li class="nav-item">
+			<a class="nav-link transition-colors" href="<?php echo index_url();?>"><i class="ti ti-home me-1"></i><?php echo lang('index_page');?></a>
+		</li>
+		<?php } else { ?>
+		<?php
+		// 数组顺序分组：遇到 title 开始新分组，后续 link 都是它的子项，直到下一个 title 或 top_link
+		$_nav_i = 0;
+		$_nav_count = count($_nav_items);
+		while ($_nav_i < $_nav_count) {
+			$_ni = $_nav_items[$_nav_i];
+			$_type = isset($_ni['type']) ? $_ni['type'] : 'link';
+			if ($_type === 'title') {
+				// 收集子项（到下一个 title 或 top_link 之前的 link）
+				$_children = array();
+				$_nav_j = $_nav_i + 1;
+				while ($_nav_j < $_nav_count) {
+					$_cur_type = $_nav_items[$_nav_j]['type'] ?? 'link';
+					if ($_cur_type === 'title' || $_cur_type === 'top_link') break;
+					$_children[] = $_nav_items[$_nav_j];
+					$_nav_j++;
 				}
-				$_current_group = null;
-				$_group_links = array();
-			};
+				if (empty($_children)) {
+					// 无子项：title 作为一级链接
+					$_url = !empty($_ni['url']) ? esc_attr($_ni['url']) : '#';
 			?>
-				<?php foreach($_nav_items as $_ni) {
-					$_type = isset($_ni['type']) ? $_ni['type'] : 'link';
-					if ($_type === 'title') {
-						// 先输出上一个分组
-						$_flush_group();
-						$_current_group = $_ni;
-					} else {
-						if ($_current_group !== null) {
-							// 归入当前分组
-							$_group_links[] = $_ni;
-						} else {
-							// 无分组的独立链接
-				?>
-					<li class="nav-item" data-active="nav-<?php echo esc_attr($_ni['slug']);?>"><a
-							class="nav-link transition-colors" href="<?php echo esc_attr($_ni['url']);?>">
-							<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo esc_attr($_ni['icon']);?>"></i>
-							<?php } ?>
-							<?php echo esc_html($_ni['name']);?>
-						</a></li>
-				<?php
-						}
-					}
-				} ?>
-				<?php $_flush_group(); ?>
+			<li class="nav-item" data-active="nav-<?php echo esc_attr($_ni['slug'] ?? '');?>">
+				<a class="nav-link transition-colors" href="<?php echo $_url;?>">
+					<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo esc_attr($_ni['icon']);?> me-1"></i><?php } ?>
+					<?php echo esc_html($_ni['name']);?>
+				</a>
+			</li>
+			<?php
+				} else {
+					// 有子项：渲染为下拉菜单
+			?>
+			<li class="nav-item dropdown">
+				<a class="nav-link transition-colors dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+					<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo esc_attr($_ni['icon']);?> me-1"></i><?php } ?>
+					<?php echo esc_html($_ni['name']);?>
+				</a>
+				<ul class="dropdown-menu shadow border-0">
+				<?php foreach($_children as $_link) { ?>
+				<li data-active="nav-<?php echo esc_attr($_link['slug'] ?? '');?>"><a class="dropdown-item py-2" href="<?php echo esc_attr($_link['url']);?>">
+					<?php if(!empty($_link['icon'])) { ?><i class="<?php echo esc_attr($_link['icon']);?> me-2"></i><?php } ?>
+					<?php echo esc_html($_link['name']);?>
+				</a></li>
 				<?php } ?>
 			</ul>
+			</li>
+			<?php
+				}
+				$_nav_i = $_nav_j;
+			} else {
+				// 一级 link（前面没有归属的 title）
+			?>
+			<li class="nav-item" data-active="nav-<?php echo esc_attr($_ni['slug'] ?? '');?>">
+				<a class="nav-link transition-colors" href="<?php echo esc_attr($_ni['url']);?>">
+					<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo esc_attr($_ni['icon']);?>"></i><?php } ?>
+					<?php echo esc_html($_ni['name']);?>
+				</a>
+			</li>
+			<?php
+				$_nav_i++;
+			}
+		}
+		?>
+		<?php } ?>
+	</ul>
 				<!--{hook header_nav_custom_after.htm}-->
 
 				<!--{hook header_nav_search_before.htm}-->

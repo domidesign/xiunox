@@ -33,6 +33,7 @@
 .api-path { font-family: monospace; font-size: 0.875rem; font-weight: 600; }
 .api-auth-badge { font-size: 0.6875rem; }
 .api-level-badge { font-size: 0.6875rem; }
+.api-scope-badge { font-size: 0.6875rem; }
 .api-section-title { font-size: 0.75rem; text-transform: uppercase; color: var(--bs-body-color); opacity: 0.5; font-weight: 600; margin-bottom: 0.5rem; margin-top: 1rem; }
 .api-json-block { background: #212529; color: #e6e6e6; border-radius: 0.375rem; padding: 0.75rem 1rem; font-size: 0.8125rem; font-family: monospace; overflow-x: auto; position: relative; }
 .api-json-block .copy-btn { position: absolute; top: 0.375rem; right: 0.375rem; }
@@ -94,6 +95,14 @@
                 $levelLabel = isset($levelLabels[$level]) ? $levelLabels[$level] : $level;
                 ?>
                 <span class="badge <?php echo $levelColor;?> api-level-badge"><?php echo $levelLabel;?></span>
+                <?php if(!empty($ep['scope'])):
+                $scopeColors = ['public' => 'bg-secondary', 'readonly' => 'bg-primary', 'readwrite' => 'bg-warning text-dark', 'admin' => 'bg-danger'];
+                $scopeLabels = ['public' => '公开范围', 'readonly' => '只读', 'readwrite' => '读写', 'admin' => '管理'];
+                $scopeColor = isset($scopeColors[$ep['scope']]) ? $scopeColors[$ep['scope']] : 'bg-secondary';
+                $scopeLabel = isset($scopeLabels[$ep['scope']]) ? $scopeLabels[$ep['scope']] : $ep['scope'];
+                ?>
+                <span class="badge <?php echo $scopeColor;?> api-scope-badge">scope: <?php echo $scopeLabel;?></span>
+                <?php endif; ?>
                 <i class="ti ti-chevron-down ms-auto fs-6 text-secondary"></i>
             </div>
             <div class="api-endpoint-body" id="body-<?php echo $key;?>-<?php echo $idx;?>">

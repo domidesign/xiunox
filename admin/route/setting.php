@@ -288,6 +288,11 @@ if($action == 'base') {
 
 	// hook admin_setting_nav_get_post.php
 
+	// 加载 NavService（插件导航注册服务）
+	include _include(APP_PATH.'lib/NavService.php');
+	// 加载 DiscoverService（发现页插件项，GET 渲染和 POST 返回都需使用）
+	include APP_PATH.'lib/DiscoverService.php';
+
 	if($method == 'GET') {
 
 		// hook admin_setting_nav_get_start.php
@@ -298,18 +303,44 @@ if($action == 'base') {
 		$mobile_nav_items = isset($conf['mobile_nav_items']) ? $conf['mobile_nav_items'] : array();
 		$mobile_nav_enable = !empty($conf['mobile_nav_enable']);
 
-		// 按 rank 排序，同 rank 时分类标题排在链接前面
+		// 标记用户自定义项的 source（便于后台区分插件项与用户项）
+		foreach ($nav_items as &$_ni) { $_ni['source'] = 'custom'; }
+		unset($_ni);
+		foreach ($sidebar_nav_items as &$_sni) { $_sni['source'] = 'custom'; }
+		unset($_sni);
+		foreach ($mobile_nav_items as &$_mni) { $_mni['source'] = 'custom'; }
+		unset($_mni);
+		foreach ($discover_items as &$_dni) { $_dni['source'] = 'custom'; }
+		unset($_dni);
+
+		// 合并已启用的插件项到主列表（按 rank 排序后混入）
+		$_plugin_top = NavService::getPluginNavItems('top');
+		$_plugin_side = NavService::getPluginNavItems('side');
+		$_plugin_mobile = NavService::getPluginNavItems('mobile');
+		$nav_items = array_merge($nav_items, $_plugin_top);
+		$sidebar_nav_items = array_merge($sidebar_nav_items, $_plugin_side);
+		$mobile_nav_items = array_merge($mobile_nav_items, $_plugin_mobile);
+		// 发现导航合并 DiscoverService 返回的已启用插件项（前台 /more 实际显示的项）
+		$_plugin_discover = DiscoverService::getPluginDiscoverItems(true);
+		$discover_items = array_merge($discover_items, $_plugin_discover);
+
+		// 按 rank 排序，同 rank 时分类标题排在前，一级链接次之
 		$nav_sort = function($a, $b) {
 			$ra = intval($a['rank'] ?? 0);
 			$rb = intval($b['rank'] ?? 0);
 			if ($ra !== $rb) return $ra - $rb;
-			$ta = ($a['type'] ?? 'link') === 'title' ? 0 : 1;
-			$tb = ($b['type'] ?? 'link') === 'title' ? 0 : 1;
-			return $ta - $tb;
+			$_type_order = function($t) { return $t === 'title' ? 0 : ($t === 'top_link' ? 1 : 2); };
+			return $_type_order($a['type'] ?? 'link') - $_type_order($b['type'] ?? 'link');
 		};
 		usort($nav_items, $nav_sort);
 		usort($sidebar_nav_items, $nav_sort);
 		usort($mobile_nav_items, $nav_sort);
+		usort($discover_items, $nav_sort);
+
+		// 获取所有插件注册信息（用于后台只读展示）
+		$plugin_nav_registry_top = NavService::getPluginNavItems('top');
+		$plugin_nav_registry_side = NavService::getPluginNavItems('side');
+		$plugin_nav_registry_mobile = NavService::getPluginNavItems('mobile');
 
 		// 页脚配置数据
 		$footer_config = isset($conf['footer']) ? $conf['footer'] : array();
@@ -322,6 +353,11 @@ if($action == 'base') {
 		$header['title'] = lang('admin_setting_nav');
 		$header['mobile_title'] = lang('admin_setting_nav');
 
+		// 防止浏览器缓存导航设置页，确保保存后刷新能看到新数据
+		header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+		header('Pragma: no-cache');
+		header('Expires: 0');
+
 		// hook admin_setting_nav_get_end.php
 
 		include _include(ADMIN_PATH.'view/htm/setting_nav.htm');
@@ -332,7 +368,7 @@ if($action == 'base') {
 
 		// hook admin_setting_nav_post_start.php
 
-		// 顶部导航
+		// 顶部导航（插件项不参与表单提交，只保存 custom 项）
 		$nav_icon = param('nav_icon', array(''));
 		$nav_name = param('nav_name', array(''));
 		$nav_slug = param('nav_slug', array(''));
@@ -342,9 +378,7 @@ if($action == 'base') {
 
 		$nav_items = array();
 		foreach ($nav_name as $k=>$v) {
-			// name 和 icon 均为空才跳过（允许只填名称或只填图标）
 			if(empty($nav_name[$k]) && empty($nav_icon[$k])) continue;
-			// slug 留空时自动生成（避免前端 data-active 标识缺失）
 			$slug = !empty($nav_slug[$k]) ? $nav_slug[$k] : 'nav-'.substr(md5(($nav_name[$k] ?? '').$k.microtime(true)), 0, 8);
 			$nav_items[] = array(
 				'type'=>isset($nav_type[$k]) ? $nav_type[$k] : 'link',
@@ -365,10 +399,8 @@ if($action == 'base') {
 		$sidebar_type = param('sidebar_type', array('link'));
 
 		$sidebar_nav_items = array();
-		foreach ($sidebar_icon as $k=>$v) {
-			// name 和 icon 均为空才跳过
+		foreach ($sidebar_name as $k=>$v) {
 			if(empty($sidebar_name[$k]) && empty($sidebar_icon[$k])) continue;
-			// slug 留空时自动生成
 			$slug = !empty($sidebar_slug[$k]) ? $sidebar_slug[$k] : 'side-'.substr(md5(($sidebar_name[$k] ?? '').$k.microtime(true)), 0, 8);
 			$sidebar_nav_items[] = array(
 				'type'=>isset($sidebar_type[$k]) ? $sidebar_type[$k] : 'link',
@@ -377,6 +409,26 @@ if($action == 'base') {
 				'slug'=>$slug,
 				'url'=>$sidebar_url[$k] ?? '',
 				'rank'=>intval($sidebar_rank[$k]),
+			);
+		}
+
+		// 手机导航
+		$mobile_icons = param('mobile_icon', array());
+		$mobile_icons_active = param('mobile_icon_active', array());
+		$mobile_names = param('mobile_name', array());
+		$mobile_urls = param('mobile_url', array());
+		$mobile_ranks = param('mobile_rank', array());
+		$mobile_need_login = param('mobile_need_login', array());
+		$mobile_items = array();
+		for($i = 0; $i < count($mobile_names); $i++) {
+			if(empty($mobile_names[$i]) && empty($mobile_icons[$i]) && empty($mobile_icons_active[$i])) continue;
+			$mobile_items[] = array(
+				'icon' => $mobile_icons[$i] ?? '',
+				'icon_active' => $mobile_icons_active[$i] ?? '',
+				'name' => $mobile_names[$i] ?? '',
+				'url' => $mobile_urls[$i] ?? '',
+				'rank' => intval($mobile_ranks[$i] ?? 0),
+				'need_login' => !empty($mobile_need_login[$i]) ? 1 : 0,
 			);
 		}
 
@@ -406,26 +458,6 @@ if($action == 'base') {
 		}
 		$replace['discover_items'] = $discover_items;
 
-		// 手机导航列表
-		$mobile_icons = param('mobile_icon', array());
-		$mobile_icons_active = param('mobile_icon_active', array());
-		$mobile_names = param('mobile_name', array());
-		$mobile_urls = param('mobile_url', array());
-		$mobile_ranks = param('mobile_rank', array());
-		$mobile_need_login = param('mobile_need_login', array());
-		$mobile_items = array();
-		for($i = 0; $i < count($mobile_names); $i++) {
-			// name/icon/icon_active 均为空才跳过
-			if(empty($mobile_names[$i]) && empty($mobile_icons[$i]) && empty($mobile_icons_active[$i])) continue;
-			$mobile_items[] = array(
-				'icon' => $mobile_icons[$i] ?? '',
-				'icon_active' => $mobile_icons_active[$i] ?? '',
-				'name' => $mobile_names[$i] ?? '',
-				'url' => $mobile_urls[$i] ?? '',
-				'rank' => intval($mobile_ranks[$i] ?? 0),
-				'need_login' => !empty($mobile_need_login[$i]) ? 1 : 0,
-			);
-		}
 		$replace['mobile_nav_items'] = $mobile_items;
 		$replace['mobile_nav_enable'] = param('mobile_nav_enable', 0) ? 1 : 0;
 
@@ -445,12 +477,58 @@ if($action == 'base') {
 		    'show_powered' => $footer_show_powered,
 		);
 
-		file_replace_var(APP_PATH.'conf/conf.php', $replace);
+		$_save_ok = file_replace_var(APP_PATH.'conf/conf.php', $replace);
+		if($_save_ok === FALSE) {
+			message(-1, 'conf/conf.php 写入失败，请检查文件权限');
+		}
+		// 强制清除缓存，确保下次请求读到新配置
+		if(function_exists('opcache_invalidate')) {
+			opcache_invalidate(APP_PATH.'conf/conf.php', true);
+		}
+		clearstatcache(true, APP_PATH.'conf/conf.php');
+		// 同步更新当前请求的 $conf（避免同进程内后续 hook 读到旧值）
+		foreach($replace as $_k => $_v) $conf[$_k] = $_v;
+		$_SERVER['conf'] = $conf;
 
 		// hook admin_setting_nav_post_end.php
 
 		admin_log_create('setting_nav', 'setting', '', '修改导航设置');
-		message(0, lang('save_successfully'));
+
+		// 准备返回给前端的最新数据（合并插件项 + 排序）
+		// 前端用这些数据直接重新渲染页面，不依赖浏览器重新加载，完全绕过所有缓存层
+		$_return_nav = $nav_items;
+		$_return_side = $sidebar_nav_items;
+		$_return_mobile = $mobile_items;
+		$_return_discover = $discover_items;
+
+		$_plugin_top_ret = NavService::getPluginNavItems('top');
+		$_plugin_side_ret = NavService::getPluginNavItems('side');
+		$_plugin_mobile_ret = NavService::getPluginNavItems('mobile');
+		$_plugin_discover_ret = DiscoverService::getPluginDiscoverItems(true);
+		$_return_nav = array_merge($_return_nav, $_plugin_top_ret);
+		$_return_side = array_merge($_return_side, $_plugin_side_ret);
+		$_return_mobile = array_merge($_return_mobile, $_plugin_mobile_ret);
+		$_return_discover = array_merge($_return_discover, $_plugin_discover_ret);
+
+		$nav_sort_ret = function($a, $b) {
+			$ra = intval($a['rank'] ?? 0);
+			$rb = intval($b['rank'] ?? 0);
+			if ($ra !== $rb) return $ra - $rb;
+			$_type_order = function($t) { return $t === 'title' ? 0 : ($t === 'top_link' ? 1 : 2); };
+			return $_type_order($a['type'] ?? 'link') - $_type_order($b['type'] ?? 'link');
+		};
+		usort($_return_nav, $nav_sort_ret);
+		usort($_return_side, $nav_sort_ret);
+		usort($_return_mobile, $nav_sort_ret);
+		usort($_return_discover, $nav_sort_ret);
+
+		message(0, lang('save_successfully'), array(
+			'nav_items' => $_return_nav,
+			'sidebar_nav_items' => $_return_side,
+			'mobile_nav_items' => $_return_mobile,
+			'discover_items' => $_return_discover,
+			'mobile_nav_enable' => $replace['mobile_nav_enable'],
+		));
 	}
 
 } elseif($action == 'credits') {

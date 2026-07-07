@@ -2,12 +2,25 @@
 
 // 版主操作 API
 
-include_once APP_PATH . 'model/modlog.func.php';
-include_once APP_PATH . 'model/thread.func.php';
-include_once APP_PATH . 'model/thread_top.func.php';
-include_once APP_PATH . 'model/forum.func.php';
-include_once APP_PATH . 'model/forum_access.func.php';
-include_once APP_PATH . 'model/group.func.php';
+// ponytail: 用 function_exists 守卫避免与 model.inc.php _include 编译版重复声明（fatal error）
+if (!function_exists('modlog_create')) {
+    include_once APP_PATH . 'model/modlog.func.php';
+}
+if (!function_exists('thread_find_by_tids')) {
+    include_once APP_PATH . 'model/thread.func.php';
+}
+if (!function_exists('thread_top_change')) {
+    include_once APP_PATH . 'model/thread_top.func.php';
+}
+if (!function_exists('forum_read')) {
+    include_once APP_PATH . 'model/forum.func.php';
+}
+if (!function_exists('forum_access_mod')) {
+    include_once APP_PATH . 'model/forum_access.func.php';
+}
+if (!function_exists('group_list_cache')) {
+    include_once APP_PATH . 'model/group.func.php';
+}
 
 // 所有版主操作必须登录
 $token = ApiAuthService::getBearerToken();

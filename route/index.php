@@ -94,8 +94,8 @@ if($thread_list_from_default) {
 	// page 越界自动跳转最后一页（批量删除/移动后当前页可能超出总页数）
 	$totalpage = $totalnum > 0 ? ceil($totalnum / $pagesize) : 1;
 	if($page > $totalpage) {
-		$last_page = max(1, $totalpage);
-		header('Location: ' . str_replace('{page}', $last_page, url("$route-{page}", array('order' => $order))));
+		$last_page = (int)max(1, $totalpage);
+		header('Location: ' . str_replace('{page}', (string)$last_page, url("$route-{page}", array('order' => $order))));
 		exit;
 	}
 

@@ -132,6 +132,11 @@ if(empty($action) || $action == 'list') {
 		// 分区类型无上级
 		if($type == 1) $fup = 0;
 
+		// 版块类型必须归属分区，避免产生无分类版块（孤儿）
+		if($type == 0 && $fup == 0) {
+			message(-1, lang('admin_forum_parent_required'));
+		}
+
 		// hook admin_forum_create_post_start.php
 
 		$arr = array(
@@ -265,6 +270,11 @@ if(empty($action) || $action == 'list') {
 		$fup = param('fup', 0);
 
 		if($type == 1) $fup = 0;
+
+		// 版块类型必须归属分区，避免产生无分类版块（孤儿）
+		if($type == 0 && $fup == 0) {
+			message(-1, lang('admin_forum_parent_required'));
+		}
 
 		// hook admin_forum_update_post_start.php
 

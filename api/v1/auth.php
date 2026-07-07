@@ -8,6 +8,21 @@ $action = $segments[1] ?? '';
 
 switch ($action) {
     case 'login':
+        // ===== 验证码能力开关（Task 2.4）=====
+        global $apiApp, $apiAppServerAuth, $apiAuth;
+        $skipCaptcha = $apiAppServerAuth && $apiAuth->checkAppCapability($apiApp, 'skip_captcha');
+        if (!$skipCaptcha) {
+            if (!class_exists('CaptchaService')) {
+                include_once APP_PATH . 'lib/security/CaptchaService.php';
+            }
+            if (CaptchaService::is_enabled('login', 0)) {
+                $captchaCode = param('captcha_code', '', false);
+                if (!CaptchaService::verify('login', $captchaCode, 0)) {
+                    ApiResponse::error(422, lang('captcha_error'));
+                }
+            }
+        }
+
         $email = param('email', '');
         $password = param('password', '');
 
@@ -19,7 +34,8 @@ switch ($action) {
             $errors['password'] = 'Password is required';
         }
         if (!empty($errors)) {
-            ApiResponse::validationError($errors);
+            // ponytail: validationError 第 1 参为 string，传数组会触发 TypeError fatal
+            ApiResponse::validationError('Validation Error', $errors);
         }
 
         $user = $db->find_one('user', ['email' => $email]);
@@ -44,6 +60,21 @@ switch ($action) {
         break;
 
     case 'register':
+        // ===== 验证码能力开关（Task 2.4）=====
+        global $apiApp, $apiAppServerAuth, $apiAuth;
+        $skipCaptcha = $apiAppServerAuth && $apiAuth->checkAppCapability($apiApp, 'skip_captcha');
+        if (!$skipCaptcha) {
+            if (!class_exists('CaptchaService')) {
+                include_once APP_PATH . 'lib/security/CaptchaService.php';
+            }
+            if (CaptchaService::is_enabled('register', 0)) {
+                $captchaCode = param('captcha_code', '', false);
+                if (!CaptchaService::verify('register', $captchaCode, 0)) {
+                    ApiResponse::error(422, lang('captcha_error'));
+                }
+            }
+        }
+
         $email = param('email', '');
         $username = param('username', '');
         $password = param('password', '');
@@ -59,7 +90,8 @@ switch ($action) {
             $errors['password'] = 'Password is required';
         }
         if (!empty($errors)) {
-            ApiResponse::validationError($errors);
+            // ponytail: validationError 第 1 参为 string，传数组会触发 TypeError fatal
+            ApiResponse::validationError('Validation Error', $errors);
         }
 
         $existingEmail = $db->find_one('user', ['email' => $email]);

@@ -501,12 +501,45 @@
         if (qrcodeEl && typeof QRCode !== 'undefined') {
             new QRCode(qrcodeEl, {
                 text: '<?php echo $thread_url;?>',
-                width: 120,
-                height: 120,
+                width: 52,
+                height: 52,
                 colorDark: '#000000',
                 colorLight: '#ffffff',
                 correctLevel: QRCode.CorrectLevel.M
             });
+        }
+        // 复制帖子网址
+        var copyBtn = document.getElementById('copyThreadUrlBtn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', function () {
+                var url = this.getAttribute('data-url');
+                var okMsg = '<?php echo lang('copied_to_clipboard');?>';
+                var failMsg = '<?php echo lang('copy_failed');?>';
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).then(function () {
+                        XN.toast(okMsg, 'success');
+                    }).catch(function () {
+                        fallbackCopy(url, okMsg, failMsg);
+                    });
+                } else {
+                    fallbackCopy(url, okMsg, failMsg);
+                }
+            });
+        }
+        function fallbackCopy(text, okMsg, failMsg) {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                XN.toast(okMsg, 'success');
+            } catch (e) {
+                XN.toast(failMsg, 'error');
+            }
+            document.body.removeChild(ta);
         }
     })();
 </script>

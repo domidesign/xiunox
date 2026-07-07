@@ -81,6 +81,7 @@ class PluginScanner {
         // fatal、error、force 分类均阻止安装
         $blocked = !empty($fatal) || !empty($error) || !empty($forceBlocked);
 
+        // summary 显示合并后条数（与 issues 列表一致），用户通过 ×N 徽章可知实际处数
         $parts = [];
         if (!empty($fatal)) $parts[] = count($fatal) . ' 个致命问题';
         if (!empty($error)) $parts[] = count($error) . ' 个错误';
@@ -340,7 +341,39 @@ class PluginScanner {
             }
         }
 
+        // 合并同文件+同类型+同规则+同建议的 issue，避免同一文件多处相同警告刷屏
+        // 合并后 issue 增加 lines[] 数组（所有行号）和 count 字段，line 保留首个行号（兼容旧前端）
+        // CSV 导出时通过 lines 数组展开为多行，保持原始粒度
+        $issues = $this->mergeDuplicateIssues($issues);
+
         return $issues;
+    }
+
+    /**
+     * 合并重复 issue
+     * 合并键：file + category + severity + match + suggestion
+     * 同键的 issue 合并为一条，行号聚合到 lines 数组
+     * ponytail: 按 file+category 维度合并而非跨文件，保证定位清晰；lines 数组保持 CSV 展开能力
+     */
+    private function mergeDuplicateIssues(array $issues): array {
+        if (empty($issues)) return $issues;
+
+        $merged = [];
+        $index = [];
+        foreach ($issues as $issue) {
+            $key = $issue['file'] . "\t" . $issue['category'] . "\t" . $issue['severity'] . "\t" . $issue['match'] . "\t" . $issue['suggestion'];
+            if (isset($index[$key])) {
+                $pos = $index[$key];
+                $merged[$pos]['lines'][] = $issue['line'];
+                $merged[$pos]['count']++;
+            } else {
+                $index[$key] = count($merged);
+                $issue['lines'] = [$issue['line']];
+                $issue['count'] = 1;
+                $merged[] = $issue;
+            }
+        }
+        return $merged;
     }
 
     // ===== 内部方法 =====
@@ -412,6 +445,13 @@ class PluginScanner {
                         // 检查是否在"保留"注释的抑制区间内（10 行覆盖多行 SQL 拼接）
                         $suppressUntil = $this->suppressDirectDbUntil[$shortPath] ?? 0;
                         if ($lineNumber <= $suppressUntil) continue;
+                    }
+
+                    // js_dom_xss 白名单：跳过明显安全的 innerHTML/outerHTML 赋值
+                    // 1. 赋值右边是纯字符串字面量（无 + 拼接、无变量插值）
+                    // 2. 赋值右边是单个变量，且变量名匹配 original/saved/cached/previous/backup/stored/prev/old 等前缀
+                    if ($category === 'js_dom_xss' && $this->isSafeInnerHTMLAssignment($line)) {
+                        continue;
                     }
 
                     $context = PluginScannerSuggestion::extractContext($line, $pattern, $category);
@@ -579,6 +619,47 @@ class PluginScanner {
                 if (in_array($ext, $extensions)) $files[] = $item;
             }
         }
+    }
+
+    /**
+     * 判断 innerHTML/outerHTML 赋值是否明显安全（无需 XSS 警告）
+     * 白名单规则：
+     * 1. 赋值右边是纯字符串字面量（单/双引号包裹，无 + 拼接、无 ${} 插值）
+     * 2. 赋值右边是单个变量引用，且变量名匹配 original/saved/cached/previous/backup/stored/prev/old 等前缀（保存原始 DOM 内容的命名）
+     *
+     * 注意：含 + 拼接、函数调用、对象属性访问、模板字符串插值的赋值不在此白名单，需人工审查
+     * ponytail: 静态启发式，会漏报真实 XSS（若 originalHtml 来源被污染）；升级路径是引入 AST 解析做数据流追踪
+     */
+    private function isSafeInnerHTMLAssignment(string $line): bool {
+        // 仅处理 innerHTML/outerHTML 赋值（= 但非 ==）
+        if (!preg_match('/\.(?:inner|outer)HTML\s*=\s*[^=]/i', $line)) {
+            return false;
+        }
+        // 提取 = 右边的表达式（到行尾分号或行尾）
+        if (!preg_match('/\.(?:inner|outer)HTML\s*=\s*(.+?)(?:;|$)/i', $line, $m)) {
+            return false;
+        }
+        $expr = trim($m[1]);
+        // 移除行尾注释
+        $expr = preg_replace('/\/\/.*$/', '', $expr);
+        $expr = trim($expr);
+        if ($expr === '') return false;
+
+        // 1. 纯字符串字面量：单引号或双引号整体包裹，且无 + 拼接
+        //    形如 '<span class="x">text</span>' 或 "loading..."
+        if (preg_match('/^(["\'])(.*)\1$/s', $expr) && strpos($expr, '+') === false) {
+            return true;
+        }
+
+        // 2. 单个变量引用，变量名匹配保存原始内容的命名启发式
+        //    形如 originalHtml / savedInnerHtml / cachedContent / prevState 等
+        if (preg_match('/^([a-zA-Z_$][\w$]*)$/', $expr, $vm)) {
+            if (preg_match('/^(original|saved|cached|previous|backup|stored|prev|old)/i', $vm[1])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

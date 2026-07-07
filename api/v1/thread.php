@@ -27,9 +27,8 @@ function paginateResult(array $list, int $page, int $pagesize, int $total): arra
 $threadAuthToken = ApiAuthService::getBearerToken();
 $threadAuthUser = $threadAuthToken ? $apiAuth->validateAccessToken($threadAuthToken) : null;
 $threadIsAdmin = $threadAuthUser && in_array(intval($threadAuthUser['gid']), [1, 2], true);
-
-// 构建审核条件：非管理员只看 audit_status=1
-$threadAuditCond = $threadIsAdmin ? [] : ['audit_status' => 1];
+$threadGid = $threadAuthUser ? intval($threadAuthUser['gid']) : 0;
+$threadUid = $threadAuthUser ? intval($threadAuthUser['uid']) : 0;
 
 $seg1 = $segments[1] ?? '';
 $seg2 = $segments[2] ?? '';
@@ -296,7 +295,8 @@ if ($seg1 === 'hot') {
             $page = intval($_GET['page'] ?? 1);
             $pagesize = intval($_GET['pagesize'] ?? 20);
 
-            $cond = array_merge([], $threadAuditCond);
+            $cond = [];
+            ApiResponse::filterByAuditStatus($cond, $threadGid, $threadUid);
 
             $fid = intval($_GET['fid'] ?? 0);
             if ($fid > 0) {
@@ -358,6 +358,26 @@ if ($seg1 === 'hot') {
                 ApiResponse::validationError('fid, subject and message are required');
             }
 
+            // ===== 验证码能力开关（Task 2.4）=====
+            global $apiApp, $apiAppServerAuth, $apiAuth;
+            $skipCaptcha = $apiAppServerAuth && $apiAuth->checkAppCapability($apiApp, 'skip_captcha');
+            if (!$skipCaptcha) {
+                if (!class_exists('CaptchaService')) {
+                    include_once APP_PATH . 'lib/security/CaptchaService.php';
+                }
+                $gid = intval($authUser['gid'] ?? 0);
+                if (CaptchaService::is_enabled('post', $gid)) {
+                    $captchaCode = param('captcha_code', '', false);
+                    if (!CaptchaService::verify('post', $captchaCode, $gid)) {
+                        ApiResponse::error(422, lang('captcha_error'));
+                    }
+                }
+            }
+
+            // ===== 审核能力开关（Task 2.5）=====
+            $skipAudit = $apiAppServerAuth && $apiAuth->checkAppCapability($apiApp, 'skip_audit');
+            $auditStatus = $skipAudit ? 1 : (in_array(intval($authUser['gid']), [1, 2]) ? 1 : 0);
+
             // 使用 Xiuno 原始的 thread_create 函数
             $arr = [
                 'fid' => $fid,
@@ -367,6 +387,7 @@ if ($seg1 === 'hot') {
                 'time' => time(),
                 'longip' => ip2long($ip),
                 'doctype' => 0,
+                'audit_status' => $auditStatus,
             ];
             $pid = 0;
             $tid = thread_create($arr, $pid);

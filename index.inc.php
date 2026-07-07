@@ -224,7 +224,7 @@ if(!empty($conf['url_rewrite_on'])) {
     // 用 SCRIPT_NAME 检测 admin，兼容子目录安装
     $_script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/index.php';
     $is_admin_request = (strpos($_script_name, '/admin') !== false);
-    $uri_path = parse_url($request_uri, PHP_URL_PATH);
+    $uri_path = parse_url($request_uri, PHP_URL_PATH) ?? '';
     $has_html_suffix = ($uri_path && (substr($uri_path, -5) === '.html' || substr($uri_path, -4) === '.htm'));
     // 计算去掉安装前缀后的相对路径，用于判断是否为路径风格
     $_script_dir = dirname($_script_name);
@@ -371,11 +371,17 @@ if(!empty($conf['url_rewrite_on'])) {
 $route = param(0, 'index');
 
 // 兼容 ?keyword=xxx 格式的搜索 URL（缺少路由标识时自动跳转搜索）
+// admin 请求跳过：admin 有自己的搜索体系（插件搜索、AI 日志搜索等），
+// admin 下路由（plugin/ai-logs/setting 等）不在前台白名单中，否则会被误跳到前台 search 路由
 if(isset($_REQUEST['keyword']) && trim($_REQUEST['keyword']) !== '') {
-    $valid_routes = array('index','thread','forum','user','my','attach','post','mod','browser','theme','search','lang','api','forums','rank','notice','captcha');
-    if(!in_array($route, $valid_routes)) {
-        http_location(url('search', array('keyword' => trim($_REQUEST['keyword']))));
-    }
+	$_kw_script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/index.php';
+	$_kw_is_admin = (strpos($_kw_script_name, '/admin') !== false);
+	if(!$_kw_is_admin) {
+		$valid_routes = array('index','thread','forum','user','my','attach','post','mod','browser','theme','search','lang','api','forums','rank','notice','captcha');
+		if(!in_array($route, $valid_routes)) {
+			http_location(url('search', array('keyword' => trim($_REQUEST['keyword']))));
+		}
+	}
 }
 
 // hook index_inc_route_before.php

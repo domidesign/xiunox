@@ -115,11 +115,12 @@ switch ($method) {
             // 构建审核条件
             $forumAuditCond = $forumIsAdmin ? [] : ['audit_status' => 1];
             $cond = array_merge(['fid' => $fid], $forumAuditCond);
-            $orderby = isset($_GET['orderby']) ? $_GET['orderby'] : 'tid';
-            $order = isset($_GET['order']) ? $_GET['order'] : 'DESC';
-            $keyword = isset($_GET['keyword']) ? $_GET['keyword'] : '';
-            $list = $threadService->getThreadList($cond, $page, $pagesize, $orderby, $order, $keyword);
-            $total = $threadService->getThreadCount($cond, $keyword);
+            // ponytail: getThreadList 签名为 (cond, orderby=array, page, pagesize)
+            // orderby 为关联数组 [字段 => 1升序/-1降序]，与 thread.php:329 调用方式一致
+            $orderDir = (isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC') ? 1 : -1;
+            $orderby = ['tid' => $orderDir];
+            $list = $threadService->getThreadList($cond, $orderby, $page, $pagesize);
+            $total = $db->count('thread', $cond);
             $result = paginateResult($list, $page, $pagesize, $total);
             if (!empty($fields)) {
                 $result['list'] = filterFields($result['list'], $fields);
@@ -136,11 +137,11 @@ switch ($method) {
             $authUser = $apiAuth->validateAccessToken(ApiAuthService::getBearerToken());
             $fid = intval($_POST['fid'] ?? 0);
             if (empty($fid)) {
-                ApiResponse::error('版块ID不能为空');
+                ApiResponse::error(400, '版块ID不能为空');
             }
             $result = $forumService->followForum(intval($authUser['uid']), $fid);
             if ($result['code'] !== 0) {
-                ApiResponse::error($result['msg']);
+                ApiResponse::error(400, $result['msg']);
             }
             ApiResponse::success($result['data']);
             break;
@@ -151,11 +152,11 @@ switch ($method) {
             $authUser = $apiAuth->validateAccessToken(ApiAuthService::getBearerToken());
             $fid = intval($_POST['fid'] ?? 0);
             if (empty($fid)) {
-                ApiResponse::error('版块ID不能为空');
+                ApiResponse::error(400, '版块ID不能为空');
             }
             $result = $forumService->unfollowForum(intval($authUser['uid']), $fid);
             if ($result['code'] !== 0) {
-                ApiResponse::error($result['msg']);
+                ApiResponse::error(400, $result['msg']);
             }
             ApiResponse::success($result['data']);
             break;

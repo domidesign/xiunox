@@ -6,36 +6,97 @@
 		<!--{hook sidebar_left_forum_before.htm}-->
 		<?php
 		$_sidebar_nav_items = $conf['sidebar_nav_items'] ?? array();
+
+		// 合并插件注册的左侧导航项（已启用的）
+		if(!class_exists('NavService', false)) {
+			$_navservice_file = APP_PATH.'lib/NavService.php';
+			if(is_file($_navservice_file)) include $_navservice_file;
+		}
+		if(class_exists('NavService', false)) {
+			$_plugin_side_items = NavService::getPluginNavItems('side');
+			if(!empty($_plugin_side_items)) $_sidebar_nav_items = array_merge($_sidebar_nav_items, $_plugin_side_items);
+		}
+
+		// 按 rank 排序，同 rank 时 title 排在前，top_link 次之
+		usort($_sidebar_nav_items, function($a, $b) {
+			$ra = intval($a['rank'] ?? 0);
+			$rb = intval($b['rank'] ?? 0);
+			if ($ra !== $rb) return $ra - $rb;
+			$_type_order = function($t) { return $t === 'title' ? 0 : ($t === 'top_link' ? 1 : 2); };
+			return $_type_order($a['type'] ?? 'link') - $_type_order($b['type'] ?? 'link');
+		});
+
 		if(!empty($_sidebar_nav_items)) {
 		?>
 		<div id="sidenav-menu">
 			<ul class="side-nav">
 				<!-- <li class="side-nav-title mt-2"><?php echo lang('navigation');?></li> -->
-			<?php usort($_sidebar_nav_items, function($a, $b) {
-				$ra = intval($a['rank'] ?? 0);
-				$rb = intval($b['rank'] ?? 0);
-				if ($ra !== $rb) return $ra - $rb;
-				$ta = ($a['type'] ?? 'link') === 'title' ? 0 : 1;
-				$tb = ($b['type'] ?? 'link') === 'title' ? 0 : 1;
-				return $ta - $tb;
-			}); ?>
-			<?php foreach($_sidebar_nav_items as $_sni) {
-				$_type = isset($_sni['type']) ? $_sni['type'] : 'link';
-				if ($_type === 'title') {
+			<?php
+		// 数组顺序分组：遇到 title 开始新分组，后续 link 都是它的子项，直到下一个 title 或 top_link
+		$_side_i = 0;
+		$_side_count = count($_sidebar_nav_items);
+		while ($_side_i < $_side_count) {
+			$_sni = $_sidebar_nav_items[$_side_i];
+			$_type = isset($_sni['type']) ? $_sni['type'] : 'link';
+			if ($_type === 'title') {
+				// 收集子项（到下一个 title 或 top_link 之前的 link）
+				$_side_children = array();
+				$_side_j = $_side_i + 1;
+				while ($_side_j < $_side_count) {
+					$_cur_type = $_sidebar_nav_items[$_side_j]['type'] ?? 'link';
+					if ($_cur_type === 'title' || $_cur_type === 'top_link') break;
+					$_side_children[] = $_sidebar_nav_items[$_side_j];
+					$_side_j++;
+				}
+					if (empty($_side_children)) {
+						// 无子项：title 作为普通链接或纯文本分隔符
+						$_side_url = !empty($_sni['url']) ? esc_attr($_sni['url']) : '';
+						if(!$_side_url) {
 			?>
 				<li class="side-nav-title"><?php echo esc_html($_sni['name']);?></li>
 			<?php
-				} else {
+						} else {
 			?>
-				<li class="side-nav-item" data-active="nav-<?php echo esc_attr($_sni['slug']);?>">
+				<li class="side-nav-item" data-active="nav-<?php echo esc_attr($_sni['slug'] ?? '');?>">
+					<a href="<?php echo $_side_url;?>" class="side-nav-link">
+						<span class="menu-icon"><?php if(!empty($_sni['icon'])) { ?><i class="<?php echo esc_attr($_sni['icon']);?>"></i><?php } else { ?><i class="ti ti-folder"></i><?php } ?></span>
+						<span class="menu-text"><?php echo esc_html($_sni['name']);?></span>
+					</a>
+				</li>
+			<?php
+						}
+					} else {
+						// 有子项：渲染为 title + 缩进子项
+			?>
+				<li class="side-nav-title">
+					<?php if(!empty($_sni['icon'])) { ?><i class="<?php echo esc_attr($_sni['icon']);?> me-1"></i><?php } ?>
+					<?php echo esc_html($_sni['name']);?>
+				</li>
+				<?php foreach($_side_children as $_clink) { ?>
+				<li class="side-nav-item side-nav-child" data-active="nav-<?php echo esc_attr($_clink['slug'] ?? '');?>">
+					<a href="<?php echo esc_attr($_clink['url']);?>" class="side-nav-link">
+						<span class="menu-icon"><?php if(!empty($_clink['icon'])) { ?><i class="<?php echo esc_attr($_clink['icon']);?>"></i><?php } else { ?><i class="ti ti-link"></i><?php } ?></span>
+						<span class="menu-text"><?php echo esc_html($_clink['name']);?></span>
+					</a>
+				</li>
+				<?php } ?>
+			<?php
+					}
+					$_side_i = $_side_j;
+				} else {
+					// 一级 link
+			?>
+				<li class="side-nav-item" data-active="nav-<?php echo esc_attr($_sni['slug'] ?? '');?>">
 					<a href="<?php echo esc_attr($_sni['url']);?>" class="side-nav-link">
 						<span class="menu-icon"><?php if(!empty($_sni['icon'])) { ?><i class="<?php echo esc_attr($_sni['icon']);?>"></i><?php } else { ?><i class="ti ti-link"></i><?php } ?></span>
 						<span class="menu-text"><?php echo esc_html($_sni['name']);?></span>
 					</a>
 				</li>
 			<?php
+					$_side_i++;
 				}
-			} ?>
+			}
+			?>
 			</ul>
 		</div>
 		<?php } ?>

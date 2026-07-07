@@ -3,11 +3,7 @@
 
 RewriteEngine On
 
-# CORS 预检请求直接返回
-RewriteCond %{REQUEST_METHOD} OPTIONS
-RewriteRule .* - [R=204,L]
-
-# 非静态文件请求转发到 index.php
+# 非静态文件请求转发到 index.php（含 OPTIONS，由 bootstrap.php 处理 CORS 头）
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^v1/(.*)$ v1/index.php [L,QSA]

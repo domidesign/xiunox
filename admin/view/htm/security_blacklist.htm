@@ -421,7 +421,7 @@ function batchImport() {
         if (code == 0) {
             showToast(message, 'success');
             textarea.value = '';
-            setTimeout(function(){ location.reload(); }, 800);
+            setTimeout(function(){ location.reload(); }, 1000);
         } else {
             showToast(message, 'error');
         }
@@ -443,7 +443,7 @@ function uploadBlacklistFile(event) {
                 var res = JSON.parse(xhr.responseText);
                 if (parseInt(res.code) === 0) {
                     showToast(res.message, 'success');
-                    setTimeout(function(){ location.reload(); }, 800);
+                    setTimeout(function(){ location.reload(); }, 1000);
                 } else {
                     showToast(res.message, 'error');
                 }

@@ -118,7 +118,7 @@ jform.on('submit', function() {
 	$.xpost(jform.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
 			showToast(message, 'success');
-			setTimeout(function(){ window.location.reload(); }, 500);
+			setTimeout(function(){ window.location.reload(); }, 1000);
 		} else if(xn.is_number(code)) {
 			showToast(message, 'error');
 			jsubmit.button('reset');

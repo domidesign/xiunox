@@ -73,4 +73,19 @@ class ApiResponse {
         }
         return $result;
     }
+
+    /**
+     * 根据用户身份过滤审核状态条件
+     * 管理员/版主（gid=1/2）不加条件，可看全部
+     * 普通用户只能看 audit_status=1
+     * @param array &$cond 查询条件数组（引用传递）
+     * @param int $gid 用户组 ID
+     * @param int $uid 用户 ID（保留参数，当前列表查询未使用）
+     */
+    public static function filterByAuditStatus(array &$cond, int $gid, int $uid = 0): void {
+        if (in_array($gid, [1, 2], true)) {
+            return; // 管理员/版主不加条件
+        }
+        $cond['audit_status'] = 1;
+    }
 }

@@ -46,11 +46,21 @@
 				</div>
 			</div>
 			<div class="d-flex gap-4 align-items-center mb-3" id="fup_row">
-				<label class="form-label" style="width:25%" for="fup"><?php echo lang('admin_forum_parent');?>：</label>
-				<div style="width:75%">
-					<?php echo $input['fup'];?>
-				</div>
+			<label class="form-label" style="width:25%" for="fup"><?php echo lang('admin_forum_parent');?>：</label>
+			<div style="width:75%">
+				<select name="fup" id="fup_select" class="form-select rounded-pill" style="max-width:200px" required>
+					<option value=""><?php echo lang('admin_forum_parent_required');?></option>
+					<?php
+					$_current_fup = isset($_forum['fup']) ? intval($_forum['fup']) : 0;
+					foreach($categories as $cat) {
+						if($cat['fid'] == $_fid) continue; // 不能选自己作上级
+						$_selected = ($_current_fup == $cat['fid']) ? ' selected' : '';
+					?>
+					<option value="<?php echo $cat['fid'];?>"<?php echo $_selected;?>><?php echo esc_html($cat['name']);?></option>
+					<?php } ?>
+				</select>
 			</div>
+		</div>
 			<div class="d-flex gap-4 align-items-center mb-3">
 				<label class="form-label" style="width:25%" for="name"><?php echo lang('rank');?>：</label>
 				<div style="width:25%">
@@ -154,7 +164,7 @@ jform.on('submit', function(){
 		success: function(r) {
 			if(r.code == 0) {
 				showToast(r.message, 'success');
-				setTimeout(function() { window.location = xn.url('forum-list'); }, 1500);
+				setTimeout(function() { window.location = xn.url('forum-list'); }, 1000);
 			} else {
 				showToast(r.message, 'error');
 				jsubmit.prop('disabled', false).text('<?php echo lang('confirm');?>');
@@ -165,13 +175,16 @@ jform.on('submit', function(){
 });
 
 var jfup_row = $('#fup_row');
+var jfup_select = $('#fup_select');
 var jmoduids_row = $('#moduids_row');
 var jtype = jform.find('select[name="type"]');
 function toggleFupRow() {
 	if(jtype.val() == 1) {
 		jfup_row.hide();
+		jfup_select.prop('required', false);
 	} else {
 		jfup_row.show();
+		jfup_select.prop('required', true);
 	}
 }
 function toggleModRow() {

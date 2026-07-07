@@ -851,6 +851,14 @@ return array(
 	'discover_plugin_name_magic'=>'玄学治愈',
 	'discover_plugin_name_tag'=>'话题标签',
 
+	// 导航插件默认名称（顶部/左侧导航注册）
+	'nav_plugin_name_medal'=>'勋章',
+	'nav_plugin_name_checkin'=>'签到',
+	'nav_plugin_name_invite'=>'邀请',
+	'nav_plugin_name_friendlink'=>'友情链接',
+	'nav_plugin_name_magic'=>'玄学治愈',
+	'nav_plugin_name_tag'=>'话题标签',
+
 	// 帖子目录
 	'table_of_contents'=>'目录',
 
@@ -929,7 +937,8 @@ return array(
 	'user_ban_cannot_clear_admin'=>'不能清空管理员用户内容',
 	'user_ban_field_missing'=>'缺少必要字段',
 	'user_ban_notice_ban'=>'您已被{type}，原因：{reason}，时长：{duration}，解封时间：{expire}',
-	'user_ban_notice_unban'=>'您已被解封，原因：{reason}',
+	'user_ban_notice_unban'=>'您的账号已被解除封禁，原因：{reason}',
+	'user_ban_notice_unban_no_reason'=>'您的账号已被解除封禁，现在可以正常使用',
 	'user_ban_login_denied'=>'您已被禁止访问',
 	'user_ban_browse_denied'=>'您已被禁止访问',
 	'user_ban_post_denied'=>'您已被禁言，无法发帖',

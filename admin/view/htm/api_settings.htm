@@ -15,6 +15,10 @@
 			<input class="form-check-input" type="checkbox" role="switch" id="apiEnabledSwitch" <?php echo $api_enabled ? 'checked' : '';?> onchange="saveSettings()">
 			<label class="form-check-label" for="apiEnabledSwitch"><?php echo $api_enabled ? 'API 已开启' : 'API 已关闭';?></label>
 		</div>
+		<div class="form-check form-switch mt-2">
+			<input class="form-check-input" type="checkbox" role="switch" id="apiLogSwitch" <?php echo !empty($api_log) ? 'checked' : '';?> onchange="saveSettings()">
+			<label class="form-check-label" for="apiLogSwitch">API 日志记录（记录所有 API 请求到数据库，便于审计）</label>
+		</div>
 	</div>
 </div>
 
@@ -34,6 +38,7 @@
 						<th>名称</th>
 						<th style="width:100px">权限范围</th>
 						<th style="width:100px">速率限制</th>
+						<th style="width:180px">Capabilities</th>
 						<th style="width:80px">状态</th>
 						<th style="width:140px">创建时间</th>
 						<th style="width:180px">操作</th>
@@ -41,10 +46,23 @@
 				</thead>
 				<tbody>
 					<?php if(empty($apps)): ?>
-					<tr><td colspan="7" class="text-center text-body-secondary">暂无应用，点击上方按钮创建</td></tr>
+					<tr><td colspan="8" class="text-center text-body-secondary">暂无应用，点击上方按钮创建</td></tr>
 					<?php else: ?>
-					<?php foreach($apps as $app): ?>
-					<tr id="app-row-<?php echo $app['id'];?>">
+					<?php foreach($apps as $app):
+						$appCaps = json_decode($app['capabilities'] ?? '', true);
+						if(!is_array($appCaps)) $appCaps = [];
+						$appIpList = json_decode($app['ip_whitelist'] ?? '', true);
+						if(!is_array($appIpList)) $appIpList = [];
+						$capLabels = [];
+						if(!empty($appCaps['skip_captcha'])) $capLabels[] = lang('api_app_skip_captcha');
+						if(!empty($appCaps['skip_audit'])) $capLabels[] = lang('api_app_skip_audit');
+						if(!empty($appCaps['skip_rate_limit'])) $capLabels[] = lang('api_app_skip_rate_limit');
+						if(!empty($appCaps['allowed_resources'])) $capLabels[] = lang('api_app_allowed_resources') . '(' . count($appCaps['allowed_resources']) . ')';
+						if(!empty($appCaps['denied_endpoints'])) $capLabels[] = lang('api_app_denied_endpoints') . '(' . count($appCaps['denied_endpoints']) . ')';
+						if(!empty($appIpList)) $capLabels[] = lang('api_app_ip_whitelist') . '(' . count($appIpList) . ')';
+						$capSummary = !empty($capLabels) ? implode('、', $capLabels) : '—';
+					?>
+					<tr id="app-row-<?php echo $app['id'];?>" data-capabilities="<?php echo esc_html($app['capabilities'] ?? '');?>" data-ip-whitelist="<?php echo esc_html($app['ip_whitelist'] ?? '');?>">
 						<td><code style="font-size:0.8rem"><?php echo esc_html($app['appid']);?></code></td>
 						<td><?php echo esc_html($app['name']);?></td>
 						<td>
@@ -56,6 +74,9 @@
 							<span class="badge bg-<?php echo $scopeColors[$scope] ?? 'secondary';?>"><?php echo $scopeLabels[$scope] ?? $scope;?></span>
 						</td>
 						<td><?php echo intval($app['rate_limit']);?>/min</td>
+						<td class="small">
+							<span class="badge bg-<?php echo !empty($capLabels) ? 'info' : 'secondary';?>"><?php echo esc_html($capSummary);?></span>
+						</td>
 						<td>
 							<?php if(!empty($app['is_enabled'])): ?>
 							<span class="badge bg-success">启用</span>
@@ -164,11 +185,68 @@
 					</select>
 				</div>
 				<div class="mb-3">
-					<label class="form-label">速率限制（请求/分钟）</label>
-					<input type="number" class="form-control form-control-sm" id="createAppRateLimit" value="120" min="0">
-					<div class="form-text">0 表示不限制</div>
+				<label class="form-label">速率限制（请求/分钟）</label>
+				<input type="number" class="form-control form-control-sm" id="createAppRateLimit" value="120" min="0">
+				<div class="form-text">0 表示不限制</div>
+			</div>
+
+			<!-- capabilities 配置区 -->
+			<div class="mb-3">
+				<label class="form-label"><?php echo lang('api_app_capabilities');?></label>
+				<small class="text-muted d-block mb-2"><?php echo lang('api_app_capabilities_desc');?></small>
+
+				<div class="form-check form-switch mb-2">
+					<input class="form-check-input" type="checkbox" name="skip_captcha" value="1" id="createSkipCaptcha">
+					<label class="form-check-label" for="createSkipCaptcha"><?php echo lang('api_app_skip_captcha');?>
+						<small class="text-muted d-block"><?php echo lang('api_app_skip_captcha_desc');?></small>
+					</label>
+				</div>
+				<div class="form-check form-switch mb-2">
+					<input class="form-check-input" type="checkbox" name="skip_audit" value="1" id="createSkipAudit">
+					<label class="form-check-label" for="createSkipAudit"><?php echo lang('api_app_skip_audit');?>
+						<small class="text-muted d-block"><?php echo lang('api_app_skip_audit_desc');?></small>
+					</label>
+				</div>
+				<div class="form-check form-switch mb-2">
+					<input class="form-check-input" type="checkbox" name="skip_rate_limit" value="1" id="createSkipRateLimit">
+					<label class="form-check-label" for="createSkipRateLimit"><?php echo lang('api_app_skip_rate_limit');?>
+						<small class="text-muted d-block"><?php echo lang('api_app_skip_rate_limit_desc');?></small>
+					</label>
 				</div>
 			</div>
+
+			<!-- 资源白名单 -->
+			<div class="mb-3">
+				<label class="form-label"><?php echo lang('api_app_allowed_resources');?></label>
+				<small class="text-muted d-block mb-2"><?php echo lang('api_app_allowed_resources_desc');?></small>
+				<div class="d-flex flex-wrap gap-3">
+					<?php
+					$createResources = ['thread','post','user','forum','admin','notify','credits','search'];
+					foreach($createResources as $res):
+						$resId = 'createRes_' . $res;
+					?>
+					<div class="form-check">
+						<input class="form-check-input" type="checkbox" name="allowed_resources[]" value="<?php echo $res;?>" id="<?php echo $resId;?>">
+						<label class="form-check-label" for="<?php echo $resId;?>"><?php echo lang('api_app_resource_' . $res);?></label>
+					</div>
+					<?php endforeach; ?>
+				</div>
+			</div>
+
+			<!-- 端点黑名单 -->
+			<div class="mb-3">
+				<label class="form-label"><?php echo lang('api_app_denied_endpoints');?></label>
+				<small class="text-muted d-block mb-2"><?php echo lang('api_app_denied_endpoints_desc');?></small>
+				<textarea class="form-control form-control-sm" name="denied_endpoints" id="createDeniedEndpoints" rows="3" placeholder="admin/*&#10;user/delete"></textarea>
+			</div>
+
+			<!-- IP 白名单 -->
+			<div class="mb-3">
+				<label class="form-label"><?php echo lang('api_app_ip_whitelist');?></label>
+				<small class="text-muted d-block mb-2"><?php echo lang('api_app_ip_whitelist_desc');?></small>
+				<textarea class="form-control form-control-sm" name="ip_whitelist" id="createIpWhitelist" rows="3" placeholder="192.168.1.0/24&#10;10.0.0.1"></textarea>
+			</div>
+		</div>
 			<div class="modal-footer">
 				<button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
 				<button type="button" class="btn btn-sm btn-primary" onclick="createApp()">创建</button>
@@ -212,10 +290,67 @@
 					</div>
 				</div>
 				<div class="mb-3">
-					<label class="form-label">速率限制（请求/分钟）</label>
-					<input type="number" class="form-control form-control-sm" id="editAppRateLimit" value="120" min="0">
+				<label class="form-label">速率限制（请求/分钟）</label>
+				<input type="number" class="form-control form-control-sm" id="editAppRateLimit" value="120" min="0">
+			</div>
+
+			<!-- capabilities 配置区 -->
+			<div class="mb-3">
+				<label class="form-label"><?php echo lang('api_app_capabilities');?></label>
+				<small class="text-muted d-block mb-2"><?php echo lang('api_app_capabilities_desc');?></small>
+
+				<div class="form-check form-switch mb-2">
+					<input class="form-check-input" type="checkbox" name="skip_captcha" value="1" id="editSkipCaptcha">
+					<label class="form-check-label" for="editSkipCaptcha"><?php echo lang('api_app_skip_captcha');?>
+						<small class="text-muted d-block"><?php echo lang('api_app_skip_captcha_desc');?></small>
+					</label>
+				</div>
+				<div class="form-check form-switch mb-2">
+					<input class="form-check-input" type="checkbox" name="skip_audit" value="1" id="editSkipAudit">
+					<label class="form-check-label" for="editSkipAudit"><?php echo lang('api_app_skip_audit');?>
+						<small class="text-muted d-block"><?php echo lang('api_app_skip_audit_desc');?></small>
+					</label>
+				</div>
+				<div class="form-check form-switch mb-2">
+					<input class="form-check-input" type="checkbox" name="skip_rate_limit" value="1" id="editSkipRateLimit">
+					<label class="form-check-label" for="editSkipRateLimit"><?php echo lang('api_app_skip_rate_limit');?>
+						<small class="text-muted d-block"><?php echo lang('api_app_skip_rate_limit_desc');?></small>
+					</label>
 				</div>
 			</div>
+
+			<!-- 资源白名单 -->
+			<div class="mb-3">
+				<label class="form-label"><?php echo lang('api_app_allowed_resources');?></label>
+				<small class="text-muted d-block mb-2"><?php echo lang('api_app_allowed_resources_desc');?></small>
+				<div class="d-flex flex-wrap gap-3">
+					<?php
+					$editResources = ['thread','post','user','forum','admin','notify','credits','search'];
+					foreach($editResources as $res):
+						$resId = 'editRes_' . $res;
+					?>
+					<div class="form-check">
+						<input class="form-check-input" type="checkbox" name="allowed_resources[]" value="<?php echo $res;?>" id="<?php echo $resId;?>">
+						<label class="form-check-label" for="<?php echo $resId;?>"><?php echo lang('api_app_resource_' . $res);?></label>
+					</div>
+					<?php endforeach; ?>
+				</div>
+			</div>
+
+			<!-- 端点黑名单 -->
+			<div class="mb-3">
+				<label class="form-label"><?php echo lang('api_app_denied_endpoints');?></label>
+				<small class="text-muted d-block mb-2"><?php echo lang('api_app_denied_endpoints_desc');?></small>
+				<textarea class="form-control form-control-sm" name="denied_endpoints" id="editDeniedEndpoints" rows="3" placeholder="admin/*&#10;user/delete"></textarea>
+			</div>
+
+			<!-- IP 白名单 -->
+			<div class="mb-3">
+				<label class="form-label"><?php echo lang('api_app_ip_whitelist');?></label>
+				<small class="text-muted d-block mb-2"><?php echo lang('api_app_ip_whitelist_desc');?></small>
+				<textarea class="form-control form-control-sm" name="ip_whitelist" id="editIpWhitelist" rows="3" placeholder="192.168.1.0/24&#10;10.0.0.1"></textarea>
+			</div>
+		</div>
 			<div class="modal-footer">
 				<button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
 				<button type="button" class="btn btn-sm btn-primary" onclick="updateApp()">保存</button>
@@ -304,6 +439,7 @@ function getCsrfToken() {
 function saveSettings() {
 	var data = {
 		api_enabled: document.getElementById('apiEnabledSwitch').checked ? 1 : 0,
+		api_log: document.getElementById('apiLogSwitch').checked ? 1 : 0,
 		api_rate_limit: document.getElementById('apiRateLimitSwitch').checked ? 1 : 0,
 		api_rate_limit_max: parseInt(document.getElementById('apiRateLimitMax').value) || 60,
 		api_rate_limit_window: parseInt(document.getElementById('apiRateLimitWindow').value) || 60,
@@ -332,11 +468,37 @@ function saveSettings() {
 	});
 }
 
+function resetCapabilitiesFields(scopePrefix) {
+	document.getElementById(scopePrefix + 'SkipCaptcha').checked = false;
+	document.getElementById(scopePrefix + 'SkipAudit').checked = false;
+	document.getElementById(scopePrefix + 'SkipRateLimit').checked = false;
+	document.getElementById(scopePrefix + 'DeniedEndpoints').value = '';
+	document.getElementById(scopePrefix + 'IpWhitelist').value = '';
+	var modalId = scopePrefix === 'create' ? 'createAppModal' : 'editAppModal';
+	document.querySelectorAll('#' + modalId + ' input[name="allowed_resources[]"]').forEach(function(cb) {
+		cb.checked = false;
+	});
+}
+
+function collectCapabilitiesParams(params, scopePrefix) {
+	params.append('skip_captcha', document.getElementById(scopePrefix + 'SkipCaptcha').checked ? 1 : 0);
+	params.append('skip_audit', document.getElementById(scopePrefix + 'SkipAudit').checked ? 1 : 0);
+	params.append('skip_rate_limit', document.getElementById(scopePrefix + 'SkipRateLimit').checked ? 1 : 0);
+	params.append('denied_endpoints', document.getElementById(scopePrefix + 'DeniedEndpoints').value);
+	params.append('ip_whitelist', document.getElementById(scopePrefix + 'IpWhitelist').value);
+	var modalId = scopePrefix === 'create' ? 'createAppModal' : 'editAppModal';
+	document.querySelectorAll('#' + modalId + ' input[name="allowed_resources[]"]:checked').forEach(function(cb) {
+		params.append('allowed_resources[]', cb.value);
+	});
+	return params;
+}
+
 function showCreateModal() {
 	document.getElementById('createAppName').value = '';
 	document.getElementById('createAppDesc').value = '';
 	document.getElementById('createAppScope').value = 'readonly';
 	document.getElementById('createAppRateLimit').value = '120';
+	resetCapabilitiesFields('create');
 	var modal = new bootstrap.Modal(document.getElementById('createAppModal'));
 	modal.show();
 }
@@ -348,18 +510,18 @@ function createApp() {
 		return;
 	}
 
-	var data = {
-		name: name,
-		description: document.getElementById('createAppDesc').value.trim(),
-		scope: document.getElementById('createAppScope').value,
-		rate_limit: parseInt(document.getElementById('createAppRateLimit').value) || 120,
-		csrf_token: getCsrfToken()
-	};
+	var params = new URLSearchParams();
+	params.append('name', name);
+	params.append('description', document.getElementById('createAppDesc').value.trim());
+	params.append('scope', document.getElementById('createAppScope').value);
+	params.append('rate_limit', parseInt(document.getElementById('createAppRateLimit').value) || 120);
+	collectCapabilitiesParams(params, 'create');
+	params.append('csrf_token', getCsrfToken());
 
 	fetch('<?php echo admin_api_app_create_url();?>', {
 		method: 'POST',
 		headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
-		body: new URLSearchParams(data).toString()
+		body: params.toString()
 	})
 	.then(function(r) { return r.json(); })
 	.then(function(json) {
@@ -390,6 +552,27 @@ function showEditModal(id, name, description, scope, isEnabled, rateLimit) {
 	document.getElementById('editAppScope').value = scope;
 	document.getElementById('editAppEnabled').checked = isEnabled === 1;
 	document.getElementById('editAppRateLimit').value = rateLimit;
+
+	// 回填 capabilities 和 ip_whitelist
+	var row = document.getElementById('app-row-' + id);
+	var capabilities = {};
+	var ipWhitelist = [];
+	if(row) {
+		try {
+			capabilities = JSON.parse(row.dataset.capabilities || '{}');
+			ipWhitelist = JSON.parse(row.dataset.ipWhitelist || '[]');
+		} catch(e) {}
+	}
+	document.getElementById('editSkipCaptcha').checked = !!(capabilities.skip_captcha);
+	document.getElementById('editSkipAudit').checked = !!(capabilities.skip_audit);
+	document.getElementById('editSkipRateLimit').checked = !!(capabilities.skip_rate_limit);
+	document.getElementById('editDeniedEndpoints').value = (capabilities.denied_endpoints || []).join('\n');
+	document.getElementById('editIpWhitelist').value = ipWhitelist.join('\n');
+	var allowedRes = capabilities.allowed_resources || [];
+	document.querySelectorAll('#editAppModal input[name="allowed_resources[]"]').forEach(function(cb) {
+		cb.checked = allowedRes.indexOf(cb.value) !== -1;
+	});
+
 	var modal = new bootstrap.Modal(document.getElementById('editAppModal'));
 	modal.show();
 }
@@ -401,20 +584,20 @@ function updateApp() {
 		return;
 	}
 
-	var data = {
-		id: id,
-		name: document.getElementById('editAppName').value.trim(),
-		description: document.getElementById('editAppDesc').value.trim(),
-		scope: document.getElementById('editAppScope').value,
-		is_enabled: document.getElementById('editAppEnabled').checked ? 1 : 0,
-		rate_limit: parseInt(document.getElementById('editAppRateLimit').value) || 120,
-		csrf_token: getCsrfToken()
-	};
+	var params = new URLSearchParams();
+	params.append('id', id);
+	params.append('name', document.getElementById('editAppName').value.trim());
+	params.append('description', document.getElementById('editAppDesc').value.trim());
+	params.append('scope', document.getElementById('editAppScope').value);
+	params.append('is_enabled', document.getElementById('editAppEnabled').checked ? 1 : 0);
+	params.append('rate_limit', parseInt(document.getElementById('editAppRateLimit').value) || 120);
+	collectCapabilitiesParams(params, 'edit');
+	params.append('csrf_token', getCsrfToken());
 
 	fetch('<?php echo admin_api_app_update_url();?>', {
 		method: 'POST',
 		headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
-		body: new URLSearchParams(data).toString()
+		body: params.toString()
 	})
 	.then(function(r) { return r.json(); })
 	.then(function(json) {

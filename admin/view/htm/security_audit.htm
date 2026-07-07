@@ -233,7 +233,7 @@ $('.audit-approve').on('click', function() {
     $.xpost('<?php echo admin_security_url('audit');?>', {csrf_token: csrf_token, audit_action: 'approve', target_type: type, target_id: id}, function(code, message) {
         if(code == 0) {
             showToast(message, 'success');
-            setTimeout(function(){ location.reload(); }, 800);
+            setTimeout(function(){ location.reload(); }, 1000);
         } else { showToast(message, 'error'); }
     });
 });
@@ -246,7 +246,7 @@ $('.audit-reject').on('click', function() {
     $.xpost('<?php echo admin_security_url('audit');?>', {csrf_token: csrf_token, audit_action: 'reject', target_type: type, target_id: id, reason: reason || ''}, function(code, message) {
         if(code == 0) {
             showToast(message, 'success');
-            setTimeout(function(){ location.reload(); }, 800);
+            setTimeout(function(){ location.reload(); }, 1000);
         } else { showToast(message, 'error'); }
     });
 });
@@ -265,7 +265,7 @@ $('#batch-approve-thread').on('click', function() {
     $('.thread-check:checked').each(function(){ ids.push($(this).val()); });
     if(ids.length === 0) { showToast('<?php echo lang('admin_please_select_first')?>', 'warning'); return; }
     $.xpost('<?php echo admin_security_url('audit');?>', {csrf_token: csrf_token, audit_action: 'batch_approve', target_type: 'thread', ids: ids}, function(code, message) {
-        if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 800); }
+        if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 1000); }
         else { showToast(message, 'error'); }
     });
 });
@@ -276,7 +276,7 @@ $('#batch-approve-post').on('click', function() {
     $('.post-check:checked').each(function(){ ids.push($(this).val()); });
     if(ids.length === 0) { showToast('<?php echo lang('admin_please_select_first')?>', 'warning'); return; }
     $.xpost('<?php echo admin_security_url('audit');?>', {csrf_token: csrf_token, audit_action: 'batch_approve', target_type: 'post', ids: ids}, function(code, message) {
-        if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 800); }
+        if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 1000); }
         else { showToast(message, 'error'); }
     });
 });
@@ -287,7 +287,7 @@ $('.audit-profile-approve').on('click', function() {
     $.xpost('<?php echo admin_security_url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_approve', audit_id: id}, function(code, message) {
         if(code == 0) {
             showToast(message, 'success');
-            setTimeout(function(){ location.reload(); }, 800);
+            setTimeout(function(){ location.reload(); }, 1000);
         } else { showToast(message, 'error'); }
     });
 });
@@ -299,7 +299,7 @@ $('.audit-profile-reject').on('click', function() {
     $.xpost('<?php echo admin_security_url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_reject', audit_id: id, reason: reason || ''}, function(code, message) {
         if(code == 0) {
             showToast(message, 'success');
-            setTimeout(function(){ location.reload(); }, 800);
+            setTimeout(function(){ location.reload(); }, 1000);
         } else { showToast(message, 'error'); }
     });
 });
@@ -315,7 +315,7 @@ $('#batch-approve-profile').on('click', function() {
     $('.profile-check:checked').each(function(){ ids.push($(this).val()); });
     if(ids.length === 0) { showToast('<?php echo lang('admin_please_select_first')?>', 'warning'); return; }
     $.xpost('<?php echo admin_security_url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_batch_approve', ids: ids}, function(code, message) {
-        if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 800); }
+        if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 1000); }
         else { showToast(message, 'error'); }
     });
 });

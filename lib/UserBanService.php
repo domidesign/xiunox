@@ -592,9 +592,12 @@ class UserBanService {
 				'expire' => $expireFormatted,
 			));
 		} else {
-			$message = lang('user_ban_notice_unban', array(
-				'reason' => $reason,
-			));
+			// 解封通知：reason 为空时使用无原因文案，避免显示「原因：」后接空白
+			if($reason !== '') {
+				$message = lang('user_ban_notice_unban', array('reason' => $reason));
+			} else {
+				$message = lang('user_ban_notice_unban_no_reason');
+			}
 		}
 
 		// notify_create 签名：($uid, $from_uid, $type, $tid=0, $pid=0, $content='', $extra=array())

@@ -69,9 +69,14 @@
 <div class="x-card card">
 	<div class="card-body">
 		<!-- 筛选 -->
-		<form method="get" action="<?php echo url('ai-logs');?>" class="d-flex gap-2 mb-3 flex-wrap">
-			<input type="hidden" name="0" value="ai">
-			<input type="hidden" name="1" value="logs">
+		<?php
+		// admin GET 表单提交时浏览器会用表单字段替换 action URL 中的 query string,
+		// 导致 ./?ai-logs.htm 中的路由信息 ai-logs.htm 被丢弃,触发 404。
+		// 改用 JS 构建搜索 URL(保留 ./?ai-logs.htm 路由信息),window.location 跳转。
+		// 不能用 ./ai-logs.htm 纯 path 形式:会被根目录 .htaccess rewrite 到 /index.php(根目录),
+		// 前台路由 case 'ai' 不存在,仍然 404。
+		?>
+		<form method="get" action="<?php echo url('ai-logs');?>" class="d-flex gap-2 mb-3 flex-wrap" id="aiLogsSearchForm">
 			<select class="form-select form-select-sm" name="source" style="width:auto">
 				<option value=""><?php echo lang('admin_ai_logs_filter_source_all');?></option>
 				<option value="core"<?php echo $filter_source==='core'?' selected':'';?>><?php echo lang('admin_ai_logs_source_core');?></option>
@@ -147,6 +152,27 @@
 		<?php endif; ?>
 	</div>
 </div>
+
+<script>
+// AI 日志搜索:构建保留路由信息的 URL(./?ai-logs.htm?source=X&feature=X&status=X)
+// 不能依赖 GET 表单默认提交:浏览器会用表单字段替换 action URL 中的 query string,
+// 丢失 ./?ai-logs.htm 中的路由信息 ai-logs.htm,导致 404。
+function aiLogsSearch() {
+	var form = document.getElementById('aiLogsSearchForm');
+	if (!form) return;
+	var source = form.elements['source'].value;
+	var feature = form.elements['feature'].value;
+	var status = form.elements['status'].value;
+	var url = '<?php echo url('ai-logs');?>?source=' + encodeURIComponent(source)
+			+ '&feature=' + encodeURIComponent(feature)
+			+ '&status=' + encodeURIComponent(status);
+	window.location.href = url;
+}
+document.getElementById('aiLogsSearchForm').addEventListener('submit', function(e) {
+	e.preventDefault();
+	aiLogsSearch();
+});
+</script>
 
 <!--{hook admin_ai_logs_end.htm}-->
 

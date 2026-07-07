@@ -42,7 +42,21 @@ define('APP_PATH', dirname(__FILE__).'/'); // __DIR__
 // !ini_get('zlib.output_compression') AND ob_start('ob_gzhandler');
 
 //ob_start('ob_gzhandler');
-$conf = (@include APP_PATH.'conf/conf.php') OR exit('<script>window.location="install/"</script>');
+// conf 加载失败说明未安装，跳转到 install/
+// 必须用绝对路径：admin/ 入口会 include 本文件，若用相对路径 "install/"，
+// 浏览器会在 /admin/ 下解析成 /admin/install/，再次命中 admin/index.php，形成
+// /admin/install/install/install/... 无限循环。
+$conf = @include APP_PATH.'conf/conf.php';
+if(!$conf) {
+	// 根据当前 SCRIPT_NAME 推算站点根 URL，兼容根目录部署/子目录部署/admin 入口
+	$_base = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
+	if (substr($_base, -6) === '/admin') {
+		$_base = substr($_base, 0, -5); // admin/ 入口回退到根
+	} elseif ($_base === '/' || $_base === '.') {
+		$_base = '';
+	}
+	exit('<script>window.location="' . $_base . '/install/"</script>');
+}
 
 // 兼容 4.0.3 的配置文件	
 !isset($conf['user_create_on']) AND $conf['user_create_on'] = 1;

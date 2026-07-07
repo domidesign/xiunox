@@ -506,18 +506,14 @@ function plugin_compile_srcfile_callback($m) {
 		foreach($hooks[$hookname] as $path) {
 			$t = file_get_contents($path);
 			if($fileext == 'php' && preg_match('#^\s*<\?php\s+exit;#is', $t)) {
-				// 正则表达式去除兼容性比较好。
-				$t = preg_replace('#^\s*<\?php\s*exit;(.*?)(?:\?>)?\s*$#is', '\\1', $t);
-				
-				/* 去掉首尾标签
-				if(substr($t, 0, 5) == '<?php' && substr($t, -2, 2) == '?>') {
-					$t = substr($t, 5, -2);		
-				}
-				// 去掉 exit;
-				$t = preg_replace('#\s*exit;\s*#', "\r\n", $t);
-				*/
+				// 去掉 php 开始标签加 exit 前缀，与 elseif 分支保持一致的剥离方式
+				// 旧正则末尾的 \s*$ 会吞掉末尾换行符，
+				// 导致多 hook 拼接时前一个 hook 的行注释与后一个 hook 的块注释连在同一行，
+				// 块注释被行注释吞掉，块注释内的中文变成裸标识符引发 ParseError
+				$t = preg_replace('#^\s*<\?php\s*exit;#is', '', $t);
+				$t = preg_replace('#\?>\s*$#', '', $t);
 			} elseif($fileext == 'php') {
-				// 兼容裸 <?php 开头（不带 exit;）的 hook 文件
+				// 兼容裸 php 开始标签开头（不带 exit）的 hook 文件
 				$t = preg_replace('#^\s*<\?php\s*#', '', $t);
 				$t = preg_replace('#\?>\s*$#', '', $t);
 			}
@@ -751,14 +747,20 @@ function plugin_hook($hookname, &$data = NULL) {
 			// 去掉防直接访问前缀，与编译时 plugin_compile_srcfile_callback 处理一致
 			// hook 文件以 <?php exit; 开头，include 会终止执行，故剥离标签后 eval
 			if(preg_match('#^\s*<\?php\s+exit;#is', $t)) {
-				$t = preg_replace('#^\s*<\?php\s*exit;(.*?)(?:\?>)?\s*$#is', '\\1', $t);
+				// 与编译时 plugin_compile_srcfile_callback 保持一致：分别剥离首尾标签，保留末尾换行
+				$t = preg_replace('#^\s*<\?php\s*exit;#is', '', $t);
+				$t = preg_replace('#\?>\s*$#', '', $t);
 			} elseif(preg_match('#^\s*<\?php#is', $t)) {
 				// 兼容裸 <?php 开头（不带 exit;）的 hook 文件
 				$t = preg_replace('#^\s*<\?php\s*#', '', $t);
 				$t = preg_replace('#\?>\s*$#', '', $t);
 			}
 			// 在调用方作用域执行 hook 代码，可访问 $data 及全局变量
-			eval($t);
+		// ponytail: eval 是 xiuno 插件 hook 机制的核心设计，无法替代
+		// hook 文件以 <?php exit; 开头防直接访问，剥离标签后必须在调用方作用域执行
+		// include 会因 exit; 终止，Closure 无法注入调用方作用域的 $data，故只能用 eval
+		// 已知风险：恶意 hook 文件可执行任意代码（hook 文件由开发者提供，等同源代码信任级别）
+		eval($t);
 		} catch(\Throwable $e) {
 			// PHP 7+ Throwable 兼容 Error 和 Exception
 			$msg = "Plugin hook error: $hookname in plugin " . $hf['dir'] . ": " . $e->getMessage();

@@ -185,12 +185,7 @@
 				submitBtn.innerHTML = '<i class="ti ti-check me-1"></i>' + data.message;
 				submitBtn.classList.remove('btn-primary');
 				submitBtn.classList.add('btn-success');
-				setTimeout(function() {
-					submitBtn.disabled = false;
-					submitBtn.innerHTML = '<i class="ti ti-device-floppy me-1"></i><?php echo lang("confirm");?>';
-					submitBtn.classList.remove('btn-success');
-					submitBtn.classList.add('btn-primary');
-				}, 1500);
+				setTimeout(function(){ window.location.reload(); }, 1000);
 			} else {
 				showToast(data.message, 'error');
 				submitBtn.disabled = false;

@@ -6,6 +6,45 @@ $action = param(1, 'doc');
 
 // hook admin_api_start.php
 
+/**
+ * 从请求中构建应用 capabilities JSON 字符串
+ * 安全限制：gid != 1 时强制关闭 skip_captcha/skip_audit
+ * @param int $gid 当前用户组ID
+ * @return string JSON 字符串
+ */
+function xn_build_app_capabilities($gid = 0) {
+	$skipCaptcha = param('skip_captcha', 0) == 1 ? 1 : 0;
+	$skipAudit = param('skip_audit', 0) == 1 ? 1 : 0;
+	$skipRateLimit = param('skip_rate_limit', 0) == 1 ? 1 : 0;
+	$allowedResources = param('allowed_resources', []);
+	$deniedEndpoints = param('denied_endpoints', '', false);
+
+	// 安全限制：skip_audit/skip_captcha 仅 gid=1 可启用
+	if(intval($gid) !== 1) {
+		$skipCaptcha = 0;
+		$skipAudit = 0;
+	}
+
+	$capabilities = [
+		'skip_captcha' => $skipCaptcha,
+		'skip_audit' => $skipAudit,
+		'skip_rate_limit' => $skipRateLimit,
+		'allowed_resources' => is_array($allowedResources) ? $allowedResources : [],
+		'denied_endpoints' => array_filter(array_map('trim', explode("\n", $deniedEndpoints))),
+	];
+	return json_encode($capabilities, JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * 从请求中构建应用 IP 白名单 JSON 数组字符串
+ * @return string JSON 数组字符串
+ */
+function xn_build_app_ip_whitelist() {
+	$ipWhitelist = param('ip_whitelist', '', false);
+	$ipList = array_filter(array_map('trim', explode("\n", $ipWhitelist)));
+	return json_encode($ipList, JSON_UNESCAPED_UNICODE);
+}
+
 if($action == 'doc') {
 
 	// hook admin_api_doc_start.php
@@ -42,8 +81,8 @@ if($action == 'doc') {
 
 			include APP_PATH . 'lib/ApiAuthService.php';
 			$apiAuth = new ApiAuthService($db, $conf['api_token_expire'] ?? 30);
-			$tokenData = $apiAuth->generateToken($uid);
-			message(0, $tokenData);
+			$tokenData = $apiAuth->generateTokens($uid);
+		message(0, $tokenData);
 
 		} elseif($op == 'revoke_token') {
 			$token = param('token', '');
@@ -51,7 +90,7 @@ if($action == 'doc') {
 
 			include APP_PATH . 'lib/ApiAuthService.php';
 			$apiAuth = new ApiAuthService($db);
-			$apiAuth->revokeToken($token);
+			$apiAuth->revokeTokens($token);
 			message(0, lang('delete_successfully'));
 
 		} elseif($op == 'test_api') {
@@ -119,6 +158,7 @@ if($action == 'doc') {
 	if($method == 'GET') {
 		$apps = $apiAuthService->listApps();
 		$api_enabled = intval($conf['api_enabled'] ?? 1);
+		$api_log = intval($conf['api_log'] ?? 0);
 		$api_rate_limit = intval($conf['api_rate_limit'] ?? 1);
 		$api_rate_limit_max = intval($conf['api_rate_limit_max'] ?? 60);
 		$api_rate_limit_window = intval($conf['api_rate_limit_window'] ?? 60);
@@ -142,7 +182,11 @@ if($action == 'doc') {
 
 	if(empty($name)) message(-1, '应用名称不能为空');
 
-	$app = $apiAuthService->createApp($name, $description, $scope, $uid);
+	// 接收 capabilities 字段
+	$capabilitiesJson = xn_build_app_capabilities($gid ?? 0);
+	$ipWhitelistJson = xn_build_app_ip_whitelist();
+
+	$app = $apiAuthService->createApp($name, $description, $scope, $uid, $capabilitiesJson, $ipWhitelistJson);
 	message(0, $app);
 
 } elseif($action == 'app_update') {
@@ -167,6 +211,10 @@ if($action == 'doc') {
 	if($is_enabled !== -1) $data['is_enabled'] = intval($is_enabled);
 	$rate_limit = param('rate_limit', -1);
 	if($rate_limit !== -1) $data['rate_limit'] = intval($rate_limit);
+
+	// 接收 capabilities 字段
+	$data['capabilities'] = xn_build_app_capabilities($gid ?? 0);
+	$data['ip_whitelist'] = xn_build_app_ip_whitelist();
 
 	$ok = $apiAuthService->updateApp($id, $data);
 	$ok ? message(0, lang('update_successfully')) : message(-1, lang('update_failed'));
@@ -205,6 +253,7 @@ if($action == 'doc') {
 	if($method != 'POST') message(-1, 'Method not allowed');
 
 	$api_enabled = param('api_enabled', 1);
+	$api_log = param('api_log', 0);
 	$api_rate_limit = param('api_rate_limit', 1);
 	$api_rate_limit_max = param('api_rate_limit_max', 60);
 	$api_rate_limit_window = param('api_rate_limit_window', 60);
@@ -213,6 +262,7 @@ if($action == 'doc') {
 
 	$changes = [
 		'api_enabled' => intval($api_enabled),
+		'api_log' => intval($api_log),
 		'api_rate_limit' => intval($api_rate_limit),
 		'api_rate_limit_max' => intval($api_rate_limit_max),
 		'api_rate_limit_window' => intval($api_rate_limit_window),

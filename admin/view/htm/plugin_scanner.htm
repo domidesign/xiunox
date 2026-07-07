@@ -195,7 +195,7 @@ function renderResults(data) {
 			bodyHtml += '<td><span class="fw-semibold">' + plugin.dir + '</span><br><small class="text-secondary">' + plugin.name + '</small></td>';
 			bodyHtml += '<td class="fs-6">' + plugin.version + '</td>';
 			bodyHtml += '<td class="fs-6"><code>' + issue.file + '</code></td>';
-			bodyHtml += '<td class="fs-6 text-center">' + (issue.line || '-') + '</td>';
+			bodyHtml += '<td class="fs-6 text-center">' + formatLineNumber(issue) + '</td>';
 			bodyHtml += '<td><span class="badge ' + sevClass + ' ">' + sevText + '</span></td>';
 			bodyHtml += '<td class="fs-6"><code class="break-all" style="font-size:0.75rem">' + escapeHtml(issue.context || issue.match) + '</code></td>';
 			bodyHtml += '<td class="fs-6"><span class="text-body">' + escapeHtml(issue.suggestion) + '</span></td>';
@@ -208,6 +208,10 @@ function renderResults(data) {
 	}
 
 	document.getElementById('resultBody').innerHTML = bodyHtml;
+	// 初始化合并行号的 tooltip
+	document.querySelectorAll('#resultBody [data-bs-toggle="tooltip"]').forEach(function(el) {
+		new bootstrap.Tooltip(el);
+	});
 	filterResults();
 }
 
@@ -236,5 +240,20 @@ function exportCSV() {
 function escapeHtml(str) {
 	if (!str) return '';
 	return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// 格式化行号：合并后的 issue (count>1) 显示 首行号 + 徽章 ×N + hover tooltip 列出所有行号
+function formatLineNumber(issue) {
+	var line = issue.line || 0;
+	if (!line) return '-';
+	if (!issue.count || issue.count <= 1 || !issue.lines || issue.lines.length <= 1) {
+		return String(line);
+	}
+	// 行号过多时 tooltip 截断显示前 20 个
+	var linesArr = issue.lines.slice(0, 20).map(function(n) { return 'L' + n; });
+	if (issue.lines.length > 20) linesArr.push('...');
+	var tooltip = linesArr.join(', ');
+	var count = issue.count;
+	return '<span class="line-num-merged" data-bs-toggle="tooltip" data-bs-placement="top" title="' + escapeHtml(tooltip) + '">' + line + ' <span class="badge bg-secondary rounded-pill" style="font-size:0.7rem">×' + count + '</span></span>';
 }
 </script>

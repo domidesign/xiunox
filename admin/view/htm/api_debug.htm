@@ -39,27 +39,40 @@
 				<div class="d-flex justify-content-between align-items-center">
 					<h6 class="fw-semibold"><i class="ti ti-key"></i> <?php echo lang('api_debug_active_token');?> <span class="badge bg-secondary "><?php echo $tokenCount;?></span></h6>
 				</div>
-				<?php if($tokens) { ?>
-				<div class="overflow-x-auto mt-2">
-					<table class="table table-sm table-hover">
-						<thead>
-							<tr><th><?php echo lang('api_debug_uid');?></th><th><?php echo lang('api_debug_token_col');?></th><th><?php echo lang('api_debug_expire');?></th><th></th></tr>
-						</thead>
-						<tbody>
-							<?php foreach($tokens as $t) { ?>
-							<tr>
-								<td><?php echo $t['uid'];?></td>
-								<td><code  style="font-size:0.75rem" title="<?php echo lang('api_debug_copy');?>" style="cursor:pointer" onclick="copyText('<?php echo $t['token'];?>')"><?php echo substr($t['token'], 0, 12);?>...</code></td>
-								<td  style="font-size:0.75rem"><?php echo date('m-d H:i', $t['expires_at']);?></td>
-								<td>
-									<a href="javascript:void(0)" class="text-danger" style="font-size:0.75rem" onclick="revokeToken(<?php echo $t['id'];?>, '<?php echo substr($t['token'], 0, 12);?>...')"><i class="ti ti-trash"></i></a>
-								</td>
-							</tr>
-							<?php } ?>
-						</tbody>
-					</table>
-				</div>
-				<?php } else { ?>
+				<?php if($tokens) {
+				// 配对 access/refresh token：access.related_id 指向 refresh.id
+				$accessMap = [];
+				foreach($tokens as $t) {
+					if(($t['type'] ?? '') === 'access') {
+						$accessMap[$t['related_id'] ?? 0] = $t;
+					}
+				}
+			?>
+			<div class="overflow-x-auto mt-2">
+				<table class="table table-sm table-hover">
+					<thead>
+						<tr><th><?php echo lang('api_debug_uid');?></th><th>Access Token</th><th>Refresh Token</th><th><?php echo lang('api_debug_expire');?></th><th></th></tr>
+					</thead>
+					<tbody>
+						<?php foreach($tokens as $t) {
+							// 仅以 refresh token 为一对的主行，避免重复显示
+							if(($t['type'] ?? '') !== 'refresh') continue;
+							$access = $accessMap[$t['id']] ?? null;
+						?>
+						<tr>
+							<td><?php echo $t['uid'];?></td>
+							<td><?php if($access) { ?><code style="font-size:0.75rem;cursor:pointer" title="<?php echo lang('api_debug_copy');?>" onclick="copyText('<?php echo $access['token'];?>')"><?php echo substr($access['token'], 0, 12);?>...</code><?php } else { ?><span class="text-secondary">-</span><?php } ?></td>
+							<td><code style="font-size:0.75rem;cursor:pointer" title="<?php echo lang('api_debug_copy');?>" onclick="copyText('<?php echo $t['token'];?>')"><?php echo substr($t['token'], 0, 12);?>...</code></td>
+							<td style="font-size:0.75rem"><?php echo $access ? date('m-d H:i', $access['expires_at']) : date('m-d H:i', $t['expires_at']);?></td>
+							<td>
+								<a href="javascript:void(0)" class="text-danger" style="font-size:0.75rem" onclick="revokeToken('<?php echo $t['token'];?>', '<?php echo substr($t['token'], 0, 12);?>...')"><i class="ti ti-trash"></i></a>
+							</td>
+						</tr>
+						<?php } ?>
+					</tbody>
+				</table>
+			</div>
+			<?php } else { ?>
 				<p class="text-secondary fs-6 mb-0 mt-2"><?php echo lang('api_debug_no_token');?></p>
 				<?php } ?>
 			</div>
@@ -163,7 +176,11 @@ var lastResponse = '';
 	if (m) document.getElementById('apiMethod').value = m;
 	if (e) document.getElementById('apiEndpoint').value = e;
 	if (b) document.getElementById('apiBody').value = JSON.stringify(JSON.parse(b), null, 2);
-	if (at && latestTokens.length > 0) document.getElementById('apiToken').value = latestTokens[0].token;
+	if (at && latestTokens.length > 0) {
+		// 优先取 access token 用于 API 鉴权
+		var at0 = latestTokens.find(function(t) { return (t.type || '') === 'access'; }) || latestTokens[0];
+		document.getElementById('apiToken').value = at0.token;
+	}
 	updateBodyVisibility();
 	loadHistory();
 })();
@@ -181,8 +198,10 @@ function updateBodyVisibility() {
 }
 
 function fillOrGenerateToken() {
-	if(latestTokens.length > 0) {
-		document.getElementById('apiToken').value = latestTokens[0].token;
+	// 优先使用已有的 access token（API 调试用 access token 鉴权）
+	var access = latestTokens.find(function(t) { return (t.type || '') === 'access'; });
+	if(access) {
+		document.getElementById('apiToken').value = access.token;
 		return;
 	}
 	var csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
@@ -191,8 +210,9 @@ function fillOrGenerateToken() {
 	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('api_debug_generating');?>';
 	$.xpost('<?php echo admin_api_debug_url();?>', {op: 'generate_token', uid: 1, csrf_token: csrfToken}, function(code, message) {
 		if(code == 0) {
-			document.getElementById('apiToken').value = message.token;
-			latestTokens.unshift(message);
+			// generateTokens() 返回 {access_token, refresh_token, expires_in, user}
+			document.getElementById('apiToken').value = message.access_token;
+			latestTokens.unshift({token: message.access_token, type: 'access'});
 			btn.innerHTML = '<i class="ti ti-key"></i><?php echo lang('api_debug_fill_token');?>';
 			btn.disabled = false;
 		} else {
@@ -370,10 +390,11 @@ function clearHistory() {
 	renderHistory();
 }
 
-function revokeToken(id, name) {
+function revokeToken(refreshToken, name) {
 	XN.confirm('<?php echo lang("api_debug_confirm_revoke");?> ' + name + '？', function() {
 	var csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-	$.xpost('<?php echo url("api-token_delete-" );?>' + id, {csrf_token: csrfToken}, function(code, message) {
+	// revokeTokens() 接收 refresh_token 字符串，删除整对 access+refresh
+	$.xpost('<?php echo admin_api_debug_url();?>', {op: 'revoke_token', token: refreshToken, csrf_token: csrfToken}, function(code, message) {
 		if(code == 0) {
 			showToast('<?php echo lang("api_debug_token_revoked");?>', 'success');
 			setTimeout(function(){ location.reload(); }, 1000);

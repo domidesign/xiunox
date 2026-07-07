@@ -96,6 +96,7 @@ a {
 }
 .admin-content  .nav-link  {
    color: var(--bs-body-color);
+   
 }
 .admin-content  .nav-link.active  {
    color: var(--bs-primary); 

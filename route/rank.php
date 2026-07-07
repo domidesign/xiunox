@@ -15,9 +15,10 @@ include _include(APP_PATH.'service/RankService.php');
 $_lbService = new RankService($_SERVER['db']);
 
 // 默认展示热门帖子（本周）
-$_lb_tab = isset($_REQUEST['tab']) ? $_REQUEST['tab'] : 'threads';
-$_lb_period = isset($_REQUEST['period']) ? $_REQUEST['period'] : 'week';
-$_lb_page = isset($_REQUEST['page']) ? intval($_REQUEST['page']) : 1;
+// 用 $_GET 而非 $_REQUEST，避免 COOKIE 覆盖 GET 参数（$_REQUEST 顺序受 request_order 影响）
+$_lb_tab = isset($_GET['tab']) ? $_GET['tab'] : 'threads';
+$_lb_period = isset($_GET['period']) ? $_GET['period'] : 'week';
+$_lb_page = isset($_GET['page']) ? intval($_GET['page']) : 1;
 
 // 白名单校验：参数值不在白名单内则 301 重定向到默认值（防止 query 参数污染显示内容）
 // 解决问题：如 /rank.html?period=week递四方速递 被拼接垃圾内容后仍显示排行榜

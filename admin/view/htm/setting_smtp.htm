@@ -384,7 +384,7 @@ jsmtpForm.on('submit', function() {
     $.xpost(jsmtpForm.attr('action'), postdata, function(code, message) {
         if(code == 0) {
             showToast(message, 'success');
-            jsmtpSubmit.button('reset');
+            setTimeout(function(){ window.location.reload(); }, 1000);
         } else if(xn.is_number(code)) {
             showToast(message, 'error');
             jsmtpSubmit.button('reset');
@@ -405,11 +405,11 @@ jtplForm.on('submit', function() {
     $.xpost(jtplForm.attr('action'), postdata, function(code, message) {
         if(code == 0) {
             showToast(message, 'success');
-            $('#template-result').html('<div class="alert alert-success py-2 mt-3">' + message + '</div>');
+            setTimeout(function(){ window.location.reload(); }, 1000);
         } else {
             showToast(message, 'error');
+            jtplSubmit.button('reset');
         }
-        jtplSubmit.button('reset');
     });
     return false;
 });

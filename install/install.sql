@@ -649,6 +649,9 @@ CREATE TABLE bbs_api_app (
   is_enabled tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
   uid int(11) unsigned NOT NULL DEFAULT 0 COMMENT '创建者UID',
   rate_limit int(11) unsigned NOT NULL DEFAULT 120 COMMENT '每分钟请求上限(0=不限)',
+  capabilities text COMMENT '场景级能力开关JSON: skip_captcha/skip_audit/skip_rate_limit/allowed_resources/denied_endpoints',
+  ip_whitelist text COMMENT 'IP白名单JSON数组,空=不限,支持CIDR',
+  permissions text COMMENT '细粒度权限矩阵JSON: {"thread":"rw","post":"r","admin":"-"}',
   created_at int(11) unsigned NOT NULL DEFAULT 0 COMMENT '创建时间',
   PRIMARY KEY (id),
   UNIQUE KEY appid (appid)
@@ -662,12 +665,14 @@ CREATE TABLE bbs_api_log (
   method varchar(10) NOT NULL DEFAULT '',
   uid int(11) unsigned NOT NULL DEFAULT 0,
   ip int(11) unsigned NOT NULL DEFAULT 0,
+  appid varchar(32) NOT NULL DEFAULT '' COMMENT '应用ID',
   duration int(11) unsigned NOT NULL DEFAULT 0,
   create_date int(11) unsigned NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   KEY resource_method (resource, method),
   KEY uid (uid),
-  KEY create_date (create_date)
+  KEY create_date (create_date),
+  KEY appid (appid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='API日志';
 
 # 帖子点赞（API v1）

@@ -1105,6 +1105,7 @@ function post_list_access_filter(&$postlist, $gid) {
 
 	foreach($postlist as $pid=>$post) {
 		$thread = isset($threads[$post['tid']]) ? $threads[$post['tid']] : array();
+		if(empty($thread)) continue;
 		$fid = $thread['fid'];
 		if(empty($forumlist[$fid]['accesson'])) continue;
 		if($thread['top'] > 0) continue;

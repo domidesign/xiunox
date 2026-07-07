@@ -89,13 +89,30 @@
     </div>
 </div>
 
-<!-- 4. 移动端扫码访问 -->
+<!-- 4. 扫码访问 -->
 <div class="x-card card mb-3">
-    <div class="card-body text-center">
-        <div id="qrcode" class="d-inline-block mb-2"></div>
-        <p class="text-body-secondary small mb-0">
-            <?php echo lang('scan_qr_code_tip');?>
-        </p>
+    <div class="card-body">
+        <div class="d-flex align-items-center gap-2">
+            <!-- 左：二维码 -->
+            <div class="flex-shrink-0">
+                <div id="qrcode"></div>
+            </div>
+            <!-- 中：帖子标题 + 网址 -->
+            <div class="flex-fill" style="min-width:0">
+                <div class="fw-semibold small mb-1" title="<?php echo esc_attr($thread['subject']);?>" style="display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">
+                    <?php echo $thread['subject'];?>
+                </div>
+                <div class="text-body-secondary small text-truncate">
+                    <a href="<?php echo $thread_url;?>" class="text-body-secondary text-decoration-none"><?php echo $thread_url;?></a>
+                </div>
+            </div>
+            <!-- 右：复制按钮 -->
+            <div class="flex-shrink-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="copyThreadUrlBtn" data-url="<?php echo esc_attr($thread_url);?>" title="<?php echo lang('copy');?>" aria-label="<?php echo lang('copy');?>">
+                    <i class="ti ti-copy"></i>
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 

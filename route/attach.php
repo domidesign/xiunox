@@ -65,7 +65,8 @@ if(empty($action) || $action == 'create') {
         // 真实 MIME 校验，防止伪造扩展名上传恶意文件
         $finfo = @finfo_open(FILEINFO_MIME_TYPE);
         $real_mime = $finfo ? @finfo_file($finfo, $tmp_name) : false;
-        if($finfo) finfo_close($finfo);
+        // PHP 8.0+ finfo 是对象，finfo_close 是 no-op，PHP 8.5 已 deprecated
+        if($finfo && PHP_VERSION_ID < 80000) finfo_close($finfo);
         // finfo_file 可能返回 false（如 magic 数据库缺失），此时跳过 MIME 校验，仅依赖扩展名校验
         if($real_mime !== false && !in_array($real_mime, $allowed_mimes)) {
             message(-1, lang('file_mime_not_allowed'));
@@ -198,7 +199,8 @@ if(empty($action) || $action == 'create') {
         // 真实 MIME 校验，防止伪造扩展名上传恶意文件
         $finfo = @finfo_open(FILEINFO_MIME_TYPE);
         $real_mime = $finfo ? @finfo_file($finfo, $tmpfile) : false;
-        if($finfo) finfo_close($finfo);
+        // PHP 8.0+ finfo 是对象，finfo_close 是 no-op，PHP 8.5 已 deprecated
+        if($finfo && PHP_VERSION_ID < 80000) finfo_close($finfo);
         if($real_mime !== false && !in_array($real_mime, $allowed_mimes)) {
             is_file($tmpfile) AND unlink($tmpfile);
             message(-1, lang('file_mime_not_allowed'));
@@ -324,7 +326,7 @@ if(empty($action) || $action == 'create') {
     // 签名校验
     $sign_key = array_value($conf, 'attach_sign_key', '');
     $expected_token = md5($aid . $attach['filename'] . $sign_key);
-    if($token !== $expected_token) {
+    if(!hash_equals($expected_token, (string)$token)) {
         http_status(403);
         exit('Invalid token');
     }
@@ -454,7 +456,7 @@ if(empty($action) || $action == 'create') {
     // 签名校验
     $sign_key = array_value($conf, 'attach_sign_key', '');
     $expected_token = md5($aid . $expires . $sign_key);
-    if($token !== $expected_token) {
+    if(!hash_equals($expected_token, (string)$token)) {
         http_status(403);
         exit('Invalid token');
     }

@@ -138,7 +138,7 @@ function user_login_verify($password, $user) {
 	}
 	// 旧格式：md5(md5(明文)+salt)，兼容 4.0.4 升级用户
 	if(!empty($user['password']) && !empty($user['salt'])) {
-		if(md5(md5($password).$user['salt']) == $user['password']) {
+		if(hash_equals($user['password'], md5(md5($password).$user['salt']))) {
 			// 自动升级：清空旧字段，写入 bcrypt(明文) 到 password_hash
 			if(db_check_column_exists('user', 'password_hash')) {
 				user__update($user['uid'], array(

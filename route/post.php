@@ -441,11 +441,12 @@ if($action == 'create') {
 				echo '<span class="posts" id="posts-count" hx-swap-oob="true">' . intval($new_posts_count) . '</span>';
 				echo '<span id="newfloor" hx-swap-oob="true">' . intval($new_floor) . '</span>';
 				// 积分变动提示（OOB toast）
-				if($change_desc) {
-					echo '<div id="credits-toast" hx-swap-oob="true" data-change-desc="' . htmlspecialchars($change_desc, ENT_QUOTES, 'UTF-8') . '"></div>';
-				}
-				exit;
+			if($change_desc) {
+				echo '<div id="credits-toast" hx-swap-oob="true" data-change-desc="' . htmlspecialchars($change_desc, ENT_QUOTES, 'UTF-8') . '"></div>';
 			}
+			// hook post_create_htmx_reply_end.php
+			exit;
+		}
 
 			// 高级回复（独立页面）：走 message() 的 HX-Trigger 跳转逻辑
 			if($need_reply_audit) {

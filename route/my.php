@@ -285,7 +285,7 @@ if(empty($action)) {
 		$password_old = param('password_old');
 		$password_new = param('password_new');
 		$password_new_repeat = param('password_new_repeat');
-		$password_new_repeat != $password_new AND message(-1, lang('repeat_password_incorrect'));
+		!hash_equals($password_new, $password_new_repeat) AND message(-1, lang('repeat_password_incorrect'));
 
 		// 密码策略校验（最小长度 + 复杂度，读取后台安全配置）
 		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
@@ -1160,11 +1160,17 @@ if(empty($action)) {
 			$html .= '<span class="rounded-circle flex-shrink-0 bg-warning bg-opacity-10 d-flex align-items-center justify-content-center" style="width:24px;height:24px;"><i class="ti ti-flag text-warning" style="font-size:0.8rem;"></i></span>';
 			$html .= '<span class="fw-semibold" style="font-size:0.8rem;">举报通知</span>';
 		} else {
+		$username = isset($item['from_username']) ? $item['from_username'] : '系统';
+		$_from_uid = isset($item['from_uid']) ? intval($item['from_uid']) : 0;
+		if($_from_uid == 0) {
+			// 系统通知：用铃铛图标替代默认头像
+			$html .= '<span class="rounded-circle flex-shrink-0 bg-primary bg-opacity-10 d-flex align-items-center justify-content-center" style="width:24px;height:24px;"><i class="ti ti-bell text-primary" style="font-size:0.8rem;"></i></span>';
+		} else {
 			$avatar_url = isset($item['from_avatar_url']) ? $item['from_avatar_url'] : '/view/img/avatar.png';
-			$username = isset($item['from_username']) ? $item['from_username'] : '系统';
 			$html .= '<img class="rounded-circle flex-shrink-0" src="' . htmlspecialchars($avatar_url) . '" alt="" style="width:24px;height:24px;object-fit:cover;" onerror="this.src=\'/view/img/avatar.png\'">';
-			$html .= '<span class="fw-semibold" style="font-size:0.8rem;">' . htmlspecialchars($username) . '</span>';
 		}
+		$html .= '<span class="fw-semibold" style="font-size:0.8rem;">' . htmlspecialchars($username) . '</span>';
+	}
 		$html .= '<span class="text-body-secondary flex-shrink-0" style="font-size:0.75rem;">' . $item['create_date_fmt'] . '</span>';
 		$html .= '<span class="text-truncate" style="font-size:0.8rem;min-width:0;">' . htmlspecialchars($typeLabel) . '</span>';
 		$html .= $unreadDot;

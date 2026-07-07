@@ -536,7 +536,6 @@ function xn_html_safe($doc, $arg = array()) {
 		'cellspacing'=>array('range', 0, array(0, 10)),
 		'cellpadding'=>array('range', 0, array(0, 10)),
 		'frameborder'=>array('range', 0, array(0, 10)),
-		'allowfullscreen'=>array('range', 0, array(0, 10)),
 		'align'=>array('list', 'left', array('left', 'center', 'right')),
 		'valign'=>array('list', 'middle', array('middle', 'top', 'bottom')),
         'name'=>array('pcre', '', array($pattern['word'])),

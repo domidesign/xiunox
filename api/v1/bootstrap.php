@@ -17,6 +17,9 @@ include APP_PATH . 'lib/ApiResponse.php';
 if (!class_exists('ApiAuthService')) {
     include APP_PATH . 'lib/ApiAuthService.php';
 }
+if (!class_exists('PluginApiRegistry')) {
+    include APP_PATH . 'lib/PluginApiRegistry.php';
+}
 include APP_PATH . 'service/UserService.php';
 include APP_PATH . 'service/ThreadService.php';
 include APP_PATH . 'service/PostService.php';
@@ -31,7 +34,7 @@ if (!$db) {
     ApiResponse::error(500, 'Database not connected');
 }
 
-$apiAuth = new ApiAuthService($db, $conf['api_token_expire'] ?? 30);
+$apiAuth = new ApiAuthService($db, $conf['api_token_expire'] ?? 30, intval($conf['api_access_token_expire'] ?? 2));
 $userService = new UserService($db);
 $threadService = new ThreadService($db);
 $postService = new PostService($db);
@@ -43,24 +46,43 @@ $uri = $_SERVER['REQUEST_URI'];
 $method = $_SERVER['REQUEST_METHOD'];
 $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 
+/**
+ * CORS 响应头处理
+ * - api_cors_origin 为 '*' 或空：发送 Allow-Origin: *，不发送 Allow-Credentials
+ * - 单个具体域名：发送 Allow-Origin: <域名> + Allow-Credentials: true
+ * - 逗号分隔多域名：请求 Origin 命中列表则反射该域名 + Allow-Credentials: true，未命中不发 Allow-Origin
+ */
+function handleCors($conf, $requestOrigin) {
+    $allowOrigin = $conf['api_cors_origin'] ?? '*';
+    if ($allowOrigin === '' || $allowOrigin === '*') {
+        header('Access-Control-Allow-Origin: *');
+        return;
+    }
+    if (strpos($allowOrigin, ',') === false) {
+        header("Access-Control-Allow-Origin: {$allowOrigin}");
+        header('Access-Control-Allow-Credentials: true');
+        return;
+    }
+    $domains = array_map('trim', explode(',', $allowOrigin));
+    if ($requestOrigin !== '' && in_array($requestOrigin, $domains, true)) {
+        header("Access-Control-Allow-Origin: {$requestOrigin}");
+        header('Access-Control-Allow-Credentials: true');
+    }
+}
+
 // === 中间件层 1：CORS 处理（OPTIONS 预检直接返回，必须在鉴权之前，否则预检请求被 401 拒绝）===
 if ($method === 'OPTIONS') {
     http_response_code(204);
-    $allowOrigin = $conf['api_cors_origin'] ?? '*';
+    handleCors($conf, $_SERVER['HTTP_ORIGIN'] ?? '');
     $allowMethods = 'GET, POST, PUT, DELETE, OPTIONS';
     $allowHeaders = 'Content-Type, Authorization, X-CSRF-Token, X-App-Id, X-App-Secret';
-    header("Access-Control-Allow-Origin: {$allowOrigin}");
     header("Access-Control-Allow-Methods: {$allowMethods}");
     header("Access-Control-Allow-Headers: {$allowHeaders}");
     header('Access-Control-Max-Age: 86400');
     exit;
 }
 
-$allowOrigin = $conf['api_cors_origin'] ?? '*';
-if ($allowOrigin !== '') {
-    header("Access-Control-Allow-Origin: {$allowOrigin}");
-    header('Access-Control-Allow-Credentials: true');
-}
+handleCors($conf, $_SERVER['HTTP_ORIGIN'] ?? '');
 
 // === 中间件层 2：全局开关检查（api_enabled=0 直接 503）===
 if (empty($conf['api_enabled'])) {
@@ -112,20 +134,49 @@ if (empty($apiApp['is_enabled'])) {
     exit;
 }
 
-// === 中间件层 4：Scope 校验（仅服务端模式；客户端模式不做 scope 限制，安全靠 Bearer token）===
-if ($apiAppServerAuth && !$apiAuth->checkAppScope($apiApp, $method)) {
+// === 中间件层 3.5：IP 白名单校验 ===
+if (!$apiAuth->checkAppIpWhitelist($apiApp, $ip)) {
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['code' => 403, 'msg' => 'IP not allowed', 'data' => null], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// 提前解析路径段，供资源白名单校验和正式路由分发共用（避免后面重复解析）
+$uriPath = parse_url($uri, PHP_URL_PATH);
+$path = preg_replace('#^/api/v1#', '', $uriPath);
+$path = rtrim($path, '/') ?: '/';
+$segments = array_values(array_filter(explode('/', $path)));
+$resourceName = $segments[0] ?? '';
+
+// 注入当前资源名，供 checkAppScope 的 permissions 矩阵使用
+$apiApp['_current_resource'] = $resourceName;
+
+// === 中间件层 4：Scope 校验（服务端/客户端模式均校验，避免客户端模式绕过 scope）===
+if (!$apiAuth->checkAppScope($apiApp, $method)) {
     http_response_code(403);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['code' => 403, 'msg' => 'Insufficient app scope', 'data' => null], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
+// === 中间件层 4.5：资源白名单校验 ===
+if ($resourceName && !$apiAuth->checkAppResourceAccess($apiApp, $resourceName)) {
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['code' => 403, 'msg' => 'Resource not allowed for this app', 'data' => null], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // === 中间件层 5：限流 ===
 // 应用级速率限制（客户端模式无 secret，使用更严格的默认限制）
-if ($apiAppServerAuth) {
+// skip_rate_limit 能力的服务端应用跳过应用级限流
+if ($apiAppServerAuth && !$apiAuth->checkAppCapability($apiApp, 'skip_rate_limit')) {
     $appRateLimitOk = $apiAuth->checkAppRateLimit($apiApp);
-} else {
+} elseif (!$apiAppServerAuth) {
     $appRateLimitOk = $apiAuth->checkAppPublicRateLimit($appId);
+} else {
+    $appRateLimitOk = true; // skip_rate_limit=true 的服务端应用跳过限流
 }
 if (!$appRateLimitOk) {
     http_response_code(429);
@@ -137,18 +188,29 @@ if (!$appRateLimitOk) {
 global $apiApp, $apiAppServerAuth;
 
 $rateLimitEnabled = ($conf['api_rate_limit'] ?? 1) == 1;
-if ($rateLimitEnabled) {
-    $earlyAuthUser = null;
-    $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-    if (preg_match('/^Bearer\s+(.+)$/i', $authHeader, $m)) {
-        try {
-            $tokenData = $apiAuth->validateAccessToken($m[1]);
-            if ($tokenData && isset($tokenData['uid'])) {
-                $earlyAuthUser = $userService->getUserById($tokenData['uid']);
-            }
-        } catch (Exception $e) {}
-    }
 
+// 解析 Bearer Token（无论限流是否开启都解析，供 api_log 记录 uid；API 模式下用户不一定写 session）
+$earlyAuthUser = null;
+$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+if (preg_match('/^Bearer\s+(.+)$/i', $authHeader, $m)) {
+    try {
+        $tokenData = $apiAuth->validateAccessToken($m[1]);
+        if ($tokenData && isset($tokenData['uid'])) {
+            $earlyAuthUser = $userService->getUserById($tokenData['uid']);
+        }
+    } catch (Exception $e) {}
+}
+$apiLogUid = $earlyAuthUser ? intval($earlyAuthUser['uid']) : 0;
+
+// 设置全局 $uid/$gid/$user，与前端路由保持一致
+// 许多核心函数（PermissionService::check、CaptchaService::is_enabled 等）依赖 global $gid/$uid
+// API 模式下不写 session，必须显式注入这些变量，否则触发 "Undefined variable $gid"
+$uid = $earlyAuthUser ? intval($earlyAuthUser['uid']) : 0;
+$gid = $earlyAuthUser ? intval($earlyAuthUser['gid'] ?? 0) : 0;
+$user = $earlyAuthUser ?: null;
+global $uid, $gid, $user;
+
+if ($rateLimitEnabled) {
     if ($earlyAuthUser && intval($earlyAuthUser['gid'] ?? 0) === 1) {
         $rateLimitEnabled = false;
     } else {
@@ -175,11 +237,7 @@ if ($rateLimitEnabled) {
 }
 
 // === 路由分发 ===
-$path = parse_url($uri, PHP_URL_PATH);
-$path = preg_replace('#^/api/v1#', '', $path);
-$path = rtrim($path, '/') ?: '/';
-
-$segments = array_values(array_filter(explode('/', $path)));
+// $segments 已在中间件层 3.5 之后提前解析（供 IP/资源白名单校验和 scope 注入使用），此处直接复用
 
 // 解析 JSON 请求体，合并到 $_REQUEST 和 $_POST，使 param() 函数可读取
 if (in_array($method, ['POST', 'PUT', 'DELETE'], true)) {
@@ -196,7 +254,7 @@ if (in_array($method, ['POST', 'PUT', 'DELETE'], true)) {
 header('Content-Type: application/json; charset=utf-8');
 
 if (empty($segments)) {
-    ApiResponse::success(['version' => '1.0', 'endpoints' => ['thread', 'user', 'forum', 'post', 'attach', 'notify', 'search', 'site', 'auth', 'rank', 'credits', 'captcha', 'mod', 'admin']]);
+    ApiResponse::success(['version' => '1.0', 'endpoints' => ['thread', 'user', 'forum', 'post', 'attach', 'notify', 'search', 'site', 'auth', 'rank', 'credits', 'captcha', 'mod', 'admin', 'my']]);
 }
 
 $resource = $segments[0];
@@ -204,14 +262,15 @@ $resource = $segments[0];
 $apiStartTime = microtime(true);
 $apiLogEnabled = ($conf['api_log'] ?? 0) == 1;
 
-register_shutdown_function(function() use ($db, $resource, $method, $ip, $apiStartTime, $apiLogEnabled) {
+register_shutdown_function(function() use ($db, $resource, $method, $ip, $apiStartTime, $apiLogEnabled, $apiLogUid, $appId) {
     if (!$apiLogEnabled) return;
     $duration = round((microtime(true) - $apiStartTime) * 1000);
     try {
         $db->insert('api_log', [
             'resource' => $resource,
             'method' => $method,
-            'uid' => intval($_SESSION['uid'] ?? 0),
+            'uid' => $apiLogUid,
+            'appid' => $appId,
             'ip' => ip2long($ip),
             'duration' => $duration,
             'create_date' => time(),
@@ -259,6 +318,8 @@ if ($segments[0] === 'auth') {
     $routeFile = 'mod.php';
 } elseif ($segments[0] === 'admin') {
     $routeFile = 'admin.php';
+} elseif ($segments[0] === 'my') {
+    $routeFile = 'my.php';
 } elseif ($segments[0] === 'openapi.json') {
     $routeFile = 'openapi.php';
 } else {
@@ -273,6 +334,17 @@ if ($segments[0] === 'auth') {
             $routeFile = 'site.php';
             break;
         default:
+            // 核心路由未命中，尝试插件 API 路由
+            $pluginRouteFile = PluginApiRegistry::resolve($resource);
+            if ($pluginRouteFile && is_file($pluginRouteFile)) {
+                // 暴露 $authUser 给插件路由文件（与 $earlyAuthUser 同义，提供标准变量名）
+                $authUser = $earlyAuthUser;
+                // 插件路由文件可直接访问 $db, $conf, $apiAuth, $apiApp, $apiAppServerAuth,
+                // $userService, $threadService, $postService, $forumService, $attachmentService,
+                // $notificationService, $segments, $method, $ip, $authUser, $earlyAuthUser
+                include $pluginRouteFile;
+                return;
+            }
             ApiResponse::notFound('Unknown resource: ' . $resource);
     }
 }

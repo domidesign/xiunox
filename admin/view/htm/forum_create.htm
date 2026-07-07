@@ -4,6 +4,18 @@
 
 <div class="x-card  card">
 	<div class="card-body">
+		<?php if(empty($categories)) { ?>
+		<!-- 无分区时：提示先创建分区 -->
+		<div class="text-center py-5">
+			<i class="ti ti-alert-circle text-warning" style="font-size:3rem"></i>
+			<h5 class="mt-3"><?php echo lang('admin_no_category_title');?></h5>
+			<p class="text-body-secondary"><?php echo lang('admin_no_category_desc');?></p>
+			<a href="<?php echo admin_forum_create_url();?>" class="btn btn-primary rounded-pill mt-2">
+				<i class="ti ti-plus"></i> <?php echo lang('admin_create_category_first');?>
+			</a>
+			<a class="d-block mt-3" href="<?php echo admin_forum_list_url();?>"><i class="ti ti-arrow-left"></i> <?php echo lang('admin_back_to_forum_manage')?></a>
+		</div>
+		<?php } else { ?>
 		<form action="<?php echo admin_forum_create_url();?>" method="post" enctype="multipart/form-data" id="form">
 			<?php echo CsrfService::input(); ?>
 			<h4 class="card-title mb-4"><i class="ti ti-plus"></i> <?php echo lang('admin_add_forum')?></h4>
@@ -45,8 +57,8 @@
 			<div class="d-flex gap-4 align-items-center mb-3" id="fup_row">
 				<label class="form-label" style="width:25%"><?php echo lang('admin_label_parent_category')?></label>
 				<div style="width:75%">
-					<select name="fup" class="form-select rounded-pill" style="max-width:200px">
-						<option value="0"><?php echo lang('admin_option_none')?></option>
+					<select name="fup" id="fup_select" class="form-select rounded-pill" style="max-width:200px" required>
+						<option value=""><?php echo lang('admin_forum_parent_required')?></option>
 						<?php foreach($categories as $cat) { ?>
 						<option value="<?php echo $cat['fid'];?>"><?php echo $cat['name'];?></option>
 						<?php } ?>
@@ -87,6 +99,7 @@
 				</div>
 			</div>
 		</form>
+		<?php } ?>
 	</div>
 </div>
 
@@ -124,11 +137,14 @@ jform.on('submit', function() {
 // 版块类型切换：分区时隐藏上级分区
 var jtype = $('#type_select');
 var jfup_row = $('#fup_row');
+var jfup_select = $('#fup_select');
 function toggleFupRow() {
 	if(jtype.val() == '1') {
 		jfup_row.hide();
+		jfup_select.prop('required', false);
 	} else {
 		jfup_row.show();
+		jfup_select.prop('required', true);
 	}
 }
 jtype.on('change', toggleFupRow);

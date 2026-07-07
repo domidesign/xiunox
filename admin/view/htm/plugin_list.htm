@@ -50,7 +50,14 @@
         <!-- 搜索和状态筛选 -->
         <div class="col-12">
             <div class="d-flex flex-wrap gap-2 align-items-center  ">
-                <form class="d-flex flex-grow-1 flex-wrap gap-2" method="get" action="<?php echo admin_plugin_url();?>">
+                <?php
+                // admin GET 表单提交时浏览器会用表单字段替换 action URL 中的 query string,
+                // 导致 ./?plugin.htm 中的路由信息 plugin.htm 被丢弃,触发 404。
+                // 改用 JS 构建搜索 URL(保留 ./?plugin.htm 路由信息),window.location 跳转。
+                // 不能用 ./plugin.htm 纯 path 形式:会被根目录 .htaccess rewrite 到 /index.php(根目录),
+                // 前台路由 case 'plugin' 不存在,仍然 404。
+                ?>
+                <form class="d-flex flex-grow-1 flex-wrap gap-2" method="get" action="<?php echo admin_plugin_url();?>" id="pluginSearchForm">
                     <input type="hidden" name="type" value="<?php echo $input['type'];?>">
                     <div class="input-group" style="max-width: 400px;">
                         <span class="input-group-text"><i class="ti ti-search"></i></span>
@@ -58,7 +65,7 @@
                                value="<?php echo esc_attr($input['keyword'] ?? '');?>" 
                                placeholder="<?php echo lang('admin_search_plugin_placeholder')?>">
                     </div>
-                    <select class="form-select rounded-pill" name="status" style="width: auto;" onchange="this.form.submit()">
+                    <select class="form-select rounded-pill" name="status" style="width: auto;" onchange="pluginSearch()">
                         <option value="0" <?php echo $input['status'] == 0 ? 'selected' : '';?>><?php echo lang('admin_all_status')?></option>
                         <option value="1" <?php echo $input['status'] == 1 ? 'selected' : '';?>><?php echo lang('admin_status_enabled')?></option>
                         <option value="2" <?php echo $input['status'] == 2 ? 'selected' : '';?>><?php echo lang('admin_status_installed_disabled')?></option>
@@ -123,7 +130,7 @@
                         
                         <!-- 操作按钮 -->
                         <div class="d-flex flex-wrap gap-2 justify-content-end">
-                            <?php if($plugin['setting_url']):?>
+                            <?php if($plugin['setting_url'] && $plugin['enable']):?>
                                 <a class="btn btn-sm btn-outline  rounded-pill" 
                                    href="<?php echo admin_plugin_setting_url($dir);?>">
                                     <i class="ti ti-settings"></i> <?php echo lang('admin_btn_settings')?>
@@ -218,6 +225,25 @@
 </style>
 
 <script>
+// 插件搜索:构建保留路由信息的 URL(./?plugin.htm?type=X&keyword=X&status=X)
+// 不能依赖 GET 表单默认提交:浏览器会用表单字段替换 action URL 中的 query string,
+// 丢失 ./?plugin.htm 中的路由信息 plugin.htm,导致 404。
+function pluginSearch() {
+    var form = document.getElementById('pluginSearchForm');
+    if (!form) return;
+    var type = form.elements['type'].value;
+    var keyword = form.elements['keyword'].value;
+    var status = form.elements['status'].value;
+    var url = '<?php echo admin_plugin_url();?>?type=' + encodeURIComponent(type)
+            + '&keyword=' + encodeURIComponent(keyword)
+            + '&status=' + encodeURIComponent(status);
+    window.location.href = url;
+}
+document.getElementById('pluginSearchForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    pluginSearch();
+});
+
 function handlePluginIconError(img) {
     var dir = img.getAttribute('data-dir') || '?';
     var letter = dir.charAt(0).toUpperCase();
@@ -289,9 +315,19 @@ function renderPreinstallResult(data) {
     issues.forEach(function(issue) {
         var sevClass = issue.severity === 'fatal' ? 'bg-danger' : (issue.severity === 'warning' ? 'bg-warning text-dark' : (issue.severity === 'medium' ? 'bg-primary' : 'bg-secondary'));
         var sevText = issue.severity === 'fatal' ? '<?php echo lang('plugin_scanner_fatal');?>' : (issue.severity === 'warning' ? '<?php echo lang('plugin_scanner_warning');?>' : (issue.severity === 'medium' ? '<?php echo lang('plugin_scanner_medium');?>' : '<?php echo lang('plugin_scanner_info');?>'));
+        var fileCol = '<code style="font-size:0.75rem">' + escapeHtml(issue.file) + '</code>';
+        // 合并后的 issue 显示首行号 + 徽章 ×N + hover tooltip
+        if (issue.count && issue.count > 1 && issue.lines && issue.lines.length > 1) {
+            var linesArr = issue.lines.slice(0, 20).map(function(n) { return 'L' + n; });
+            if (issue.lines.length > 20) linesArr.push('...');
+            var tooltip = linesArr.join(', ');
+            fileCol += '<br><span class="text-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="' + escapeHtml(tooltip) + '" style="cursor:help">L' + issue.line + ' <span class="badge bg-secondary rounded-pill" style="font-size:0.7rem">×' + issue.count + '</span></span>';
+        } else if (issue.line) {
+            fileCol += '<br><small class="text-secondary">L' + issue.line + '</small>';
+        }
         html += '<tr>';
         html += '<td><span class="badge ' + sevClass + '">' + sevText + '</span></td>';
-        html += '<td><code style="font-size:0.75rem">' + escapeHtml(issue.file) + ':' + (issue.line || '-') + '</code></td>';
+        html += '<td>' + fileCol + '</td>';
         html += '<td class="fs-6">' + escapeHtml(issue.suggestion) + '</td>';
         html += '</tr>';
     });
@@ -299,6 +335,10 @@ function renderPreinstallResult(data) {
     html += '</tbody></table></div>';
 
     document.getElementById('preinstallScanResult').innerHTML = html;
+    // 初始化合并行号的 tooltip
+    document.querySelectorAll('#preinstallScanResult [data-bs-toggle="tooltip"]').forEach(function(el) {
+        new bootstrap.Tooltip(el);
+    });
 
     // 操作按钮
     if (data.can_install) {

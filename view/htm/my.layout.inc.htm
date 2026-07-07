@@ -108,6 +108,7 @@
 	<li class="nav-item" role="presentation">
                 <a href="<?php echo my_notify_url();?>" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'notice') echo ' active'; ?>"><?php echo lang('notice');?></a>
         </li>
+        <!--{hook my_sidebar_nav_threads_before.htm}-->
         <li class="nav-item" role="presentation">
                 <a href="<?php echo my_thread_url();?>" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'thread') echo ' active'; ?>"><?php echo lang('my_thread');?></a>
         </li>
