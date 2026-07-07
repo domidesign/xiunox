@@ -4,16 +4,6 @@ $_search_require_login = isset($_search_require_login) ? $_search_require_login 
 $_search_disabled = ($_search_require_login && (empty($uid) || $uid == 0));
 $_nav_items = isset($conf['nav_items']) ? $conf['nav_items'] : array();
 
-// 合并插件注册的顶部导航项（已启用的）
-if(!class_exists('NavService', false)) {
-	$_navservice_file = APP_PATH.'lib/NavService.php';
-	if(is_file($_navservice_file)) include $_navservice_file;
-}
-if(class_exists('NavService', false)) {
-	$_plugin_nav_items = NavService::getPluginNavItems('top');
-	if(!empty($_plugin_nav_items)) $_nav_items = array_merge($_nav_items, $_plugin_nav_items);
-}
-
 // 按 rank 排序，同 rank 时 title 排在前，top_link 次之
 usort($_nav_items, function($a, $b) {
 	$ra = intval($a['rank'] ?? 0);
