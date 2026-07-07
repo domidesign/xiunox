@@ -20,3 +20,9 @@ credentials.*
 # Upload files
 upload/attach/*
 upload/avatar/*
+
+# IDE and project rules
+RULES.md
+
+# Update logs
+update_*.md
