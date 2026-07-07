@@ -313,13 +313,7 @@ if($action == 'base') {
 		foreach ($discover_items as &$_dni) { $_dni['source'] = 'custom'; }
 		unset($_dni);
 
-		// 合并已启用的插件项到主列表（按 rank 排序后混入）
-		$_plugin_top = NavService::getPluginNavItems('top');
-		$_plugin_side = NavService::getPluginNavItems('side');
-		$_plugin_mobile = NavService::getPluginNavItems('mobile');
-		$nav_items = array_merge($nav_items, $_plugin_top);
-		$sidebar_nav_items = array_merge($sidebar_nav_items, $_plugin_side);
-		$mobile_nav_items = array_merge($mobile_nav_items, $_plugin_mobile);
+		// top/side/mobile 插件项不再混入表格，仅在顶部"插件注册项"展示区显示（source=plugin_*）
 		// 发现导航合并 DiscoverService 返回的已启用插件项（前台 /more 实际显示的项）
 		$_plugin_discover = DiscoverService::getPluginDiscoverItems(true);
 		$discover_items = array_merge($discover_items, $_plugin_discover);
@@ -501,13 +495,8 @@ if($action == 'base') {
 		$_return_mobile = $mobile_items;
 		$_return_discover = $discover_items;
 
-		$_plugin_top_ret = NavService::getPluginNavItems('top');
-		$_plugin_side_ret = NavService::getPluginNavItems('side');
-		$_plugin_mobile_ret = NavService::getPluginNavItems('mobile');
+		// top/side/mobile 插件项不再混入表格返回数据，仅在顶部展示区显示
 		$_plugin_discover_ret = DiscoverService::getPluginDiscoverItems(true);
-		$_return_nav = array_merge($_return_nav, $_plugin_top_ret);
-		$_return_side = array_merge($_return_side, $_plugin_side_ret);
-		$_return_mobile = array_merge($_return_mobile, $_plugin_mobile_ret);
 		$_return_discover = array_merge($_return_discover, $_plugin_discover_ret);
 
 		$nav_sort_ret = function($a, $b) {

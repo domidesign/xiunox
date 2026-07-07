@@ -714,43 +714,9 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 		var urlVal = item.url || '';
 		var rankVal = item.rank || 0;
 		var sourceVal = item.source || 'custom';
-		var isPlugin = sourceVal.indexOf('plugin_') === 0;
 
 		tr.setAttribute('data-nav-type', typeVal);
 		tr.setAttribute('data-nav-source', sourceVal);
-
-		if (isPlugin) {
-			// 插件项：纯展示，不参与表单提交（无 name 属性），URL 加复制按钮
-			tr.innerHTML =
-				'<td class="text-body-secondary text-center"><i class="ti ti-plug"></i></td>' +
-				'<td><span class="badge bg-secondary"><?php echo lang('admin_plugin_nav_plugin');?></span></td>' +
-				'<td>' +
-					'<div class="input-group input-group-sm">' +
-						'<span class="input-group-text p-0 px-2" style="min-width:32px;justify-content:center">' +
-							(iconVal ? '<i class="ti ' + escHtml(iconVal) + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
-						'</span>' +
-						'<input type="text" class="form-control form-control-sm" value="' + escHtml(iconVal) + '" readonly>' +
-					'</div>' +
-				'</td>' +
-				'<td><input type="text" class="form-control form-control-sm" value="' + escHtml(nameVal) + '" readonly></td>' +
-				'<td>' +
-					'<div class="input-group input-group-sm">' +
-						'<input type="text" class="form-control form-control-sm" value="' + escHtml(urlVal) + '" readonly>' +
-						'<button type="button" class="btn btn-outline-secondary btn-sm copy-url-btn" title="<?php echo lang('admin_copy_url');?>"><i class="ti ti-copy"></i></button>' +
-					'</div>' +
-				'</td>' +
-				'<td class="text-center text-body-secondary small"><?php echo lang('admin_plugin_nav_readonly');?></td>';
-			var copyBtn = tr.querySelector('.copy-url-btn');
-			if (copyBtn) {
-				copyBtn.addEventListener('click', function() {
-					var urlInput = this.parentElement.querySelector('input');
-					urlInput.select();
-					document.execCommand('copy');
-					showToast('<?php echo lang('admin_url_copied');?>', 'success');
-				});
-			}
-			return tr;
-		}
 
 		// custom 项：正常可编辑行
 		// 分类标题(type=title)不显示 URL 输入，仅保留 hidden input 维持表单数组对齐
@@ -842,42 +808,9 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 		var urlVal = item.url || '';
 		var rankVal = item.rank || 0;
 		var sourceVal = item.source || 'custom';
-		var isPlugin = sourceVal.indexOf('plugin_') === 0;
 
 		tr.setAttribute('data-nav-type', typeVal);
 		tr.setAttribute('data-nav-source', sourceVal);
-
-		if (isPlugin) {
-			tr.innerHTML =
-				'<td class="text-body-secondary text-center"><i class="ti ti-plug"></i></td>' +
-				'<td><span class="badge bg-secondary"><?php echo lang('admin_plugin_nav_plugin');?></span></td>' +
-				'<td>' +
-					'<div class="input-group input-group-sm">' +
-						'<span class="input-group-text p-0 px-2" style="min-width:32px;justify-content:center">' +
-							(iconVal ? '<i class="ti ' + escHtml(iconVal) + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
-						'</span>' +
-						'<input type="text" class="form-control form-control-sm" value="' + escHtml(iconVal) + '" readonly>' +
-					'</div>' +
-				'</td>' +
-				'<td><input type="text" class="form-control form-control-sm" value="' + escHtml(nameVal) + '" readonly></td>' +
-				'<td>' +
-					'<div class="input-group input-group-sm">' +
-						'<input type="text" class="form-control form-control-sm" value="' + escHtml(urlVal) + '" readonly>' +
-						'<button type="button" class="btn btn-outline-secondary btn-sm copy-url-btn" title="<?php echo lang('admin_copy_url');?>"><i class="ti ti-copy"></i></button>' +
-					'</div>' +
-				'</td>' +
-				'<td class="text-center text-body-secondary small"><?php echo lang('admin_plugin_nav_readonly');?></td>';
-			var copyBtn = tr.querySelector('.copy-url-btn');
-			if (copyBtn) {
-				copyBtn.addEventListener('click', function() {
-					var urlInput = this.parentElement.querySelector('input');
-					urlInput.select();
-					document.execCommand('copy');
-					showToast('<?php echo lang('admin_url_copied');?>', 'success');
-				});
-			}
-			return tr;
-		}
 
 		var isTitleType = (typeVal === 'title');
 		var effectiveUrl = isTitleType ? '' : urlVal;
@@ -1003,50 +936,8 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 		var rankVal = item.rank || 0;
 		var needLoginVal = item.need_login || 0;
 		var sourceVal = item.source || 'custom';
-		var isPlugin = sourceVal.indexOf('plugin_') === 0;
 
 		tr.setAttribute('data-nav-source', sourceVal);
-
-		if (isPlugin) {
-			// 插件项：纯展示，不参与表单提交（无 name 属性），URL 加复制按钮
-			tr.innerHTML =
-				'<td class="text-body-secondary text-center"><i class="ti ti-plug"></i></td>' +
-				'<td>' +
-					'<div class="input-group input-group-sm">' +
-						'<span class="input-group-text p-0 px-2" style="min-width:32px;justify-content:center">' +
-							(iconVal ? '<i class="ti ' + escHtml(iconVal) + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
-						'</span>' +
-						'<input type="text" class="form-control form-control-sm" value="' + escHtml(iconVal) + '" readonly>' +
-					'</div>' +
-				'</td>' +
-				'<td>' +
-					'<div class="input-group input-group-sm">' +
-						'<span class="input-group-text p-0 px-2" style="min-width:32px;justify-content:center">' +
-							(iconActiveVal ? '<i class="ti ' + escHtml(iconActiveVal) + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
-						'</span>' +
-						'<input type="text" class="form-control form-control-sm" value="' + escHtml(iconActiveVal) + '" readonly>' +
-					'</div>' +
-				'</td>' +
-				'<td><input type="text" class="form-control form-control-sm" value="' + escHtml(nameVal) + '" readonly></td>' +
-				'<td>' +
-					'<div class="input-group input-group-sm">' +
-						'<input type="text" class="form-control form-control-sm" value="' + escHtml(urlVal) + '" readonly>' +
-						'<button type="button" class="btn btn-outline-secondary btn-sm copy-url-btn" title="<?php echo lang('admin_copy_url');?>"><i class="ti ti-copy"></i></button>' +
-					'</div>' +
-				'</td>' +
-				'<td class="text-center text-body-secondary">—</td>' +
-				'<td class="text-center text-body-secondary small"><?php echo lang('admin_plugin_nav_readonly');?></td>';
-			var copyBtn = tr.querySelector('.copy-url-btn');
-			if (copyBtn) {
-				copyBtn.addEventListener('click', function() {
-					var urlInput = this.parentElement.querySelector('input');
-					urlInput.select();
-					document.execCommand('copy');
-					showToast('<?php echo lang('admin_url_copied');?>', 'success');
-				});
-			}
-			return tr;
-		}
 
 		// custom 项：正常可编辑行
 		tr.innerHTML =
