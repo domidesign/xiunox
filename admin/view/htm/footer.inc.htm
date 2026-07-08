@@ -74,64 +74,75 @@
 	</script>
 	
 <script>
-(function(){
-    var sidebar = document.getElementById('adminSidebar');
-    var overlay = document.getElementById('sidebarOverlay');
-    var closeBtn = document.getElementById('sidebarCloseBtn');
-    var toggleBtn = document.getElementById('sidebarToggleBtn');
-    var mainArea = document.querySelector('.admin-main');
+(function() {
+    function initSidebar() {
+        var sidebar = document.getElementById('adminSidebar');
+        var overlay = document.getElementById('sidebarOverlay');
+        var closeBtn = document.getElementById('sidebarCloseBtn');
+        var toggleBtn = document.getElementById('sidebarToggleBtn');
+        var mainArea = document.querySelector('.admin-main');
 
-    // 同步侧栏宽度到主区域 margin-left
-    function syncSidebarWidth() {
-        if (sidebar && mainArea && window.innerWidth >= 992) {
-            mainArea.style.marginLeft = sidebar.offsetWidth + 'px';
+        function syncSidebarWidth() {
+            if (sidebar && mainArea && window.innerWidth >= 992) {
+                mainArea.style.marginLeft = sidebar.offsetWidth + 'px';
+            }
         }
-    }
 
-    syncSidebarWidth();
-    if (window.ResizeObserver && sidebar) {
-        new ResizeObserver(syncSidebarWidth).observe(sidebar);
-    }
-    window.addEventListener('resize', function() {
-        if (window.innerWidth < 992 && mainArea) {
-            mainArea.style.marginLeft = '0';
-        } else {
-            syncSidebarWidth();
+        syncSidebarWidth();
+        if (window.ResizeObserver && sidebar) {
+            new ResizeObserver(syncSidebarWidth).observe(sidebar);
         }
-    });
-
-    function openMobileSidebar() {
-        if (sidebar) sidebar.classList.add('show');
-        if (overlay) overlay.classList.add('show');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeMobileSidebar() {
-        if (sidebar) sidebar.classList.remove('show');
-        if (overlay) overlay.classList.remove('show');
-        document.body.style.overflow = '';
-    }
-
-    if (toggleBtn) {
-        toggleBtn.addEventListener('click', function() {
-            if (sidebar && sidebar.classList.contains('show')) {
-                closeMobileSidebar();
+        window.addEventListener('resize', function() {
+            if (window.innerWidth < 992 && mainArea) {
+                mainArea.style.marginLeft = '0';
             } else {
-                openMobileSidebar();
+                syncSidebarWidth();
             }
         });
+
+        function openMobileSidebar() {
+            if (sidebar) sidebar.classList.add('show');
+            if (overlay) overlay.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeMobileSidebar() {
+            if (sidebar) sidebar.classList.remove('show');
+            if (overlay) overlay.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (sidebar && sidebar.classList.contains('show')) {
+                    closeMobileSidebar();
+                } else {
+                    openMobileSidebar();
+                }
+            });
+        }
+
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                closeMobileSidebar();
+            });
+        }
+
+        if (overlay) {
+            overlay.addEventListener('click', function(e) {
+                e.preventDefault();
+                closeMobileSidebar();
+            });
+        }
     }
 
-    if (closeBtn) {
-        closeBtn.addEventListener('click', function() {
-            closeMobileSidebar();
-        });
-    }
-
-    if (overlay) {
-        overlay.addEventListener('click', function() {
-            closeMobileSidebar();
-        });
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initSidebar);
+    } else {
+        initSidebar();
     }
 })();
 

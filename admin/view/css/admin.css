@@ -392,7 +392,7 @@ a {
     }
 
     .sidenav-menu.show {
-        left: 0;
+        left: 0 !important;
     }
 
     .sidenav-menu .sidebar-close-btn {
