@@ -70,6 +70,7 @@ class DiscoverService {
                 'icon' => !empty($config[$plugin_id]['icon']) ? $config[$plugin_id]['icon'] : $defaults['icon'],
                 'name' => !empty($config[$plugin_id]['name']) ? $config[$plugin_id]['name'] : lang($defaults['name_lang']),
                 'url'  => $url,
+                'class' => isset($defaults['class']) ? $defaults['class'] : '',
                 'rank' => intval(isset($config[$plugin_id]['rank']) ? $config[$plugin_id]['rank'] : $defaults['rank']),
             );
             if ($for_admin) {

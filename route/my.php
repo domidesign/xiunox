@@ -282,9 +282,9 @@ if(empty($action)) {
 
 		// hook my_password_post_start.php
 
-		$password_old = param('password_old');
-		$password_new = param('password_new');
-		$password_new_repeat = param('password_new_repeat');
+		$password_old = param('password_old', '', FALSE);
+		$password_new = param('password_new', '', FALSE);
+		$password_new_repeat = param('password_new_repeat', '', FALSE);
 		!hash_equals($password_new, $password_new_repeat) AND message(-1, lang('repeat_password_incorrect'));
 
 		// 密码策略校验（最小长度 + 复杂度，读取后台安全配置）
@@ -377,7 +377,7 @@ if(empty($action)) {
 			message(-1, lang('email_is_in_use'));
 		}
 
-		$code = rand(100000, 999999);
+		$code = random_int(100000, 999999);
 		$_SESSION['email_change_code'] = $code;
 		$_SESSION['email_change_target'] = $email;
 
@@ -1205,6 +1205,15 @@ if(empty($action)) {
 
 } elseif($action == 'notify_mark_read') {
 
+	if($method != 'POST') {
+		if(is_htmx_request()) {
+			header('HTTP/1.1 405 Method Not Allowed');
+			exit;
+		}
+		message(-1, 'Method Error.');
+	}
+	CsrfService::check();
+
 	if(!$uid) {
 		if(is_htmx_request()) {
 			header('HTTP/1.1 401 Unauthorized');
@@ -1230,6 +1239,15 @@ if(empty($action)) {
 	exit;
 
 } elseif($action == 'notify_read') {
+
+	if($method != 'POST') {
+		if(is_htmx_request()) {
+			header('HTTP/1.1 405 Method Not Allowed');
+			exit;
+		}
+		message(-1, 'Method Error.');
+	}
+	CsrfService::check();
 
 	// 单条通知标记已读
 	if(!$uid) {
@@ -1473,7 +1491,7 @@ elseif($action == 'notify') {
 		CsrfService::check();
 		$act = param('act');
 		if($act == 'readall') {
-			$recvuid = param('uid');
+			$recvuid = param('uid', 0);
 			$recvuid != $uid AND message(-1, lang('notice_my_error'));
 
 			// 通知系统已合并，仅操作 notify 表
@@ -1491,7 +1509,7 @@ elseif($action == 'notify') {
 			message(0, array('a' => lang('notice_my_update_readed'),'b' => lang('notice_my_update_allread'), 'unread_count' => $unread_count));
 
 		} elseif($act == 'readone') {
-			$nid = param('nid');
+			$nid = param('nid', 0);
 			$notify = notify__read($nid);
 			empty($notify) AND message(-1, lang('not_exists'));
 			$notify['uid'] != $uid AND message(-1, lang('notice_my_error'));
@@ -1535,7 +1553,7 @@ elseif($action == 'notify') {
 			message(0, lang('notice_my_update_readed'), array('unread_count' => $unread_count));
 
 		} elseif($act == 'delete') {
-			$nid = param('nid');
+			$nid = param('nid', 0);
 			$notify = notify__read($nid);
 			$notify['uid'] != $uid AND message(-1, lang('notice_my_error'));
 

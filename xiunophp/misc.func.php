@@ -698,13 +698,7 @@ function browser_lang() {
 	// return 'zh-cn';
 	$accept = _SERVER('HTTP_ACCEPT_LANGUAGE');
 	$accept = substr($accept, 0, strpos($accept, ';'));
-	if(strpos($accept, 'ko-kr') !== FALSE) {
-		return 'ko-kr';
-	// } elseif(strpos($accept, 'en') !== FALSE) {
-	// 	return 'en';
-	} else {
-		return 'zh-cn';
-	}
+	return 'zh-cn';
 }
 
 // 安全请求一个 URL

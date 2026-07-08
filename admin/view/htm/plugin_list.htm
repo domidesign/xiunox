@@ -115,6 +115,11 @@
                                     <span class="badge <?php echo $plugin['type'] == 1 ? 'bg-warning' : 'bg-primary';?>">
                                         <?php echo $plugin['type'] == 1 ? lang('admin_template_type') : lang('admin_plugin_type');?>
                                     </span>
+                                    <?php if(!empty($plugin['need_upgrade'])):?>
+                                        <span class="badge bg-danger" title="<?php echo esc_attr(lang('plugin_need_upgrade_tip'));?>">
+                                            <i class="ti ti-arrow-up"></i> <?php echo lang('plugin_need_upgrade');?>
+                                        </span>
+                                    <?php endif;?>
                                     <?php if($plugin['enable']):?>
                                         <span class="badge bg-success"><?php echo lang('admin_status_enabled')?></span>
                                     <?php elseif($plugin['installed']):?>
@@ -175,8 +180,8 @@
                                 </button>
                             <?php endif;?>
 
-                            <?php if($plugin['installed'] && !empty($plugin['has_upgrade_file'])):?>
-                                <button type="button" class="btn btn-sm btn-outline rounded-pill"
+                            <?php if($plugin['installed'] && !empty($plugin['need_upgrade'])):?>
+                                <button type="button" class="btn btn-sm btn-danger rounded-pill"
                                     data-action="upgrade"
                                     data-dir="<?php echo esc_attr($dir);?>"
                                     data-name="<?php echo esc_attr($plugin['name'] ?? '');?>"

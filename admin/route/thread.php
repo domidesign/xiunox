@@ -30,6 +30,8 @@ function admin_thread_build_cond() {
 	if(!is_numeric($_uid)) {
 		$_user = user_read_by_username($_uid);
 		$_uid = !empty($_user['uid']) ? $_user['uid'] : 0;
+	} else {
+		$_uid = intval($_uid);
 	}
 	$fid = param('fid', 0);
 	$create_date_start = param('create_date_start') ? strtotime(param('create_date_start')) : 0;

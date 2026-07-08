@@ -30,6 +30,23 @@ $threadIsAdmin = $threadAuthUser && in_array(intval($threadAuthUser['gid']), [1,
 $threadGid = $threadAuthUser ? intval($threadAuthUser['gid']) : 0;
 $threadUid = $threadAuthUser ? intval($threadAuthUser['uid']) : 0;
 
+// 初始化版块权限校验所需函数和全局变量（API 上下文默认未加载）
+if (!function_exists('forum_access_user')) {
+    include_once APP_PATH . 'model/forum_access.func.php';
+}
+if (!function_exists('forum_list_cache')) {
+    include_once APP_PATH . 'model/forum.func.php';
+}
+if (!function_exists('group_list_cache')) {
+    include_once APP_PATH . 'model/group.func.php';
+}
+if (empty($GLOBALS['forumlist'])) {
+    $GLOBALS['forumlist'] = forum_list_cache();
+}
+if (empty($GLOBALS['grouplist'])) {
+    $GLOBALS['grouplist'] = group_list_cache();
+}
+
 $seg1 = $segments[1] ?? '';
 $seg2 = $segments[2] ?? '';
 
@@ -356,6 +373,10 @@ if ($seg1 === 'hot') {
             $attach_keys = param('attach_keys', '');
             if (empty($fid) || empty($subject) || empty($message)) {
                 ApiResponse::validationError('fid, subject and message are required');
+            }
+            // 校验版块发帖权限（allowthread）
+            if (!forum_access_user(intval($fid), intval($authUser['gid']), 'allowthread')) {
+                ApiResponse::forbidden('No permission to create thread in this forum');
             }
 
             // ===== 验证码能力开关（Task 2.4）=====

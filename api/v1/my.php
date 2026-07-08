@@ -366,7 +366,7 @@ switch ($action) {
             // 加载邮件函数
             include_once XIUNOPHP_PATH . 'xn_send_mail.func.php';
 
-            $code = rand(100000, 999999);
+            $code = random_int(100000, 999999);
             // 验证码缓存 10 分钟
             cache_set('api_email_code_' . $uid, $code, 600);
             cache_set('api_email_target_' . $uid, $email, 600);

@@ -1,2 +1,9 @@
 # 禁止所有 Web 访问，保护配置文件安全
-Deny from all
+# 兼容 Apache 2.2（Order/Deny）与 2.4（Require）
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

@@ -562,9 +562,10 @@ function user_cookie_options($expires = 0, $path = '/') {
 	global $conf;
 	$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
 
-	// Cookie Secure：配置了 security_cookie_secure 则使用配置值，否则自动检测 HTTPS
-	if(isset($conf['security_cookie_secure']) && intval($conf['security_cookie_secure']) > 0) {
-		$cookie_secure = true;
+	// Cookie Secure：security_cookie_secure 已设置时 0=自动检测HTTPS，>0=强制Secure
+	// 修复前 0 会 fallthrough 到旧 cookie_secure 配置，导致 HTTPS 下 Secure 标志缺失
+	if(isset($conf['security_cookie_secure'])) {
+		$cookie_secure = intval($conf['security_cookie_secure']) > 0 || $is_https;
 	} elseif(isset($conf['cookie_secure'])) {
 		$cookie_secure = intval($conf['cookie_secure']) > 0;
 	} else {
@@ -577,11 +578,11 @@ function user_cookie_options($expires = 0, $path = '/') {
 		$cookie_httponly = intval($conf['security_cookie_httponly']) > 0;
 	}
 
-	// Cookie SameSite：优先使用安全配置，否则自动检测
+	// Cookie SameSite：优先使用安全配置，否则默认 Lax（防 CSRF）
 	if(isset($conf['security_cookie_samesite']) && in_array($conf['security_cookie_samesite'], array('Lax', 'Strict', 'None'), true)) {
 		$samesite = $conf['security_cookie_samesite'];
 	} else {
-		$samesite = $is_https ? 'None' : 'Lax';
+		$samesite = 'Lax';
 	}
 
 	return array(

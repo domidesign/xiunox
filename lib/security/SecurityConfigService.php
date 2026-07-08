@@ -58,7 +58,9 @@ class SecurityConfigService {
         'security_search_require_login' => 1,          // 搜索需要登录，1=需要 0=不需要
 
         // Cookie 安全
-        'security_cookie_secure' => 0,                 // Cookie Secure，1=仅 HTTPS 传输，0=自动检测
+        // security_cookie_secure: 0=自动检测HTTPS（运行时判断，默认安全），1=强制Secure
+        // 注意：PHP class const 不支持 $_SERVER 表达式，0 在运行时由 session.func.php 自动检测 HTTPS
+        'security_cookie_secure' => 0,                 // Cookie Secure：0=自动检测HTTPS, 1=强制Secure
         'security_cookie_httponly' => 1,               // Cookie HttpOnly，1=禁止 JS 读取
         'security_cookie_samesite' => 'Lax',           // Cookie SameSite：Lax / Strict / None
     ];

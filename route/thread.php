@@ -7,6 +7,14 @@ $action = param(1);
 // hook thread_start.php
 
 if($action == 'like' || $action == 'unlike') {
+	if($method != 'POST') {
+		if(is_htmx_request()) {
+			header('HTTP/1.1 405 Method Not Allowed');
+			exit;
+		}
+		message(-1, 'Method Error.');
+	}
+	CsrfService::check();
 	$tid = param(2, 0);
 	$pid = param(3, 0);
 	$is_htmx = is_htmx_request();
@@ -68,18 +76,15 @@ if($action == 'like' || $action == 'unlike') {
 		}
 
 		$create_result = post_like_create($uid, $tid, $pid);
-		// $create_result=1 表示真正新增了点赞；=0 表示已存在（幂等，不重复处理）
-		error_log("[thread-like DEBUG] create_result=" . var_export($create_result, true));
-		if($create_result == 1) {
-			// 点赞时通知帖子作者（post_like_create 内部已处理通知，这里不再重复）
-			// 积分规则：被点赞者获得积分，点赞者可选扣分
-			if(!empty($post['uid']) && $post['uid'] != $uid) {
-				$beLikedResult = CreditsRuleService::applyRule('be_liked', intval($post['uid']), intval($thread['fid']), false, strval($pid));
-				error_log("[thread-like DEBUG] be_liked result=" . json_encode($beLikedResult, JSON_UNESCAPED_UNICODE));
-			}
-			$likeResult = CreditsRuleService::applyRule('like', $uid, intval($thread['fid']), false, strval($pid));
-			error_log("[thread-like DEBUG] like result=" . json_encode($likeResult, JSON_UNESCAPED_UNICODE));
-			if(!empty($likeResult['ok']) && !empty($likeResult['change_desc'])) {
+	// $create_result=1 表示真正新增了点赞；=0 表示已存在（幂等，不重复处理）
+	if($create_result == 1) {
+		// 点赞时通知帖子作者（post_like_create 内部已处理通知，这里不再重复）
+		// 积分规则：被点赞者获得积分，点赞者可选扣分
+		if(!empty($post['uid']) && $post['uid'] != $uid) {
+			$beLikedResult = CreditsRuleService::applyRule('be_liked', intval($post['uid']), intval($thread['fid']), false, strval($pid));
+		}
+		$likeResult = CreditsRuleService::applyRule('like', $uid, intval($thread['fid']), false, strval($pid));
+		if(!empty($likeResult['ok']) && !empty($likeResult['change_desc'])) {
 				$like_change_desc = $likeResult['change_desc'];
 			}
 			// 每日上限达到：提醒用户本次不扣减积分
@@ -122,7 +127,6 @@ if($action == 'like' || $action == 'unlike') {
 		$ctx = param('_ctx', ($pid == $thread['firstpid']) ? 'thread' : 'post');
 		header('Content-Type: text/html; charset=utf-8');
 		echo _render_like_btn($tid, $pid, $is_liked, $likes_count, $ctx);
-		echo '<!-- DEBUG: create_result=' . var_export($create_result ?? 'N/A', true) . ' like_change_desc=' . htmlspecialchars($like_change_desc) . ' -->';
 		// 积分变动提示（OOB toast）
 		if($like_change_desc) {
 			echo '<div id="credits-toast" hx-swap-oob="true" data-change-desc="' . htmlspecialchars($like_change_desc, ENT_QUOTES, 'UTF-8') . '"></div>';
@@ -136,6 +140,14 @@ if($action == 'like' || $action == 'unlike') {
 }
 
 if($action == 'favorite') {
+	if($method != 'POST') {
+		if(is_htmx_request()) {
+			header('HTTP/1.1 405 Method Not Allowed');
+			exit;
+		}
+		message(-1, 'Method Error.');
+	}
+	CsrfService::check();
 	$tid = param(2, 0);
 	$is_htmx = is_htmx_request();
 	// 读取按钮上下文：thread（电脑端左侧栏）/ thread_mobile（手机端postbar）/ 默认thread
@@ -248,6 +260,8 @@ if($action == 'favorite') {
 }
 
 if($action == 'announcement') {
+	if($method != 'POST') message(-1, 'Method Error.');
+	CsrfService::check();
 	!$uid AND message(-1, lang('please_login'));
 	$tid = param(2, 0);
 	$thread = thread_read($tid);
@@ -767,7 +781,8 @@ if($action == 'create') {
 		$_all_replies = CacheHelper::remember($_replies_cache_key, 60, function() use ($tid, $_main_pids) {
 			$result = array();
 			$batch = $_main_pids;
-			for($i = 0; $i < 3 && !empty($batch); $i++) {
+			// ponytail: 递归查询嵌套回复，上限20轮（防极端死循环）。正常靠 array_diff 去重 + batch 为空自动退出。
+			for($i = 0; $i < 20 && !empty($batch); $i++) {
 				$found = post__find(
 					array('tid'=>$tid, 'isfirst'=>0, 'quotepid'=>$batch),
 					array('pid'=>1), 1, 1000
@@ -792,17 +807,21 @@ if($action == 'create') {
 				}
 			}
 
-			// 构建 pid_map（包含一级和二级评论，用于解析父级关系和 reply_to_username）
+			// 先格式化所有二级评论（补 username/avatar 等），必须在构建 pid_map 之前完成
+			// 否则 pid_map 存的是未格式化数据，深层回复取 reply_to_username 时会拿到空值
+			foreach($_all_replies as &$_r) {
+				post_format($_r);
+				$_r['floor'] = 0; // 二级评论无楼层
+			}
+			unset($_r);
+
+			// 构建 pid_map（包含一级和已格式化的二级评论，用于解析父级关系和 reply_to_username）
 			$pid_map = array();
 			foreach($postlist as $_p) $pid_map[$_p['pid']] = $_p;
 			foreach($_all_replies as $_r) $pid_map[$_r['pid']] = $_r;
 
-			// 格式化二级评论 + 递归找一级父评论
+			// 递归找一级父评论 + 解析 reply_to_username
 			foreach($_all_replies as &$_r) {
-				post_format($_r);
-				$_r['floor'] = 0; // 二级评论无楼层
-
-				// 递归查找一级父评论（沿 quotepid 链向上）
 				$_r['parent_pid'] = 0;
 				$_current = $_r['quotepid'];
 				for($d = 0; $d < 10; $d++) {

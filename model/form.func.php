@@ -62,12 +62,12 @@ function form_text($name, $value, $width = FALSE, $holdplacer = '') {
 		is_numeric($width) AND $width .= 'px';
 		$style = " style=\"width: $width\"";
 	}
-	$s = "<input type=\"text\" name=\"$name\" id=\"$name\" placeholder=\"$holdplacer\" value=\"$value\" class=\"form-control \"$style />";
+	$s = "<input type=\"text\" name=\"$name\" id=\"$name\" placeholder=\"$holdplacer\" value=\"".esc_attr($value)."\" class=\"form-control \"$style />";
 	return $s;
 }
 
 function form_hidden($name, $value) {
-	$s = "<input type=\"hidden\" name=\"$name\" id=\"$name\" value=\"$value\" />";
+	$s = "<input type=\"hidden\" name=\"$name\" id=\"$name\" value=\"".esc_attr($value)."\" />";
 	return $s;
 }
 
@@ -78,7 +78,7 @@ function form_textarea($name, $value, $width = FALSE,  $height = FALSE) {
 		is_numeric($height) AND $height .= 'px';
 		$style = " style=\"width: $width; height: $height; \"";
 	}
-	$s = "<textarea name=\"$name\" id=\"$name\" class=\"form-control rounded-3\" $style>$value</textarea>";
+	$s = "<textarea name=\"$name\" id=\"$name\" class=\"form-control rounded-3\" $style>".esc_html($value)."</textarea>";
 	return $s;
 }
 
@@ -88,7 +88,7 @@ function form_password($name, $value, $width = FALSE) {
 		is_numeric($width) AND $width .= 'px';
 		$style = " style=\"width: $width\"";
 	}
-	$s = "<input type=\"password\" name=\"$name\" id=\"$name\" class=\"form-control \" value=\"$value\" $style />";
+	$s = "<input type=\"password\" name=\"$name\" id=\"$name\" class=\"form-control \" value=\"".esc_attr($value)."\" $style />";
 	return $s;
 }
 

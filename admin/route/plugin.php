@@ -44,6 +44,16 @@ if($action == 'local') {
 		// 检测是否存在 upgrade.php（用于显示升级按钮）
 		$plugin['has_upgrade_file'] = is_file(APP_PATH."plugin/$dir/upgrade.php");
 
+		// 检测是否需要升级：已安装 + conf.json.version 与 db.version 不一致 + 存在 upgrade.php
+		$plugin['need_upgrade'] = 0;
+		if (!empty($plugin['installed']) && !empty($plugin['has_upgrade_file'])) {
+			$_code_ver = isset($plugin['version']) ? $plugin['version'] : '';
+			$_db_ver = isset($plugin['db_version']) ? $plugin['db_version'] : '';
+			if ($_code_ver !== '' && $_code_ver !== $_db_ver) {
+				$plugin['need_upgrade'] = 1;
+			}
+		}
+
 		// 类型过滤
 		$plugin_type = $plugin['type'];
 		if($type_filter == 1 && $plugin_type == 1) continue; // 只看插件，过滤模板
@@ -237,13 +247,17 @@ if($action == 'local') {
 	
 	// 卸载插件
 	plugin_unstall($dir);
-	
-	$unstallfile = APP_PATH."plugin/$dir/unstall.php";
-	if(is_file($unstallfile)) {
+
+	// 执行卸载脚本：优先标准拼写 uninstall.php，回退旧拼写 unstall.php（向后兼容）
+	$uninstallfile = APP_PATH."plugin/$dir/uninstall.php";
+	if(!is_file($uninstallfile)) {
+		$uninstallfile = APP_PATH."plugin/$dir/unstall.php";
+	}
+	if(is_file($uninstallfile)) {
 		// 注入安全 IO 包装，限制插件文件操作范围
 		require_once APP_PATH . 'lib/xn_safe_io.php';
 		$plugin_dir = $dir;
-		include _include($unstallfile);
+		include _include($uninstallfile);
 	}
 	
 	// 删除插件

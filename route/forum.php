@@ -7,6 +7,14 @@
 // 版块关注/取消关注路由
 $action = param(1);
 if($action === 'follow' || $action === 'unfollow') {
+    if($method != 'POST') {
+        if(is_htmx_request()) {
+            header('HTTP/1.1 405 Method Not Allowed');
+            exit;
+        }
+        message(-1, 'Method Error.');
+    }
+    CsrfService::check();
     include _include(APP_PATH.'service/ForumService.php');
     $forumService = new ForumService($_SERVER['db']);
 

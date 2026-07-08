@@ -247,7 +247,7 @@ fieldset:disabled .btn {
 [data-bs-theme="dark"] .btn-outline-secondary,[data-bs-theme="dark"] .thread-sidebar-btn {
     border: 1px solid #424242;
 }
-@media screen and (max-width: 768px) {
+@media screen and (max-width: 767.98px) {
 
     .row>* {
 

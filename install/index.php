@@ -36,7 +36,7 @@ include APP_PATH.'model/plugin.func.php';
 
 // 从 cookie 中获取用户选择的语言，默认使用配置中的语言
 $_lang = isset($_COOKIE['lang']) ? $_COOKIE['lang'] : $conf['lang'];
-if(!in_array($_lang, array('zh-cn', 'zh-tw', 'en-us', 'ru-ru', 'th-th', 'ja-jp', 'ko-kr'))) {
+if(!in_array($_lang, array('zh-cn', 'zh-tw', 'en-us'))) {
     $_lang = $conf['lang'];
 }
 $conf['lang'] = $_lang;
@@ -71,13 +71,13 @@ if(empty($action)) {
 
 	if($method == 'GET') {
 		$input = array();
-		$input['lang'] = form_select('lang', array('zh-cn'=>'简体中文', 'zh-tw'=>'正體中文', 'en-us'=>'English', 'ru-ru'=>'Русский', 'th-th'=>'ไทย', 'ja-jp'=>'日本語', 'ko-kr'=>'한국어'), $conf['lang']);
+		$input['lang'] = form_select('lang', array('zh-cn'=>'简体中文', 'zh-tw'=>'正體中文', 'en-us'=>'English'), $conf['lang']);
 
 		// 修改 conf.php
 		include INSTALL_PATH."view/htm/index.htm";
 	} else {
 		$_lang = param('lang');
-		!in_array($_lang, array('zh-cn', 'zh-tw', 'en-us', 'ru-ru', 'th-th', 'ja-jp', 'ko-kr')) AND $_lang = 'zh-cn';
+		!in_array($_lang, array('zh-cn', 'zh-tw', 'en-us')) AND $_lang = 'zh-cn';
 		setcookie('lang', $_lang, array('expires' => time() + 86400, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax'));
 
 		//$conf['lang'] = $_lang;

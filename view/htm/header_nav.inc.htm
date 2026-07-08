@@ -75,7 +75,7 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 					$_url = !empty($_ni['url']) ? esc_attr($_ni['url']) : '#';
 			?>
 			<li class="nav-item" data-active="nav-<?php echo esc_attr($_ni['slug'] ?? '');?>">
-				<a class="nav-link transition-colors" href="<?php echo $_url;?>">
+				<a class="nav-link transition-colors<?php echo !empty($_ni['class']) ? ' '.esc_attr($_ni['class']) : '';?>" href="<?php echo $_url;?>">
 					<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo esc_attr($_ni['icon']);?> me-1"></i><?php } ?>
 					<?php echo esc_html($_ni['name']);?>
 				</a>
@@ -85,13 +85,13 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 					// 有子项：渲染为下拉菜单
 			?>
 			<li class="nav-item dropdown">
-				<a class="nav-link transition-colors dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+				<a class="nav-link transition-colors dropdown-toggle<?php echo !empty($_ni['class']) ? ' '.esc_attr($_ni['class']) : '';?>" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
 					<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo esc_attr($_ni['icon']);?> me-1"></i><?php } ?>
 					<?php echo esc_html($_ni['name']);?>
 				</a>
 				<ul class="dropdown-menu shadow border-0">
 				<?php foreach($_children as $_link) { ?>
-				<li data-active="nav-<?php echo esc_attr($_link['slug'] ?? '');?>"><a class="dropdown-item py-2" href="<?php echo esc_attr($_link['url']);?>">
+				<li data-active="nav-<?php echo esc_attr($_link['slug'] ?? '');?>"><a class="dropdown-item py-2<?php echo !empty($_link['class']) ? ' '.esc_attr($_link['class']) : '';?>" href="<?php echo esc_attr($_link['url']);?>">
 					<?php if(!empty($_link['icon'])) { ?><i class="<?php echo esc_attr($_link['icon']);?> me-2"></i><?php } ?>
 					<?php echo esc_html($_link['name']);?>
 				</a></li>
@@ -105,7 +105,7 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 				// 一级 link（前面没有归属的 title）
 			?>
 			<li class="nav-item" data-active="nav-<?php echo esc_attr($_ni['slug'] ?? '');?>">
-				<a class="nav-link transition-colors" href="<?php echo esc_attr($_ni['url']);?>">
+				<a class="nav-link transition-colors<?php echo !empty($_ni['class']) ? ' '.esc_attr($_ni['class']) : '';?>" href="<?php echo esc_attr($_ni['url']);?>">
 					<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo esc_attr($_ni['icon']);?>"></i><?php } ?>
 					<?php echo esc_html($_ni['name']);?>
 				</a>
@@ -195,7 +195,7 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 					</a>
 					<ul class="dropdown-menu dropdown-menu-end shadow rounded-1 mt-3">
 						<?php
-						$langs = array('zh-cn'=>lang('lang_zh_cn'), 'zh-tw'=>lang('lang_zh_tw'), 'en-us'=>lang('lang_en_us'), 'ja-jp'=>lang('lang_ja_jp'), 'ko-kr'=>lang('lang_ko_kr'), 'ru-ru'=>lang('lang_ru_ru'), 'th-th'=>lang('lang_th_th'));
+						$langs = array('zh-cn'=>lang('lang_zh_cn'), 'zh-tw'=>lang('lang_zh_tw'), 'en-us'=>lang('lang_en_us'));
 						foreach ($langs as $code => $name) {
 							$active = ($conf['lang'] == $code) ? ' active' : '';
 							echo '<li><a class="dropdown-item'.$active.'" href="'.lang_url($code).'">'.$name.'</a></li>';

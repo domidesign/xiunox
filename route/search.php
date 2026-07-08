@@ -132,9 +132,12 @@ function search_ensure_fulltext($table, $column, $index_name) {
 }
 
 if($keyword_safe) {
-    // 关键词长度校验（FULLTEXT + ngram 最少2字符）
-    if(mb_strlen($keyword_safe) < 2) {
+    // 关键词长度校验（FULLTEXT + ngram 最少2字符，最多50字符防 DoS）
+    $_kw_len = mb_strlen($keyword_safe);
+    if($_kw_len < 2) {
         $keyword_too_short = true;
+    } elseif($_kw_len > 50) {
+        message(-1, lang('search_keyword_too_long'));
     } elseif($search_type == 'thread') {
 
         // BOOLEAN MODE 关键词：转义特殊字符并用双引号包裹，实现精确短语匹配

@@ -75,6 +75,9 @@ class CaptchaService {
         return isset(self::$custom_scenes[$scene]);
     }
 
+    // 验证码有效期（秒）
+    const CAPTCHA_EXPIRE = 300;
+
     // 默认配置
     const DEFAULT_CONFIG = [
         'types' => [
@@ -182,8 +185,20 @@ class CaptchaService {
         // 清除已用验证码（一次性）
         unset($_SESSION[$session_key]);
 
+        // 兼容旧格式（字符串）与新格式（数组含 expires）
+        if (is_array($stored)) {
+            // 新格式：校验有效期，过期则失败
+            if (!empty($stored['expires']) && time() > $stored['expires']) {
+                return false;
+            }
+            $code = $stored['code'] ?? '';
+        } else {
+            // 旧格式：直接是验证码字符串
+            $code = $stored;
+        }
+
         // 不区分大小写
-        return strtolower($input) === strtolower($stored);
+        return strtolower($input) === strtolower($code);
     }
 
     /**
@@ -282,8 +297,8 @@ class CaptchaService {
             $code .= $chars[random_int(0, strlen($chars) - 1)];
         }
 
-        // 存入 session
-        $_SESSION['captcha_' . $scene] = $code;
+        // 存入 session（带有效期）
+        $_SESSION['captcha_' . $scene] = ['code' => $code, 'expires' => time() + self::CAPTCHA_EXPIRE];
 
         // 生成图片
         $im = imagecreatetruecolor($width, $height);
@@ -340,8 +355,8 @@ class CaptchaService {
         $answer = $op === '+' ? $a + $b : $a - $b;
         $code_str = "$a $op $b = ?";
 
-        // 存入 session
-        $_SESSION['captcha_' . $scene] = (string) $answer;
+        // 存入 session（带有效期）
+        $_SESSION['captcha_' . $scene] = ['code' => (string) $answer, 'expires' => time() + self::CAPTCHA_EXPIRE];
 
         // 生成图片
         $width = 120;

@@ -124,7 +124,17 @@ function _include_callback_1($m) {
 
 // 在安装、卸载插件的时候，需要先初始化
 function plugin_init() {
-	global $plugin_srcfiles, $plugin_paths, $plugins;
+	global $plugin_srcfiles, $plugin_paths, $plugins, $db;
+
+	// 存量数据库升级：bbs_plugin 表加 version 字段（幂等，KV 缓存避免每次请求 SHOW COLUMNS）
+	$version_field_checked = cache_get('plugin_version_field_checked');
+	if (empty($version_field_checked)) {
+		$col_exists = db_sql_find_one("SHOW COLUMNS FROM {$db->tablepre}plugin LIKE 'version'");
+		if (empty($col_exists)) {
+			db_exec("ALTER TABLE {$db->tablepre}plugin ADD COLUMN version varchar(32) NOT NULL DEFAULT '' COMMENT '已安装版本号' AFTER enable");
+		}
+		cache_set('plugin_version_field_checked', 1, 86400);
+	}
 
 	$plugin_paths = glob(APP_PATH.'plugin/*', GLOB_ONLYDIR);
 	if(is_array($plugin_paths)) {
@@ -337,11 +347,13 @@ function plugin_install($dir) {
 
 	// 写入配置文件
 	file_replace_var(APP_PATH."plugin/$dir/conf.json", array('installed'=>1, 'enable'=>1), TRUE);
-	
+
 	// 写入数据库
 	plugin_db_init($dir, $plugins[$dir]);
 	plugin_db_set_installed($dir, 1);
 	plugin_db_set_enable($dir, 1);
+	// 同步 conf.json.version 到 db.version，用于后续「需升级」检测
+	plugin_db_set_version($dir, isset($plugins[$dir]['version']) ? $plugins[$dir]['version'] : '');
 
 	plugin_clear_tmp_dir();
 
@@ -622,7 +634,7 @@ function plugin_db_get_all() {
 // 初始化插件数据库记录（如果不存在则创建）
 function plugin_db_init($dir, $conf = array()) {
     global $db, $tablepre, $time;
-    
+
     $arr = plugin_db_get($dir);
     if (empty($arr)) {
         $arr = array(
@@ -631,6 +643,7 @@ function plugin_db_init($dir, $conf = array()) {
             'type' => plugin_is_theme($dir, $conf) ? 1 : 0,
             'installed' => isset($conf['installed']) ? $conf['installed'] : 0,
             'enable' => isset($conf['enable']) ? $conf['enable'] : 0,
+            'version' => isset($conf['version']) ? $conf['version'] : '',
             'install_time' => 0,
             'enable_time' => 0,
             'disable_time' => 0,
@@ -653,6 +666,15 @@ function plugin_db_set_installed($dir, $installed) {
         $update['install_time'] = $time;
     }
     $db->update($tablepre.'plugin', array('dir'=>$dir), $update);
+}
+
+// 更新插件已安装版本号
+function plugin_db_set_version($dir, $version) {
+    global $db, $tablepre, $time;
+    $db->update($tablepre.'plugin', array('dir'=>$dir), array(
+        'version' => $version,
+        'update_time' => $time,
+    ));
 }
 
 // 更新插件启用状态
@@ -687,19 +709,21 @@ function plugin_db_init_all() {
 function plugin_read_by_dir_with_db($dir) {
     $plugin = plugin_read_by_dir($dir);
     $db_data = plugin_db_get($dir);
-    
+
     if (!empty($db_data)) {
         $plugin['install_time'] = isset($db_data['install_time']) ? $db_data['install_time'] : 0;
         $plugin['enable_time'] = isset($db_data['enable_time']) ? $db_data['enable_time'] : 0;
         $plugin['disable_time'] = isset($db_data['disable_time']) ? $db_data['disable_time'] : 0;
         $plugin['type'] = isset($db_data['type']) ? $db_data['type'] : 0;
+        $plugin['db_version'] = isset($db_data['version']) ? $db_data['version'] : '';
     } else {
         $plugin['install_time'] = 0;
         $plugin['enable_time'] = 0;
         $plugin['disable_time'] = 0;
         $plugin['type'] = plugin_is_theme($dir, $plugin) ? 1 : 0;
+        $plugin['db_version'] = '';
     }
-    
+
     return $plugin;
 }
 
@@ -770,6 +794,19 @@ function plugin_hook($hookname, &$data = NULL) {
 			// 继续执行后续 hook，不终止
 		}
 	}
+}
+
+/**
+ * 兼容旧版 xn_hook() 调用
+ * @deprecated 已被 plugin_hook() 替代，仅为向后兼容保留
+ */
+function xn_hook($hookname, &$data = NULL) {
+	// 旧版 xn_hook 不带 .php 后缀，新版 plugin_hook 需要含扩展名（如 thread_create_after.php）
+	// 幂等：调用方无论是否带 .php 后缀都能正确分发
+	if(substr($hookname, -4) !== '.php') {
+		$hookname .= '.php';
+	}
+	return plugin_hook($hookname, $data);
 }
 
 ?>

@@ -77,7 +77,8 @@ function sess_new($sid) {
 
 	// 判断是否 HTTPS，用于设置 cookie 安全属性
 	$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
-	$samesite = $is_https ? 'None' : 'Lax';
+	// SameSite 默认 Lax：None 会导致 CSRF 风险，且浏览器要求 None 必须配合 Secure
+	$samesite = 'Lax';
 	$cookie_options = array(
 		'expires' => 0,
 		'path' => '/',
@@ -140,7 +141,7 @@ function sess_save() {
 
 // 模拟加锁，如果发现写入的时候数据已经发生改变，则读取后，合并数据，重新写入（合并总比删除安全一点）。
 function sess_write($sid, $data) {
-	global $g_session, $time, $longip, $g_session_invalid, $conf;
+	global $g_session, $time, $longip, $g_session_invalid, $conf, $db;
 	
 	// 静态资源请求跳过 session 更新，避免不必要的数据库写入
 	// 包括：.css .js .map .png .jpg .gif .svg .ico .woff .ttf .eot 等
@@ -193,7 +194,12 @@ function sess_write($sid, $data) {
 	// 判断数据是否超长
 	$len = strlen($data);
 	if($len > 255 && $g_session['bigdata'] == 0) {
-		db_insert('session_data', array('sid'=>$sid));
+		// INSERT IGNORE 避免并发请求重复插入同 sid 导致主键冲突
+		// ponytail: 并发场景下多个请求可能同时进入此分支，IGNORE 让第二个静默成功
+		$_t = $db->tablepre ?? '';
+		db_exec("INSERT IGNORE INTO {$_t}session_data (`sid`) VALUES ('" . addslashes($sid) . "')");
+		// 标记 bigdata=1，避免后续请求重复插入
+		$g_session['bigdata'] = 1;
 	}
 	if($len <= 255) {
 		$update = array_diff_value($arr, $g_session);
@@ -241,9 +247,10 @@ function sess_start() {
 	// 优先读取安全配置中的 Cookie 设置，未配置则自动检测
 	$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
 
-	// Cookie Secure：配置了 security_cookie_secure 则使用配置值，否则自动检测 HTTPS
-	if(isset($conf['security_cookie_secure']) && intval($conf['security_cookie_secure']) > 0) {
-		$cookie_secure = true;
+	// Cookie Secure：security_cookie_secure 已设置时 0=自动检测HTTPS，>0=强制Secure
+	// 修复前 0 会 fallthrough 到旧 cookie_secure 配置，导致 HTTPS 下 Secure 标志缺失
+	if(isset($conf['security_cookie_secure'])) {
+		$cookie_secure = intval($conf['security_cookie_secure']) > 0 || $is_https;
 	} elseif(isset($conf['cookie_secure'])) {
 		$cookie_secure = intval($conf['cookie_secure']) > 0;
 	} else {
@@ -256,11 +263,11 @@ function sess_start() {
 		$cookie_httponly = intval($conf['security_cookie_httponly']) > 0;
 	}
 
-	// Cookie SameSite：优先使用安全配置，否则自动检测
+	// Cookie SameSite：优先使用安全配置，否则默认 Lax（防 CSRF）
 	if(isset($conf['security_cookie_samesite']) && in_array($conf['security_cookie_samesite'], array('Lax', 'Strict', 'None'), true)) {
 		$samesite = $conf['security_cookie_samesite'];
 	} else {
-		$samesite = $is_https ? 'None' : 'Lax';
+		$samesite = 'Lax';
 	}
 
 	session_set_cookie_params(array(
@@ -339,9 +346,55 @@ function online_list_cache() {
 }
 
 /**
+ * Redis Session Handler（自定义实现）
+ * 密码通过 Redis::auth() 单独认证，不写入 session.save_path，避免 phpinfo() 泄露
+ * 连接失败时静默回退到 PHP 默认 file handler
+ */
+class XiunoRedisSessionHandler implements SessionHandlerInterface {
+	/** @var Redis */
+	private $redis;
+	/** @var string session key 前缀 */
+	private $prefix = 'sess:';
+
+	public function __construct(Redis $redis) {
+		$this->redis = $redis;
+	}
+
+	public function open(string $save_path, string $session_name): bool {
+		return true;
+	}
+
+	public function close(): bool {
+		// 不主动 close，保持连接供 write 使用，由 register_shutdown_function 管理
+		return true;
+	}
+
+	public function read(string $sid): string|false {
+		$data = $this->redis->get($this->prefix . $sid);
+		return $data === false ? '' : $data;
+	}
+
+	public function write(string $sid, string $data): bool {
+		$maxlifetime = intval(ini_get('session.gc_maxlifetime'));
+		if($maxlifetime <= 0) $maxlifetime = 1440;
+		return $this->redis->setex($this->prefix . $sid, $maxlifetime, $data);
+	}
+
+	public function destroy(string $sid): bool {
+		$this->redis->del($this->prefix . $sid);
+		return true;
+	}
+
+	public function gc(int $maxlifetime): int|false {
+		// Redis 通过 setex TTL 自动过期，无需主动 GC
+		return 0;
+	}
+}
+
+/**
  * 初始化 Redis Session Handler
- * 通过 ini_set 设置 session.save_handler=redis + session.save_path=tcp://...
- * phpredis 扩展会接管 session 存储，无需实现 SessionHandlerInterface
+ * 使用自定义 XiunoRedisSessionHandler 代替 phpredis 原生 session handler
+ * 密码通过 Redis::auth 单独认证，不写入 session.save_path（避免 phpinfo/error log 泄露）
  * 连接失败时静默回退到 PHP 默认 file handler
  */
 function sess_init_redis_handler() {
@@ -360,8 +413,7 @@ function sess_init_redis_handler() {
 	$auth = isset($cfg['password']) ? $cfg['password'] : (isset($cfg['auth']) ? $cfg['auth'] : '');
 	$db = isset($cfg['database']) ? $cfg['database'] : (isset($cfg['db']) ? $cfg['db'] : 0);
 
-	// 预先测试连接，失败则回退 file handler
-	// 使用 Exception 而非 RedisException，避免扩展未加载时类不存在报错
+	// 创建 Redis 连接，密码通过 auth() 单独认证（不写入 save_path URL）
 	try {
 		$redis = new Redis();
 		$connected = $redis->connect($host, intval($port), 2);
@@ -370,22 +422,14 @@ function sess_init_redis_handler() {
 		}
 		if($auth) $redis->auth($auth);
 		if($db) $redis->select(intval($db));
-		$redis->close();
 	} catch(Exception $e) {
 		xn_log('Redis connect failed: ' . $e->getMessage() . ', fallback to file session', 'session_error');
 		return;
 	}
 
-	// 注册 Redis session save handler
-	// phpredis 通过 session.save_handler=redis + session.save_path=tcp://host:port?auth=xxx&database=N 接管 session
-	$save_path = 'tcp://' . $host . ':' . intval($port);
-	$params = array();
-	if($auth) $params[] = 'auth=' . rawurlencode($auth);
-	if($db) $params[] = 'database=' . intval($db);
-	if($params) $save_path .= '?' . implode('&', $params);
-
-	ini_set('session.save_handler', 'redis');
-	ini_set('session.save_path', $save_path);
+	// 注册自定义 SessionHandler，密码不暴露在 save_path 中
+	// phpredis 原生 handler 需 save_path=tcp://host:port?auth=xxx，密码会出现在 phpinfo() 输出
+	session_set_save_handler(new XiunoRedisSessionHandler($redis), true);
 }
 
 ?>

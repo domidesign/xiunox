@@ -179,6 +179,8 @@ return array(
 	'plugin_enable_sucessfully'=>'啟用插件 ( {name} ) 成功',
 	'plugin_disable_sucessfully'=>'禁用插件 ( {name} ) 成功',
 	'plugin_upgrade_sucessfully'=>'升級插件 ( {name} ) 成功',
+	'plugin_need_upgrade'=>'需升級',
+	'plugin_need_upgrade_tip'=>'檢測到程式碼版本與已安裝版本不一致，建議立即升級',
 	'plugin_not_need_update'=>'已經是最新版本，無需更新',
 	'plugin_set_relatied_dir_writable'=>'在安裝插件目錄期間，請設置：{dir} 和文件為可寫',
 	'plugin_dependency_following'=>'依賴以下插件：{s}，請先安裝依賴的插件',
@@ -1381,6 +1383,7 @@ return array(
 
 	// ========== 表頭/單位 ==========
 	'admin_col_slug'=>'Slug',
+	'admin_col_class'=>'CSS類名',
 	'admin_col_url'=>'URL',
 	'admin_col_id'=>'ID',
 	'admin_unit_kb'=>'KB',

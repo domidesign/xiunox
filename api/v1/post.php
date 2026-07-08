@@ -33,12 +33,35 @@ $postUid = $postAuthUser ? intval($postAuthUser['uid']) : 0;
 $id = intval($segments[1] ?? 0);
 $isBatch = ($segments[1] ?? '') === 'batch';
 
+// 初始化版块权限校验所需函数和全局变量（API 上下文默认未加载）
+if (!function_exists('forum_access_user')) {
+    include_once APP_PATH . 'model/forum_access.func.php';
+}
+if (!function_exists('forum_list_cache')) {
+    include_once APP_PATH . 'model/forum.func.php';
+}
+if (!function_exists('group_list_cache')) {
+    include_once APP_PATH . 'model/group.func.php';
+}
+if (empty($GLOBALS['forumlist'])) {
+    $GLOBALS['forumlist'] = forum_list_cache();
+}
+if (empty($GLOBALS['grouplist'])) {
+    $GLOBALS['grouplist'] = group_list_cache();
+}
+
 switch ($method) {
     case 'GET':
         if ($id > 0) {
             $post = $postService->getPostById($id);
             if (!$post) {
                 ApiResponse::notFound('Post not found');
+            }
+            // 校验版块读权限（post 表无 fid，通过 tid 读取 thread 获取 fid）
+            $_thread = thread__read(intval($post['tid']));
+            $_fid = $_thread ? intval($_thread['fid']) : 0;
+            if ($_fid > 0 && !forum_access_user($_fid, $postGid, 'allowread')) {
+                ApiResponse::forbidden('No permission to access this forum');
             }
             // 非管理员、非作者不可查看未审核通过的回帖
             if (!$postIsAdmin && intval($post['audit_status']) !== 1 && intval($post['uid']) !== intval($postAuthUser['uid'] ?? 0)) {
@@ -55,20 +78,42 @@ switch ($method) {
             $fields = $_GET['fields'] ?? '';
 
             if ($tid > 0) {
+                // 校验版块读权限（tid 查询返回特定版块的帖子）
+                $_thread = thread__read($tid);
+                if (empty($_thread)) {
+                    ApiResponse::notFound('Thread not found');
+                }
+                if (!forum_access_user(intval($_thread['fid']), $postGid, 'allowread')) {
+                    ApiResponse::forbidden('No permission to access this forum');
+                }
                 $cond = ['tid' => $tid];
                 ApiResponse::filterByAuditStatus($cond, $postGid, $postUid);
                 $list = $db->find('post', $cond, ['pid' => 1], $page, $pagesize, 'pid');
                 $total = $db->count('post', $cond);
-            } elseif ($uid > 0) {
-                $cond = ['uid' => $uid];
-                ApiResponse::filterByAuditStatus($cond, $postGid, $postUid);
-                $list = $db->find('post', $cond, [], $page, $pagesize, 'pid');
-                $total = $db->count('post', $cond);
             } else {
-                $cond = [];
-                ApiResponse::filterByAuditStatus($cond, $postGid, $postUid);
-                $list = $db->find('post', $cond, [], $page, $pagesize, 'pid');
-                $total = $db->count('post', $cond);
+                // uid/无条件查询：非管理员按版块读权限过滤（post 表无 fid，JOIN thread）
+                if ($postIsAdmin) {
+                    $cond = $uid > 0 ? ['uid' => $uid] : [];
+                    ApiResponse::filterByAuditStatus($cond, $postGid, $postUid);
+                    $list = $db->find('post', $cond, [], $page, $pagesize, 'pid');
+                    $total = $db->count('post', $cond);
+                } else {
+                    $accessible_fids = array_keys(forum_list_access_filter($GLOBALS['forumlist'], $postGid, 'allowread'));
+                    if (empty($accessible_fids)) {
+                        $list = [];
+                        $total = 0;
+                    } else {
+                        $fid_in = implode(',', array_map('intval', $accessible_fids));
+                        $offset = ($page - 1) * $pagesize;
+                        $uid_cond = $uid > 0 ? ' AND p.uid=' . intval($uid) : '';
+                        // 联表查询，db_find 不支持 JOIN，保留 db_sql_find
+                        $sql = "SELECT p.* FROM " . $db->table('post') . " p INNER JOIN " . $db->table('thread') . " t ON p.tid=t.tid WHERE p.audit_status=1 AND t.fid IN ({$fid_in}){$uid_cond} ORDER BY p.pid DESC LIMIT {$offset},{$pagesize}";
+                        $list = db_sql_find($sql) ?: [];
+                        $count_sql = "SELECT COUNT(*) AS cnt FROM " . $db->table('post') . " p INNER JOIN " . $db->table('thread') . " t ON p.tid=t.tid WHERE p.audit_status=1 AND t.fid IN ({$fid_in}){$uid_cond}";
+                        $count_row = db_sql_find_one($count_sql);
+                        $total = $count_row ? intval($count_row['cnt']) : 0;
+                    }
+                }
             }
 
             if (!empty($fields)) {
@@ -116,6 +161,10 @@ switch ($method) {
         $thread = $threadService->getThreadById($tid);
         if (!$thread) {
             ApiResponse::notFound('Thread not found');
+        }
+        // 校验版块回帖权限（allowpost）
+        if (!forum_access_user(intval($thread['fid']), intval($authUser['gid']), 'allowpost')) {
+            ApiResponse::forbidden('No permission to post in this forum');
         }
 
         // ===== 验证码能力开关（Task 2.4）=====

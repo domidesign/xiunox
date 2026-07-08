@@ -1288,9 +1288,6 @@ HTML;
             'zh-cn' => 'zh',
             'zh-tw' => 'zh',
             'en-us' => 'en',
-            'ja-jp' => 'ja',
-            'ko-kr' => 'ko',
-            'th-th' => 'th',
         ];
         return $map[$xiunoLang] ?? 'en';
     }

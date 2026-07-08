@@ -48,7 +48,7 @@
 						} else {
 			?>
 				<li class="side-nav-item" data-active="nav-<?php echo esc_attr($_sni['slug'] ?? '');?>">
-					<a href="<?php echo $_side_url;?>" class="side-nav-link">
+					<a href="<?php echo $_side_url;?>" class="side-nav-link<?php echo !empty($_sni['class']) ? ' '.esc_attr($_sni['class']) : '';?>">
 						<span class="menu-icon"><?php if(!empty($_sni['icon'])) { ?><i class="<?php echo esc_attr($_sni['icon']);?>"></i><?php } else { ?><i class="ti ti-folder"></i><?php } ?></span>
 						<span class="menu-text"><?php echo esc_html($_sni['name']);?></span>
 					</a>
@@ -64,7 +64,7 @@
 				</li>
 				<?php foreach($_side_children as $_clink) { ?>
 				<li class="side-nav-item side-nav-child" data-active="nav-<?php echo esc_attr($_clink['slug'] ?? '');?>">
-					<a href="<?php echo esc_attr($_clink['url']);?>" class="side-nav-link">
+					<a href="<?php echo esc_attr($_clink['url']);?>" class="side-nav-link<?php echo !empty($_clink['class']) ? ' '.esc_attr($_clink['class']) : '';?>">
 						<span class="menu-icon"><?php if(!empty($_clink['icon'])) { ?><i class="<?php echo esc_attr($_clink['icon']);?>"></i><?php } else { ?><i class="ti ti-link"></i><?php } ?></span>
 						<span class="menu-text"><?php echo esc_html($_clink['name']);?></span>
 					</a>
@@ -77,7 +77,7 @@
 					// 一级 link
 			?>
 				<li class="side-nav-item" data-active="nav-<?php echo esc_attr($_sni['slug'] ?? '');?>">
-					<a href="<?php echo esc_attr($_sni['url']);?>" class="side-nav-link">
+					<a href="<?php echo esc_attr($_sni['url']);?>" class="side-nav-link<?php echo !empty($_sni['class']) ? ' '.esc_attr($_sni['class']) : '';?>">
 						<span class="menu-icon"><?php if(!empty($_sni['icon'])) { ?><i class="<?php echo esc_attr($_sni['icon']);?>"></i><?php } else { ?><i class="ti ti-link"></i><?php } ?></span>
 						<span class="menu-text"><?php echo esc_html($_sni['name']);?></span>
 					</a>

@@ -179,6 +179,8 @@ return array(
 	'plugin_enable_sucessfully'=>'Enable Plugin ( {name} ) successfully',
 	'plugin_disable_sucessfully'=>'Disable Plugin ( {name} ) successfully',
 	'plugin_upgrade_sucessfully'=>'Upgrade Plugin ( {name} ) successfully',
+	'plugin_need_upgrade'=>'Upgrade',
+	'plugin_need_upgrade_tip'=>'Code version differs from installed version. Upgrade recommended.',
 	'plugin_not_need_update'=>'Already is the latest version, no need to update',
 	'plugin_set_relatied_dir_writable'=>'During the installation of the plugin directory, please set: {dir} and file for writable',
 	'plugin_dependency_following'=>'Dependent on following plugin: {s}, please install them first.',
@@ -988,6 +990,7 @@ return array(
 
 	// ========== Column Headers/Units ==========
 	'admin_col_slug'=>'Slug',
+	'admin_col_class'=>'CSS Class',
 	'admin_col_url'=>'URL',
 	'admin_col_id'=>'ID',
 	'admin_unit_kb'=>'KB',

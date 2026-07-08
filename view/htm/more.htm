@@ -16,7 +16,7 @@
 				<div class="row g-3">
 					<?php foreach($_discover_items as $_item) { ?>
 					<div class="col-4 col-sm-3 col-md-3 col-xl-3">
-						<a href="<?php echo $_item['url'];?>" class="text-decoration-none d-flex flex-column align-items-center py-3 px-2 rounded-3 discover-item" <?php if(!empty($_item['url']) && (strpos($_item['url'], 'http') === 0 || strpos($_item['url'], '//') === 0)) echo 'target="_blank"'; ?>>
+						<a href="<?php echo $_item['url'];?>" class="text-decoration-none d-flex flex-column align-items-center py-3 px-2 rounded-3 discover-item<?php echo !empty($_item['class']) ? ' '.esc_attr($_item['class']) : '';?>" <?php if(!empty($_item['url']) && (strpos($_item['url'], 'http') === 0 || strpos($_item['url'], '//') === 0)) echo 'target="_blank"'; ?>>
 							<div class="discover-icon-wrap mb-2">
 								<i class="ti <?php echo !empty($_item['icon']) ? esc_html($_item['icon']) : 'ti-link';?>"></i>
 							</div>

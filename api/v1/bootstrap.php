@@ -2,7 +2,7 @@
 
 !defined('API_MODE') AND define('API_MODE', true);
 
-!defined('DEBUG') AND define('DEBUG', 1);
+!defined('DEBUG') AND define('DEBUG', 0);
 !defined('APP_PATH') AND define('APP_PATH', dirname(__DIR__, 2) . '/');
 !defined('XIUNOPHP_PATH') AND define('XIUNOPHP_PATH', APP_PATH . 'xiunophp/');
 

@@ -35,6 +35,12 @@ function notify__delete($nid) {
  */
 function notify_create($uid, $from_uid, $type, $tid = 0, $pid = 0, $content = '', $extra = array()) {
 	global $time, $db, $conf;
+	$uid = intval($uid);
+	// 校验接收者是否存在（uid=0 为系统/全局公告通知，跳过校验）
+	if($uid > 0) {
+		$_notify_recv = user__read($uid);
+		if(empty($_notify_recv)) return FALSE;
+	}
 	// 系统通知（announcement/system）允许自己通知自己；其他类型不允许
 	if($uid == $from_uid && !in_array($type, array('announcement', 'system', 'audit_pending'))) return TRUE;
 
@@ -330,6 +336,7 @@ function notify_mark_read($nid) {
 
 function notify_mark_all_read($uid) {
 	global $db, $conf;
+	$uid = intval($uid);
 	$tablepre = $db->tablepre;
 	db_exec("UPDATE {$tablepre}notify SET is_read=1 WHERE uid='$uid' AND is_read=0");
 	// 重置 user.unread_notices 计数器
@@ -386,6 +393,10 @@ function notify_format(&$notify, $prefetched = array()) {
 	$notify['url'] = '';
 	if($notify['tid'] > 0) {
 		$notify['url'] = url('thread-'.$notify['tid']);
+	}
+	// 防御 javascript:/data:/vbscript: 等危险协议（XSS 防护）
+	if($notify['url'] !== '' && preg_match('/^\s*(javascript|data|vbscript):/i', $notify['url'])) {
+		$notify['url'] = '';
 	}
 
 	// 统一预加载 thread 数据（原代码多处调用 thread_read_cache 同一 tid，合并为一次）

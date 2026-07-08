@@ -4,12 +4,17 @@ if ($method !== 'POST') {
     ApiResponse::error(405, 'Method not allowed');
 }
 
+// 防暴力破解：加载 LoginSecurityService（与 route/user.php 登录流程一致）
+if (!class_exists('LoginSecurityService')) {
+    include_once APP_PATH . 'lib/LoginSecurityService.php';
+}
+
 $action = $segments[1] ?? '';
 
 switch ($action) {
     case 'login':
         // ===== 验证码能力开关（Task 2.4）=====
-        global $apiApp, $apiAppServerAuth, $apiAuth;
+        global $apiApp, $apiAppServerAuth, $apiAuth, $longip;
         $skipCaptcha = $apiAppServerAuth && $apiAuth->checkAppCapability($apiApp, 'skip_captcha');
         if (!$skipCaptcha) {
             if (!class_exists('CaptchaService')) {
@@ -38,14 +43,31 @@ switch ($action) {
             ApiResponse::validationError('Validation Error', $errors);
         }
 
+        // 防暴力破解：IP 维度限流检查（防止用不存在的用户名枚举绕过 uid 维度限流）
+        LoginSecurityService::checkIpBan($longip);
+
         $user = $db->find_one('user', ['email' => $email]);
         if (empty($user)) {
             $user = $db->find_one('user', ['username' => $email]);
         }
 
-        if (empty($user) || !user_login_verify($password, $user)) {
+        // 用户不存在时记录 IP 维度失败尝试，纳入 IP 限流统计
+        if (empty($user)) {
+            LoginSecurityService::recordIpAttempt($longip, FALSE, $_SERVER['HTTP_USER_AGENT']);
             ApiResponse::error(401, 'Invalid credentials');
         }
+
+        // 防暴力破解：uid 维度锁定检查
+        LoginSecurityService::checkBan($user['uid']);
+
+        if (!user_login_verify($password, $user)) {
+            // 登录失败时记录 uid 维度失败尝试
+            LoginSecurityService::recordAttempt($user['uid'], FALSE, $longip, $_SERVER['HTTP_USER_AGENT']);
+            ApiResponse::error(401, 'Invalid credentials');
+        }
+
+        // 登录成功时清空失败计数
+        LoginSecurityService::recordAttempt($user['uid'], TRUE, $longip, $_SERVER['HTTP_USER_AGENT']);
 
         $tokenData = $apiAuth->generateTokens($user['uid']);
         unset($tokenData['user']['password'], $tokenData['user']['salt']);

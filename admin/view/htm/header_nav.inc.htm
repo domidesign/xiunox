@@ -60,7 +60,7 @@
 			</button>
 			<ul class="dropdown-menu dropdown-menu-end shadow rounded-3 p-2" style="min-width:8rem">
 				<?php
-				$_langs = array('zh-cn'=>lang('lang_zh_cn'), 'zh-tw'=>lang('lang_zh_tw'), 'en-us'=>lang('lang_en_us'), 'ja-jp'=>lang('lang_ja_jp'), 'ko-kr'=>lang('lang_ko_kr'), 'ru-ru'=>lang('lang_ru_ru'), 'th-th'=>lang('lang_th_th'));
+				$_langs = array('zh-cn'=>lang('lang_zh_cn'), 'zh-tw'=>lang('lang_zh_tw'), 'en-us'=>lang('lang_en_us'));
 				foreach ($_langs as $_code => $_name) {
 					$_active = ($conf['lang'] == $_code) ? ' active' : '';
 					echo '<li><a class="dropdown-item rounded-2'.$_active.'" href="javascript:void(0)" onclick="document.cookie=\'lang='.$_code.';path=/;max-age=31536000\';location.reload();">'.$_name.'</a></li>';

@@ -43,6 +43,43 @@ switch ($method) {
             ApiResponse::validationError('不允许的文件类型: '.$ext);
         }
 
+        // 真实 MIME 校验，防止伪造扩展名上传恶意文件
+        // 白名单与 conf/attach.conf.php 扩展名白名单对应
+        $allowed_mimes = array(
+            'image/jpeg', 'image/pjpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/x-ms-bmp',
+            'video/mp4', 'video/webm', 'video/ogg', 'video/x-msvideo', 'video/avi', 'video/x-ms-wmv', 'video/x-ms-asf',
+            'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/x-ms-wma', 'audio/ogg',
+            'application/pdf', 'application/msword', 'application/vnd.ms-excel', 'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/zip', 'application/x-zip-compressed', 'application/gzip', 'application/x-gzip',
+            'application/x-tar', 'application/x-rar', 'application/x-rar-compressed', 'application/x-7z-compressed',
+            'application/x-bzip', 'application/x-bzip2',
+            'text/plain', 'text/x-c', 'text/x-c++src',
+            'application/vnd.rn-realmedia', 'application/vnd.rn-realmedia-vbr',
+            'application/x-font-ttf', 'font/ttf',
+            'application/x-bittorrent',
+            'application/vnd.ms-htmlhelp',
+        );
+        if(function_exists('finfo_open')) {
+            $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+            if($finfo) {
+                $real_mime = @finfo_file($finfo, $tmp_name);
+                if(PHP_VERSION_ID < 80000) finfo_close($finfo);
+                // finfo_file 返回 false 或 MIME 不在白名单，拒绝上传
+                if($real_mime === false || !in_array($real_mime, $allowed_mimes)) {
+                    ApiResponse::validationError('文件类型不允许');
+                }
+            } else {
+                // finfo 打开失败，拒绝上传
+                ApiResponse::validationError('文件类型不允许');
+            }
+        } else {
+            // 无 finfo 扩展，拒绝上传
+            ApiResponse::validationError('文件类型不允许');
+        }
+
         // 文件大小校验
         $max_size = AttachmentService::getMaxSize($filetype);
         if($size > $max_size) {
@@ -50,9 +87,9 @@ switch ($method) {
             ApiResponse::validationError("文件大小不能超过 {$max_fmt}");
         }
 
-        // 生成临时文件名
+        // 生成临时文件名（密码学安全随机数）
         $uid = intval($authUser['uid']);
-        $tmpname = $uid.'_'.xn_rand(15).'.'.$ext;
+        $tmpname = $uid.'_'.bin2hex(random_bytes(16)).'.'.$ext;
         $tmpfile = $conf['upload_path'].'tmp/'.$tmpname;
         $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
 

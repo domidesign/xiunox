@@ -254,9 +254,6 @@ if($action == 'mark_read') {
 
 } elseif($action == 'list') {
 
-	// 管理后台通知列表（查询 notify 表）
-	if($gid != 1) message(-1, lang('insufficient_privilege'));
-
 	$page = param(2, 1);
 	$pagesize = 20;
 	$active = 'default';
@@ -380,8 +377,11 @@ if($action == 'mark_read') {
 
 } elseif($action == 'delete') {
 
-	// 删除通知（操作 notify 表）
-	if($gid != 1) message(-1, lang('insufficient_privilege'));
+if($method != 'POST') message(-1, 'Method Error.');
+CsrfService::check();
+
+// 删除通知（操作 notify 表）
+if($gid != 1) message(-1, lang('insufficient_privilege'));
 
 	$nid = param('nid');
 	$r = notify__delete($nid);

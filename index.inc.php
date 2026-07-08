@@ -30,7 +30,7 @@ if ($user_lang && is_dir(APP_PATH."lang/$user_lang")) {
         $conf['lang'] = $_default_lang;
     } else {
         $accept_langs = isset($_SERVER['HTTP_ACCEPT_LANGUAGE']) ? substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 5) : '';
-        $lang_map = array('zh-cn'=>'zh-cn', 'zh-tw'=>'zh-tw', 'en'=>'en-us', 'ru'=>'ru-ru', 'th'=>'th-th', 'ja'=>'ja-jp', 'ko'=>'ko-kr');
+        $lang_map = array('zh-cn'=>'zh-cn', 'zh-tw'=>'zh-tw', 'en'=>'en-us');
         foreach ($lang_map as $prefix => $locale) {
             if (stripos($accept_langs, $prefix) === 0 && is_dir(APP_PATH."lang/$locale")) {
                 $conf['lang'] = $locale;

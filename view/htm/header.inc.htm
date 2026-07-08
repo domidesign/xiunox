@@ -38,25 +38,25 @@ $header['description'] = esc_attr($header['description'] ?? '');
 <meta http-equiv="Cache-Control" content="no-siteapp"/>
 
 <?php if(!empty($header['canonical'])) { ?>
-<link rel="canonical" href="<?php echo $header['canonical'];?>" />
+<link rel="canonical" href="<?php echo esc_attr($header['canonical']);?>" />
 <?php } ?>
 
 <?php if(!empty($header['og_type'])) { ?>
 <meta property="og:title" content="<?php echo $header['title'];?>" />
 <meta property="og:description" content="<?php echo $header['description'];?>" />
 <meta property="og:type" content="<?php echo $header['og_type'];?>" />
-<meta property="og:site_name" content="<?php echo $conf['sitename'];?>" />
+<meta property="og:site_name" content="<?php echo esc_attr($conf['sitename']);?>" />
 <?php if(!empty($header['canonical'])) { ?>
-<meta property="og:url" content="<?php echo $header['canonical'];?>" />
+<meta property="og:url" content="<?php echo esc_attr($header['canonical']);?>" />
 <?php } ?>
 <?php if(!empty($header['og_image'])) { ?>
-<meta property="og:image" content="<?php echo $header['og_image'];?>" />
+<meta property="og:image" content="<?php echo esc_attr($header['og_image']);?>" />
 <?php } ?>
 <meta name="twitter:card" content="<?php echo !empty($header['og_image']) ? 'summary_large_image' : 'summary';?>" />
 <meta name="twitter:title" content="<?php echo $header['title'];?>" />
 <meta name="twitter:description" content="<?php echo $header['description'];?>" />
 <?php if(!empty($header['og_image'])) { ?>
-<meta name="twitter:image" content="<?php echo $header['og_image'];?>" />
+<meta name="twitter:image" content="<?php echo esc_attr($header['og_image']);?>" />
 <?php } ?>
 <?php } ?>
 
@@ -64,8 +64,8 @@ $header['description'] = esc_attr($header['description'] ?? '');
 <script type="application/ld+json"><?php echo json_encode($header['json_ld'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);?></script>
 <?php } ?>
 	
-	<meta name="csrf-token" content="<?php echo isset($header['csrf_token']) ? $header['csrf_token'] : '';?>">
-	<meta name="api-app-id" content="<?php echo $conf['api_default_appid'] ?? ''; ?>">
+	<meta name="csrf-token" content="<?php echo isset($header['csrf_token']) ? esc_attr($header['csrf_token']) : '';?>">
+	<meta name="api-app-id" content="<?php echo esc_attr($conf['api_default_appid'] ?? ''); ?>">
 
 	<title><?php echo $header['title'];?></title>
 	

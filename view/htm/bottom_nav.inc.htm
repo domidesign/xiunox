@@ -27,7 +27,7 @@ if(!empty($_mobile_nav_items)) {
 			$_mnav_href = (empty($_mnav_url) || $_mnav_url === '/') ? index_url() : url($_mnav_url);
 		}
 	?>
-	<a href="<?php echo esc_attr($_mnav_href);?>" class="bottom-nav-item" data-nav="<?php echo esc_attr($_mnav_slug);?>" data-icon-active="<?php echo esc_attr(isset($_mnav['icon_active']) ? $_mnav['icon_active'] : '');?>"<?php if(strpos($_mnav_url, 'thread-create') !== false): ?> hx-boost="false"<?php endif; ?>>
+	<a href="<?php echo esc_attr($_mnav_href);?>" class="bottom-nav-item<?php echo !empty($_mnav['class']) ? ' '.esc_attr($_mnav['class']) : '';?>" data-nav="<?php echo esc_attr($_mnav_slug);?>" data-icon-active="<?php echo esc_attr(isset($_mnav['icon_active']) ? $_mnav['icon_active'] : '');?>"<?php if(strpos($_mnav_url, 'thread-create') !== false): ?> hx-boost="false"<?php endif; ?>>
 		<i class="ti <?php echo esc_attr($_mnav_icon);?>"></i>
 		<span><?php echo esc_html($_mnav_name);?></span>
 	</a>

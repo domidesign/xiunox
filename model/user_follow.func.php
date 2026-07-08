@@ -28,6 +28,8 @@ function user_follow_read($uid, $follow_uid) {
 
 function user_follow_create($uid, $follow_uid) {
 	global $time, $db;
+	$uid = intval($uid);
+	$follow_uid = intval($follow_uid);
 	if($uid == $follow_uid) return FALSE;
 	// 使用 INSERT IGNORE，无需先 SELECT 检查，避免主键冲突和竞争
 	$r = user_follow__create(array(
@@ -47,6 +49,8 @@ function user_follow_create($uid, $follow_uid) {
 
 function user_follow_delete($uid, $follow_uid) {
 	global $db;
+	$uid = intval($uid);
+	$follow_uid = intval($follow_uid);
 	$exists = user_follow_read($uid, $follow_uid);
 	if(empty($exists)) return FALSE;
 	$r = user_follow__delete($uid, $follow_uid);

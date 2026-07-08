@@ -25,7 +25,7 @@ if($action == 'base') {
 		$input['user_create_email_on'] = form_radio_yes_no('user_create_email_on', $conf['user_create_email_on']);
 		$input['user_resetpw_on'] = form_radio_yes_no('user_resetpw_on', $conf['user_resetpw_on']);
 		$input['force_https'] = form_radio_yes_no('force_https', isset($conf['force_https']) ? $conf['force_https'] : 0);
-		$input['lang'] = form_select('lang', array('zh-cn'=>lang('lang_zh_cn'), 'zh-tw'=>lang('lang_zh_tw'), 'en-us'=>lang('lang_en_us'), 'ru-ru'=>lang('lang_ru_ru'), 'th-th'=>lang('lang_th_th'), 'ja-jp'=>lang('lang_ja_jp'), 'ko-kr'=>lang('lang_ko_kr')), $conf['lang']);
+		$input['lang'] = form_select('lang', array('zh-cn'=>lang('lang_zh_cn'), 'zh-tw'=>lang('lang_zh_tw'), 'en-us'=>lang('lang_en_us')), $conf['lang']);
 		
 		$header['title'] = lang('admin_site_setting');
 		$header['mobile_title'] =lang('admin_site_setting');
@@ -369,6 +369,7 @@ if($action == 'base') {
 		$nav_url = param('nav_url', array(''));
 		$nav_rank = param('nav_rank', array(0));
 		$nav_type = param('nav_type', array('link'));
+		$nav_class = param('nav_class', array(''));
 
 		$nav_items = array();
 		foreach ($nav_name as $k=>$v) {
@@ -380,6 +381,7 @@ if($action == 'base') {
 				'name'=>$nav_name[$k] ?? '',
 				'slug'=>$slug,
 				'url'=>$nav_url[$k] ?? '',
+				'class'=>trim($nav_class[$k] ?? ''),
 				'rank'=>intval($nav_rank[$k]),
 			);
 		}
@@ -391,6 +393,7 @@ if($action == 'base') {
 		$sidebar_url = param('sidebar_url', array(''));
 		$sidebar_rank = param('sidebar_rank', array(0));
 		$sidebar_type = param('sidebar_type', array('link'));
+		$sidebar_class = param('sidebar_class', array(''));
 
 		$sidebar_nav_items = array();
 		foreach ($sidebar_name as $k=>$v) {
@@ -402,6 +405,7 @@ if($action == 'base') {
 				'name'=>$sidebar_name[$k] ?? '',
 				'slug'=>$slug,
 				'url'=>$sidebar_url[$k] ?? '',
+				'class'=>trim($sidebar_class[$k] ?? ''),
 				'rank'=>intval($sidebar_rank[$k]),
 			);
 		}
@@ -413,6 +417,7 @@ if($action == 'base') {
 		$mobile_urls = param('mobile_url', array());
 		$mobile_ranks = param('mobile_rank', array());
 		$mobile_need_login = param('mobile_need_login', array());
+		$mobile_classes = param('mobile_class', array());
 		$mobile_items = array();
 		for($i = 0; $i < count($mobile_names); $i++) {
 			if(empty($mobile_names[$i]) && empty($mobile_icons[$i]) && empty($mobile_icons_active[$i])) continue;
@@ -421,6 +426,7 @@ if($action == 'base') {
 				'icon_active' => $mobile_icons_active[$i] ?? '',
 				'name' => $mobile_names[$i] ?? '',
 				'url' => $mobile_urls[$i] ?? '',
+				'class' => trim($mobile_classes[$i] ?? ''),
 				'rank' => intval($mobile_ranks[$i] ?? 0),
 				'need_login' => !empty($mobile_need_login[$i]) ? 1 : 0,
 			);
@@ -436,6 +442,7 @@ if($action == 'base') {
 		$discover_slugs = param('discover_slug', array());
 		$discover_urls = param('discover_url', array());
 		$discover_ranks = param('discover_rank', array());
+		$discover_classes = param('discover_class', array());
 		$discover_items = array();
 		for($i = 0; $i < count($discover_names); $i++) {
 			// name/icon/url 均为空才跳过
@@ -447,6 +454,7 @@ if($action == 'base') {
 				'name' => $discover_names[$i] ?? '',
 				'slug' => $disc_slug,
 				'url' => $discover_urls[$i] ?? '',
+				'class' => trim($discover_classes[$i] ?? ''),
 				'rank' => intval($discover_ranks[$i] ?? 0),
 			);
 		}

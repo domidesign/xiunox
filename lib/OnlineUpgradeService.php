@@ -2,7 +2,7 @@
 
 /**
  * Xiuno BBS 在线升级服务
- * 负责：检查新版本、备份代码、下载/解压/覆盖文件、复用 UpgradeService 跑 DB 升级、回滚
+ * 负责：检查新版本、下载/解压/覆盖文件、复用 UpgradeService 跑 DB 升级
  * 依赖：ZipArchive 扩展 + cURL 或 allow_url_fopen，无第三方库
  */
 class OnlineUpgradeService {
@@ -10,7 +10,6 @@ class OnlineUpgradeService {
     private array $conf;
     private string $tmpPath;
     private string $lockFile;       // 维护锁文件路径
-    private string $backupBasePath; // 备份基目录
 
     public function __construct($db, array $conf) {
         $this->db = $db;
@@ -22,8 +21,6 @@ class OnlineUpgradeService {
         }
         $this->tmpPath = $tmpPath;
         $this->lockFile = $this->tmpPath . 'maintenance.lock';
-        // 备份目录名含 6 位随机串，防止时间戳目录名被爆破猜中后下载备份代码
-        $this->backupBasePath = $this->tmpPath . 'upgrade_backup_' . date('YmdHis') . '_' . substr(bin2hex(random_bytes(3)), 0, 6) . '/';
     }
 
     /**
@@ -215,55 +212,8 @@ class OnlineUpgradeService {
     }
 
     /**
-     * 4. 备份：递归复制 APP_PATH 到 tmp/upgrade_backup_{YmdHis}/
-     * 排除目录：upload/ log/ tmp/ plugin/ conf/（但 conf/conf.default.php 要备份）
-     */
-    public function backup(): array {
-        if (!is_dir($this->tmpPath)) {
-            $oldUmask = umask(0);
-            @mkdir($this->tmpPath, 0755, true);
-            umask($oldUmask);
-        }
-
-        if (!is_dir($this->backupBasePath)) {
-            $oldUmask = umask(0);
-            $created = @mkdir($this->backupBasePath, 0755, true);
-            umask($oldUmask);
-            if (!$created) {
-                $error = error_get_last();
-                $errMsg = !empty($error['message']) ? $error['message'] : '未知错误';
-                return ['ok' => false, 'message' => '创建备份目录失败: ' . $this->backupBasePath . ' (' . $errMsg . ')'];
-            }
-        }
-
-        // 排除目录：tmp/ 自身及子目录、upload/ log/ plugin/、conf/（conf/conf.default.php 单独备份）
-        $excludeDirs = ['tmp', 'upload', 'log', 'plugin', 'conf'];
-        $fileCount = $this->recursiveCopy(APP_PATH, $this->backupBasePath, $excludeDirs);
-
-        // 单独备份 conf/conf.default.php
-        $confDefaultSrc = APP_PATH . 'conf/conf.default.php';
-        if (is_file($confDefaultSrc)) {
-            $confDefaultDst = $this->backupBasePath . 'conf/conf.default.php';
-            if (!is_dir(dirname($confDefaultDst))) {
-                $oldUmask = umask(0);
-                @mkdir(dirname($confDefaultDst), 0755, true);
-                umask($oldUmask);
-            }
-            if (@copy($confDefaultSrc, $confDefaultDst)) {
-                $fileCount++;
-            }
-        }
-
-        return [
-            'ok' => true,
-            'backup_path' => $this->backupBasePath,
-            'file_count' => $fileCount,
-            'message' => "备份完成，共 {$fileCount} 个文件",
-        ];
-    }
-
-    /**
-     * 5. 下载：cURL 下载 zip 到 tmp/upgrade_{version}.zip，校验 size > 0
+     * 4. 下载：cURL 下载 zip 到 tmp/upgrade_{version}.zip，校验 size > 0
+     * 注：原 backup() 步骤已移除，备份责任由用户在升级前确认 Modal 中手动完成
      */
     public function download(string $zipUrl, string $version): array {
         if (empty($zipUrl)) {
@@ -499,39 +449,7 @@ class OnlineUpgradeService {
     }
 
     /**
-     * 9. 回滚：找最新的 tmp/upgrade_backup_* 目录，递归覆盖回 APP_PATH/，删维护锁
-     */
-    public function rollback(): array {
-        $backups = glob($this->tmpPath . 'upgrade_backup_*', GLOB_ONLYDIR);
-        if (empty($backups)) {
-            return ['ok' => false, 'message' => '未找到可用的备份目录'];
-        }
-
-        // 按修改时间倒序，取最新
-        usort($backups, function($a, $b) {
-            return filemtime($b) - filemtime($a);
-        });
-        $backupDir = $backups[0];
-        $backupName = basename($backupDir);
-
-        // 递归复制备份回 APP_PATH
-        $fileCount = $this->recursiveCopy($backupDir, APP_PATH, []);
-
-        // 删除维护锁
-        if (file_exists($this->lockFile)) {
-            @unlink($this->lockFile);
-        }
-
-        return [
-            'ok' => true,
-            'backup_used' => $backupName,
-            'file_count' => $fileCount,
-            'message' => "已从备份 {$backupName} 回滚，覆盖 {$fileCount} 个文件",
-        ];
-    }
-
-    /**
-     * 10. 重装当前版本：跳过版本对比，下载当前 conf['version'] 对应的 release 包并执行覆盖流程
+     * 9. 重装当前版本：跳过版本对比，下载当前 conf['version'] 对应的 release 包并执行覆盖流程
      * 需要先调 Gitee API 找到 tag_name = v{current_version} 的 release
      */
     public function reinstall(): array {
@@ -603,65 +521,6 @@ class OnlineUpgradeService {
     }
 
     // ===================== 辅助方法 =====================
-
-    /**
-     * 递归复制目录
-     * @param string $src 源目录（末尾需带 /）
-     * @param string $dst 目标目录（末尾需带 /）
-     * @param array $excludeDirs 顶层需排除的目录名（相对 APP_PATH 或源根的第一段）
-     * @return int 复制的文件数
-     */
-    private function recursiveCopy(string $src, string $dst, array $excludeDirs = []): int {
-        $src = rtrim($src, '/') . '/';
-        $dst = rtrim($dst, '/') . '/';
-        if (!is_dir($src)) {
-            return 0;
-        }
-
-        if (!is_dir($dst)) {
-            $oldUmask = umask(0);
-            @mkdir($dst, 0755, true);
-            umask($oldUmask);
-        }
-
-        $count = 0;
-        $it = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($src, FilesystemIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::SELF_FIRST
-        );
-        foreach ($it as $f) {
-            $relativePath = substr($f->getPathname(), strlen($src));
-            // 检查第一段是否在排除列表中
-            $firstSegment = explode('/', $relativePath);
-            $firstSeg = isset($firstSegment[0]) ? $firstSegment[0] : '';
-            if (in_array($firstSeg, $excludeDirs, true)) {
-                continue;
-            }
-
-            if ($f->isDir()) {
-                $target = $dst . $relativePath;
-                if (!is_dir($target)) {
-                    $oldUmask = umask(0);
-                    @mkdir($target, 0755, true);
-                    umask($oldUmask);
-                }
-                continue;
-            }
-
-            // 文件
-            $targetFile = $dst . $relativePath;
-            $targetDir = dirname($targetFile);
-            if (!is_dir($targetDir)) {
-                $oldUmask = umask(0);
-                @mkdir($targetDir, 0755, true);
-                umask($oldUmask);
-            }
-            if (@copy($f->getPathname(), $targetFile)) {
-                $count++;
-            }
-        }
-        return $count;
-    }
 
     /**
      * 递归删除目录

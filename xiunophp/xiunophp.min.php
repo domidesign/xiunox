@@ -259,7 +259,9 @@ class db_pdo_mysql implements DatabaseInterface {
 		$sql = "INSERT INTO {$this->tablepre}$table $sqladd";
 		$stmt = $this->prepare($sql, $params);
 		if(!$stmt) return 0;
-		return intval($this->last_insert_id());
+		$id = intval($this->last_insert_id());
+		$stmt->closeCursor();
+		return $id;
 	}
 
 	public function update(string $table, array $cond, array $data): int {
@@ -270,7 +272,9 @@ class db_pdo_mysql implements DatabaseInterface {
 		$params = array_merge($updateParams, $condParams);
 		$stmt = $this->prepare($sql, $params);
 		if(!$stmt) return 0;
-		return intval($stmt->rowCount());
+		$n = intval($stmt->rowCount());
+		$stmt->closeCursor();
+		return $n;
 	}
 
 	public function delete(string $table, array $cond): int {
@@ -278,7 +282,9 @@ class db_pdo_mysql implements DatabaseInterface {
 		$sql = "DELETE FROM {$this->tablepre}$table $condadd";
 		$stmt = $this->prepare($sql, $condParams);
 		if(!$stmt) return 0;
-		return intval($stmt->rowCount());
+		$n = intval($stmt->rowCount());
+		$stmt->closeCursor();
+		return $n;
 	}
 
 	public function count(string $table, array $cond = []): int {
@@ -1804,7 +1810,7 @@ function image_thumb($sourcefile, $destfile, $forcedwidth = 80, $forcedheight = 
 	$r = array('filesize'=>filesize($tmpfile), 'width'=>$des_width, 'height'=>$des_height);;
 	copy($tmpfile, $destfile);
 	is_file($tmpfile) && unlink($tmpfile);
-	imagedestroy($img_dst);
+	if (PHP_VERSION_ID < 80000) imagedestroy($img_dst);
 	return $r;
 }
 
@@ -2766,12 +2772,7 @@ function browser_lang() {
 
 	$accept = _SERVER('HTTP_ACCEPT_LANGUAGE');
 	$accept = substr($accept, 0, strpos($accept, ';'));
-	if(strpos($accept, 'ko-kr') !== FALSE) {
-		return 'ko-kr';
-
-	} else {
-		return 'zh-cn';
-	}
+	return 'zh-cn';
 }
 
 function http_get($url, $cookie = '', $timeout = 30, $times = 3) {

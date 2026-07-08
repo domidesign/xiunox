@@ -28,6 +28,8 @@ function thread_favorite_read($uid, $tid) {
 
 function thread_favorite_create($uid, $tid) {
 	global $time, $db;
+	$uid = intval($uid);
+	$tid = intval($tid);
 	// 使用 INSERT IGNORE，无需先 SELECT 检查，避免主键冲突和竞争
 	$r = thread_favorite__create(array(
 		'tid' => $tid,
@@ -49,6 +51,8 @@ function thread_favorite_create($uid, $tid) {
 
 function thread_favorite_delete($uid, $tid) {
 	global $db;
+	$uid = intval($uid);
+	$tid = intval($tid);
 	$exists = thread_favorite_read($uid, $tid);
 	if(empty($exists)) return FALSE;
 	$r = thread_favorite__delete($uid, $tid);

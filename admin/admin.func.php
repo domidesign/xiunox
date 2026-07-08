@@ -49,9 +49,9 @@ function admin_cookie_options($expires = 0) {
 	global $conf;
 	$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
 
-	// Cookie Secure
-	if(isset($conf['security_cookie_secure']) && intval($conf['security_cookie_secure']) > 0) {
-		$cookie_secure = true;
+	// Cookie Secure：security_cookie_secure 已设置时 0=自动检测HTTPS，>0=强制Secure
+	if(isset($conf['security_cookie_secure'])) {
+		$cookie_secure = intval($conf['security_cookie_secure']) > 0 || $is_https;
 	} elseif(isset($conf['cookie_secure'])) {
 		$cookie_secure = intval($conf['cookie_secure']) > 0;
 	} else {

@@ -263,6 +263,8 @@ function thread_update($tid, $arr) {
 function thread_inc_views($tid, $n = 1) {
 	// hook model_thread_inc_views_start.php
 	global $conf, $db;
+	$tid = intval($tid);
+	$n = intval($n);
 	$tablepre = $db->tablepre;
 	if(!$conf['update_views_on']) return TRUE;
 	$sqladd = !in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) ? '' : ' LOW_PRIORITY';

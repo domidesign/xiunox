@@ -63,6 +63,9 @@ function post_like_read_batch($uid, $pids) {
 function post_like_create($uid, $tid, $pid) {
 	global $time, $db;
 	// hook model_post_like_create_start.php
+	$uid = intval($uid);
+	$tid = intval($tid);
+	$pid = intval($pid);
 	// 使用 INSERT IGNORE，无需先 SELECT 检查，避免主键冲突和竞争
 	$r = post_like__create(array(
 		'tid' => $tid,
@@ -89,6 +92,9 @@ function post_like_create($uid, $tid, $pid) {
 function post_like_delete($uid, $tid, $pid) {
 	global $db;
 	// hook model_post_like_delete_start.php
+	$uid = intval($uid);
+	$tid = intval($tid);
+	$pid = intval($pid);
 	// 直接 DELETE，通过返回值判断是否真正删除
 	$r = post_like__delete($uid, $pid);
 	// $r 为受影响行数：1=删除成功，0=原本不存在

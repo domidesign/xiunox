@@ -63,12 +63,18 @@ if(empty($action) || $action == 'create') {
         }
 
         // 真实 MIME 校验，防止伪造扩展名上传恶意文件
+        // finfo 不可用或无法识别文件类型时拒绝上传，不静默降级
+        if(!function_exists('finfo_open')) {
+            message(-1, lang('file_mime_not_allowed'));
+        }
         $finfo = @finfo_open(FILEINFO_MIME_TYPE);
-        $real_mime = $finfo ? @finfo_file($finfo, $tmp_name) : false;
+        if(!$finfo) {
+            message(-1, lang('file_mime_not_allowed'));
+        }
+        $real_mime = @finfo_file($finfo, $tmp_name);
         // PHP 8.0+ finfo 是对象，finfo_close 是 no-op，PHP 8.5 已 deprecated
-        if($finfo && PHP_VERSION_ID < 80000) finfo_close($finfo);
-        // finfo_file 可能返回 false（如 magic 数据库缺失），此时跳过 MIME 校验，仅依赖扩展名校验
-        if($real_mime !== false && !in_array($real_mime, $allowed_mimes)) {
+        if(PHP_VERSION_ID < 80000) finfo_close($finfo);
+        if($real_mime === false || !in_array($real_mime, $allowed_mimes)) {
             message(-1, lang('file_mime_not_allowed'));
         }
 
@@ -197,11 +203,20 @@ if(empty($action) || $action == 'create') {
         file_put_contents($tmpfile, $data) OR message(-1, lang('write_to_file_failed'));
 
         // 真实 MIME 校验，防止伪造扩展名上传恶意文件
+        // finfo 不可用或无法识别文件类型时拒绝上传，不静默降级
+        if(!function_exists('finfo_open')) {
+            is_file($tmpfile) AND unlink($tmpfile);
+            message(-1, lang('file_mime_not_allowed'));
+        }
         $finfo = @finfo_open(FILEINFO_MIME_TYPE);
-        $real_mime = $finfo ? @finfo_file($finfo, $tmpfile) : false;
+        if(!$finfo) {
+            is_file($tmpfile) AND unlink($tmpfile);
+            message(-1, lang('file_mime_not_allowed'));
+        }
+        $real_mime = @finfo_file($finfo, $tmpfile);
         // PHP 8.0+ finfo 是对象，finfo_close 是 no-op，PHP 8.5 已 deprecated
-        if($finfo && PHP_VERSION_ID < 80000) finfo_close($finfo);
-        if($real_mime !== false && !in_array($real_mime, $allowed_mimes)) {
+        if(PHP_VERSION_ID < 80000) finfo_close($finfo);
+        if($real_mime === false || !in_array($real_mime, $allowed_mimes)) {
             is_file($tmpfile) AND unlink($tmpfile);
             message(-1, lang('file_mime_not_allowed'));
         }

@@ -130,6 +130,7 @@ class NavService {
                 'name' => lang($defaults['name_lang']),
                 'slug' => 'plugin-' . $plugin_id,
                 'url'  => self::url_frontend($defaults['url']),
+                'class' => isset($defaults['class']) ? $defaults['class'] : '',
                 'rank' => intval($defaults['rank']),
                 'source' => 'plugin_' . $plugin_id,
             );

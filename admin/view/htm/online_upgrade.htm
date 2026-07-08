@@ -123,6 +123,14 @@ var currentStep = 0;
 var isUpgrading = false;
 var csrfToken = <?php echo json_encode($csrfToken);?>;
 
+// XSS 防护：escapeHtml 用于将服务端返回的 res.message / xhr.responseText 安全地插入 DOM
+function escapeHtml(s) {
+	if (s === null || s === undefined) return '';
+	return String(s).replace(/[&<>"']/g, function(c) {
+		return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+	});
+}
+
 function checkUpdate() {
 	var btn = document.getElementById('checkBtn');
 	btn.disabled = true;
@@ -159,21 +167,21 @@ function checkUpdate() {
 					releaseNotes.textContent = res.release_notes;
 					releaseNotes.classList.remove('d-none');
 				}
-				logArea.innerHTML = '<div class="alert alert-info py-2"><i class="ti ti-info-circle"></i>' + (res.message || '') + '</div>';
+				logArea.innerHTML = '<div class="alert alert-info py-2"><i class="ti ti-info-circle"></i>' + escapeHtml(res.message || '') + '</div>';
 			} else {
-				logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + (res.message || '<?php echo lang('admin_online_upgrade_check_failed');?>') + '</div>';
+				logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + escapeHtml(res.message || '<?php echo lang('admin_online_upgrade_check_failed');?>') + '</div>';
 			}
 		},
 		error: function(xhr) {
 			btn.disabled = false;
 			btn.innerHTML = '<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>';
 			var logArea = document.getElementById('logArea');
-			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + (xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
+			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + escapeHtml(xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
 		}
 	});
 }
 
-function startUpgrade() {
+function preflight() {
 	if (isUpgrading) return;
 	// 弹出升级前确认 Modal，由用户勾选全部确认项后才能继续
 	var modalEl = document.getElementById('upgradeConfirmModal');
@@ -253,7 +261,7 @@ function runPreflight(callback) {
 					var html = '<strong><i class="ti ti-info-circle"></i> <?php echo lang('admin_online_upgrade_preflight_warning');?></strong>';
 					html += '<ul class="mb-0 mt-1 ps-3">';
 					for (var i = 0; i < warnings.length; i++) {
-						html += '<li>' + warnings[i] + '</li>';
+						html += '<li>' + escapeHtml(warnings[i]) + '</li>';
 					}
 					html += '</ul>';
 					alertEl.className = 'alert alert-warning py-2';
@@ -268,7 +276,7 @@ function runPreflight(callback) {
 				if (warnings.length > 0) {
 					html += '<ul class="mb-0 mt-1 ps-3">';
 					for (var i = 0; i < warnings.length; i++) {
-						html += '<li>' + warnings[i] + '</li>';
+						html += '<li>' + escapeHtml(warnings[i]) + '</li>';
 					}
 					html += '</ul>';
 				}
@@ -280,7 +288,7 @@ function runPreflight(callback) {
 		},
 		error: function(xhr) {
 			alertEl.className = 'alert alert-danger py-2';
-			alertEl.innerHTML = '<strong><i class="ti ti-alert-triangle"></i> <?php echo lang('admin_online_upgrade_preflight_request_failed');?></strong>' + (xhr.responseText ? xhr.responseText.substring(0, 200) : '');
+			alertEl.innerHTML = '<strong><i class="ti ti-alert-triangle"></i> <?php echo lang('admin_online_upgrade_preflight_request_failed');?></strong>' + escapeHtml(xhr.responseText ? xhr.responseText.substring(0, 200) : '');
 			alertEl.classList.remove('d-none');
 			callback(false);
 		}
@@ -315,16 +323,16 @@ function runNextStep() {
 			iconEl.style.background = res.ok ? 'var(--bs-success, #198754)' : 'var(--bs-danger, #dc3545)';
 			statusEl.innerHTML = res.ok ? '<span class="text-success fs-6"><?php echo lang('admin_online_upgrade_complete');?></span>' : '<span class="text-danger fs-6"><?php echo lang('admin_online_upgrade_failed');?></span>';
 
-			var detailHtml = res.message || '';
-			if (res.results && res.results.length > 0) {
-				detailHtml += '<div class="mt-1" style="font-size:0.75rem">';
-				$.each(res.results, function(i, r) {
-					var icon = r.ok ? '<i class="ti ti-check text-success"></i>' : '<i class="ti ti-x text-danger"></i>';
-					detailHtml += '<div>' + icon + ' ' + (r.name || '') + ' — ' + r.message + '</div>';
-				});
-				detailHtml += '</div>';
-			}
-			resultEl.innerHTML = detailHtml;
+			var detailHtml = escapeHtml(res.message || '');
+		if (res.results && res.results.length > 0) {
+			detailHtml += '<div class="mt-1" style="font-size:0.75rem">';
+			$.each(res.results, function(i, r) {
+				var icon = r.ok ? '<i class="ti ti-check text-success"></i>' : '<i class="ti ti-x text-danger"></i>';
+				detailHtml += '<div>' + icon + ' ' + escapeHtml(r.name || '') + ' — ' + escapeHtml(r.message) + '</div>';
+			});
+			detailHtml += '</div>';
+		}
+		resultEl.innerHTML = detailHtml;
 
 			if (!res.ok) {
 				showUpgradeError(res.message);
@@ -342,7 +350,7 @@ function runNextStep() {
 			if (xhr.responseText) {
 				errMsg += xhr.responseText.substring(0, 200);
 			}
-			resultEl.innerHTML = errMsg;
+			resultEl.innerHTML = escapeHtml(errMsg);
 			showUpgradeError(errMsg);
 		}
 	});
@@ -363,7 +371,7 @@ function finishUpgrade() {
 
 	var logArea = document.getElementById('logArea');
 	var latestVersion = document.getElementById('latestVersionCode').textContent;
-	logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i><?php echo lang('admin_online_upgrade_success_msg');?>' + (latestVersion && latestVersion !== '—' ? '<b>' + latestVersion + '</b>' : '') + '</div>';
+	logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i><?php echo lang('admin_online_upgrade_success_msg');?>' + (latestVersion && latestVersion !== '—' ? '<b>' + escapeHtml(latestVersion) + '</b>' : '') + '</div>';
 }
 
 function showUpgradeError(msg) {
@@ -377,7 +385,7 @@ function showUpgradeError(msg) {
 	document.getElementById('reinstallBtn').disabled = false;
 
 	var logArea = document.getElementById('logArea');
-	logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + msg + '</div>';
+	logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + escapeHtml(msg) + '</div>';
 }
 
 function reinstall() {
@@ -396,17 +404,17 @@ function reinstall() {
 			btn.innerHTML = '<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>';
 			var logArea = document.getElementById('logArea');
 			if (res.ok) {
-				logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i>' + (res.message || '<?php echo lang('admin_online_upgrade_reinstall_success');?>') + '</div>';
-			} else {
-				logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + (res.message || '<?php echo lang('admin_online_upgrade_reinstall_failed');?>') + '</div>';
-			}
-		},
-		error: function(xhr) {
-			btn.disabled = false;
-			btn.innerHTML = '<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>';
-			var logArea = document.getElementById('logArea');
-			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + (xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
+			logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i>' + escapeHtml(res.message || '<?php echo lang('admin_online_upgrade_reinstall_success');?>') + '</div>';
+		} else {
+			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + escapeHtml(res.message || '<?php echo lang('admin_online_upgrade_reinstall_failed');?>') + '</div>';
 		}
+	},
+	error: function(xhr) {
+		btn.disabled = false;
+		btn.innerHTML = '<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>';
+		var logArea = document.getElementById('logArea');
+		logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + escapeHtml(xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
+	}
 	});
 }
 </script>

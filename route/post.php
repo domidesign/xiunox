@@ -10,9 +10,9 @@ user_login_check();
 
 if($action == 'create') {
 	
-	$tid = param(2);
-	$quick = param(3);
-	$quotepid = param(4);
+	$tid = param(2, 0);
+	$quick = param(3, 0);
+	$quotepid = param(4, 0);
 	
 	$thread = thread_read($tid);
 	if(empty($thread)) {
@@ -118,6 +118,17 @@ if($action == 'create') {
 						message(-1002, lang('post_same_thread_frequent', array('seconds'=>$remaining)), array('wait'=>$remaining));
 					}
 				}
+			}
+		}
+
+		// ===== 回帖窗口限流（5 分钟内最多 10 帖，防批量刷帖） =====
+		if ($uid > 0) {
+			include_once APP_PATH . 'lib/RateLimitService.php';
+			$_post_rl = new RateLimitService(10, 300);
+			$_post_rl_key = 'post_reply_' . $uid;
+			if (!$_post_rl->check($_post_rl_key)) {
+				$_wait = $_post_rl->getRetryAfter($_post_rl_key);
+				message(-1, lang('post_reply_rate_limited', array('seconds'=>$_wait)));
 			}
 		}
 
@@ -380,23 +391,25 @@ if($action == 'create') {
 					</div>
 					<div class="small"><?php echo preg_replace('#<blockquote\s+class="blockquote"[^>]*>.*?</blockquote>#is', '', $post['message_fmt']);?></div>
 					<div class="d-flex justify-content-between align-items-center mt-1">
+					<div class="d-flex align-items-center">
 						<span class="date text-body-secondary" style="font-size:0.75em"><?php echo $post['create_date_fmt'];?></span>
-						<div class="d-flex align-items-center gap-2">
-							<?php if($allowpost) { ?>
-							<a href="javascript:void(0)" data-tid="<?php echo $post['tid'];?>" data-pid="<?php echo $post['pid'];?>" data-username="<?php echo $post['username'];?>" class="text-body-secondary post_reply" style="font-size:0.8em"><i class="ti ti-message-2"></i> 回复</a>
-							<?php } ?>
-							<?php if($allowupdate || $post['allowupdate']) { ?>
-							<a href="<?php echo post_update_url($post['pid']);?>" class="text-body-secondary post_update" hx-boost="false" style="font-size:0.8em"><i class="ti ti-pencil"></i></a>
-							<?php } ?>
-							<?php if($allowdelete || $post['allowdelete']) { ?>
-							<a data-href="<?php echo post_delete_url($post['pid']);?>" data-uid="<?php echo intval($post['uid']);?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm" style="font-size:0.8em"><i class="ti ti-trash"></i></a>
-							<?php } ?>
-							<span class="post-like-btn cursor-pointer text-body-secondary" hx-post="<?php echo !empty($post['is_liked']) ? thread_unlike_url($tid, $post['pid']) : thread_like_url($tid, $post['pid']);?>" hx-vals='{"_ctx":"reply"}' hx-target="this" hx-swap="outerHTML" hx-ext="hx-optimistic" hx-optimistic style="font-size:0.8em">
-								<i class="ti <?php echo !empty($post['is_liked']) ? 'ti-heart-filled text-danger' : 'ti-heart';?>"></i>
-								<span class="like-count"><?php echo intval($post['likes']);?></span>
-							</span>
-						</div>
+						<span class="post-like-btn cursor-pointer text-body-secondary ms-2" hx-post="<?php echo !empty($post['is_liked']) ? thread_unlike_url($tid, $post['pid']) : thread_like_url($tid, $post['pid']);?>" hx-vals='{"_ctx":"reply"}' hx-target="this" hx-swap="outerHTML" hx-ext="hx-optimistic" hx-optimistic style="font-size:0.8em">
+							<i class="ti <?php echo !empty($post['is_liked']) ? 'ti-heart-filled text-danger' : 'ti-heart';?>"></i>
+							<span class="like-count"><?php echo intval($post['likes']);?></span>
+						</span>
 					</div>
+					<div class="d-flex align-items-center gap-2">
+						<?php if($allowpost) { ?>
+						<a href="javascript:void(0)" data-tid="<?php echo $post['tid'];?>" data-pid="<?php echo $post['pid'];?>" data-username="<?php echo $post['username'];?>" class="text-body-secondary post_reply" style="font-size:0.8em"><i class="ti ti-message-2"></i> 回复</a>
+						<?php } ?>
+						<?php if($allowupdate || $post['allowupdate']) { ?>
+						<a href="<?php echo post_update_url($post['pid']);?>" class="text-body-secondary post_update" hx-boost="false" style="font-size:0.8em"><i class="ti ti-pencil"></i></a>
+						<?php } ?>
+						<?php if($allowdelete || $post['allowdelete']) { ?>
+						<a data-href="<?php echo post_delete_url($post['pid']);?>" data-uid="<?php echo intval($post['uid']);?>" data-confirm-text="<?php echo lang('confirm_delete');?>" href="javascript:void(0);" class="text-body-secondary post_delete _confirm" style="font-size:0.8em"><i class="ti ti-trash"></i></a>
+						<?php } ?>
+					</div>
+				</div>
 				</div>
 			</div>
 			<?php
@@ -495,7 +508,7 @@ if($action == 'create') {
 	
 } elseif($action == 'update') {
 
-	$pid = param(2);
+	$pid = param(2, 0);
 
 	$post = post_read($pid);
 	empty($post) AND error_page(404, lang('post_not_exists'));

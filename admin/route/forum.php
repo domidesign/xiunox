@@ -198,8 +198,12 @@ if(empty($action) || $action == 'list') {
 		message(0, lang('create_successfully'));
 	}
 
-} elseif($action == 'update') {
-	
+} elseif($action == 'delete') {
+
+	if($method != 'POST') message(-1, 'Method Error.');
+
+	CsrfService::check();
+
 	$_fid = param(2, 0);
 	$_forum = forum_read($_fid);
 	empty($_forum) AND message(-1, lang('forum_not_exists'));
@@ -406,7 +410,11 @@ if(empty($action) || $action == 'list') {
 	message(0, $s);
 
 } elseif($action == 'delete') {
-	
+
+	if($method != 'POST') message(-1, 'Method Error.');
+
+	CsrfService::check();
+
 	$_fid = param(2, 0);
 	$_forum = forum_read($_fid);
 	empty($_forum) AND message(-1, lang('forum_not_exists'));

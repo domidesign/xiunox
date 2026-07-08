@@ -391,7 +391,7 @@ if(empty($action)) {
 		}
 
 		$email = param('email');			// 邮箱或者手机号 / email or mobile
-		$password = param('password');
+		$password = param('password', '', FALSE);
 		empty($email) AND message('email', lang('email_is_empty'));
 
 		// IP 维度限流检查（防止用不存在的用户名枚举绕过 uid 维度限流）
@@ -530,7 +530,7 @@ if(empty($action)) {
 
 		$email = param('email');
 		$username = param('username');
-		$password = param('password');
+		$password = param('password', '', FALSE);
 		$code = param('code');
 		empty($email) AND message('email', lang('please_input_email'));
 		empty($username) AND message('username', lang('please_input_username'));
@@ -616,6 +616,8 @@ if(empty($action)) {
 
 	$uid = 0;
 	$_SESSION['uid'] = $uid;
+	// 防止 Session 固定攻击：销毁旧 session ID，生成新 session
+	session_regenerate_id(true);
 	user_token_clear();
 
 	// hook user_logout_end.php
@@ -750,7 +752,7 @@ if(empty($action)) {
 
 		// hook user_resetpw_post_start.php
 
-		$password = param('password');
+		$password = param('password', '', FALSE);
 		empty($password) AND message('password', lang('please_input_password'));
 
 		$update = array(
@@ -810,7 +812,7 @@ if(empty($action)) {
 			}
 		}
 
-		$code = rand(100000, 999999);
+		$code = random_int(100000, 999999);
 		$_SESSION['user_create_email'] = $email;
 		$_SESSION['user_create_code'] = $code;
 
@@ -827,7 +829,7 @@ if(empty($action)) {
 
 		empty($conf['user_resetpw_on']) AND message(-1, lang('resetpw_not_on'));
 
-		$code = rand(100000, 999999);
+		$code = random_int(100000, 999999);
 		$_SESSION['user_resetpw_email'] = $email;
 		$_SESSION['user_resetpw_code'] = $code;
 

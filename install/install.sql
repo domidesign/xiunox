@@ -515,6 +515,7 @@ CREATE TABLE bbs_plugin (
   type tinyint(1) NOT NULL DEFAULT 0 COMMENT '类型: 0=插件, 1=模板',
   installed tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否已安装',
   enable tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否已启用',
+  version varchar(32) NOT NULL DEFAULT '' COMMENT '已安装版本号（来自 conf.json）',
   install_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '安装时间',
   enable_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '最后启用时间',
   disable_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '最后禁用时间',

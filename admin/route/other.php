@@ -129,14 +129,7 @@ elseif($action == 'cache_setting') {
 			}
 		}
 
-		// 调试：记录保存前的配置
-		xn_log('cache_save_debug: type=' . param('type') . ' enable=' . $config['enable'] . ' config_type=' . $config['type'] . ' config=' . json_encode($config), 'cache_error');
-
 		CacheService::saveConfig($config);
-
-		// 调试：验证保存后的数据库值
-		$savedConfig = setting_get('cache_config');
-		xn_log('cache_save_verify: saved_type=' . (isset($savedConfig['type']) ? $savedConfig['type'] : 'NULL') . ' saved_enable=' . (isset($savedConfig['enable']) ? $savedConfig['enable'] : 'NULL'), 'cache_error');
 
 		// 保存缓存配置后，必须清除 setting 缓存（bbs_cache 表中的 bbs_setting 记录）
 		// 否则下次请求 setting_get('cache_config') 会读到旧的缓存值（type=file），

@@ -24,6 +24,32 @@ class AttachmentService {
         'quality'    => 80,
     );
 
+    // MIME 类型白名单（与 conf/attach.conf.php 扩展名白名单对应，用于 finfo_file 校验）
+    // 防止伪造扩展名上传恶意文件（如 .php 伪装成 .jpg）
+    private static $imageMimes = array(
+        'image/jpeg', 'image/pjpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/x-ms-bmp',
+    );
+    private static $videoMimes = array(
+        'video/mp4', 'video/webm', 'video/ogg', 'video/x-msvideo', 'video/avi', 'video/x-ms-wmv', 'video/x-ms-asf',
+    );
+    private static $allMimes = array(
+        'image/jpeg', 'image/pjpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/x-ms-bmp',
+        'video/mp4', 'video/webm', 'video/ogg', 'video/x-msvideo', 'video/avi', 'video/x-ms-wmv', 'video/x-ms-asf',
+        'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/x-ms-wma', 'audio/ogg',
+        'application/pdf', 'application/msword', 'application/vnd.ms-excel', 'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'application/zip', 'application/x-zip-compressed', 'application/gzip', 'application/x-gzip',
+        'application/x-tar', 'application/x-rar', 'application/x-rar-compressed', 'application/x-7z-compressed',
+        'application/x-bzip', 'application/x-bzip2',
+        'text/plain', 'text/x-c', 'text/x-c++src',
+        'application/vnd.rn-realmedia', 'application/vnd.rn-realmedia-vbr',
+        'application/x-font-ttf', 'font/ttf',
+        'application/x-bittorrent',
+        'application/vnd.ms-htmlhelp',
+    );
+
     /**
      * 构造函数，DatabaseInterface 可选，不传时使用全局 $db
      * @param DatabaseInterface|null $db
@@ -70,6 +96,12 @@ class AttachmentService {
         $allowed_image_types = self::getAllowedTypes('image');
         if(!in_array($ext, $allowed_image_types)) {
             return array('code' => -1, 'message' => '仅允许上传图片文件');
+        }
+
+        // 真实 MIME 校验，防止伪造扩展名上传恶意文件
+        $realMime = $this->validateMime($tmp_name, self::$imageMimes);
+        if($realMime === false) {
+            return array('code' => -1, 'message' => '文件类型不允许');
         }
 
         // 文件大小校验
@@ -152,6 +184,12 @@ class AttachmentService {
             return array('code' => -1, 'message' => '仅允许上传视频文件');
         }
 
+        // 真实 MIME 校验，防止伪造扩展名上传恶意文件
+        $realMime = $this->validateMime($tmp_name, self::$videoMimes);
+        if($realMime === false) {
+            return array('code' => -1, 'message' => '文件类型不允许');
+        }
+
         // 文件大小校验
         $max_size = self::getMaxSize('video');
         if($size > $max_size) {
@@ -225,6 +263,12 @@ class AttachmentService {
         // 文件类型校验
         if(!in_array($ext, $filetypes['all'])) {
             return array('code' => -1, 'message' => '不允许的文件类型');
+        }
+
+        // 真实 MIME 校验，防止伪造扩展名上传恶意文件
+        $realMime = $this->validateMime($tmp_name, self::$allMimes);
+        if($realMime === false) {
+            return array('code' => -1, 'message' => '文件类型不允许');
         }
 
         // 文件大小校验
@@ -326,6 +370,34 @@ class AttachmentService {
         }
 
         return array('code' => -1, 'message' => '不支持的上传驱动: '.$driver);
+    }
+
+    /**
+     * 校验文件真实 MIME 类型（基于 finfo_file，防止伪造扩展名上传恶意文件）
+     * @param string $tmpName 临时文件路径（$_FILES['xx']['tmp_name'] 或已落盘的文件）
+     * @param array $allowedMimes 允许的 MIME 白名单
+     * @return string|false 成功返回真实 MIME，失败返回 false（拒绝上传）
+     */
+    private function validateMime($tmpName, $allowedMimes = array()) {
+        if(!function_exists('finfo_open')) {
+            return false; // 无 finfo 扩展，拒绝上传
+        }
+        $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+        if(!$finfo) {
+            return false; // finfo 打开失败，拒绝
+        }
+        $realMime = @finfo_file($finfo, $tmpName);
+        // PHP 8.0+ finfo 是对象，finfo_close 是 no-op，PHP 8.5 已 deprecated
+        if(PHP_VERSION_ID < 80000) {
+            finfo_close($finfo);
+        }
+        if($realMime === false) {
+            return false; // 无法识别文件类型，拒绝
+        }
+        if(!in_array($realMime, $allowedMimes)) {
+            return false; // MIME 不在白名单，拒绝
+        }
+        return $realMime;
     }
 
     /**

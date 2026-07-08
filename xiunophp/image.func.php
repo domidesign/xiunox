@@ -192,7 +192,7 @@ function image_thumb($sourcefile, $destfile, $forcedwidth = 80, $forcedheight = 
 	$r = array('filesize'=>filesize($tmpfile), 'width'=>$des_width, 'height'=>$des_height);;
 	copy($tmpfile, $destfile);
 	is_file($tmpfile) && unlink($tmpfile);
-	imagedestroy($img_dst);
+	if (PHP_VERSION_ID < 80000) imagedestroy($img_dst);
 	return $r;
 }
 

@@ -153,7 +153,7 @@ function _render_like_btn($tid, $pid, $is_liked, $likes_count, $ctx = 'post') {
 			$show_count = true;
 			break;
 		case 'reply':
-			$btn_class = 'post-like-btn cursor-pointer text-body-secondary';
+			$btn_class = 'post-like-btn cursor-pointer text-body-secondary ms-2';
 			$btn_style = 'font-size:0.8em';
 			$icon_extra = '';
 			$count_class = 'like-count';
