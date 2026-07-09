@@ -121,6 +121,13 @@ if($action == 'login') {
 	
 	admin_token_clean();
 	
+	$uid = 0;
+	$_SESSION['uid'] = $uid;
+	
+	session_regenerate_id(true);
+	
+	user_token_clear();
+	
 	message(0, jump(lang('logout_successfully'), './'));
 
 } elseif ($action == 'phpinfo') {

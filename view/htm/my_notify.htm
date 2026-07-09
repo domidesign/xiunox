@@ -108,14 +108,14 @@ function _notice_action_text($type, $notify) {
 					<!-- 审核通知：直接显示消息内容 -->
 				<?php if($_is_audit || $_is_report) { ?>
 				<div class="small mb-1">
-					<span class="<?php echo $_is_unread ? 'fw-medium' : 'text-body-secondary';?>"><?php echo strip_tags($_notice['message'] ? $_notice['message'] : $_notice['content'], '<a>');?></span>
+					<span class="<?php echo $_is_unread ? 'fw-medium' : 'text-body-secondary';?>"><?php echo esc_html(strip_tags($_notice['message'] ? $_notice['message'] : $_notice['content']));?></span>
 				</div>
 				<?php } elseif($_notice['type'] === 'announcement' || $_notice['type'] === 'system' || $_notice['type'] === 'pm' || $_notice['type'] === 'other') { ?>
 				<!-- 公告/系统/私信：直接显示 message -->
 				<?php $_msg = !empty($_notice['message']) ? $_notice['message'] : $_notice['content'];?>
 				<?php if($_msg) { ?>
 				<div class="small mb-1 <?php echo $_is_unread ? 'fw-medium' : 'text-body-secondary';?>">
-					<?php echo strip_tags($_msg, '<a>');?>
+					<?php echo esc_html(strip_tags($_msg));?>
 				</div>
 				<?php } ?>
 				<?php } else { ?>

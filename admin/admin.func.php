@@ -37,8 +37,11 @@ function admin_token_check() {
 		}
 
 		// 令牌迁移：若解密回退到 XXTEA（旧格式）立即重签 v2；或超过半小时刷新令牌防过期
-		if(!$used_v2 || $time - $_time > 1800) {
-			admin_token_set();
+		// logout 请求跳过刷新，避免先设置新 cookie 再清除导致清除失效
+		if(($_REQUEST[0] ?? '') !== 'index' || ($_REQUEST[1] ?? '') !== 'logout') {
+			if(!$used_v2 || $time - $_time > 1800) {
+				admin_token_set();
+			}
 		}
 	}
 	// hook admin_token_check_end.php

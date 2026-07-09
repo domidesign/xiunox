@@ -180,7 +180,7 @@ $('li[data-active="fid-0"]').addClass('active');
 	animateThreadItems();
 
 	// htmx 局部刷新后执行
-	document.addEventListener('htmx:afterSettle', function() {
+	document.addEventListener('htmx:after:swap', function() {
 		animateThreadItems();
 	});
 

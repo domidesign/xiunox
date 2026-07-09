@@ -314,7 +314,7 @@ if(empty($action) || $action == 'create') {
         $fid = $thread['fid'];
 
         $allowdelete = forum_access_mod($fid, $gid, 'allowdelete');
-        $attach['uid'] != $uid AND !$allowdelete AND message(0, lang('insufficient_privilege'));
+        $attach['uid'] != $uid AND !$allowdelete AND message(-1, lang('insufficient_privilege'));
 
         $r = attach_delete($aid);
         $r ===  FALSE AND message(-1, lang('delete_failed'));

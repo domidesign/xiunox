@@ -81,7 +81,7 @@ $search_disabled = ($search_require_login && (empty($uid) || $uid == 0));
 			// 搜索提交时保存关键词
 			var form = document.getElementById('searchForm');
 			if(form) {
-				form.addEventListener('htmx:beforeRequest', function(e) {
+				form.addEventListener('htmx:before:request', function(e) {
 					var input = form.querySelector('input[name="keyword"]');
 					if(input && input.value.trim()) saveHistory(input.value);
 				});
@@ -136,14 +136,14 @@ $search_disabled = ($search_require_login && (empty($uid) || $uid == 0));
 							<?php foreach($threadlist as $thread) { ?>
 							<div class="  pb-3 mb-1">
 								<div class="mb-1">
-									<a href="<?php echo thread_url($thread['tid']);?>" class="fw-semibold text-decoration-none fs-6"><?php echo $thread['subject'];?></a>
+									<a href="<?php echo thread_url($thread['tid']);?>" class="fw-semibold text-decoration-none fs-6"><?php echo esc_html($thread['subject']);?></a>
 								</div>
 								<?php if(!empty($thread['summary'])) { ?>
-								<div class="small text-body-secondary mb-2 line-clamp-2"><?php echo $thread['summary'];?></div>
+								<div class="small text-body-secondary mb-2 line-clamp-2"><?php echo esc_html($thread['summary']);?></div>
 								<?php } ?>
 								<div class="d-flex align-items-center gap-3 small text-body-secondary">
 									<?php if(!empty($thread['forumname'])) { ?>
-									<span><i class="ti ti-folder me-1"></i><?php echo $thread['forumname'];?></span>
+									<span><i class="ti ti-folder me-1"></i><?php echo esc_html($thread['forumname']);?></span>
 									<?php } ?>
 									<span><i class="ti ti-clock me-1"></i><?php echo $thread['create_date_fmt'];?></span>
 									<span><i class="ti ti-message me-1"></i><?php echo $thread['posts'];?></span>
@@ -176,7 +176,7 @@ $search_disabled = ($search_require_login && (empty($uid) || $uid == 0));
 								<div class="flex-fill">
 									<a href="<?php echo user_url($u['uid']);?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['display_name'] ?? $u['username']);?></a>
 									<?php if(!empty($u['signature'])) { ?>
-								<div class="small text-body-secondary"><?php echo $u['signature'];?></div>
+								<div class="small text-body-secondary"><?php echo esc_html($u['signature']);?></div>
 								<?php } ?>
 								</div>
 								<?php if(!empty($uid) && $uid != $u['uid']) {

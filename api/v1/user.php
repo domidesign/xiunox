@@ -377,12 +377,22 @@ switch ($method) {
         }
         $update = [];
         $username = param('username', '');
-        if (!empty($username)) $update['username'] = $username;
+        if (!empty($username)) {
+            if (!is_username($username, $err)) {
+                ApiResponse::validationError($err ?: 'Username format invalid');
+            }
+            $update['username'] = $username;
+        }
         $email = param('email', '');
-        if (!empty($email)) $update['email'] = $email;
+        if (!empty($email)) {
+            if (!is_email($email, $err)) {
+                ApiResponse::validationError($err ?: 'Email format invalid');
+            }
+            $update['email'] = $email;
+        }
         $avatar = param('avatar', 0);
         if ($avatar > 0) $update['avatar'] = intval($avatar);
-        $password = param('password', '');
+        $password = param('password', '', FALSE);
         if (!empty($password)) {
             $salt = xn_rand(16);
             $update['password'] = md5($password . $salt);

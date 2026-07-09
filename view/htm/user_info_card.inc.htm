@@ -48,10 +48,10 @@ if(intval($_user['threads']) == 0 && intval($_user['posts']) == 0) {
 		<?php endif; ?>
 			<div class="d-flex align-items-center flex-wrap gap-1">
 				<span class="badge bg-secondary bg-opacity-10 text-secondary" style="font-size:0.65em">uid:<?php echo $_uid;?></span>
-				<span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:0.65em"><?php echo $_user['groupname'];?></span>
+				<span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:0.65em"><?php echo esc_html($_user['groupname']);?></span>
 			</div>
 			<?php if(!empty($_user['signature'])) { ?>
-		<p class="text-body-secondary small mb-0"><?php echo $_user['signature'];?></p>
+		<p class="text-body-secondary small mb-0"><?php echo esc_html($_user['signature']);?></p>
 		<?php } ?>
 			<div class="d-flex gap-4 mt-2">
 				<a href="<?php echo user_thread_url($_uid);?>" class="text-decoration-none">

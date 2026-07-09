@@ -25,9 +25,9 @@
 							<div class="d-flex align-items-start justify-content-between gap-2">
 								<div class="small <?php echo empty($notify['is_read']) ? 'fw-semibold' : 'text-body-secondary';?>">
 									<?php if(!empty($notify['url'])) { ?>
-									<a href="<?php echo $notify['url'];?>" class="text-decoration-none notify-page-link" data-nid="<?php echo $notify['nid'];?>"><?php echo $notify['message'];?></a>
+									<a href="<?php echo $notify['url'];?>" class="text-decoration-none notify-page-link" data-nid="<?php echo $notify['nid'];?>"><?php echo esc_html($notify['message']);?></a>
 									<?php } else { ?>
-									<?php echo $notify['message'];?>
+									<?php echo esc_html($notify['message']);?>
 									<?php } ?>
 								</div>
 								<?php if(empty($notify['is_read'])) { ?>
@@ -70,9 +70,9 @@
 							<div class="d-flex align-items-start justify-content-between gap-2">
 								<div class="small <?php echo empty($notify['is_read']) ? 'fw-semibold' : 'text-body-secondary';?>">
 									<?php if(!empty($notify['url'])) { ?>
-									<a href="<?php echo $notify['url'];?>" class="text-decoration-none notify-page-link" data-nid="<?php echo $notify['nid'];?>"><?php echo $notify['message'];?></a>
+									<a href="<?php echo $notify['url'];?>" class="text-decoration-none notify-page-link" data-nid="<?php echo $notify['nid'];?>"><?php echo esc_html($notify['message']);?></a>
 									<?php } else { ?>
-									<?php echo $notify['message'];?>
+									<?php echo esc_html($notify['message']);?>
 									<?php } ?>
 								</div>
 								<?php if(empty($notify['is_read'])) { ?>

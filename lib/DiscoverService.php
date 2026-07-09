@@ -47,6 +47,36 @@ class DiscoverService {
             'name_lang' => 'discover_plugin_name_tag',
             'rank' => 60,
         ),
+        'xnx_dice' => array(
+            'url' => 'dice',
+            'icon' => 'ti-dice',
+            'name_lang' => 'discover_plugin_name_dice',
+            'rank' => 70,
+        ),
+        'xnx_duel' => array(
+            'url' => 'duel',
+            'icon' => 'ti-swords',
+            'name_lang' => 'discover_plugin_name_duel',
+            'rank' => 80,
+        ),
+        'xnx_lottery' => array(
+            'url' => 'lottery',
+            'icon' => 'ti-gift',
+            'name_lang' => 'discover_plugin_name_lottery',
+            'rank' => 90,
+        ),
+        'xnx_verify' => array(
+            'url' => 'verify',
+            'icon' => 'ti-certificate',
+            'name_lang' => 'discover_plugin_name_verify',
+            'rank' => 100,
+        ),
+        'xnx_icon' => array(
+            'url' => 'icon',
+            'icon' => 'ti-icons',
+            'name_lang' => 'discover_plugin_name_icon',
+            'rank' => 110,
+        ),
     );
 
     /**

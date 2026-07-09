@@ -141,7 +141,7 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 				</div>
 					<!--{hook post_subject_before.htm}-->
 					<div class="mb-3">
-						<input type="text" class="form-control w-100 post-input " placeholder="<?php echo lang('subject');?>" name="subject" value="<?php echo $form_subject;?>" id="subject" maxlength="<?php echo $sec_subject_max_length;?>">
+						<input type="text" class="form-control w-100 post-input " placeholder="<?php echo lang('subject');?>" name="subject" value="<?php echo esc_attr($form_subject);?>" id="subject" maxlength="<?php echo $sec_subject_max_length;?>">
 						<div class="form-text text-body-secondary mt-1">
 							<?php echo lang('subject_char_requirement')." {$sec_subject_min_length} ".lang('char_unit').lang('char_max_unit')." {$sec_subject_max_length} ".lang('char_unit'); ?>
 						</div>

@@ -31,7 +31,7 @@
         );
 
         // htmx 局部刷新后：高亮 + 同步主题
-        document.addEventListener('htmx:afterSwap', function (evt) {
+        document.addEventListener('htmx:after:swap', function (evt) {
             doHighlight(evt.target);
             syncThemeClass();
         });
@@ -289,7 +289,7 @@
         }
     }
     bindCopyCode(document);
-    document.addEventListener('htmx:afterSwap', function (evt) {
+    document.addEventListener('htmx:after:swap', function (evt) {
         bindCopyCode(evt.target);
     });
     document.addEventListener('click', function (e) {
@@ -795,7 +795,7 @@ document.body.addEventListener('htmx:after:swap', function(e) {
     }
 
     // htmx 局部刷新后重新初始化
-    document.body.addEventListener('htmx:afterSwap', function(e) {
+    document.body.addEventListener('htmx:after:swap', function(e) {
         var target = e.detail && e.detail.target;
         if (!target) return;
         var fc = target.querySelector('.message[isfirst="1"]');

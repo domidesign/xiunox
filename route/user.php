@@ -913,6 +913,11 @@ if(empty($action)) {
 	}
 
 } elseif($action == 'follow') {
+	// 安全修复：follow 动作为写操作，强制 POST + CSRF 校验，防止 CSRF 攻击
+	if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+		message(-1, lang('method_not_allowed'));
+	}
+	CsrfService::check();
 	$follow_uid = param(2, 0);
 	if(!$uid) {
 		message(-1, lang('please_login'));

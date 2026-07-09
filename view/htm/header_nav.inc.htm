@@ -208,37 +208,11 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 					// 通知未读数改为 AJAX 延迟加载
 					$total_unread = 0; // 默认0，AJAX 获取后更新
 				?>
-				<div class="dropdown">
-					<a href="#" class="nav-icon-btn position-relative" title="<?php echo lang('my_notify');?>"
-						aria-label="<?php echo lang('my_notify');?>" data-bs-toggle="dropdown"
-						data-bs-auto-close="outside" aria-expanded="false" id="notify-bell">
-						<i class="ti ti-bell" id="notify-bell-icon"></i>
-						<span id="notice-badge" class="position-absolute   translate-middle"></span>
-					</a>
-					<div class="dropdown-menu dropdown-menu-end shadow rounded-3 p-0 mt-3"
-						style="width:22rem;max-height:24rem;overflow-y:auto;" id="notice-dropdown">
-						<div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
-							<span class="fw-semibold small">
-								<?php echo lang('notification');?>
-							</span>
-							<div class="d-flex gap-2">
-								<a href="javascript:void(0);" class="text-decoration-none small"
-									id="notice-dropdown-mark-all" style="display:none;">
-									<?php echo lang('mark_all_read');?>
-								</a>
-								<span class="text-body-secondary small" id="notice-dropdown-mark-all-sep" style="display:none;">|</span>
-								<a href="<?php echo my_notify_url();?>" class="text-decoration-none small">
-									<?php echo lang('view_all');?>
-								</a>
-							</div>
-						</div>
-						<div id="notice-dropdown-list" class="py-1">
-							<div class="text-center text-body-secondary small py-4">
-								<?php echo lang('loading_dots');?>
-							</div>
-						</div>
-					</div>
-				</div>
+				<a href="<?php echo my_notify_url();?>" class="nav-icon-btn position-relative" title="<?php echo lang('my_notify');?>"
+				aria-label="<?php echo lang('my_notify');?>" id="notify-bell">
+				<i class="ti ti-bell" id="notify-bell-icon"></i>
+				<span id="notice-badge" class="position-absolute   translate-middle"></span>
+			</a>
 				<?php } ?>
 
 				<!--{hook header_nav_user_menu_before.htm}-->

@@ -90,7 +90,7 @@
 								<div class="flex-fill" style="min-width:0">
 									<div class="d-flex align-items-center gap-2 flex-wrap mb-1">
 										<a href="<?php echo $_user_url;?>" class="fw-semibold text-decoration-none hover-text-primary">
-											<?php echo $_display_name;?>
+											<?php echo esc_html($_display_name);?>
 										</a>
 										<span class="badge bg-<?php echo $_color;?>"><?php echo $_label;?></span>
 										<?php if(!empty($_ban_time_fmt)) { ?>
@@ -108,7 +108,7 @@
 									<?php if(!empty($_ban_reason)) { ?>
 									<div class="small text-body-secondary mt-1">
 										<i class="ti ti-message-2 me-1"></i>
-										<?php echo $_ban_reason;?>
+										<?php echo esc_html($_ban_reason);?>
 									</div>
 									<?php } ?>
 								</div>

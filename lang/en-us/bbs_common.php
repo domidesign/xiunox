@@ -823,6 +823,11 @@ return array(
 	'discover_plugin_name_friendlink'=>'Friend Links',
 	'discover_plugin_name_magic'=>'Magic Heal',
 	'discover_plugin_name_tag'=>'Tags',
+	'discover_plugin_name_dice'=>'Dice',
+	'discover_plugin_name_duel'=>'Quiz Duel',
+	'discover_plugin_name_lottery'=>'Lottery',
+	'discover_plugin_name_verify'=>'Verification',
+	'discover_plugin_name_icon'=>'Icon Generator',
 
 	// Nav plugin default names (top/sidebar nav registration)
 	'nav_plugin_name_medal'=>'Medals',

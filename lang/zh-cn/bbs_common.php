@@ -848,6 +848,11 @@ return array(
 	'discover_plugin_name_friendlink'=>'友情链接',
 	'discover_plugin_name_magic'=>'玄学治愈',
 	'discover_plugin_name_tag'=>'话题标签',
+	'discover_plugin_name_dice'=>'摇骰子',
+	'discover_plugin_name_duel'=>'猜题对决',
+	'discover_plugin_name_lottery'=>'抽奖',
+	'discover_plugin_name_verify'=>'用户认证',
+	'discover_plugin_name_icon'=>'图标生成器',
 
 	// 导航插件默认名称（顶部/左侧导航注册）
 	'nav_plugin_name_medal'=>'勋章',

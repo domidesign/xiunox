@@ -175,6 +175,23 @@ if(empty($action) || $action == 'list') {
 				message(-1, lang('forum_icon_format_unsupported'));
 			}
 
+			// 真实 MIME 校验，防止伪造扩展名上传恶意文件（参考 route/attach.php）
+			// finfo 不可用或无法识别文件类型时拒绝上传，不静默降级
+			$icon_mimes = array('image/jpeg', 'image/pjpeg', 'image/png', 'image/gif', 'image/webp');
+			if(!function_exists('finfo_open')) {
+				message(-1, lang('file_mime_not_allowed'));
+			}
+			$finfo = @finfo_open(FILEINFO_MIME_TYPE);
+			if(!$finfo) {
+				message(-1, lang('file_mime_not_allowed'));
+			}
+			$real_mime = @finfo_file($finfo, $icon_file['tmp_name']);
+			// PHP 8.0+ finfo 是对象，finfo_close 是 no-op，PHP 8.5 已 deprecated
+			if(PHP_VERSION_ID < 80000) finfo_close($finfo);
+			if($real_mime === false || !in_array($real_mime, $icon_mimes)) {
+				message(-1, lang('file_mime_not_allowed'));
+			}
+
 			// 创建上传目录
 			$upload_dir = APP_PATH.'upload/forum/';
 			if(!is_dir($upload_dir)) {
@@ -198,19 +215,12 @@ if(empty($action) || $action == 'list') {
 		message(0, lang('create_successfully'));
 	}
 
-} elseif($action == 'delete') {
-
-	if($method != 'POST') message(-1, 'Method Error.');
-
-	CsrfService::check();
+} elseif($action == 'update') {
 
 	$_fid = param(2, 0);
 	$_forum = forum_read($_fid);
 	empty($_forum) AND message(-1, lang('forum_not_exists'));
-	
-	// DEBUG: 记录 forum-update 请求
-	xn_log('forum-update hit, fid=' . $_fid . ' method=' . $method . ' UA=' . ($_SERVER['HTTP_USER_AGENT'] ?? '') . ' XHR=' . ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? 'none'), 'debug_error');
-	
+
 	// hook admin_forum_update_get_post.php
 	
 	if($method == 'GET') {
@@ -304,6 +314,23 @@ if(empty($action) || $action == 'list') {
 				// 验证文件类型
 				$ext = strtolower(pathinfo($icon_file['name'], PATHINFO_EXTENSION));
 				if(in_array($ext, $allowed_exts)) {
+					// 真实 MIME 校验，防止伪造扩展名上传恶意文件（参考 route/attach.php）
+					// finfo 不可用或无法识别文件类型时拒绝上传，不静默降级
+					$icon_mimes = array('image/jpeg', 'image/pjpeg', 'image/png', 'image/gif', 'image/webp');
+					if(!function_exists('finfo_open')) {
+						message(-1, lang('file_mime_not_allowed'));
+					}
+					$finfo = @finfo_open(FILEINFO_MIME_TYPE);
+					if(!$finfo) {
+						message(-1, lang('file_mime_not_allowed'));
+					}
+					$real_mime = @finfo_file($finfo, $icon_file['tmp_name']);
+					// PHP 8.0+ finfo 是对象，finfo_close 是 no-op，PHP 8.5 已 deprecated
+					if(PHP_VERSION_ID < 80000) finfo_close($finfo);
+					if($real_mime === false || !in_array($real_mime, $icon_mimes)) {
+						message(-1, lang('file_mime_not_allowed'));
+					}
+
 					// 创建上传目录
 					$upload_dir = APP_PATH.'upload/forum/';
 					if(!is_dir($upload_dir)) {

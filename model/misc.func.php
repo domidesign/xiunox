@@ -41,19 +41,17 @@ function url($url, $extra = array()) {
 	}
 
 	if($url_rewrite_on == 0) {
-		$r = $path . '?' . $query . '.htm';
+		$r = '/' . $path . '?' . $query . '.htm';
 	} elseif($url_rewrite_on == 1) {
-		$r = $path . $query . '.htm';
+		$r = '/' . $path . $query . '.htm';
 	} elseif($url_rewrite_on == 2) {
-		$r = $path . '?' . str_replace('-', '/', $query);
+		$r = '/' . $path . '?' . str_replace('-', '/', $query);
 	} elseif($url_rewrite_on == 3) {
-		$r = $path . str_replace('-', '/', $query);
+		$r = '/' . $path . str_replace('-', '/', $query);
 	} elseif($url_rewrite_on == 4) {
-		// .html 后缀风格：thread-create-1 → thread-create-1.html
-		$r = $path . $query . '.html';
+		$r = '/' . $path . $query . '.html';
 	} elseif($url_rewrite_on == 5) {
-		// 路径+html 风格：thread-create-1 → thread/create/1.html
-		$r = $path . str_replace('-', '/', $query) . '.html';
+		$r = '/' . $path . str_replace('-', '/', $query) . '.html';
 	}
 	// 附加参数
 	if($extra) {
@@ -64,15 +62,17 @@ function url($url, $extra = array()) {
 
 	// hook model_url_end.php
 
-	// 对于没有路径组件的 URL（如 ?forum-5.htm），在前台添加 / 前缀使其成为绝对路径
-	// 避免在子页面（如 /forums）上相对路径解析错误
-	// admin 目录下使用 ./? 格式，确保在伪静态 URL 下也能正确跳转
-	if($path === '' && $r !== '' && $r[0] !== '/' && strpos($r, 'http') !== 0 && strpos($r, '//') !== 0) {
+	// 对于没有路径组件的 URL（如 ?forum-5.htm），根据 is_admin 调整前缀
+	// 前台：r 已以 / 开头（绝对路径），保持原样
+	// admin：r 以 / 开头时替换为 ./，确保浏览器在 /admin/ 下点击跳转到 admin 入口而非站点根
+	// 关键：上方所有 url_rewrite_on 分支生成的 r 均以 / 开头，
+	//       不能用 $r[0] !== '/' 作为进入此分支的条件（否则 admin 前缀永远不会生效）
+	if($path === '' && $r !== '' && strpos($r, 'http') !== 0 && strpos($r, '//') !== 0) {
 		if($is_admin) {
-			// admin 下 ?xxx.htm 格式在伪静态页面中会被拼接到路径后
-			// 改为 ./?xxx.htm 确保始终跳转到 admin 入口
-			$r = './' . $r;
-		} else {
+			// admin 下使用 ./ 前缀，去掉 r 开头的 / 避免变成 ./ /
+			$r = './' . ltrim($r, '/');
+		} elseif($r[0] !== '/') {
+			// 前台兜底：r 不以 / 开头时补 / 前缀（当前所有 url_rewrite_on 分支 r 均以 / 开头，此分支不触发）
 			$r = '/' . $r;
 		}
 	}

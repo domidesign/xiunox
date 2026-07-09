@@ -199,7 +199,7 @@
 		});
 	}
 	// htmx 切换 tab/周期时也触发动画
-	document.addEventListener('htmx:afterSettle', function(e) {
+	document.addEventListener('htmx:after:swap', function(e) {
 		if (!e.detail.elt || !e.detail.elt.closest('#rank-content') && e.detail.target !== document.getElementById('rank-content')) return;
 		var newItems = document.querySelectorAll('#rank-content .thread-list-item:not([data-animated])');
 		if (newItems.length) {

@@ -123,13 +123,13 @@ var profileSubmit = document.getElementById('profile_submit');
 var profileSubmitOriginal = profileSubmit.innerHTML;
 
 // 提交前禁用按钮，防止重复提交
-profileForm.addEventListener('htmx:beforeRequest', function(e) {
+profileForm.addEventListener('htmx:before:request', function(e) {
 	profileSubmit.disabled = true;
 	profileSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('submiting');?>...';
 });
 
 // 请求完成后处理响应
-profileForm.addEventListener('htmx:afterRequest', function(e) {
+profileForm.addEventListener('htmx:after:request', function(e) {
 	var response = e.detail && e.detail.xhr;
 	if(!response || response.status !== 200) {
 		// 失败时恢复按钮

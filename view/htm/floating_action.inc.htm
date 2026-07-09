@@ -245,7 +245,7 @@ $_fa_user_gid = intval($gid);
     updateActionButtons();
 
     // htmx boost 导航后更新按钮状态
-    document.body.addEventListener('htmx:afterSettle', function() {
+    document.body.addEventListener('htmx:after:swap', function() {
         updateActionButtons();
         updateScrollState();
     });

@@ -20,7 +20,7 @@
 			</select>
 			</div>
 			<div>
-<input type="text" id="keyword" placeholder="<?php echo lang('keyword');?>" value="<?php echo $keyword; ?>"  class="form-control form-control-sm flex-grow-1" style="min-width:150px" />
+<input type="text" id="keyword" placeholder="<?php echo lang('keyword');?>" value="<?php echo esc_attr($keyword); ?>"  class="form-control form-control-sm flex-grow-1" style="min-width:150px" />
 
 			</div>
 			<div>
@@ -57,7 +57,7 @@
 					<td><input type="checkbox" class="form-check-input" name="delete" /></td>
 					<td class="text-body-secondary"><?php echo $_user['uid']; ?></td>
 					<!--{hook admin_user_list_id_td_after.htm}-->
-					<td class="text-truncate" style="max-width:200px"><?php echo $_user['email']; ?></td>
+					<td class="text-truncate" style="max-width:200px"><?php echo esc_html($_user['email']); ?></td>
 					<td class="text-truncate" style="max-width:200px">
 					<div class="fw-medium"><?php echo esc_html($_user['display_name'] ?? $_user['username']); ?></div>
 					<div class="text-body-secondary small"><?php echo esc_html($_user['username']); ?></div>
@@ -69,7 +69,7 @@
 						?>
 						<span class="badge" style="background-color:<?php echo $group_color;?>;color:#fff">
 							<?php if($group_icon) { ?><i class="<?php echo $group_icon;?>" style="font-size:0.7rem"></i> <?php } ?>
-							<?php echo $_user['groupname']; ?>
+							<?php echo esc_html($_user['groupname']); ?>
 						</span>
 					</td>
 					<td>

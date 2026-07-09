@@ -45,10 +45,9 @@ if ($subResource === 'log') {
         ApiResponse::validationError('reason 不能为空');
     }
 
-    // 权限检查：管理员可操作任意用户，普通用户只能操作自己
-    $isAdmin = intval($authUser['gid'] ?? 0) === 1;
-    if (!$isAdmin && $uid !== intval($authUser['uid'])) {
-        ApiResponse::forbidden('无权操作他人积分');
+    // 权限检查：仅管理员可操作积分增减
+    if (intval($authUser['gid'] ?? 0) !== 1) {
+        ApiResponse::forbidden('admin_only');
     }
 
     $result = $creditsService->add($uid, $type, $amount, $reason);
@@ -75,10 +74,9 @@ if ($subResource === 'log') {
         ApiResponse::validationError('reason 不能为空');
     }
 
-    // 权限检查：管理员可操作任意用户，普通用户只能操作自己
-    $isAdmin = intval($authUser['gid'] ?? 0) === 1;
-    if (!$isAdmin && $uid !== intval($authUser['uid'])) {
-        ApiResponse::forbidden('无权操作他人积分');
+    // 权限检查：仅管理员可操作积分增减
+    if (intval($authUser['gid'] ?? 0) !== 1) {
+        ApiResponse::forbidden('admin_only');
     }
 
     $result = $creditsService->sub($uid, $type, $amount, $reason);

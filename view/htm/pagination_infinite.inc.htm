@@ -31,7 +31,7 @@ $_hx_select = '.threadlist > li:not(.thread-list-divider)';
     }
 
     // 请求完成后更新 URL 和处理边界情况
-    el.addEventListener('htmx:afterRequest', function(e) {
+    el.addEventListener('htmx:after:request', function(e) {
         // 请求失败或被取消
         if(!e.detail || !e.detail.xhr) {
             stopInfiniteLoading();
@@ -93,7 +93,7 @@ $_hx_select = '.threadlist > li:not(.thread-list-divider)';
     });
 
     // DOM 更新完成后触发动画和重排，并做边界安全检查
-    document.addEventListener('htmx:afterSettle', function(e) {
+    document.addEventListener('htmx:after:swap', function(e) {
         // 只处理来自 paginationInfinite 的请求
         if(!e.detail || e.detail.elt !== el) return;
 

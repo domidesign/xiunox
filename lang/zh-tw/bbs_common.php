@@ -813,6 +813,11 @@ return array(
 	'discover_plugin_name_friendlink'=>'友情連結',
 	'discover_plugin_name_magic'=>'玄學治癒',
 	'discover_plugin_name_tag'=>'話題標籤',
+	'discover_plugin_name_dice'=>'搖骰子',
+	'discover_plugin_name_duel'=>'猜題對決',
+	'discover_plugin_name_lottery'=>'抽獎',
+	'discover_plugin_name_verify'=>'用戶認證',
+	'discover_plugin_name_icon'=>'圖示產生器',
 
 	// 導航外掛預設名稱（頂部/左側導航註冊）
 	'nav_plugin_name_medal'=>'勳章',

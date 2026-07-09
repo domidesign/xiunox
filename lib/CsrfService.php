@@ -19,25 +19,19 @@ class CsrfService {
         if (empty($token) || empty($sessionToken) || !hash_equals($sessionToken, $token)) {
             $is_htmx = !empty($_SERVER['HTTP_HX_REQUEST']);
 
-            // 调试信息
-            $debug = array(
-                'token_received' => empty($token) ? '(empty)' : substr($token, 0, 8) . '...',
-                'session_token' => empty($sessionToken) ? '(empty)' : substr($sessionToken, 0, 8) . '...',
-                'session_id' => session_id(),
-                'post_csrf' => isset($_POST['csrf_token']) ? substr($_POST['csrf_token'], 0, 8) . '...' : '(not set)',
-                'header_csrf' => isset($_SERVER['HTTP_X_CSRF_TOKEN']) ? substr($_SERVER['HTTP_X_CSRF_TOKEN'], 0, 8) . '...' : '(not set)',
-                'cookie_sid' => isset($_COOKIE['bbs_sid']) ? substr($_COOKIE['bbs_sid'], 0, 8) . '...' : '(not set)',
-            );
-            error_log('[CSRF] check failed: ' . json_encode($debug));
+            // 安全修复：移除敏感信息（session_id/cookie_sid），仅记录请求特征
+            $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+            $uri = $_SERVER['REQUEST_URI'] ?? '';
+            error_log('[CSRF] check failed: ip=' . $ip . ' uri=' . $uri);
 
             if ($is_htmx) {
-                // htmx 请求：返回 HTML 错误片段（仅通用提示，调试信息已写入服务器日志）
+                // htmx 请求：返回 HTML 错误片段
                 header('Content-Type: text/html; charset=utf-8');
                 echo '<div class="alert alert-danger py-2 small mb-2">CSRF验证失败，请刷新页面重试</div>';
                 exit;
             }
 
-            // 非 htmx 请求：返回 JSON（仅 code 和 message，不泄露调试信息）
+            // 非 htmx 请求：返回 JSON
             header('Content-Type: application/json; charset=utf-8');
             echo xn_json_encode(array(
                 'code' => '-1',

@@ -71,7 +71,7 @@
 								<div class="mb-1">
 									<a href="<?php echo thread_url($_post['tid']);?>" class="text-decoration-none small">
 										<i class="ti ti-message-2 text-body-secondary"></i>
-										<span class="text-primary"><?php echo $_post['thread_subject'];?></span>
+										<span class="text-primary"><?php echo esc_html($_post['thread_subject']);?></span>
 									</a>
 								</div>
 								<?php } ?>

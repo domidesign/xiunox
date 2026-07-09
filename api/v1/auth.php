@@ -99,14 +99,18 @@ switch ($action) {
 
         $email = param('email', '');
         $username = param('username', '');
-        $password = param('password', '');
+        $password = param('password', '', FALSE);
 
         $errors = [];
         if (empty($email)) {
             $errors['email'] = 'Email is required';
+        } elseif (!is_email($email, $err)) {
+            $errors['email'] = $err;
         }
         if (empty($username)) {
             $errors['username'] = 'Username is required';
+        } elseif (!is_username($username, $err)) {
+            $errors['username'] = $err;
         }
         if (empty($password)) {
             $errors['password'] = 'Password is required';

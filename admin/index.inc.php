@@ -25,6 +25,12 @@ $route = param(0, 'index');
 
 $header['csrf_token'] = CsrfService::generate();
 
+// 中央化 CSRF 校验：非 GET 请求统一检查 token
+// 避免每个 admin route 文件漏检 CsrfService::check()
+if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'DELETE'], true)) {
+	CsrfService::check();
+}
+
 switch ($route) {
 	// hook admin_index_route_case_start.php
 	case 'index':		include _include(ADMIN_PATH.'route/index.php'); 	break;
