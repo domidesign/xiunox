@@ -41,7 +41,7 @@ $csrfToken = CsrfService::getToken();
 			<button type="button" class="btn btn-outline-primary" id="checkBtn" onclick="checkUpdate()">
 				<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>
 			</button>
-			<button type="button" class="btn btn-primary" id="startBtn" onclick="startUpgrade()" disabled>
+			<button type="button" class="btn btn-primary" id="startBtn" onclick="preflight()" disabled>
 				<i class="ti ti-player-play-filled"></i><?php echo lang('admin_online_upgrade_start');?>
 			</button>
 			<button type="button" class="btn btn-outline-secondary" id="reinstallBtn" onclick="reinstall()">
