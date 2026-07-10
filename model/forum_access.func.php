@@ -136,6 +136,7 @@ function forum_access_user($fid, $gid, $access) {
 	if(empty($forumlist[$fid])) return FALSE;
 	// 管理员组拥有所有权限
 	if($gid == 1 || $gid == 2) return TRUE;
+	if(!isset($grouplist[$gid])) return FALSE;
 	$group = $grouplist[$gid];
 	$forum = $forumlist[$fid];
 	if($forum['accesson']) {

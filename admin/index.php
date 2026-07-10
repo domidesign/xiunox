@@ -10,6 +10,18 @@ include '../index.php';
 $_r = include _include(APP_PATH."lang/$conf[lang]/bbs_admin.php");
 $lang += is_array($_r) ? $_r : array();
 
+// 兜底加载插件 admin 语言包
+// 替代有语法冲突的 lang hook（bbs_admin.php 的 hook 注入点在 return array() 内部，
+// 与校验器要求的 $lang['key']='value'; 语句格式不兼容）
+foreach(plugin_paths_enabled() as $_path => $_pconf) {
+	$_plugin_lang_file = $_path."/lang/$conf[lang]/bbs_admin.php";
+	if(is_file($_plugin_lang_file)) {
+		$_pr = include $_plugin_lang_file;
+		if(is_array($_pr)) $lang += $_pr;
+	}
+}
+unset($_pr, $_plugin_lang_file, $_path, $_pconf);
+
 // 积分类型名称动态覆盖
 if(isset($conf['credits_name']) && $conf['credits_name']) {
     $lang['credits_label'] = $conf['credits_name'];

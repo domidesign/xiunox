@@ -362,13 +362,12 @@ class CacheHelper {
         if($type === 'hit') self::$stats['hit']++;
         if($type === 'miss') self::$stats['miss']++;
 
-        // DEBUG 模式记录缓存命中/未命中日志
-        if(defined('DEBUG') && DEBUG) {
+        // DEBUG>1 模式记录缓存命中/未命中日志（DEBUG=1 太频繁不记录）
+        if(defined('DEBUG') && DEBUG > 1) {
             $tag = $type === 'hit' ? 'HIT' : ($type === 'miss' ? 'MISS' : 'SET');
             $pluginTag = $plugin ? "[{$plugin}]" : '[core]';
-            // 日志文件名必须包含 error 才会在生产环境写入，调试用 debug_error
             if(function_exists('xn_log')) {
-                xn_log("{$pluginTag} {$tag} {$key}", 'cache_debug_error');
+                xn_log("{$pluginTag} {$tag} {$key}", 'cache_debug');
             }
         }
     }

@@ -70,7 +70,7 @@ function sess_read($sid) {
 function sess_new($sid) {
 	global $time, $longip, $conf, $g_session, $g_session_invalid;
 
-	$agent = _SERVER('HTTP_USER_AGENT');
+	$agent = _SERVER('HTTP_USER_AGENT', '');
 
 	// 干掉同 ip 的 sid，仅仅在遭受攻击的时候
 	//db_delete('session', array('ip'=>$longip));
@@ -171,7 +171,7 @@ function sess_write($sid, $data) {
 	function_exists('chdir') AND chdir(APP_PATH);
 	
 	$url = _SERVER('REQUEST_URI_NO_PATH');
-	$agent = _SERVER('HTTP_USER_AGENT');
+	$agent = _SERVER('HTTP_USER_AGENT', '');
 	$arr = array(
 		'uid'=>$uid,
 		'fid'=>$fid,
