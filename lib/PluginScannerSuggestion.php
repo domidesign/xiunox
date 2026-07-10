@@ -281,9 +281,10 @@ class PluginScannerSuggestion {
 
     private static function phpSuperglobalOutput(string $pattern, string $line): string {
         // 提取具体的超全局名（$_GET/$_POST/$_REQUEST/$_SERVER/$_COOKIE）
+        // 区分大小写：PHP 超全局变量必须大写，$_post ≠ $_POST
         $var = '超全局变量';
-        if (preg_match('/\$_(GET|POST|REQUEST|SERVER|COOKIE)/i', $line, $m)) {
-            $var = '$_' . strtoupper($m[1]);
+        if (preg_match('/\$_(GET|POST|REQUEST|SERVER|COOKIE)\b/', $line, $m)) {
+            $var = '$_' . $m[1];
         }
         return "直接 {$var} 输出会导致反射型 XSS，必须用 esc_html() / esc_attr() 转义后再输出";
     }

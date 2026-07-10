@@ -6,6 +6,14 @@
 
 if($method == 'POST') {
 
+	// CSRF 校验（中央化校验已兜底，此处显式声明）
+	CsrfService::check();
+
+	// 修改站点全局配置需管理员权限
+	if($gid != 1) {
+		message(1, lang('insufficient_admin_privilege'));
+	}
+
 	$theme = param('theme');
 
 	if(!in_array($theme, array('light', 'dark'))) {

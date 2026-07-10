@@ -1066,6 +1066,7 @@ function post_brief($s, $len = 100) {
 
 // 对内容进行引用
 function post_quote($quotepid) {
+	global $conf;
 	$quotepost = post__read($quotepid);
 	if(empty($quotepost)) return '<blockquote class="blockquote text-body-secondary"><em>'.lang('quote_deleted').'</em></blockquote>';
 	$uid = $quotepost['uid'];
@@ -1078,7 +1079,7 @@ function post_quote($quotepid) {
 	$user = user_read_cache($uid);
 	$r = '<blockquote class="blockquote" data-quotepid="'.$quotepid.'">
 		<a href="'.$userhref.'" class="d-inline-flex align-items-center gap-1 text-body-secondary small user">
-			<img class="avatar-sm rounded-circle" src="'.$user['avatar_url'].'" onerror="this.onerror=null;this.src=\'/view/img/avatar.png\'">
+			<img class="avatar-sm rounded-circle" src="'.$user['avatar_url'].'" onerror="this.onerror=null;this.src=\''.$conf['view_url'].'img/avatar.png\'">
 			'.$user['display_name'].'
 		</a>
 		'.$s.'

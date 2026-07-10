@@ -130,7 +130,7 @@ function sendVerifyCode(btn, extraData) {
 
 // 删除附件（发帖页上传预览）
 function deleteAttach(btn, aid) {
-	var url = '/attach-delete-' + aid;
+	var url = XN.url('attach-delete-' + aid);
 	var data = {csrf_token: XN.csrfToken || ''};
 
 	XN.post(url, data, function(code, msg) {

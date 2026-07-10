@@ -823,6 +823,79 @@ if(empty($action)) {
 
 	include _include(APP_PATH.'view/htm/credits_rules.htm');
 
+} elseif($action == 'level') {
+
+	// 我的等级：基于用户组 creditsfrom/creditsto 阈值展示等级与进度
+	$active_tab = 'level';
+
+	// 获取所有可升级用户组（gid >= 100），按 creditsfrom 升序排列
+	global $grouplist;
+	if(!isset($grouplist)) $grouplist = group_list_cache();
+	$level_groups = array();
+	foreach($grouplist as $g) {
+		if($g['gid'] >= 100) {
+			$level_groups[] = $g;
+		}
+	}
+	// 按 creditsfrom 升序排序
+	usort($level_groups, function($a, $b) {
+		return $a['creditsfrom'] - $b['creditsfrom'];
+	});
+
+	// 当前用户是否为可升级组（gid >= 100）
+	$user_credits = intval($user['credits']);
+	$is_upgrade_group = ($user['gid'] >= 100);
+
+	// 当前等级信息 & 下一等级信息
+	$current_level = null;
+	$next_level = null;
+	if($is_upgrade_group && !empty($level_groups)) {
+		$level_count = count($level_groups);
+		for($i = 0; $i < $level_count; $i++) {
+			if($user['gid'] == $level_groups[$i]['gid']) {
+				$current_level = $level_groups[$i];
+				$current_level['level_index'] = $i + 1;
+				if(isset($level_groups[$i + 1])) {
+					$next_level = $level_groups[$i + 1];
+					$next_level['level_index'] = $i + 2;
+				}
+				break;
+			}
+		}
+		// 兜底：gid >= 100 但未精确匹配（积分跨区间），按积分重新定位
+		if($current_level === null) {
+			for($i = 0; $i < $level_count; $i++) {
+				if($user_credits >= $level_groups[$i]['creditsfrom'] && $user_credits < $level_groups[$i]['creditsto']) {
+					$current_level = $level_groups[$i];
+					$current_level['level_index'] = $i + 1;
+					if(isset($level_groups[$i + 1])) {
+						$next_level = $level_groups[$i + 1];
+						$next_level['level_index'] = $i + 2;
+					}
+					break;
+				}
+			}
+		}
+	}
+
+	// 计算进度条
+	$progress_percent = 0;
+	$credits_to_next = 0;
+	if($current_level && $next_level) {
+		$range = $current_level['creditsto'] - $current_level['creditsfrom'];
+		if($range > 0) {
+			$progress_percent = min(100, max(0, round(($user_credits - $current_level['creditsfrom']) / $range * 100)));
+		}
+		$credits_to_next = max(0, $next_level['creditsfrom'] - $user_credits);
+	} elseif($current_level && !$next_level) {
+		// 已达最高级
+		$progress_percent = 100;
+	}
+
+	$header['title'] = lang('my_level');
+	$header['mobile_title'] = lang('my_level');
+	include _include(APP_PATH.'view/htm/my_level.htm');
+
 } elseif($action == 'follow_users') {
 
     // 返回关注用户列表（用于@提及）
@@ -846,7 +919,7 @@ if(empty($action)) {
                     $users[] = array(
                         'uid' => $u['uid'],
                         'username' => $u['display_name'] ?? $u['username'],
-                        'avatar_url' => !empty($u['avatar_url']) ? $u['avatar_url'] : '/view/img/avatar.png',
+                        'avatar_url' => !empty($u['avatar_url']) ? $u['avatar_url'] : default_avatar_url(),
                     );
                 }
             }
@@ -1185,8 +1258,8 @@ if(empty($action)) {
 			// 系统通知：用铃铛图标替代默认头像
 			$html .= '<span class="rounded-circle flex-shrink-0 bg-primary bg-opacity-10 d-flex align-items-center justify-content-center" style="width:24px;height:24px;"><i class="ti ti-bell text-primary" style="font-size:0.8rem;"></i></span>';
 		} else {
-			$avatar_url = isset($item['from_avatar_url']) ? $item['from_avatar_url'] : '/view/img/avatar.png';
-			$html .= '<img class="rounded-circle flex-shrink-0" src="' . htmlspecialchars($avatar_url) . '" alt="" style="width:24px;height:24px;object-fit:cover;" onerror="this.src=\'/view/img/avatar.png\'">';
+			$avatar_url = isset($item['from_avatar_url']) ? $item['from_avatar_url'] : default_avatar_url();
+			$html .= '<img class="rounded-circle flex-shrink-0" src="' . htmlspecialchars($avatar_url) . '" alt="" style="width:24px;height:24px;object-fit:cover;" onerror="this.onerror=null;this.src=\''.default_avatar_url().'\'">';
 		}
 		$html .= '<span class="fw-semibold" style="font-size:0.8rem;">' . htmlspecialchars($username) . '</span>';
 	}
@@ -1478,7 +1551,7 @@ elseif($action == 'notify') {
 				'is_read' => empty($n['is_read']) ? 0 : 1,
 				'from_uid' => $n['from_uid'],
 				'from_gid' => $_from_gid,
-				'from_user_avatar_url' => isset($n['from_avatar_url']) ? $n['from_avatar_url'] : '/view/img/avatar.png',
+				'from_user_avatar_url' => isset($n['from_avatar_url']) ? $n['from_avatar_url'] : default_avatar_url(),
 				'from_username' => isset($n['from_username']) ? $n['from_username'] : '',
 				'type' => $n['type'],
 				'type_label' => isset($n['type_label']) ? $n['type_label'] : lang('notify_type_label_notice_other'),

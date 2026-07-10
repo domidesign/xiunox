@@ -74,7 +74,7 @@
 		<div class="dropdown">
 			<button type="button" class="nav-action dropdown-toggle p-1" data-bs-toggle="dropdown" aria-expanded="false">
 				<?php if ($user['avatar_url']) { ?>
-				<img src="<?php echo (strpos($user['avatar_url'], '//') === FALSE ? '../' : '').$user['avatar_url'];?>" class="avatar-sm rounded-circle" alt="">
+				<img src="<?php echo esc_attr($user['avatar_url']);?>" class="avatar-sm rounded-circle" alt="" onerror="this.onerror=null;this.src='<?php echo default_avatar_url();?>'">
 				<?php } else { ?>
 				<div class="avatar-sm rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold" style="font-size:0.75rem">
 					<?php echo strtoupper(substr($user['username'], 0, 1));?>

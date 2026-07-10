@@ -516,7 +516,8 @@ xn.param = function(key) {
 xn.url = function(u, url_rewrite) {
 	var on = window.url_rewrite_on || url_rewrite;
 	// admin 后台始终使用 ? 格式（url_rewrite_on=0）
-	if(window.location.pathname.indexOf('/admin') !== -1) {
+	var is_admin = (window.location.pathname.indexOf('/admin') !== -1);
+	if(is_admin) {
 		on = 0;
 	}
 	if(xn.strpos(u, '/') != -1) {
@@ -525,6 +526,13 @@ xn.url = function(u, url_rewrite) {
 	} else {
 		var path = '';
 		var query = u;
+	}
+	// 空路由防护
+	if(query === '') {
+		var bp = window.base_path || '';
+		if(on == 0) return bp + '/?index.htm';
+		if(on == 2) return bp + '/?index';
+		return bp + '/';
 	}
 	var r = '';
 	if(!on) {
@@ -540,6 +548,14 @@ xn.url = function(u, url_rewrite) {
 	} else if(on == 5) {
 		// on=5 路径+html 风格：thread-create-1 → thread/create/1.html
 		r = path + xn.str_replace('-', '/', query) + '.html';
+	}
+	// 前缀处理：前台用 base_path，admin 用 ./
+	if(r && r.indexOf('http') !== 0 && r.indexOf('//') !== 0) {
+		if(is_admin) {
+			r = './' + r.replace(/^\//, '');
+		} else {
+			r = (window.base_path || '') + '/' + r.replace(/^\//, '');
+		}
 	}
 	return r;
 };

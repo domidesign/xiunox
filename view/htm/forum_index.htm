@@ -23,7 +23,7 @@
 						<?php elseif(!empty($_forum['icon_class'])): ?>
 						<span style="font-size:1.25rem"><i class="<?php echo $_forum['icon_class'];?>"></i></span>
 						<?php else: ?>
-						<span style="font-size:1.25rem"><img src="/view/img/forum.png" class="rounded" width="20" height="20" alt="<?php echo esc_html($_forum['name']);?>" /></span>
+						<span style="font-size:1.25rem"><img src="<?php echo $conf['view_url'];?>img/forum.png" class="rounded" width="20" height="20" alt="<?php echo esc_html($_forum['name']);?>" /></span>
 						<?php endif; ?>
 					<?php } ?>
 					<?php if(!$_forum['is_category']) { ?>
@@ -108,7 +108,7 @@
 									<?php elseif(!empty($_child['icon_class'])): ?>
 									<span class="flex-shrink-0 sub-forum-icon"><i class="<?php echo $_child['icon_class'];?>"></i></span>
 									<?php else: ?>
-									<img src="/view/img/forum.png" class="rounded flex-shrink-0" width="42" height="42" alt="<?php echo esc_html($_child['name']);?>" />
+									<img src="<?php echo $conf['view_url'];?>img/forum.png" class="rounded flex-shrink-0" width="42" height="42" alt="<?php echo esc_html($_child['name']);?>" />
 									<?php endif; ?>
 									
 								</div>

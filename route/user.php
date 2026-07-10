@@ -988,7 +988,7 @@ if(empty($action)) {
 			$u_is_followed = !empty($u['is_followed']);
 		?>
 		<div class="d-flex align-items-center gap-3 p-2 hover-bg-body-secondary rounded">
-			<img class="avatar-md" src="<?php echo $u['avatar_url'];?>" alt="" onerror="this.src='/view/img/avatar.png'">
+			<img class="avatar-md" src="<?php echo $u['avatar_url'];?>" alt="" onerror="this.onerror=null;this.src='<?php echo default_avatar_url();?>'">
 			<div class="flex-fill">
 				<a href="<?php echo user_url($u['uid']);?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['display_name'] ?? $u['username']);?></a>
 				<div class="small text-body-secondary"><?php echo $u['groupname'];?></div>
@@ -1046,7 +1046,7 @@ if(empty($action)) {
 			$u_is_followed = !empty($u['is_followed']);
 		?>
 		<div class="d-flex align-items-center gap-3 p-2 hover-bg-body-secondary rounded">
-			<img class="avatar-md" src="<?php echo $u['avatar_url'];?>" alt="" onerror="this.src='/view/img/avatar.png'">
+			<img class="avatar-md" src="<?php echo $u['avatar_url'];?>" alt="" onerror="this.onerror=null;this.src='<?php echo default_avatar_url();?>'">
 			<div class="flex-fill">
 				<a href="<?php echo user_url($u['uid']);?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['display_name'] ?? $u['username']);?></a>
 				<div class="small text-body-secondary"><?php echo $u['groupname'];?></div>
@@ -1225,7 +1225,7 @@ if(empty($action)) {
                 'uid' => $u['uid'],
                 'username' => $u['username'],
                 'display_name' => $u['display_name'] ?? $u['username'],
-                'avatar_url' => !empty($u['avatar_url']) ? $u['avatar_url'] : '/view/img/avatar.png',
+                'avatar_url' => !empty($u['avatar_url']) ? $u['avatar_url'] : default_avatar_url(),
             );
         }
     }

@@ -65,12 +65,12 @@ if(!empty($_lb_items)) {
         foreach($_lb_items as &$_it) {
             $_u = isset($g_static_users[$_it['uid']]) ? $g_static_users[$_it['uid']] : null;
             if(!empty($_u)) {
-                $_it['avatar_url'] = !empty($_u['avatar_url']) ? $_u['avatar_url'] : '/view/img/avatar.png';
+                $_it['avatar_url'] = !empty($_u['avatar_url']) ? $_u['avatar_url'] : default_avatar_url();
                 $_it['group_icon_class'] = !empty($_u['group_icon_class']) ? $_u['group_icon_class'] : '';
                 $_it['group_color'] = !empty($_u['group_color']) ? $_u['group_color'] : '';
                 $_it['gid'] = !empty($_u['gid']) ? $_u['gid'] : (isset($_it['gid']) ? $_it['gid'] : 0);
             } else {
-                $_it['avatar_url'] = '/view/img/avatar.png';
+                $_it['avatar_url'] = default_avatar_url();
                 $_it['group_icon_class'] = '';
                 $_it['group_color'] = '';
                 $_it['gid'] = isset($_it['gid']) ? $_it['gid'] : 0;

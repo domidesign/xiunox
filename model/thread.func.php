@@ -887,7 +887,7 @@ function thread_format(&$thread) {
 	
 	$user = user_read_cache($thread['uid']);
 	$thread['username'] = isset($user['display_name']) ? $user['display_name'] : (isset($user['username']) ? $user['username'] : lang('guest'));
-	$thread['user_avatar_url'] = !empty($user['avatar_url']) ? $user['avatar_url'] : '/view/img/avatar.png';
+	$thread['user_avatar_url'] = !empty($user['avatar_url']) ? $user['avatar_url'] : default_avatar_url();
 	$thread['group_icon_class'] = isset($user['group_icon_class']) ? $user['group_icon_class'] : '';
 	$thread['group_color'] = isset($user['group_color']) ? $user['group_color'] : '';
 	$thread['group_name'] = isset($user['groupname']) ? $user['groupname'] : '';

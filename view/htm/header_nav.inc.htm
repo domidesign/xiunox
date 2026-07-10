@@ -32,7 +32,7 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 
 				<!-- Logo -->
 				<!--{hook header_nav_logo_before.htm}-->
-				<a class="fs-6 d-flex align-items-center" href="/">
+				<a class="fs-6 d-flex align-items-center" href="<?php echo $conf['base_path'];?>/">
 					<img src="<?php echo esc_attr($conf['logo_mobile_url']);?>" class="site-logo"
 						alt="<?php echo esc_attr($conf['sitename']);?>">
 					<?php if($conf['sitename']) { ?>
@@ -244,7 +244,7 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 						<!--{hook header_nav_admin_page_before.htm}-->
 					 
 						<?php if($gid == 1) { ?>
-						<li><a class="dropdown-item" href="/admin/" target="_blank"><i class="ti ti-settings"></i>
+						<li><a class="dropdown-item" href="<?php echo $conf['base_path'];?>/admin/" target="_blank"><i class="ti ti-settings"></i>
 								<?php echo lang('admin_page');?>
 							</a></li>
 						<?php } ?>

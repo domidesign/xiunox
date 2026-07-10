@@ -6,7 +6,7 @@ $header['title'] = esc_html($header['title'] ?? '');
 $header['keywords'] = esc_attr($header['keywords'] ?? '');
 $header['description'] = esc_attr($header['description'] ?? '');
 ?>
-<?php $user = G('user');?>
+<?php $user = G('user', array());?>
 <?php $uid = G('uid');?>
 <?php $gid = G('gid');?>
 <?php $fid = G('fid');?>

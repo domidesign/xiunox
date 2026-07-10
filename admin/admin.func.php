@@ -5,6 +5,25 @@
 // 有部分用户
 define('XN_ADMIN_BIND_IP', array_value($conf, 'admin_bind_ip'));
 
+// 令牌失效：flash cookie 传递 toast + 跳转登录页（替代整页 message.htm）
+function admin_token_expiry_redirect() {
+	$msg = lang('admin_token_expiry');
+	setcookie('flash_msg', rawurlencode($msg), time() + 10, '/');
+	setcookie('flash_type', 'danger', time() + 10, '/');
+	$login_url = url('index-login');
+	// HTMX 请求：HX-Redirect 头让 htmx 执行整页跳转
+	if(function_exists('is_htmx_request') && is_htmx_request()) {
+		header('HX-Redirect: ' . $login_url);
+		header('Content-Type: text/html; charset=utf-8');
+		echo '<span style="display:none"></span>';
+		exit;
+	}
+	// 普通请求：303 重定向
+	http_response_code(303);
+	header('Location: ' . $login_url);
+	exit;
+}
+
 function admin_token_check() {
 	global $longip, $time, $useragent, $conf;
 	$useragent_md5 = md5($useragent);
@@ -23,8 +42,7 @@ function admin_token_check() {
 		$s = xn_decrypt($admin_token, $key, $used_v2);
 		if(empty($s)) {
 			setcookie('bbs_admin_token', '', admin_cookie_options(0));
-			//message(-1, lang('admin_token_error'));
-			message(-1, lang('admin_token_expiry'));
+			admin_token_expiry_redirect();
 		}
 		list($_ip, $_time) = explode("\t", $s);
 
@@ -33,7 +51,7 @@ function admin_token_check() {
 		//if($_ip != $longip || $time - $_time > 3600) {
 		if((XN_ADMIN_BIND_IP && $_ip != $longip || !XN_ADMIN_BIND_IP) && $time - $_time > 3600) {
 			setcookie('bbs_admin_token', '', admin_cookie_options(0));
-			message(-1, lang('admin_token_expiry'));
+			admin_token_expiry_redirect();
 		}
 
 		// 令牌迁移：若解密回退到 XXTEA（旧格式）立即重签 v2；或超过半小时刷新令牌防过期

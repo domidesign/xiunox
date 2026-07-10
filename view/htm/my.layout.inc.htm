@@ -65,6 +65,12 @@
 				</a>
 			</li>
 		<!--{hook my_sidebar_nav_threads_before.htm}-->
+		<li class="side-nav-item<?php if(!empty($active_tab) && $active_tab == 'level') echo ' active'; ?>">
+			<a href="<?php echo my_level_url();?>" class="side-nav-link">
+				<span class="menu-icon"><i class="ti ti-chart-arcs"></i></span>
+				<span class="menu-text"><?php echo lang('my_level');?></span>
+			</a>
+		</li>
 		<li class="side-nav-item<?php if(!empty($active_tab) && $active_tab == 'thread') echo ' active'; ?>">
 			<a href="<?php echo my_thread_url();?>" class="side-nav-link">
 				<span class="menu-icon"><i class="ti ti-message-2"></i></span>
@@ -109,6 +115,9 @@
                 <a href="<?php echo my_notify_url();?>" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'notice') echo ' active'; ?>"><?php echo lang('notice');?></a>
         </li>
         <!--{hook my_sidebar_nav_threads_before.htm}-->
+        <li class="nav-item" role="presentation">
+                <a href="<?php echo my_level_url();?>" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'level') echo ' active'; ?>"><?php echo lang('my_level');?></a>
+        </li>
         <li class="nav-item" role="presentation">
                 <a href="<?php echo my_thread_url();?>" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'thread') echo ' active'; ?>"><?php echo lang('my_thread');?></a>
         </li>

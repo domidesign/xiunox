@@ -441,10 +441,15 @@ class OnlineUpgradeService {
             }
         }
 
+        // 追加清理数据缓存和 opcache（tmp 编译缓存已由上方逻辑清理）
+        // data 用 cache_delete_prefix('') 按前缀删，避免 Redis flushdb 误删 session
+        $cacheRes = $this->clearCaches(['data', 'opcache']);
+        $cacheMsg = ($cacheRes['ok'] && $cacheRes['message']) ? '；已清 ' . $cacheRes['message'] : '';
+
         return [
             'ok' => true,
             'deleted' => $deleted,
-            'message' => "清理完成，删除 {$deleted} 个文件/目录",
+            'message' => "清理完成，删除 {$deleted} 个文件/目录" . $cacheMsg,
         ];
     }
 
@@ -514,10 +519,33 @@ class OnlineUpgradeService {
             return ['ok' => false, 'message' => '重装覆盖失败：' . $extractRes['message']];
         }
 
+        // 重装后清全部缓存（data+tmp+opcache），确保覆盖的新源码生效
+        // tmp 编译缓存（route_*.php/model.min.php 等）必须清，否则 _include() 仍加载旧缓存导致新代码不生效
+        $cacheRes = $this->clearCaches(['data', 'tmp', 'opcache']);
+        $cacheMsg = ($cacheRes['ok'] && $cacheRes['message']) ? '；已清 ' . $cacheRes['message'] : '';
+
         return [
             'ok' => true,
-            'message' => "已重装当前版本 {$currentVersion}：" . $extractRes['message'],
+            'message' => "已重装当前版本 {$currentVersion}：" . $extractRes['message'] . $cacheMsg,
         ];
+    }
+
+    /**
+     * 清理缓存：委托 CacheService::clearByType
+     * data: 按前缀删数据缓存键（不影响 session）；tmp: 删编译缓存（保留 cache 子目录，glob 不匹配 .htaccess）；opcache: 清字节码
+     */
+    private function clearCaches(array $types): array {
+        if (!class_exists('CacheService')) {
+            $cacheServiceFile = APP_PATH . 'lib/CacheService.php';
+            if (is_file($cacheServiceFile)) {
+                include_once $cacheServiceFile;
+            }
+        }
+        if (!class_exists('CacheService') || !method_exists('CacheService', 'clearByType')) {
+            return ['ok' => false, 'cleared' => [], 'message' => ''];
+        }
+        $cleared = CacheService::clearByType($types);
+        return ['ok' => true, 'cleared' => $cleared, 'message' => $cleared ? implode('、', $cleared) : ''];
     }
 
     // ===================== 辅助方法 =====================

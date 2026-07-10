@@ -13,7 +13,8 @@ $orphans = array();
 foreach($forumlist as $_fid=>$_forum) {
 	if(!empty($_forum['type']) && $_forum['type'] == 1) {
 		$categories[$_fid] = $_forum;
-		$sub_forums_map[$_fid] = array();
+		// 仅在不存在时初始化，避免分区循环顺序晚于子版块时覆盖已收集的子版块
+		if(!isset($sub_forums_map[$_fid])) $sub_forums_map[$_fid] = array();
 	} elseif(!empty($_forum['fup']) && isset($forumlist[$_forum['fup']]) && !empty($forumlist[$_forum['fup']]['type']) && $forumlist[$_forum['fup']]['type'] == 1) {
 		// 仅当父版块是分区（type=1）时才归入子版块，否则归入孤儿版块
 		$sub_forums_map[$_forum['fup']][$_fid] = $_forum;
@@ -43,9 +44,9 @@ if(!function_exists('forum_frontend_url')) {
 		} else {
 			$r = '?' . $query . '.htm';
 		}
-		// 加 / 前缀使其成为绝对路径
+		// 加 base_path 前缀使其成为绝对路径（支持子目录安装）
 		if($r !== '' && $r[0] !== '/' && strpos($r, 'http') !== 0) {
-			$r = '/' . $r;
+			$r = $conf['base_path'] . '/' . $r;
 		}
 		return $r;
 	}
@@ -115,7 +116,7 @@ if(!function_exists('forum_frontend_url')) {
 									<?php elseif(!empty($sf['icon_class'])): ?>
 										<i class="<?php echo $sf['icon_class'];?> text-body-secondary flex-shrink-0" style="font-size:1.4rem"></i>
 									<?php else: ?>
-										<img src="/view/img/forum.png" width="28" height="28" class="rounded-1 flex-shrink-0">
+										<img src="<?php echo $conf['view_url'];?>img/forum.png" width="28" height="28" class="rounded-1 flex-shrink-0">
 									<?php endif; ?>
 									<a href="<?php echo $sf_url;?>" target="_blank" class="fw-medium text-decoration-none"><?php echo esc_html($sf['name']);?></a>
 								</div>
@@ -187,7 +188,7 @@ if(!function_exists('forum_frontend_url')) {
 									<?php elseif(!empty($_forum['icon_class'])): ?>
 										<i class="<?php echo $_forum['icon_class'];?> text-body-secondary flex-shrink-0" style="font-size:1.4rem"></i>
 									<?php else: ?>
-										<img src="/view/img/forum.png" width="28" height="28" class="rounded-1 flex-shrink-0">
+										<img src="<?php echo $conf['view_url'];?>img/forum.png" width="28" height="28" class="rounded-1 flex-shrink-0">
 									<?php endif; ?>
 									<a href="<?php echo $_forum_url;?>" target="_blank" class="fw-medium text-decoration-none"><?php echo esc_html($_forum['name']);?></a>
 								</div>

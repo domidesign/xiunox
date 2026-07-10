@@ -77,6 +77,14 @@ $uid = intval(_SESSION('uid'));
 empty($uid) AND $uid = user_token_get() AND $_SESSION['uid'] = $uid;
 $user = user_read($uid);
 
+// session 有 uid 但用户已被删除：重置为游客，避免下游空数组解引用
+if($uid && empty($user)) {
+	unset($_SESSION['uid']);
+	$uid = 0;
+	if(function_exists('user_token_clear')) user_token_clear();
+	$user = array();
+}
+
 // 账号锁定检查：banned_until > 当前时间则强制退出登录（前台会话也失效）
 // 防止攻击者偷取前台 cookie 后，即使后台密码错误被锁，仍能持前台会话操作
 if(!empty($user) && isset($user['banned_until']) && $user['banned_until'] > $time) {
@@ -166,14 +174,16 @@ if(!$_ban_is_admin && $uid > 0) {
 // $setting = kv_get('setting');
 
 // 固定链接 301 重定向：旧格式 URL 自动跳转到新格式
-if(!empty($conf['url_rewrite_on'])) {
+// admin 后台不执行 301 重定向（admin 始终用 url_rewrite_on=0 格式，不需要重定向）
+if(!empty($conf['url_rewrite_on']) && strpos($_SERVER['SCRIPT_NAME'], '/admin') === false) {
     $request_uri = $_SERVER['REQUEST_URI'];
     $uri_no_path = isset($_SERVER['REQUEST_URI_NO_PATH']) ? $_SERVER['REQUEST_URI_NO_PATH'] : '';
 
     // 检测是否为旧格式 ?xxx-yyy.htm（url_rewrite_on=0 的格式）
     // 当 url_rewrite_on > 0 时，如果 URL 以 ? 开头（如 /?user-1.htm），说明是旧格式
     // 兼容微信等应用复制 URL 自动追加等号（如 /?index.htm=）
-    if(preg_match('#^/\?[\w\-]+.*\.htm=?#', $request_uri)) {
+    // 兼容子目录安装：/xiunox/?user-1.htm 也能匹配
+    if(preg_match('#(?:^|/)\?[\w\-]+.*\.htm=?#', $request_uri)) {
         // 构建新格式 URL
         $path = http_url_path();
         $new_url = '';
@@ -211,8 +221,14 @@ if(!empty($conf['url_rewrite_on'])) {
         // 去掉微信等应用追加的尾部等号
         $new_url = rtrim($new_url, '=');
         if($new_url && $new_url != $request_uri) {
+            // 剥离 base_path 前缀，避免与 http_url_path() 拼接导致双重 base_path
+            $_bp = isset($conf['base_path']) ? $conf['base_path'] : '';
+            $_redirect_rel = $new_url;
+            if($_bp !== '' && strpos($_redirect_rel, $_bp) === 0) {
+                $_redirect_rel = substr($_redirect_rel, strlen($_bp));
+            }
             header("HTTP/1.1 301 Moved Permanently");
-            header("Location: " . $path . ltrim($new_url, '/'));
+            header("Location: " . $path . ltrim($_redirect_rel, '/'));
             exit;
         }
     }
@@ -303,7 +319,8 @@ if(!empty($conf['url_rewrite_on'])) {
         if($controller && preg_match('#^[a-zA-Z_][a-zA-Z0-9_]*$#', $controller)) {
             // 将路径风格参数转为 - 连接格式，再用 url() 生成
             $url_query = implode('-', $parts);
-            $redirect_url = url($url_query);
+            // url() 现在返回带 base_path 的路径，301 拼接 http_url_path() 会重复，手动生成相对路径
+            $redirect_url = '/' . str_replace('-', '/', $url_query) . '.html';
             $qs = parse_url($request_uri, PHP_URL_QUERY);
             if($qs) $redirect_url .= (strpos($redirect_url, '?') === FALSE ? '?' : '&') . $qs;
             $need_redirect = true;
@@ -318,7 +335,8 @@ if(!empty($conf['url_rewrite_on'])) {
         $controller = $parts[0] ?? '';
         if($controller && preg_match('#^[a-zA-Z_][a-zA-Z0-9_]*$#', $controller)) {
             $url_query = implode('-', $parts);
-            $redirect_url = url($url_query);
+            // url() 现在返回带 base_path 的路径，301 拼接 http_url_path() 会重复，手动生成相对路径
+            $redirect_url = '/' . str_replace('-', '/', $url_query) . '.html';
             $qs = parse_url($request_uri, PHP_URL_QUERY);
             if($qs) $redirect_url .= (strpos($redirect_url, '?') === FALSE ? '?' : '&') . $qs;
             $need_redirect = true;
@@ -337,7 +355,7 @@ if(!empty($conf['url_rewrite_on'])) {
 // 解决问题：1.末尾带斜杠显示首页 2.垃圾前缀+有效路由显示对应页面 3..html后加字符参数错误
 if(!empty($conf['url_rewrite_on'])) {
     $strict_request_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
-    $_strict_is_admin = (strpos($_script_name, '/admin') !== false);
+    $_strict_is_admin = (strpos(isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/index.php', '/admin') !== false);
     if($strict_request_uri && strpos($strict_request_uri, '/api/v1/') !== 0 && !$_strict_is_admin) {
         $strict_uri_path = parse_url($strict_request_uri, PHP_URL_PATH);
         if($strict_uri_path && $strict_uri_path !== '/') {
@@ -415,8 +433,16 @@ if ($isApiRoute) {
 
 if(!defined('SKIP_ROUTE')) {
 
+	// 中央化 CSRF 校验：非 GET 请求统一检查 token（与 admin 对齐）
+	// 避免新增路由漏调 CsrfService::check() 导致 CSRF 漏洞
+	// ai 路由除外：AIEditor 的 OpenAI client 不支持自定义 headers，token 通过 query string 传递，
+	// ai.php 内部有独立的 CSRF 校验逻辑
+	if ($route !== 'ai' && in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'DELETE'], true)) {
+		CsrfService::check();
+	}
+
 	// 按照使用的频次排序，增加命中率，提高效率
-	// According to the frequency of the use of sorting, increase the hit rate, improve efficiency
+	// According to the frequency of the use, sorting, increase the hit rate, improve efficiency
 	switch ($route) {
 		// hook index_route_case_start.php
 		case 'index': 	include _include(APP_PATH.'route/index.php'); 	break;

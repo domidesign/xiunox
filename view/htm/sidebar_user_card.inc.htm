@@ -113,7 +113,7 @@ $_cols = count($_stats) > 0 ? min(count($_stats), 4) : 4;
             <div class="d-flex align-items-center gap-2">
                 <?php if ($_logo_src) { ?>
                 <img src="<?php echo esc_attr($_logo_src); ?>" alt="<?php echo esc_attr($conf['sitename']); ?>"
-                    class="avatar-lg flex-shrink-0" onerror="this.src='/view/img/avatar.png'">
+                    class="avatar-lg flex-shrink-0" onerror="this.onerror=null;this.src='<?php echo $conf['view_url']; ?>img/avatar.png'">
                 <?php } ?>
                 <div class="flex-grow-1" style="min-width:0">
                     <h5 class="card-title mb-1"><?php echo esc_html($conf['sitename']); ?></h5>

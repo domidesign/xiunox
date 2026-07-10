@@ -158,6 +158,7 @@ class ForumService {
      * @return array 格式化后的版块数据
      */
     private function formatForumItem(array $forum, array $lastPosts): array {
+        global $conf;
         $fid = intval($forum['fid']);
         $fup = intval($forum['fup'] ?? 0);
 
@@ -175,7 +176,7 @@ class ForumService {
             $iconClass = $forum['icon'];
         } else {
             // 默认图标
-            $iconUrl = '/view/img/forum.png';
+            $iconUrl = $conf['view_url'] . 'img/forum.png';
             $iconClass = '';
         }
 

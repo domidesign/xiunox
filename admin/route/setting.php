@@ -616,22 +616,31 @@ if($action == 'base') {
 
 		$url_rewrite_on = isset($conf['url_rewrite_on']) ? intval($conf['url_rewrite_on']) : 0;
 
+		// 子目录安装时 Nginx location 路径需带子目录前缀
+		$_base_path = isset($conf['base_path']) ? $conf['base_path'] : '';
+		$_loc = $_base_path !== '' ? $_base_path . '/' : '/';
+		// try_files / error_page 中的 /index.php 是相对 server root 的绝对路径
+		// 子目录安装时必须带 base_path 前缀，否则指向根目录的 index.php 导致 404
+		$_idx = $_base_path !== '' ? $_base_path . '/index.php' : '/index.php';
+
 		// Nginx rewrite 规则
 		// 宝塔面板用户：复制"宝塔伪静态"内容到网站设置→伪静态
 		// 自建 Nginx 用户：复制"完整配置"内容到 nginx.conf 的 server 块内
 		// 注意：后台 URL 始终使用 ? 格式（./?setting-permalink.htm），不需要伪静态规则
 		$nginx_rules = '# ========== 宝塔面板 / 伪静态配置 ==========
 # 复制以下内容到 宝塔面板→网站→设置→伪静态
-# 注意：不要包含 server 块，只放 location 指令
+# 注意：不要包含 server 块，只放 location 指令' . ($_base_path !== '' ? "\n# 检测到子目录安装（base_path='$_base_path'），location 已自动适配" : '') . '
 
 # 修复自定义 404 页面（必须放在最前面）
-# 宝塔默认 error_page 404 /404.html 会拦截 PHP 返回的 404，
-# 导致 Xiuno 自定义错误页无法显示，此行覆盖宝塔默认配置
-error_page 404 =404 /index.php;
+# fastcgi_intercept_errors off: 关闭 Nginx 对 PHP 404 的拦截，让 Xiuno 自定义错误页直接透传
+# 宝塔默认 fastcgi_intercept_errors on 会把 PHP 返回的 404 拦截并跳到宝塔默认 404 页
+# error_page: 覆盖宝塔默认的 error_page 404 /404.html，改由 index.php 处理
+fastcgi_intercept_errors off;
+error_page 404 =404 ' . $_idx . ';
 
 # 前台伪静态（后台使用 ? 格式，无需伪静态规则）
-location / {
-    try_files $uri $uri/ /index.php$is_args$args;
+location ' . $_loc . '{
+    try_files $uri $uri/ ' . $_idx . '$is_args$args;
 }
 
 # ========== 自建 Nginx 完整配置 ==========
@@ -649,8 +658,8 @@ location / {
 #    root /path/to/xiuno;
 #    index index.php index.html;
 #
-#    location / {
-#        try_files $uri $uri/ /index.php$is_args$args;
+#    location ' . $_loc . '{
+#        try_files $uri $uri/ ' . $_idx . '$is_args$args;
 #    }
 #
 #    location ~ \.php$ {
@@ -896,7 +905,7 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 		$labels = array();
 		foreach($status_key as $k => $key) {
 			if(empty($key)) continue;
-			$color = $status_color[$k];
+			$color = isset($status_color[$k]) ? $status_color[$k] : '#6c757d';
 			if(!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
 				$color = '#6c757d';
 			}

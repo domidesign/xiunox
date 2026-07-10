@@ -12,6 +12,17 @@ function get_env(&$env, &$write) {
 		$env['os']['current'] = PHP_OS . ' (' . lang('os_windows_not_recommended') . ')';
 	}
 
+	// 子目录部署检测：安装向导位于 /install/index.php
+	// SCRIPT_NAME 去掉 /install/... 后缀即为 base path，非空且非 / 则为子目录
+	$script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : (isset($_SERVER['PHP_SELF']) ? $_SERVER['PHP_SELF'] : '');
+	$base_path = preg_replace('#/install/.*$#', '', $script_name);
+	$is_subdir = $base_path !== '' && $base_path !== '/';
+	$env['deploy_path']['name'] = lang('deploy_path');
+	$env['deploy_path']['must'] = FALSE;
+	$env['deploy_path']['current'] = $is_subdir ? lang('subdir_detected') : lang('root_dir');
+	$env['deploy_path']['need'] = lang('root_dir');
+	$env['deploy_path']['status'] = $is_subdir ? 2 : 1;
+
 	$env['php_version']['name'] = lang('php_version');
 	$env['php_version']['must'] = TRUE;
 	$env['php_version']['current'] = PHP_VERSION;

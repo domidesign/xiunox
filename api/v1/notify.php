@@ -21,7 +21,7 @@ function notifyBuildAvatarUrl(array $user): string {
     if (isset($user['avatar']) && $user['avatar'] > 0) {
         return $conf['upload_url'] . 'avatar/' . substr(sprintf("%09d", $user['uid']), 0, 3) . '/' . $user['uid'] . '.png?' . $user['avatar'];
     }
-    return '/view/img/avatar.png';
+    return default_avatar_url();
 }
 
 // 确保 notify 模型函数可用（API 模式下 model 函数未自动加载）

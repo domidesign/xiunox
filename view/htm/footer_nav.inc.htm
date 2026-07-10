@@ -19,7 +19,7 @@ $footer_show_powered = isset($footer_config['show_powered']) ? intval($footer_co
                     <?php if(!empty($footer_copyright)): ?>
                     <div class="mb-1"><?php echo $footer_copyright;?></div>
                     <?php endif; ?>
-                    <a href="https://www.xiunox.org/" target="_blank" rel="noopener" title="Powered by XIUNOX"><img src="/view/img/xiunox.svg" alt="XIUNOX" height="16" style="vertical-align:middle"></a>
+                    <a href="https://www.xiunox.org/" target="_blank" rel="noopener" title="Powered by XIUNOX"><img src="<?php echo $conf['view_url'];?>img/xiunox.svg" alt="XIUNOX" height="16" style="vertical-align:middle"></a>
                 </div>
                 <div class="text-center text-md-end">
                     <div class="bbs-footer-filing mb-1">

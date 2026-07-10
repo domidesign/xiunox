@@ -128,7 +128,7 @@ class RankService {
         // 格式化输出
         $items = array_map(function($row) {
             // 头像URL处理：保留原始相对路径，前端 avatar_component_from_data 有 onerror 回退
-            $avatarUrl = !empty($row['avatar']) ? $row['avatar'] : '/view/img/avatar.png';
+            $avatarUrl = !empty($row['avatar']) ? $row['avatar'] : default_avatar_url();
 
             return [
                 'uid' => intval($row['uid']),
@@ -181,7 +181,7 @@ class RankService {
         // 格式化输出
         $items = array_map(function($row) {
             // 头像URL处理：保留原始相对路径，前端 avatar_component_from_data 有 onerror 回退
-            $avatarUrl = !empty($row['avatar']) ? $row['avatar'] : '/view/img/avatar.png';
+            $avatarUrl = !empty($row['avatar']) ? $row['avatar'] : default_avatar_url();
 
             return [
                 'uid' => intval($row['uid']),

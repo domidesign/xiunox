@@ -32,7 +32,7 @@ function api_my_avatar_url(array $user): string {
     if (isset($user['avatar']) && $user['avatar'] > 0) {
         return $conf['upload_url'] . 'avatar/' . substr(sprintf("%09d", $user['uid']), 0, 3) . '/' . $user['uid'] . '.png?' . $user['avatar'];
     }
-    return '/view/img/avatar.png';
+    return default_avatar_url();
 }
 
 // 分页结果封装
@@ -620,7 +620,7 @@ switch ($action) {
                     'is_read' => empty($n['is_read']) ? 0 : 1,
                     'from_uid' => isset($n['from_uid']) ? intval($n['from_uid']) : 0,
                     'from_username' => isset($n['from_username']) ? $n['from_username'] : '',
-                    'from_avatar_url' => isset($n['from_avatar_url']) ? $n['from_avatar_url'] : '/view/img/avatar.png',
+                    'from_avatar_url' => isset($n['from_avatar_url']) ? $n['from_avatar_url'] : default_avatar_url(),
                     'message' => isset($n['message']) ? $n['message'] : '',
                     'summary' => isset($n['summary']) ? $n['summary'] : '',
                     'url' => isset($n['url']) ? $n['url'] : '',

@@ -121,7 +121,7 @@ if($action === 'followers') {
                 'uid' => $_u['uid'],
                 'username' => $_u['username'],
                 'display_name' => !empty($_u['display_name']) ? $_u['display_name'] : $_u['username'],
-                'avatar_url' => !empty($_u['avatar_url']) ? $_u['avatar_url'] : '/view/img/avatar.png',
+                'avatar_url' => !empty($_u['avatar_url']) ? $_u['avatar_url'] : default_avatar_url(),
                 'threads' => intval($_u['threads']),
                 'posts' => intval($_u['posts']),
                 'create_date' => intval($_f['create_date']),
@@ -267,7 +267,7 @@ $header['mobile_link'] = forum_url($fid);
 $header['keywords'] = '';
 $header['description'] = $forum['brief'];
 // SEO: canonical / Open Graph
-$header['canonical'] = http_url_path() . ltrim(forum_url($fid), '/');
+$header['canonical'] = absolute_url(forum_url($fid));
 $header['og_type'] = 'website';
 $header['og_image'] = '';
 // SEO: JSON-LD BreadcrumbList（首页 > 版块）

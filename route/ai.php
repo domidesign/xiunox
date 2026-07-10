@@ -47,7 +47,7 @@ if($action == 'chat') {
     // token 通过 URL query string 传递（EditorService::buildAiConfig 注入到 customUrl）
     // 同时支持 X-CSRF-Token 头（供其他客户端调用）
     $csrfToken = isset($_GET['_csrf']) ? $_GET['_csrf'] : (isset($_SERVER['HTTP_X_CSRF_TOKEN']) ? $_SERVER['HTTP_X_CSRF_TOKEN'] : '');
-    $sessionToken = isset($_SESSION['csrf_token']) ? $_SESSION['csrf_token'] : '';
+    $sessionToken = CsrfService::getToken();
     if(empty($csrfToken) || empty($sessionToken) || !hash_equals($sessionToken, $csrfToken)) {
         header('HTTP/1.1 403 Forbidden');
         header('Content-Type: application/json; charset=utf-8');

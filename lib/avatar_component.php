@@ -32,10 +32,10 @@ $GLOBALS['avatar_group_defaults'] = array(
 function avatar_component($uid, $size = 'md', $gid = 0) {
     $user = function_exists('user_read_cache') ? user_read_cache($uid) : array();
     if (empty($user)) {
-        $user = array('avatar_url' => '/view/img/avatar.png', 'group_icon_class' => '', 'group_color' => '', 'gid' => 0);
+        $user = array('avatar_url' => default_avatar_url(), 'group_icon_class' => '', 'group_color' => '', 'gid' => 0);
     }
     return avatar_component_from_data(
-        !empty($user['avatar_url']) ? $user['avatar_url'] : '/view/img/avatar.png',
+        !empty($user['avatar_url']) ? $user['avatar_url'] : default_avatar_url(),
         $size,
         isset($user['group_icon_class']) ? $user['group_icon_class'] : '',
         isset($user['group_color']) ? $user['group_color'] : '',
@@ -53,6 +53,7 @@ function avatar_component($uid, $size = 'md', $gid = 0) {
  * @return string HTML
  */
 function avatar_component_from_data($avatar_url, $size = 'md', $group_icon_class = '', $group_color = '', $gid = 0) {
+    global $conf;
     $sizes = $GLOBALS['avatar_sizes'];
     if (!isset($sizes[$size])) {
         $size = 'md';
@@ -81,7 +82,7 @@ function avatar_component_from_data($avatar_url, $size = 'md', $group_icon_class
     }
 
     $s = '<div class="position-relative d-inline-block">';
-    $s .= '<img class="' . $css_class . ' rounded-1" src="' . $avatar_url . '" alt="" width="' . $px . '" height="' . $px . '" decoding="async" fetchpriority="low" onerror="this.onerror=null;this.src=\'/view/img/avatar.png\'" loading="lazy">';
+    $s .= '<img class="' . $css_class . ' rounded-1" src="' . $avatar_url . '" alt="" width="' . $px . '" height="' . $px . '" decoding="async" fetchpriority="low" onerror="this.onerror=null;this.src=\'' . $conf['view_url'] . 'img/avatar.png\'" loading="lazy">';
     if ($show_icon) {
         $s .= '<span class="avatar-group-icon" style="background-color:' . $bg . ';">';
         $s .= '<i class="' . $icon . '" style="font-size:' . $icon_font . 'px;color:#fff;"></i>';

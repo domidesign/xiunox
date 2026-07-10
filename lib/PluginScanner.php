@@ -19,6 +19,13 @@ class PluginScanner {
      */
     private array $suppressDirectDbUntil = [];
 
+    /**
+     * js_dom_xss / jquery_html_xss 抑制区间（按文件路径索引）
+     * 用于跳过已审计的合理 innerHTML 赋值（SVG 渲染、受控数据源等）
+     * 格式：['plugin/xxx/static/js/y.js' => 最大抑制行号]
+     */
+    private array $suppressDomXssUntil = [];
+
     public function __construct() {
         $this->rules = PluginScannerRules::getRules();
         $this->severityLevels = PluginScannerRules::getSeverityLevels();
@@ -396,6 +403,16 @@ class PluginScanner {
             $this->suppressDirectDbUntil[$shortPath] = max($current, $lineNumber + 10);
         }
 
+        // js_dom_xss / jquery_html_xss 抑制：检测"保留 innerHTML"注释，标记后续 5 行跳过 XSS 警告
+        // 用于跳过已审计的合理 innerHTML（SVG 渲染、受控数据源等），符合"保留的高危 API 必须在注释中说明保留原因"
+        // 文件级抑制：注释含 dom_xss/html_xss 关键字（如 // @suppress dom_xss）→ 抑制整个文件
+        // 行级抑制：注释含具体 API 名（如 // 保留 innerHTML）→ 抑制后续 5 行
+        if ($contextExt === 'js' && preg_match('/(保留|@suppress).*(?:innerHTML|outerHTML|insertAdjacentHTML|dom_xss|html_xss)/', $line)) {
+            $current = $this->suppressDomXssUntil[$shortPath] ?? 0;
+            $isFileLevel = preg_match('/(保留|@suppress).*(?:dom_xss|html_xss)/', $line);
+            $this->suppressDomXssUntil[$shortPath] = max($current, $isFileLevel ? PHP_INT_MAX : $lineNumber + 5);
+        }
+
         // JS-only 分类（js_eval_call/js_dom_xss/jquery_html_xss）：仅在 JS 上下文扫描
         // 避免 PHP 代码中字符串里的 JS 函数名被误报
         static $jsOnlyCats = null;
@@ -407,8 +424,10 @@ class PluginScanner {
         foreach ($this->rules as $category => $patterns) {
             if ($category === 'missing_csrf') continue;
 
-            // JS/CSS 内容跳过 PHP-only 规则
-            if (($contextExt === 'js' || $contextExt === 'css') && in_array($category, $phpOnlyCats)) continue;
+            // JS/CSS 内容跳过 PHP-only 和 HTML-only 规则
+            // HTML-only 规则（bs4_classes/bs4_data_attrs/icon_libraries 等）只扫描 HTML 上下文
+            // 避免 JS 文件注释/字符串中的 "data-target" 等被误匹配
+            if (($contextExt === 'js' || $contextExt === 'css') && (in_array($category, $phpOnlyCats) || in_array($category, $htmlOnlyCats))) continue;
 
             // 纯 PHP 代码跳过 HTML-only 规则
             if ($contextExt === 'php' && in_array($category, $htmlOnlyCats)) continue;
@@ -430,6 +449,20 @@ class PluginScanner {
                     : stripos($line, $pattern) !== false;
 
                 if ($found) {
+                    // php_superglobal_output 精确过滤（减少误报）
+                    // 1. 区分大小写重新匹配：PHP 超全局变量必须大写，$_post ≠ $_POST（#i 修饰符会导致 $_post 误匹配）
+                    // 2. 转义函数识别：超全局变量被安全函数包裹则视为已转义，跳过
+                    // ponytail: 启发式只看同行同函数，单行混合转义（echo $_GET . esc_attr($_POST)）会漏报裸 $_GET；升级路径是 AST 数据流分析
+                    if ($category === 'php_superglobal_output') {
+                        if (!@preg_match('#' . $pattern . '#', $line)) continue;
+                        if (preg_match('/(?:esc_html|esc_attr|esc_js|intval|floatval|urlencode|rawurlencode|json_encode)\s*\(\s*[^)]*\$_(?:GET|POST|REQUEST|SERVER|COOKIE)\b/', $line)) continue;
+                    }
+
+                    // js_dom_xss / jquery_html_xss 抑制区间检查
+                    if (($category === 'js_dom_xss' || $category === 'jquery_html_xss') && $lineNumber <= ($this->suppressDomXssUntil[$shortPath] ?? 0)) {
+                        continue;
+                    }
+
                     if ($category === 'direct_db') {
                         $basename = basename($shortPath);
                         // install/uninstall/upgrade 脚本中直接操作数据库是合理的

@@ -20,7 +20,7 @@
 					<div class="col-6 col-md-4 col-xl-3">
 						<div class="d-flex align-items-center gap-2 p-2 rounded-1" style="background:var(--bs-tertiary-bg)">
 							<a href="<?php echo user_url($_m['uid']);?>" class="flex-shrink-0" tabindex="-1">
-							<img src="<?php echo $_m['avatar_url'];?>" class="rounded-circle" width="40" height="40" alt="<?php echo esc_html($_m['display_name']);?>" onerror="this.src='/view/img/avatar.png'">
+							<img src="<?php echo $_m['avatar_url'];?>" class="rounded-circle" width="40" height="40" alt="<?php echo esc_html($_m['display_name']);?>" onerror="this.onerror=null;this.src='<?php echo $conf['view_url']; ?>img/avatar.png'">
 						</a>
 						<div class="flex-fill" style="min-width:0">
 							<a href="<?php echo user_url($_m['uid']);?>" class="text-body text-decoration-none fw-semibold small text-truncate d-block"><?php echo esc_html($_m['display_name']);?></a>
@@ -59,7 +59,7 @@
 					<?php elseif(!empty($forum['icon_class'])): ?>
 					<span class="flex-shrink-0" style="font-size:2rem"><i class="<?php echo $forum['icon_class'];?>"></i></span>
 					<?php else: ?>
-					<span class="flex-shrink-0"><img src="/view/img/forum.png" class="rounded" width="32" height="32" alt="<?php echo esc_html($forum['name']);?>" /></span>
+					<span class="flex-shrink-0"><img src="<?php echo $conf['view_url'];?>img/forum.png" class="rounded" width="32" height="32" alt="<?php echo esc_html($forum['name']);?>" /></span>
 					<?php endif; ?>
 					<div class="flex-fill" style="min-width:0">
 						<h6 class="fw-bold mb-0"><?php echo esc_html($forum['name']);?></h6>

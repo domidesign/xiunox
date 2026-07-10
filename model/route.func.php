@@ -125,6 +125,7 @@ function route_table() {
 			'my_credits_rules'      => 'my-credits_rules',
 			'my_credits_check'      => 'my-credits_check',
 			'my_send_email_code'    => 'my-send_email_code',
+			'my_level'              => 'my-level',
 
 			// ===== 通知（notice） =====
 			'notice_list'           => 'notice-list',
@@ -392,6 +393,7 @@ function my_credits_url($page = null, $query = array())   {
 function my_credits_rules_url($query = array())            { return route_url('my_credits_rules', [], $query); }
 function my_credits_check_url($query = array())           { return route_url('my_credits_check', [], $query); }
 function my_send_email_code_url($query = array())          { return route_url('my_send_email_code', [], $query); }
+function my_level_url($query = array())                    { return route_url('my_level', [], $query); }
 
 // ----- 通知 -----
 function notice_list_url($type = null, $page = null, $query = array()) {

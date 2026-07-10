@@ -276,7 +276,7 @@ function attach_assoc_post($pid) {
 	//if(empty($tmp_files)) return;
 
     // fixed by qiukong, https://bbs.xiuno.com/thread-150336.htm
-    if(!$sess_tmp_files && preg_match('/tmp\+files\|(a\:1\:\{.*\})/',_SESSION('data'),$arr)) {
+    if(!$sess_tmp_files && preg_match('/tmp\+files\|(a\:1\:\{.*\})/', _SESSION('data') ?? '', $arr)) {
         $sess_tmp_files = unserialize(str_replace(array('+','='),array('_','.'),$arr['1']));
     }
 	

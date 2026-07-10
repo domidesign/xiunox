@@ -18,7 +18,7 @@
 
 				<!-- 当前头像 -->
 				<div class="text-center mb-4">
-					<img id="avatar_img" class="rounded-1 border border-3" style="width:128px;height:128px;object-fit:cover;" src="<?php echo $user['avatar_url'];?>" alt="" onerror="this.src='/view/img/avatar.png'">
+					<img id="avatar_img" class="rounded-1 border border-3" style="width:128px;height:128px;object-fit:cover;" src="<?php echo $user['avatar_url'];?>" alt="" onerror="this.onerror=null;this.src='<?php echo default_avatar_url();?>'">
 					<div class="mt-2">
 						<button type="button" class="btn btn-sm btn-outline-secondary" id="avatar_reset_btn"<?php echo $pending_avatar ? ' disabled' : '';?>>
 							<i class="ti ti-arrow-back-up"></i> <?php echo lang('reset_default');?>

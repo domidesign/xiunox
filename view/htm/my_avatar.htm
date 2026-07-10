@@ -2,7 +2,7 @@
 	<slot name="my_body">
 		<div id="avatar-section">
 			<div class="text-center mb-4" id="avatar-area">
-				<img id="avatar_img" class="rounded-1 border" style="width:120px;height:120px;object-fit:cover;" src="<?php echo $user['avatar_url'];?>" alt="" onerror="this.src='/view/img/avatar.png'">
+				<img id="avatar_img" class="rounded-1 border" style="width:120px;height:120px;object-fit:cover;" src="<?php echo $user['avatar_url'];?>" alt="" onerror="this.onerror=null;this.src='<?php echo $conf['view_url']; ?>img/avatar.png'">
 			</div>
 			<div class="x-card card">
 				<div class="card-body">

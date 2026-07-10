@@ -100,7 +100,7 @@ $_ban_is_admin = in_array($gid, array(1, 2));
                     <?php elseif(!empty($forum['icon_class'])): ?>
                     <i class="<?php echo $forum['icon_class'];?>"></i>
                     <?php else: ?>
-                    <img src="/view/img/forum.png" class="rounded" width="16" height="16" alt="<?php echo esc_html($forum['name']);?>" />
+                    <img src="<?php echo $conf['view_url'];?>img/forum.png" class="rounded" width="16" height="16" alt="<?php echo esc_html($forum['name']);?>" />
                     <?php endif; ?>
                     <span>
                         <?php echo esc_html($forum['name']);?>

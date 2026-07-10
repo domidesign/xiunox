@@ -95,9 +95,8 @@ return array(
 		'icon'=>'icon-wrench',
 		'tab'=> array (
 			'cache_setting'=>array('url'=>url('other-cache_setting'), 'text'=>lang('admin_cache_setting')),
-			'cache'=>array('url'=>url('other-cache'), 'text'=>lang('admin_other_cache')),
-			'upgrade'=>array('url'=>url('upgrade'), 'text'=>lang('admin_system_upgrade')),
-			'online_upgrade'=>array('url'=>url('online_upgrade'), 'text'=>lang('admin_online_upgrade')),
+		'cache'=>array('url'=>url('other-cache'), 'text'=>lang('admin_other_cache')),
+		'online_upgrade'=>array('url'=>url('online_upgrade'), 'text'=>lang('admin_online_upgrade')),
 		)
 	),
 	'notice' => array(

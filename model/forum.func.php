@@ -135,12 +135,12 @@ function forum_format(&$forum) {
 		// 确保图片路径为绝对路径，避免在 /admin/ 下解析错误
 		$icon = $forum['icon'];
 		if($icon[0] !== '/' && strpos($icon, '://') === FALSE && strpos($icon, '//') !== 0) {
-			$icon = '/' . $icon;
+			$icon = $conf['base_path'] . '/' . $icon;
 		}
 		$forum['icon_url'] = $icon;
 		$forum['icon_class'] = '';
 	} else {
-		$forum['icon_url'] = '/view/img/forum.png';
+		$forum['icon_url'] = $conf['view_url'].'img/forum.png';
 		$forum['icon_class'] = !empty($forum['icon']) ? $forum['icon'] : '';
 	}
 	// accesslist 优先使用 forum_list_cache() 批量加载的全局权限数组

@@ -99,7 +99,7 @@ if($_is_mobile) return;
 			<div class="d-flex align-items-center gap-2">
 				<?php if($_logo_src) { ?>
 				<img src="<?php echo esc_attr($_logo_src);?>" alt="<?php echo esc_attr($conf['sitename']);?>"
-					class="avatar-lg flex-shrink-0" onerror="this.src='/view/img/avatar.png'">
+					class="avatar-lg flex-shrink-0" onerror="this.onerror=null;this.src='<?php echo default_avatar_url();?>'">
 				<?php } ?>
 				<div class="flex-grow-1" style="min-width:0">
 					<h5 class="card-title mb-1">

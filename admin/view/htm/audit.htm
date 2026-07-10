@@ -171,7 +171,7 @@
                             <td><input type="checkbox" class="form-check-input profile-check" value="<?php echo $pa['id'];?>"></td>
                             <td>
                                 <?php if(!empty($pa['avatar_url'])): ?>
-                                <img class="rounded-circle me-1" src="<?php echo $pa['avatar_url'];?>" style="width:24px;height:24px" onerror="this.src='/view/img/avatar.png'">
+                                <img class="rounded-circle me-1" src="<?php echo $pa['avatar_url'];?>" style="width:24px;height:24px" onerror="this.onerror=null;this.src='<?php echo $conf['view_url']; ?>img/avatar.png'">
                                 <?php endif; ?>
                                 <?php echo esc_html($pa['username'] ?? '');?></td>
                             <td>
@@ -182,10 +182,10 @@
                             </td>
                             <?php if($pa['field_name'] == 'avatar'): ?>
                             <td style="max-width:120px;">
-                                <img src="<?php echo $pa['avatar_url'];?>" style="width:48px;height:48px;border-radius:50%;" onerror="this.src='/view/img/avatar.png'">
+                                <img src="<?php echo $pa['avatar_url'];?>" style="width:48px;height:48px;border-radius:50%;" onerror="this.onerror=null;this.src='<?php echo $conf['view_url']; ?>img/avatar.png'">
                             </td>
                             <td style="max-width:120px;">
-                                <img src="<?php echo $pa['new_avatar_url'] ?? $pa['avatar_url'];?>" style="width:48px;height:48px;border-radius:50%;" onerror="this.src='/view/img/avatar.png'">
+                                <img src="<?php echo $pa['new_avatar_url'] ?? $pa['avatar_url'];?>" style="width:48px;height:48px;border-radius:50%;" onerror="this.onerror=null;this.src='<?php echo $conf['view_url']; ?>img/avatar.png'">
                             </td>
                             <?php else: ?>
                             <td class="text-truncate" style="max-width:120px;" title="<?php echo esc_html($pa['old_value']);?>"><?php echo esc_html(mb_substr($pa['old_value'], 0, 30));?></td>

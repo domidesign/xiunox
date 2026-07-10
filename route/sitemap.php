@@ -44,7 +44,7 @@ $out .= _sitemap_url($base, $_now, 'always', '1.0');
 $forumlist = forum_list_cache();
 foreach($forumlist as $f) {
 	if(empty($f['fid']) || empty($f['name'])) continue;
-	$forum_url = $base . ltrim(forum_url($f['fid']), '/');
+	$forum_url = absolute_url(forum_url($f['fid']));
 	$lastmod = !empty($f['last_date']) ? intval($f['last_date']) : 0;
 	$out .= _sitemap_url($forum_url, $lastmod, 'hourly', '0.8');
 }
@@ -57,7 +57,7 @@ $_sitemap_threads = db_find('thread',
 	array('tid', 'last_date')
 );
 foreach($_sitemap_threads as $t) {
-	$thread_url = $base . ltrim(thread_url($t['tid']), '/');
+	$thread_url = absolute_url(thread_url($t['tid']));
 	$lastmod = !empty($t['last_date']) ? intval($t['last_date']) : 0;
 	$out .= _sitemap_url($thread_url, $lastmod, 'daily', '0.6');
 }

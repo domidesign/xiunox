@@ -613,7 +613,8 @@
     XN.url = function (u) {
         var on = window.url_rewrite_on || 0;
         // admin 后台始终使用 ? 格式（url_rewrite_on=0）
-        if(window.location.pathname.indexOf('/admin') !== -1) {
+        var is_admin = (window.location.pathname.indexOf('/admin') !== -1);
+        if(is_admin) {
             on = 0;
         }
         var result;
@@ -624,6 +625,13 @@
         } else {
             var path = '';
             var query = u;
+        }
+        // 空路由防护
+        if (query === '') {
+            var bp = window.base_path || '';
+            if (on === 0) return bp + '/?index.htm';
+            if (on === 2) return bp + '/?index';
+            return bp + '/';
         }
         if (!on) {
             result = path + '?' + query + '.htm';
@@ -641,9 +649,13 @@
         } else {
             result = path + query;
         }
-        // 确保路径以 / 开头（绝对路径）
-        if (result && result[0] !== '/' && result.indexOf('http') !== 0 && result.indexOf('//') !== 0) {
-            result = '/' + result;
+        // 前缀处理：前台用 base_path，admin 用 ./
+        if (result && result.indexOf('http') !== 0 && result.indexOf('//') !== 0) {
+            if (is_admin) {
+                result = './' + result.replace(/^\//, '');
+            } else {
+                result = (window.base_path || '') + '/' + result.replace(/^\//, '');
+            }
         }
         return result;
     };

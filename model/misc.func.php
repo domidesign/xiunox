@@ -24,6 +24,9 @@ function url($url, $extra = array()) {
 	$is_admin = (strpos($_script_name, '/admin') !== false);
 	$url_rewrite_on = $is_admin ? 0 : intval($conf['url_rewrite_on']);
 
+	// 子目录安装支持：前台 URL 拼接 base_path 前缀，admin 用 ./ 相对路径不受影响
+	$_base_path = isset($conf['base_path']) ? $conf['base_path'] : '';
+
 	$r = $path = $query = '';
 	if(strpos($url, '/') !== FALSE) {
 		$path = substr($url, 0, strrpos($url, '/') + 1);
@@ -35,23 +38,23 @@ function url($url, $extra = array()) {
 
 	// 空路由防护：query 为空时（如 url('')、url('/')、url('../')等），返回首页
 	if($query === '') {
-		if($url_rewrite_on == 0) return '/?index.htm';
-		if($url_rewrite_on == 2) return '/?index';
-		return '/';
+		if($url_rewrite_on == 0) return $_base_path . '/?index.htm';
+		if($url_rewrite_on == 2) return $_base_path . '/?index';
+		return $_base_path . '/';
 	}
 
 	if($url_rewrite_on == 0) {
-		$r = '/' . $path . '?' . $query . '.htm';
+		$r = $path . '?' . $query . '.htm';
 	} elseif($url_rewrite_on == 1) {
-		$r = '/' . $path . $query . '.htm';
+		$r = $path . $query . '.htm';
 	} elseif($url_rewrite_on == 2) {
-		$r = '/' . $path . '?' . str_replace('-', '/', $query);
+		$r = $path . '?' . str_replace('-', '/', $query);
 	} elseif($url_rewrite_on == 3) {
-		$r = '/' . $path . str_replace('-', '/', $query);
+		$r = $path . str_replace('-', '/', $query);
 	} elseif($url_rewrite_on == 4) {
-		$r = '/' . $path . $query . '.html';
+		$r = $path . $query . '.html';
 	} elseif($url_rewrite_on == 5) {
-		$r = '/' . $path . str_replace('-', '/', $query) . '.html';
+		$r = $path . str_replace('-', '/', $query) . '.html';
 	}
 	// 附加参数
 	if($extra) {
@@ -62,22 +65,45 @@ function url($url, $extra = array()) {
 
 	// hook model_url_end.php
 
+	// 前缀处理：前台用 base_path 绝对路径，admin 用 ./ 相对路径
 	// 对于没有路径组件的 URL（如 ?forum-5.htm），根据 is_admin 调整前缀
-	// 前台：r 已以 / 开头（绝对路径），保持原样
-	// admin：r 以 / 开头时替换为 ./，确保浏览器在 /admin/ 下点击跳转到 admin 入口而非站点根
-	// 关键：上方所有 url_rewrite_on 分支生成的 r 均以 / 开头，
-	//       不能用 $r[0] !== '/' 作为进入此分支的条件（否则 admin 前缀永远不会生效）
 	if($path === '' && $r !== '' && strpos($r, 'http') !== 0 && strpos($r, '//') !== 0) {
 		if($is_admin) {
-			// admin 下使用 ./ 前缀，去掉 r 开头的 / 避免变成 ./ /
+			// admin 下使用 ./ 前缀，确保浏览器在 /admin/ 下点击跳转到 admin 入口而非站点根
 			$r = './' . ltrim($r, '/');
-		} elseif($r[0] !== '/') {
-			// 前台兜底：r 不以 / 开头时补 / 前缀（当前所有 url_rewrite_on 分支 r 均以 / 开头，此分支不触发）
-			$r = '/' . $r;
+		} else {
+			// 前台：拼接 base_path 前缀（根目录部署时 base_path 为空，等效于 / 前缀）
+			$r = $_base_path . '/' . ltrim($r, '/');
 		}
+	} elseif(!$is_admin && $r !== '' && strpos($r, 'http') !== 0 && strpos($r, '//') !== 0) {
+		// 带路径组件的前台 URL（如 ../user-login）：拼接 base_path 前缀
+		$r = $_base_path . '/' . ltrim($r, '/');
 	}
 
 	return $r;
+}
+
+// 默认头像 URL（子目录安装兼容）
+// 统一入口，避免硬编码 /view/img/avatar.png 在子目录安装时失效
+function default_avatar_url() {
+	$conf = _SERVER('conf');
+	$_view = isset($conf['view_url']) ? $conf['view_url'] : '/view/';
+	return $_view . 'img/avatar.png';
+}
+
+// 把 url() 返回的路径转为完整绝对 URL（用于 canonical、og:url、sitemap 等需要完整 URL 的场景）
+// 解决双重 base_path：http_url_path() 已含 base_path，url() 也含 base_path，直接拼接会重复
+// 此函数先剥离 url() 结果中的 base_path 前缀，再用 http_url_path() 拼接
+function absolute_url($url) {
+	// 已是完整 URL（http(s):// 或 //）直接返回
+	if(strpos($url, 'http') === 0 || strpos($url, '//') === 0) return $url;
+	$conf = _SERVER('conf');
+	$bp = isset($conf['base_path']) ? $conf['base_path'] : '';
+	// 剥离 url() 结果中的 base_path 前缀
+	if($bp !== '' && strpos($url, $bp) === 0) {
+		$url = substr($url, strlen($bp));
+	}
+	return rtrim(http_url_path(), '/') . '/' . ltrim($url, '/');
 }
 
 

@@ -893,7 +893,8 @@ if($action == 'create') {
 	$pagination = pagination(url("thread-$tid-{page}$keywordurl") . $_sort_query, $_main_count, $page, $pagesize);
 
 	// SEO: 帖子完整 URL（canonical/og/json-ld 复用，提前定义避免后续使用未初始化变量）
-	$thread_url = http_url_path() . thread_url($tid);
+	// 用 absolute_url() 处理 base_path 去重（http_url_path 与 url() 都含 base_path，直接拼接会重复）
+	$thread_url = absolute_url(thread_url($tid));
 
 	$header['title'] = $thread['subject'].'-'.$forum['name'].'-'.$conf['sitename'];
 //$header['mobile_title'] = lang('thread_detail');
@@ -912,8 +913,7 @@ $header['og_image'] = '';
 if(!empty($first['message']) && preg_match('/<img[^>]+src=["\']([^"\']+)["\']/i', $first['message'], $_m)) {
 	$_img = $_m[1];
 	if(strpos($_img, 'http') !== 0 && strpos($_img, '//') !== 0) {
-		$_img = (strpos($_img, '/') === 0 ? '' : '/') . $_img;
-		$_img = rtrim(http_url_path(), '/') . $_img;
+		$_img = absolute_url($_img);
 	}
 	$header['og_image'] = $_img;
 }
@@ -933,7 +933,7 @@ if(!empty($first['message']) && preg_match('/<img[^>]+src=["\']([^"\']+)["\']/i'
 	$_author_jsonld = array(
 		'@type' => 'Person',
 		'name' => $author['display_name'] ?? $author['username'] ?? '',
-		'url' => http_url_path() . ltrim(user_url($thread['uid']), '/'),
+		'url' => absolute_url(user_url($thread['uid'])),
 	);
 
 	// SEO: 智能判断问答型 vs 讨论型
@@ -954,7 +954,7 @@ if(!empty($first['message']) && preg_match('/<img[^>]+src=["\']([^"\']+)["\']/i'
 					'author' => array(
 						'@type' => 'Person',
 						'name' => $_p['username'] ?? '',
-						'url' => http_url_path() . ltrim(user_url($_p['uid']), '/'),
+						'url' => absolute_url(user_url($_p['uid'])),
 					),
 					'upvoteCount' => intval($_p['likes'] ?? 0),
 					'url' => $thread_url . '#pid-' . $_p['pid'],

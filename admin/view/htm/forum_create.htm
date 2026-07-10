@@ -96,57 +96,69 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-var jform = $("#form");
-var jsubmit = $("#submit");
+(function() {
+	var form = document.getElementById('form');
+	var submit = document.getElementById('submit');
+	var typeSelect = document.getElementById('type_select');
+	var fupRow = document.getElementById('fup_row');
+	var fupSelect = document.getElementById('fup_select');
+	var iconInput = document.getElementById('icon_input');
+	var iconPreview = document.getElementById('icon_preview');
 
-// 表单提交（含文件上传，使用 FormData）
-jform.on('submit', function() {
-	var postdata = new FormData(this);
-	jsubmit.prop('disabled', true).text('<?php echo lang('admin_submitting')?>');
-	$.ajax({
-		url: jform.attr('action'),
-		type: 'POST',
-		data: postdata,
-		processData: false,
-		contentType: false,
-		success: function(r) {
+	// 版块类型切换：分区时隐藏上级分区
+	// 注意：fup_row 用了 Bootstrap d-flex（display:flex !important），
+	// 普通 style.display='none' 会被 !important 覆盖，必须用 setProperty 加 important
+	function toggleFupRow() {
+		if(typeSelect.value == '1') {
+			fupRow.style.setProperty('display', 'none', 'important');
+			fupSelect.required = false;
+		} else {
+			fupRow.style.removeProperty('display');
+			fupSelect.required = true;
+		}
+	}
+	typeSelect.addEventListener('change', toggleFupRow);
+	toggleFupRow();
+
+	// 图标上传预览
+	iconInput.addEventListener('change', function() {
+		var file = this.files[0];
+		if(file) {
+			var reader = new FileReader();
+			reader.onload = function(e) {
+				iconPreview.innerHTML = '<img src="'+e.target.result+'" style="max-width:56px;max-height:56px" class="rounded" />';
+			};
+			reader.readAsDataURL(file);
+		}
+	});
+
+	// 表单提交（含文件上传，使用 FormData）
+	form.addEventListener('submit', function(e) {
+		e.preventDefault();
+		var postdata = new FormData(form);
+		submit.disabled = true;
+		submit.textContent = '<?php echo lang('admin_submitting')?>';
+		fetch(form.action, {
+			method: 'POST',
+			body: postdata,
+			headers: { 'X-Requested-With': 'XMLHttpRequest' }
+		})
+		.then(function(r) { return r.json(); })
+		.then(function(r) {
 			if(r.code == 0) {
 				showToast(r.message, 'success');
 				setTimeout(function() { window.location = xn.url('forum-list'); }, 1500);
 			} else {
 				showToast(r.message, 'error');
-				jsubmit.prop('disabled', false).text('<?php echo lang('admin_confirm_create')?>');
+				submit.disabled = false;
+				submit.textContent = '<?php echo lang('admin_confirm_create')?>';
 			}
-		}
+		})
+		.catch(function() {
+			showToast('<?php echo lang('admin_request_failed'); ?>', 'error');
+			submit.disabled = false;
+			submit.textContent = '<?php echo lang('admin_confirm_create')?>';
+		});
 	});
-	return false;
-});
-
-// 版块类型切换：分区时隐藏上级分区
-var jtype = $('#type_select');
-var jfup_row = $('#fup_row');
-var jfup_select = $('#fup_select');
-function toggleFupRow() {
-	if(jtype.val() == '1') {
-		jfup_row.hide();
-		jfup_select.prop('required', false);
-	} else {
-		jfup_row.show();
-		jfup_select.prop('required', true);
-	}
-}
-jtype.on('change', toggleFupRow);
-toggleFupRow();
-
-// 图标上传预览
-$('#icon_input').on('change', function() {
-	var file = this.files[0];
-	if(file) {
-		var reader = new FileReader();
-		reader.onload = function(e) {
-			$('#icon_preview').html('<img src="'+e.target.result+'" style="max-width:56px;max-height:56px" class="rounded" />');
-		};
-		reader.readAsDataURL(file);
-	}
-});
+})();
 </script>

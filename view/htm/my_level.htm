@@ -1,0 +1,122 @@
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<?php include _include(APP_PATH.'view/htm/my.layout.inc.htm');?>
+
+	<!-- 当前等级卡片 -->
+	<div class="x-card card mb-3">
+		<div class="card-body">
+			<?php if($is_upgrade_group && $current_level) { ?>
+			<div class="d-flex align-items-center gap-3 mb-3">
+				<span class="rounded-circle d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:<?php echo !empty($current_level['color']) ? htmlspecialchars($current_level['color']) : '#0d6efd'; ?>20;">
+					<i class="<?php echo !empty($current_level['icon']) ? 'ti '.htmlspecialchars($current_level['icon']) : 'ti ti-chart-arcs'; ?>" style="font-size:1.5rem;color:<?php echo !empty($current_level['color']) ? htmlspecialchars($current_level['color']) : '#0d6efd'; ?>;"></i>
+				</span>
+				<div class="flex-fill">
+					<div class="d-flex align-items-center gap-2 flex-wrap">
+						<span class="fw-bold fs-5"><?php echo lang('level_label');?> <?php echo intval($current_level['level_index']);?></span>
+						<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><?php echo esc_html($current_level['name']);?></span>
+					</div>
+					<div class="text-body-secondary small">
+						<?php echo lang('current_credits');?>：<span class="fw-semibold text-primary"><?php echo $user_credits;?></span>
+						<?php if($next_level) { ?>
+						<span class="ms-3"><?php echo lang('next_level');?>：<span class="fw-semibold"><?php echo esc_html($next_level['name']);?></span></span>
+						<?php } ?>
+					</div>
+				</div>
+			</div>
+
+			<?php if($next_level) { ?>
+			<!-- 进度条 -->
+			<div class="mb-1 d-flex justify-content-between align-items-center">
+				<span class="small text-body-secondary"><?php echo intval($current_level['creditsfrom']);?> <?php echo lang('credits_label');?></span>
+				<span class="small text-body-secondary"><?php echo lang('credits_to_next_level', array('n'=>$credits_to_next));?></span>
+				<span class="small text-body-secondary"><?php echo intval($current_level['creditsto']);?> <?php echo lang('credits_label');?></span>
+			</div>
+			<div class="progress" role="progressbar" aria-label="<?php echo lang('level_progress');?>" aria-valuenow="<?php echo $progress_percent;?>" aria-valuemin="0" aria-valuemax="100" style="height:8px;">
+				<div class="progress-bar bg-primary" style="width:<?php echo $progress_percent;?>%"></div>
+			</div>
+			<div class="text-center mt-2">
+				<span class="small text-body-secondary"><?php echo lang('progress_percent_tip', array('pct'=>$progress_percent));?></span>
+			</div>
+			<?php } else { ?>
+			<!-- 已达最高级 -->
+			<div class="alert alert-success d-flex align-items-center mb-0" role="alert">
+				<i class="ti ti-trophy me-2"></i>
+				<div><?php echo lang('reached_max_level');?></div>
+			</div>
+			<?php } ?>
+
+			<?php } else { ?>
+			<!-- 系统组（管理员/版主等），不参与等级升级 -->
+			<div class="alert alert-info d-flex align-items-center mb-0" role="alert">
+				<i class="ti ti-info-circle me-2"></i>
+				<div>
+					<div class="fw-semibold"><?php echo esc_html($user['groupname']);?></div>
+					<div class="small"><?php echo lang('system_group_no_level');?></div>
+				</div>
+			</div>
+			<?php } ?>
+		</div>
+	</div>
+
+	<!-- 所有等级列表 -->
+	<?php if(!empty($level_groups)) { ?>
+	<div class="x-card card">
+		<div class="card-header bg-transparent border-bottom-0 py-3">
+			<h6 class="mb-0 fw-bold"><i class="ti ti-list-details me-1"></i><?php echo lang('all_levels');?></h6>
+		</div>
+		<div class="card-body pt-0">
+			<div class="table-responsive">
+				<table class="table table-hover align-middle mb-0">
+					<thead>
+						<tr>
+							<th style="width:3rem;"></th>
+							<th><?php echo lang('level_name');?></th>
+							<th><?php echo lang('credits_range');?></th>
+							<th class="text-center" style="width:5rem;"><?php echo lang('current_status');?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php foreach($level_groups as $idx => $lg) {
+							$is_current = ($current_level && $lg['gid'] == $current_level['gid']);
+							$_color = !empty($lg['color']) ? htmlspecialchars($lg['color']) : '#0d6efd';
+							$_icon = !empty($lg['icon']) ? 'ti '.htmlspecialchars($lg['icon']) : 'ti ti-circle';
+						?>
+						<tr<?php echo $is_current ? ' class="table-primary"' : '';?>>
+							<td class="text-center">
+								<span class="rounded-circle d-inline-flex align-items-center justify-content-center" style="width:28px;height:28px;background:<?php echo $_color; ?>20;">
+									<i class="<?php echo $_icon; ?>" style="font-size:0.9rem;color:<?php echo $_color; ?>;"></i>
+								</span>
+							</td>
+							<td>
+								<span class="fw-semibold"><?php echo esc_html($lg['name']);?></span>
+							</td>
+							<td>
+								<span class="text-body-secondary">
+									<?php if($lg['creditsto'] >= 10000000) { ?>
+									<?php echo intval($lg['creditsfrom']);?>+
+									<?php } else { ?>
+									<?php echo intval($lg['creditsfrom']);?> ~ <?php echo intval($lg['creditsto']);?>
+									<?php } ?>
+								</span>
+							</td>
+							<td class="text-center">
+								<?php if($is_current) { ?>
+								<span class="badge bg-primary"><?php echo lang('current');?></span>
+								<?php } ?>
+							</td>
+						</tr>
+						<?php } ?>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+	<?php } ?>
+
+</div>
+
+<!-- 右侧空栏 -->
+<div class="d-none d-xl-block col-xl-3"></div>
+</div>
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>

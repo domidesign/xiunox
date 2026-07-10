@@ -48,7 +48,7 @@ function sanitizeUserData(array $user, ?array $authUser = null, bool $isSelf = f
         if (!isset($result['avatar_url']) && isset($user['avatar'])) {
             $result['avatar_url'] = $user['avatar'] > 0
                 ? $conf['upload_url'] . 'avatar/' . substr(sprintf("%09d", $user['uid']), 0, 3) . '/' . $user['uid'] . '.png?' . $user['avatar']
-                : '/view/img/avatar.png';
+                : default_avatar_url();
         }
         return $result;
     }
@@ -514,7 +514,7 @@ switch ($method) {
             // avatar_index = 0 表示恢复默认头像
             if ($avatar_index === 0) {
                 user_update($uid, array('avatar' => 0));
-                ApiResponse::success(['avatar' => 0, 'avatar_url' => '/view/img/avatar.png']);
+                ApiResponse::success(['avatar' => 0, 'avatar_url' => default_avatar_url()]);
             }
             // 校验预设头像索引
             $preset_list = [];

@@ -183,7 +183,7 @@ if($action == 'mark_read') {
 	foreach($notifylist as $item) {
 		$unreadClass = empty($item['is_read']) ? ' notice-unread' : '';
 		$unreadDot = empty($item['is_read']) ? ' <span class="badge bg-primary rounded-pill flex-shrink-0" style="font-size:0.5rem;padding:2px 5px;">新</span>' : '';
-		$avatar_url = isset($item['from_avatar_url']) ? $item['from_avatar_url'] : '/view/img/avatar.png';
+		$avatar_url = isset($item['from_avatar_url']) ? $item['from_avatar_url'] : default_avatar_url();
 		$username = isset($item['from_username']) ? $item['from_username'] : '系统';
 		$href = !empty($item['url']) ? $item['url'] : my_notify_url();
 
@@ -204,7 +204,7 @@ if($action == 'mark_read') {
 		}
 
 		$html .= '<a href="' . htmlspecialchars($href) . '" class="dropdown-item d-flex align-items-center gap-2 px-3 py-2 notice-dropdown-item' . $unreadClass . '" data-nid="' . $item['nid'] . '" data-source="notify" hx-boost="false">';
-		$html .= '<img class="rounded-circle flex-shrink-0" src="' . htmlspecialchars($avatar_url) . '" alt="" style="width:24px;height:24px;object-fit:cover;" onerror="this.src=\'/view/img/avatar.png\'">';
+		$html .= '<img class="rounded-circle flex-shrink-0" src="' . htmlspecialchars($avatar_url) . '" alt="" style="width:24px;height:24px;object-fit:cover;" onerror="this.onerror=null;this.src=\''.default_avatar_url().'\'">';
 		$html .= '<span class="fw-semibold" style="font-size:0.8rem;">' . htmlspecialchars($username) . '</span>';
 		$html .= '<span class="text-body-secondary flex-shrink-0" style="font-size:0.75rem;">' . $item['create_date_fmt'] . '</span>';
 		$html .= '<span class="text-truncate" style="font-size:0.8rem;min-width:0;">' . htmlspecialchars($_msg_text) . '</span>';

@@ -160,7 +160,7 @@ foreach ($userlist as &$_user) {
 		$input['rmbs'] = form_text('rmbs', $_user['rmbs']);
 		$input['signature'] = form_text('signature', isset($_user['signature']) ? $_user['signature'] : '');
 		// 头像信息：显示当前头像和重置按钮
-		$input['avatar_url'] = isset($_user['avatar_url']) ? $_user['avatar_url'] : '/view/img/avatar.png';
+		$input['avatar_url'] = isset($_user['avatar_url']) ? $_user['avatar_url'] : default_avatar_url();
 		$input['avatar_val'] = intval($_user['avatar']);
 
 		// 加载封禁状态

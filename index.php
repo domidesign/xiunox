@@ -61,9 +61,9 @@ if(!$conf) {
 // 兼容 4.0.3 的配置文件	
 !isset($conf['user_create_on']) AND $conf['user_create_on'] = 1;
 !isset($conf['cache_disable']) AND $conf['cache_disable'] = 0;
-!isset($conf['logo_mobile_url']) AND $conf['logo_mobile_url'] = '/view/img/logo.png';
-!isset($conf['logo_pc_url']) AND $conf['logo_pc_url'] = '/view/img/logo.png';
-!isset($conf['logo_water_url']) AND $conf['logo_water_url'] = '/view/img/water-small.png';
+!isset($conf['logo_mobile_url']) AND $conf['logo_mobile_url'] = 'view/img/logo.png';
+!isset($conf['logo_pc_url']) AND $conf['logo_pc_url'] = 'view/img/logo.png';
+!isset($conf['logo_water_url']) AND $conf['logo_water_url'] = 'view/img/water-small.png';
 $conf['version'] = XIUNOX_VERSION;	// 版本号统一从 version.php 读取，避免手工修改 conf/conf.php
 
 // 转换为绝对路径，防止被包含时出错。
@@ -71,16 +71,36 @@ substr($conf['log_path'], 0, 2) == './' AND $conf['log_path'] = APP_PATH.$conf['
 substr($conf['tmp_path'], 0, 2) == './' AND $conf['tmp_path'] = APP_PATH.$conf['tmp_path']; 
 substr($conf['upload_path'], 0, 2) == './' AND $conf['upload_path'] = APP_PATH.$conf['upload_path']; 
 
-// 确保 view_url 和 upload_url 为绝对路径（以 / 开头），避免在 /admin/ 下解析为 /admin/view/ 或 /admin/upload/
+// ===== 子目录安装支持：自动检测 base_path =====
+// 从 SCRIPT_NAME 推算安装子目录路径（如 /xiunox），根目录部署为空字符串
+// admin 入口（/xiunox/admin/index.php）回退一级到 /xiunox
+// 支持 conf.php 手动配置 $conf['base_path'] 覆盖自动检测（反向代理等场景）
+if (!isset($conf['base_path']) || $conf['base_path'] === '') {
+	$_script_dir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
+	if (substr($_script_dir, -6) === '/admin') {
+		$_script_dir = substr($_script_dir, 0, -5); // admin/ 入口回退到根
+	}
+	// 规范化：去掉尾斜杠，根目录为空字符串
+	$_script_dir = rtrim($_script_dir, '/');
+	$conf['base_path'] = $_script_dir;
+}
+// base_path 二次规范化：确保无尾斜杠，根目录为空字符串
+$conf['base_path'] = rtrim($conf['base_path'], '/');
+$_base_path = $conf['base_path']; // 便捷别名，用于下方拼接
+
+// 为 view_url/upload_url/logo 路径添加 base_path 前缀
+// 支持：完整 URL（http://cdn.com/view/）不加前缀；相对路径（view/）加 base_path 前缀
 foreach(array('view_url', 'upload_url') as $_url_key) {
-	if(!empty($conf[$_url_key]) && $conf[$_url_key][0] !== '/' && strpos($conf[$_url_key], '://') === FALSE && strpos($conf[$_url_key], '//') !== 0) {
-		$conf[$_url_key] = '/' . $conf[$_url_key];
+	if(!empty($conf[$_url_key]) && strpos($conf[$_url_key], '://') === FALSE && strpos($conf[$_url_key], '//') !== 0) {
+		// 去掉用户配置可能带的 / 前缀，统一用 base_path 前缀
+		$_relative = ltrim($conf[$_url_key], '/');
+		$conf[$_url_key] = $_base_path . '/' . $_relative;
 	}
 }
-// 确保 logo 等图片路径也是绝对路径
 foreach(array('logo_mobile_url', 'logo_pc_url', 'logo_water_url') as $_logo_key) {
-	if(!empty($conf[$_logo_key]) && $conf[$_logo_key][0] !== '/' && strpos($conf[$_logo_key], '://') === FALSE && strpos($conf[$_logo_key], '//') !== 0) {
-		$conf[$_logo_key] = '/' . $conf[$_logo_key];
+	if(!empty($conf[$_logo_key]) && strpos($conf[$_logo_key], '://') === FALSE && strpos($conf[$_logo_key], '//') !== 0) {
+		$_relative = ltrim($conf[$_logo_key], '/');
+		$conf[$_logo_key] = $_base_path . '/' . $_relative;
 	}
 }
 

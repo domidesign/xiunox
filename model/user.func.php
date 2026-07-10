@@ -159,6 +159,7 @@ function user_read($uid) {
 	$uid = intval($uid);
 	// hook model_user_read_start.php
 	$user = user__read($uid);
+	if(empty($user)) return array(); // 用户不存在时返回空数组，保持返回类型一致，避免下游 null 解引用
 	user_format($user);
 	$g_static_users[$uid] = $user;
 	// hook model_user_read_end.php
@@ -313,6 +314,7 @@ function user_maxid($cond = array()) {
 function avatar_preset_files() {
 	static $cache = null;
 	if($cache !== null) return $cache;
+	global $conf;
 	$dir = APP_PATH.'view/img/avatars/';
 	if(!is_dir($dir)) { $cache = array(); return $cache; }
 	$files = glob($dir.'*.{png,jpg,jpeg,gif,svg,webp,bmp,avif}', GLOB_BRACE);
@@ -323,7 +325,7 @@ function avatar_preset_files() {
 		$basename = basename($fullpath);
 		$result[$i + 1] = array(
 			'filename' => $basename,
-			'url' => '/view/img/avatars/'.$basename
+			'url' => $conf['view_url'].'img/avatars/'.$basename
 		);
 	}
 	$cache = $result;
@@ -354,7 +356,7 @@ function user_format(&$user) {
 		if(isset($preset_list[$preset_id])) {
 			$user['avatar_url'] = $preset_list[$preset_id]['url'];
 		} else {
-			$user['avatar_url'] = '/view/img/avatar.png';
+			$user['avatar_url'] = default_avatar_url();
 		}
 		$user['avatar_path'] = '';
 	} elseif($user['avatar'] > 0) {
@@ -378,11 +380,11 @@ function user_format(&$user) {
 			$user['avatar_url'] = $conf['upload_url']."avatar/$dir/$user[uid].$_avatar_ext?".$user['avatar'];
 			$user['avatar_path'] = $_avatar_path;
 		} else {
-			$user['avatar_url'] = '/view/img/avatar.png';
+			$user['avatar_url'] = default_avatar_url();
 			$user['avatar_path'] = '';
 		}
 	} else {
-		$user['avatar_url'] = '/view/img/avatar.png';
+		$user['avatar_url'] = default_avatar_url();
 		$user['avatar_path'] = '';
 	}
 	
@@ -419,7 +421,7 @@ function user_guest() {
 		'gid' => 0,
 		'groupname' => lang('guest_group'),
 		'username' => lang('guest'),
-		'avatar_url' => '/view/img/avatar.png',
+		'avatar_url' => default_avatar_url(),
 		'create_ip_fmt' => '',
 		'create_date_fmt' => '',
 		'login_date_fmt' => '',

@@ -71,7 +71,7 @@
 				<td>
 					<div class="d-flex align-items-center gap-2">
 						<?php echo avatar_component_from_data(
-							isset($_user['avatar_url']) ? $_user['avatar_url'] : '/view/img/avatar.png',
+							isset($_user['avatar_url']) ? $_user['avatar_url'] : default_avatar_url(),
 							'sm',
 							isset($_user['group_icon_class']) ? $_user['group_icon_class'] : '',
 							isset($_user['group_color']) ? $_user['group_color'] : '',

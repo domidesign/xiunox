@@ -109,7 +109,7 @@
 					<?php foreach ($forum['modlist'] as $mod) { ?>
 					<div class="text-center">
 						<a href="<?php echo url("user-$mod[uid]");?>">
-							<img src="<?php echo !empty($mod['avatar_url']) ? $mod['avatar_url'] : $conf['view_url'].'img/avatar.png';?>" class="rounded-circle" width="32" height="32" alt="<?php echo esc_html(!empty($mod['display_name']) ? $mod['display_name'] : $mod['username']);?>" onerror="this.src='/view/img/avatar.png'">
+							<img src="<?php echo !empty($mod['avatar_url']) ? $mod['avatar_url'] : $conf['view_url'].'img/avatar.png';?>" class="rounded-circle" width="32" height="32" alt="<?php echo esc_html(!empty($mod['display_name']) ? $mod['display_name'] : $mod['username']);?>" onerror="this.onerror=null;this.src='<?php echo $conf['view_url']; ?>img/avatar.png'">
 						</a><br>
 						<a href="<?php echo url("user-$mod[uid]");?>" class="small text-body-secondary text-nowrap text-decoration-none"><?php echo esc_html(!empty($mod['display_name']) ? $mod['display_name'] : $mod['username']);?></a>
 					</div>
