@@ -760,6 +760,14 @@
     // 全局快捷函数（供模板 hx-on 属性直接调用）
     global.captchaRefresh = XN.captchaRefresh;
 
+    // 全局 showToast 别名：指向 XN.toast（带 escapeHtml 转义，防 XSS）
+    // 旧版 xiuno.js 的 showToast 用 innerHTML 直接拼接 message，有 XSS 风险 + 双重编码问题，已废弃
+    // type 兼容映射：error → danger（旧版用 error，Bootstrap toast 用 danger）
+    global.showToast = function(message, type) {
+        if (type === 'error') type = 'danger';
+        XN.toast(message, type);
+    };
+
     // 验证码自动初始化：监听 DOM 变化，当 [data-captcha-scene] 元素被插入时自动刷新
     // 解决 htmx boost 导航时内联 <script> 不执行的问题
     function initCaptchaOnInsert() {

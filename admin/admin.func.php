@@ -8,7 +8,9 @@ define('XN_ADMIN_BIND_IP', array_value($conf, 'admin_bind_ip'));
 // 令牌失效：flash cookie 传递 toast + 跳转登录页（替代整页 message.htm）
 function admin_token_expiry_redirect() {
 	$msg = lang('admin_token_expiry');
-	setcookie('flash_msg', rawurlencode($msg), time() + 10, '/');
+	// PHP setcookie 内部自动 urlencode，前端 decodeURIComponent 一次即可解码；
+	// 此处禁止再 rawurlencode，否则双重编码导致前端显示 %E7%AE%A1... 乱码
+	setcookie('flash_msg', $msg, time() + 10, '/');
 	setcookie('flash_type', 'danger', time() + 10, '/');
 	$login_url = url('index-login');
 	// HTMX 请求：HX-Redirect 头让 htmx 执行整页跳转

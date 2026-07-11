@@ -395,6 +395,10 @@ class AuditService {
             if(function_exists('thread_forum_list_cache_delete')) {
                 thread_forum_list_cache_delete($fid);
             }
+            // 回复审核通过后递增回帖列表版本号，使帖子详情页 60s 缓存立即失效
+            if(!empty($tid) && function_exists('post_list_cache_bump_version')) {
+                post_list_cache_bump_version($tid);
+            }
         }
         // 清除首页帖子列表缓存（审核通过后帖子出现在首页，无法按 fid 删除）
         if(function_exists('index_list_cache_delete')) {
@@ -685,6 +689,7 @@ class AuditService {
 
             // 补加帖子评论数和用户回帖数（创建时因待审未计入）+ 积分发放 + 补发延迟通知（仍按 pid 循环）
             $affected_fids = array();
+            $affected_tids = array();
             foreach($valid_pids as $pid) {
                 $post = $posts[$pid];
                 $thread = $post_threads[$pid];
@@ -707,8 +712,9 @@ class AuditService {
                 // 补发延迟通知（回复/提及）
                 self::sendDelayedNotificationsForPost($post, $thread, $operator_uid);
 
-                // 收集受影响版块用于缓存清理
+                // 收集受影响版块和主题用于缓存清理
                 if($fid > 0) $affected_fids[$fid] = true;
+                $affected_tids[intval($post['tid'])] = true;
             }
 
             // 批量记录审核日志
@@ -720,6 +726,12 @@ class AuditService {
             foreach($affected_fids as $_fid => $_) {
                 if(function_exists('thread_forum_list_cache_delete')) {
                     thread_forum_list_cache_delete($_fid);
+                }
+            }
+            // 递增回帖列表版本号，使帖子详情页 60s 缓存立即失效
+            foreach($affected_tids as $_tid => $_) {
+                if(function_exists('post_list_cache_bump_version')) {
+                    post_list_cache_bump_version($_tid);
                 }
             }
             if(function_exists('index_list_cache_delete')) {

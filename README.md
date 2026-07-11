@@ -1,6 +1,7 @@
 # XIUNOX
 
 基于 [Xiuno BBS 4.0.4](xiunobbs4.0.4.md) 原版打造的现代化重构版本 XIUNOX，
+（Xiuno BBS v4.5+，Xiuno Next均为旧项目名称，现已改名 XIUNOX）。
 全面适配 PHP 8 + MySQL 8，采用 Bootstrap 5.3 与 HTMX 构建现代无刷新 UI，
 安全与可扩展性大幅提升，原生支持多语言、RESTful API，让轻量论坛重获新生。
 
