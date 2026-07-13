@@ -425,7 +425,9 @@ function plugin_compile_srcfile($srcfile) {
 	for($i = 0; $i < 10; $i++) {
 		if(strpos($s, '<!--{hook') !== FALSE || strpos($s, '// hook') !== FALSE) {
 			$s = preg_replace('#<!--{hook\s+(.*?)}-->#', '// hook \\1', $s);
-			$s = preg_replace_callback('#//\s*hook\s+(\S+)#is', 'plugin_compile_srcfile_callback', $s);
+			// hook 名只允许字母/数字/下划线/点/短横线，避免注释里 `// hook 位于...` 被误识别
+			// ponytail: 旧正则 \S+ 贪婪匹配中文，导致注释行被当 hook 名截断引发 ParseError；合法 hook 文件名均符合 [\w.\-]+
+			$s = preg_replace_callback('#//\s*hook\s+([\w\.\-]+)#is', 'plugin_compile_srcfile_callback', $s);
 		} else {
 			break;
 		}
@@ -529,7 +531,7 @@ function plugin_compile_srcfile_callback($m) {
 				$t = preg_replace('#^\s*<\?php\s*#', '', $t);
 				$t = preg_replace('#\?>\s*$#', '', $t);
 			}
-			// 语言 hook 安全检查：验证语法有效性，防止错误代码导致整个语言系统崩溃
+		// 语言 hook 安全检查：验证语法有效性，防止错误代码导致整个语言系统崩溃
 			if($is_lang_hook && $fileext == 'php') {
 				// 检查是否只包含 $lang['key']='value' 赋值语句
 				// 允许的格式：$lang['xxx'] = 'yyy'; 或 $lang["xxx"] = 'yyy';
@@ -549,6 +551,20 @@ function plugin_compile_srcfile_callback($m) {
 					continue;
 				}
 			}
+			// PHP hook 语法预检：已废弃，不再做 token_get_all 检查
+			// ponytail: 项目里存在多种"上下文依赖型"hook 片段，单独检查必然误报：
+			//   - model_inc_file.php：数组元素片段（APP_PATH.'xxx',）
+			//   - index_route_case_end.php：switch case 片段（case 'xxx': ... break;）
+			//   - 可能还有其他片段型 hook 未发现
+			// 逐一枚举豁免太脆弱，改为不做语法预检，语法错误的 hook 由 B 部分（autoDisableCrashedPlugin 崩溃计数）兜底
+			// 保留 plugin-compile 注释注入，用于 fatal error 归因
+			// 拼接前加 plugin-compile 注释，用于 fatal error 时从 tmp 文件行号反推插件目录（见 ErrorHandler::handleShutdown）
+			// 仅 PHP hook 加注释；.htm hook 不加避免污染 HTML 输出
+			if($fileext == 'php') {
+				// 从 path 反推插件 dir：plugin/{dir}/hook/{hookname}
+				$plugin_dir = basename(dirname(dirname($path)));
+				$s .= "\n// plugin-compile: $plugin_dir  $path\n";
+			}
 			$s .= $t;
 		}
 	}
@@ -566,8 +582,8 @@ function plugin_read_by_dir($dir) {
 	!isset($local['name']) && $local['name'] = '';
 	!isset($local['price']) && $local['price'] = 0;
 	!isset($local['brief']) && $local['brief'] = '';
-	!isset($local['version']) && $local['version'] = '1.0';
-	!isset($local['bbs_version']) && $local['bbs_version'] = '4.0';
+	!isset($local['version']) && $local['version'] = '1.0.0';
+	!isset($local['bbs_version']) && $local['bbs_version'] = '1.0';
 	!isset($local['installed']) && $local['installed'] = 0;
 	!isset($local['enable']) && $local['enable'] = 0;
 	!isset($local['hooks']) && $local['hooks'] = array();

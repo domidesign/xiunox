@@ -41,7 +41,14 @@ class PluginApiRegistry {
             $registerFile = $path . '/api_register.php';
             if (!is_file($registerFile)) continue;
             // 插件在该文件中调用 PluginApiRegistry::register($key, $file)
-            include $registerFile;
+            // try/catch 隔离：单个插件 api_register.php 语法错误不让整个 API 系统崩
+            try {
+                include $registerFile;
+            } catch(\Throwable $e) {
+                if(function_exists('xn_log')) {
+                    xn_log("Plugin api_register.php error, skipped: $registerFile - ".$e->getMessage(), 'plugin_syntax_error');
+                }
+            }
         }
     }
 

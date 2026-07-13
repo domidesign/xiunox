@@ -362,12 +362,11 @@ class CacheHelper {
         if($type === 'hit') self::$stats['hit']++;
         if($type === 'miss') self::$stats['miss']++;
 
-        // DEBUG>1 模式记录缓存命中/未命中日志（DEBUG=1 太频繁不记录）
-        if(defined('DEBUG') && DEBUG > 1) {
-            $tag = $type === 'hit' ? 'HIT' : ($type === 'miss' ? 'MISS' : 'SET');
+        // DEBUG>1 模式仅记录缓存未命中（HIT/SET 是正常行为不记录，避免日志爆炸）
+        if(defined('DEBUG') && DEBUG > 1 && $type === 'miss') {
             $pluginTag = $plugin ? "[{$plugin}]" : '[core]';
             if(function_exists('xn_log')) {
-                xn_log("{$pluginTag} {$tag} {$key}", 'cache_debug');
+                xn_log("{$pluginTag} MISS {$key}", 'cache_debug');
             }
         }
     }

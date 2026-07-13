@@ -948,6 +948,8 @@ return array(
 	'ai_all_system_provided_title'=>'AI 服務由系統提供',
 	'ai_all_system_provided_desc'=>'所有 AI 功能均由站點管理員統一配置，您無需自行填寫 API Key，直接使用即可。',
 
+	'page_navigation'=>'頁碼導航',
+
 	// hook lang_zh_tw_bbs_common.php
 );
 

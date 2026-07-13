@@ -194,7 +194,12 @@ function _render_like_btn($tid, $pid, $is_liked, $likes_count, $ctx = 'post') {
 			$show_count = true;
 			break;
 	}
-	$icon_class = $is_liked ? 'ti-heart-filled text-primary' : 'ti-heart';
+	// 按上下文区分已点赞图标颜色：thread=主色（左侧栏），reply/post=红色（心形传统色，与 post_list.inc.htm 初始渲染一致）
+	if ($is_liked) {
+		$icon_class = ($ctx == 'thread') ? 'ti-heart-filled text-primary' : 'ti-heart-filled text-danger';
+	} else {
+		$icon_class = 'ti-heart';
+	}
 	$badge_class = $is_liked ? 'bg-primary' : 'bg-secondary';
 	$style_attr = $btn_style ? ' style="'.esc_html($btn_style).'"' : '';
 	$title_attr = ($ctx == 'thread') ? ' data-tip="'.esc_html($title).'"' : ' title="'.esc_html($title).'"';
@@ -202,7 +207,14 @@ function _render_like_btn($tid, $pid, $is_liked, $likes_count, $ctx = 'post') {
 	$html = '<span class="'.esc_html($btn_class).'" hx-post="'.esc_html($like_url).'" hx-vals=\'{"_ctx":"'.esc_html($ctx).'"}\' hx-target="this" hx-swap="outerHTML" hx-disable="this" hx-confirm=" " role="button"'.$title_attr.$style_attr.'>'
 		. '<i class="ti '.$icon_extra.' '.esc_html($icon_class).'"></i>';
 	if ($show_count) {
-		$html .= '<span class="'.esc_html($count_class).' '.esc_html($badge_class).'" badge="'.intval($likes_count).'"></span>';
+		// thread 上下文（左侧栏）：badge 属性 + CSS ::after 伪元素显示（与 thread_left.inc.htm 一致）
+		// reply/post 上下文（评论/回复）：文本内容直接显示数字（与 post_list.inc.htm 初始渲染一致）
+		// ponytail: 不混用两种渲染方式，避免 .like-count 无 ::after 规则导致 htmx swap 后数量消失
+		if ($count_class == 'thread-sidebar-badge') {
+			$html .= '<span class="'.esc_html($count_class).' '.esc_html($badge_class).'" badge="'.intval($likes_count).'"></span>';
+		} else {
+			$html .= '<span class="'.esc_html($count_class).'">'.intval($likes_count).'</span>';
+		}
 	}
 	$html .= '</span>';
 	return $html;
@@ -285,13 +297,6 @@ function message($code, $message, $extra = array()) {
 	// HTMX 请求处理（优先于 API 检测）
 	$is_htmx = is_htmx_request();
 	$is_htmx_boost = $is_htmx && !empty($_SERVER['HTTP_HX_BOOSTED']);
-	// 调试日志：记录请求头信息
-	if(DEBUG) {
-		$debug_hx = !empty($_SERVER['HTTP_HX_REQUEST']) ? $_SERVER['HTTP_HX_REQUEST'] : '(none)';
-		$debug_xrw = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) ? $_SERVER['HTTP_X_REQUESTED_WITH'] : '(none)';
-		$debug_boost = !empty($_SERVER['HTTP_HX_BOOSTED']) ? $_SERVER['HTTP_HX_BOOSTED'] : '(none)';
-		error_log("[message()] is_htmx=$is_htmx HX-Request=$debug_hx X-Requested-With=$debug_xrw HX-Boosted=$debug_boost code=$code");
-	}
 	if($is_htmx) {
 		// HTMX boost 导航（GET 请求）+ 错误 → 返回完整 HTML 错误页面
 		if($is_htmx_boost && $code != 0) {
@@ -440,6 +445,15 @@ function error_page($code, $message = '') {
 	// 确保 $header 已初始化，防止极早期异常时未定义
 	if(!isset($header) || !is_array($header)) {
 		$header = array('title' => '');
+	}
+
+	// 早期 hook 崩溃时 esc_html/esc_attr 可能尚未加载，提供降级实现
+	// ponytail: 不修改全局定义，只在 error_page 作用域内兜底
+	if(!function_exists('esc_html')) {
+		function esc_html($s) { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
+	}
+	if(!function_exists('esc_attr')) {
+		function esc_attr($s) { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
 	}
 
 	// 防止 error_page 自身出现错误死循环

@@ -219,6 +219,7 @@ class PluginScannerRules {
             'install_non_idempotent' => 'warning',
             'capabilities_format' => 'warning',
             'conf_version' => 'error',
+            'plugin_version_format' => 'warning',
             // XSS 风险统一 warning（可跳过，不强制阻止安装）
             'php_superglobal_output' => 'warning',
             'js_eval_call' => 'warning',
@@ -283,7 +284,8 @@ class PluginScannerRules {
             'app_path_in_url' => 'script/link 用 APP_PATH（浏览器无法访问）',
             'install_non_idempotent' => 'CREATE TABLE 缺少 IF NOT EXISTS',
             'capabilities_format' => 'capabilities 字段格式不正确（应为 lowercase.dots 字符串数组）',
-            'conf_version' => 'conf.json 版本兼容性检查（bbs_version 缺失或低于 1.0.2）',
+            'conf_version' => 'conf.json bbs_version 兼容性（必须两位制 X.Y，且 <= 当前核心主次版本）',
+            'plugin_version_format' => 'conf.json version 格式（必须三位制 X.Y.Z）',
             // XSS 风险分类中文名
             'php_superglobal_output' => 'PHP 超全局变量直接输出（反射型 XSS）',
             'js_eval_call' => 'JS eval() 调用（代码注入风险）',

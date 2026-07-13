@@ -274,21 +274,51 @@ class PluginScanner {
                 }
             }
 
-            // conf.json 版本检查：bbs_version 缺失或低于 1.0.2 升为 error 级（force=1 不可跳过）
+            // conf.json 版本规范检查：
+            // bbs_version 必须两位制（X.Y），表示兼容核心 X.Y.0-X.Y.x 分支，且 <= 当前核心主次版本
+            // version 必须三位制（X.Y.Z），不符合给 warning
             if (basename($file) === 'conf.json') {
                 $conf = @json_decode($content, true);
                 $confVersionSeverity = $this->severityLevels['conf_version'] ?? 'error';
+                $pluginVersionSeverity = $this->severityLevels['plugin_version_format'] ?? 'warning';
+
+                // 核心主次版本（XIUNOX_VERSION 取前两段，如 1.0.9 → 1.0）
+                $coreMajorMinor = defined('XIUNOX_VERSION')
+                    ? preg_replace('/^(\d+\.\d+)\..*/', '$1', XIUNOX_VERSION)
+                    : '1.0';
+
+                // bbs_version 校验
                 if ($conf && !isset($conf['bbs_version'])) {
                     $issues[] = [
                         'file' => $shortPath, 'line' => 0, 'category' => 'conf_version',
-                        'match' => 'bbs_version: (missing)', 'suggestion' => '插件缺少 bbs_version 字段，必须声明兼容的 BBS 版本（>=1.0.2）',
+                        'match' => 'bbs_version: (missing)', 'suggestion' => '插件缺少 bbs_version 字段，必须声明兼容的核心主次版本（两位制，如 "1.0"）',
                         'severity' => $confVersionSeverity, 'context' => 'bbs_version 字段缺失',
                     ];
-                } elseif ($conf && isset($conf['bbs_version']) && version_compare($conf['bbs_version'], '1.0.2', '<')) {
+                } elseif ($conf && isset($conf['bbs_version'])) {
+                    $bv = $conf['bbs_version'];
+                    if (!preg_match('/^\d+\.\d+$/', $bv)) {
+                        // 格式校验：必须两位制
+                        $issues[] = [
+                            'file' => $shortPath, 'line' => 0, 'category' => 'conf_version',
+                            'match' => "bbs_version: {$bv}", 'suggestion' => "bbs_version 必须两位制（如 \"1.0\"），表示兼容核心 X.Y.0-X.Y.x 分支，当前值 \"{$bv}\" 格式不正确",
+                            'severity' => $confVersionSeverity, 'context' => "bbs_version: {$bv}",
+                        ];
+                    } elseif (version_compare($bv, $coreMajorMinor, '>')) {
+                        // 兼容性校验：插件声明的主次版本不能高于当前核心
+                        $issues[] = [
+                            'file' => $shortPath, 'line' => 0, 'category' => 'conf_version',
+                            'match' => "bbs_version: {$bv}", 'suggestion' => "插件要求核心版本 {$bv}，当前核心版本为 {$coreMajorMinor}（XIUNOX_VERSION=" . (defined('XIUNOX_VERSION') ? XIUNOX_VERSION : '?') . "），请降低 bbs_version 或升级核心",
+                            'severity' => $confVersionSeverity, 'context' => "bbs_version: {$bv} > core: {$coreMajorMinor}",
+                        ];
+                    }
+                }
+
+                // version 三位制格式校验（warning 级，可跳过）
+                if ($conf && isset($conf['version']) && !preg_match('/^\d+\.\d+\.\d+$/', $conf['version'])) {
                     $issues[] = [
-                        'file' => $shortPath, 'line' => 0, 'category' => 'conf_version',
-                        'match' => "bbs_version: {$conf['bbs_version']}", 'suggestion' => '插件声明版本 < 1.0.2，必须更新 bbs_version 字段至 1.0.2 以上',
-                        'severity' => $confVersionSeverity, 'context' => "bbs_version: {$conf['bbs_version']}",
+                        'file' => $shortPath, 'line' => 0, 'category' => 'plugin_version_format',
+                        'match' => "version: {$conf['version']}", 'suggestion' => "插件 version 必须三位制（如 \"1.0.0\"），当前值 \"{$conf['version']}\" 不符合规范",
+                        'severity' => $pluginVersionSeverity, 'context' => "version: {$conf['version']}",
                     ];
                 }
 

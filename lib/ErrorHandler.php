@@ -82,13 +82,20 @@ class ErrorHandler
             return;
         }
 
+        // 尝试归因到插件并自动禁用反复崩溃的插件
+        // PHP 7+ 的 undefined function / undefined class 等会以 Error 异常形式抛出，走 handleException 而非 handleShutdown
+        $disabled_plugin = self::autoDisableCrashedPlugin($exception->getFile(), $exception->getLine());
+
         // 系统异常：返回 500
         if ($debug == 0) {
-            $displayMessage = '服务器内部错误';
+            $displayMessage = $disabled_plugin
+                ? "插件 [{$disabled_plugin}] 反复崩溃已自动禁用，请刷新页面"
+                : '服务器内部错误';
         } else {
             $displayMessage = get_class($exception) . ': ' . $exception->getMessage()
                 . ' in ' . $exception->getFile()
-                . ' on line ' . $exception->getLine();
+                . ' on line ' . $exception->getLine()
+                . ($disabled_plugin ? "（插件 [{$disabled_plugin}] 已自动禁用）" : '');
         }
         self::renderError(500, $displayMessage, 500, $exception);
     }
@@ -102,6 +109,9 @@ class ErrorHandler
      * 缓存损坏检测：当 fatal error 文件路径位于 tmp/ 目录时（如 min.php 合并场景
      * 产生的语法错误），自动删除损坏的缓存文件，提示用户刷新页面重建缓存，
      * 避免用户持续看到 500 错误。
+     *
+     * 插件崩溃自动禁用：对 tmp/ 文件错误和非 tmp/ 的 plugin/ 路径错误都尝试归因到
+     * 具体插件目录，1 小时内同插件崩溃超过阈值（3 次）自动禁用该插件，避免反复白屏。
      */
     public static function handleShutdown(): void
     {
@@ -129,6 +139,10 @@ class ErrorHandler
         $errorFile = str_replace('\\', '/', $error['file']);
         $isCacheCorruption = (strpos($errorFile, '/tmp/') !== false);
 
+        // 尝试归因到插件并自动禁用反复崩溃的插件
+        // 对 tmp/ 文件错误（从行号往前找 plugin-compile 注释）和非 tmp/ 的 plugin/ 路径错误都尝试归因
+        $disabled_plugin = self::autoDisableCrashedPlugin($error['file'], $error['line']);
+
         if ($isCacheCorruption) {
             // 记录缓存损坏日志（文件名包含 error，确保生产环境也写入）
             $cacheFile = $error['file'];
@@ -141,13 +155,30 @@ class ErrorHandler
 
             // 提示用户刷新页面重建缓存
             if ($debug == 0) {
-                $displayMessage = '服务器缓存损坏，请刷新页面重试';
+                $displayMessage = $disabled_plugin
+                    ? "插件 [{$disabled_plugin}] 反复崩溃已自动禁用，请刷新页面"
+                    : '服务器缓存损坏，请刷新页面重试';
             } else {
                 $displayMessage = "Cache corruption: {$error['message']}"
                     . " in {$error['file']}"
-                    . " on line {$error['line']}（缓存已清理，请刷新）";
+                    . " on line {$error['line']}"
+                    . ($disabled_plugin ? "（插件 [{$disabled_plugin}] 已自动禁用）" : '（缓存已清理，请刷新）');
             }
 
+            self::renderError(500, $displayMessage, 500);
+            return;
+        }
+
+        // 非 tmp/ 错误（如 plugin/xxx/file.php 直接报错），且成功归因并禁用了插件
+        if ($disabled_plugin) {
+            if ($debug == 0) {
+                $displayMessage = "插件 [{$disabled_plugin}] 反复崩溃已自动禁用，请刷新页面";
+            } else {
+                $displayMessage = "Fatal Error: {$error['message']}"
+                    . " in {$error['file']}"
+                    . " on line {$error['line']}"
+                    . "（插件 [{$disabled_plugin}] 已自动禁用）";
+            }
             self::renderError(500, $displayMessage, 500);
             return;
         }
@@ -162,6 +193,109 @@ class ErrorHandler
         }
 
         self::renderError(500, $displayMessage, 500);
+    }
+
+    /**
+     * 归因 fatal error / Throwable 到具体插件目录，超过崩溃阈值时自动禁用该插件
+     *
+     * 归因策略：
+     * 1. 错误文件路径直接在 plugin/xxx/ 下 → 插件 dir = xxx
+     * 2. 错误文件在 tmp/ 目录下 → 读 tmp 文件，从错误行号往前找最近的 `// plugin-compile: {dir}` 注释
+     *    （该注释由 plugin_compile_srcfile_callback 在编译时拼接注入）
+     *
+     * 计数策略：cache_get/cache_set 实现 1 小时滚动窗口计数，超阈值（3 次）自动禁用
+     * 禁用操作：写 conf.json enable=0 + db_update + 清 tmp 目录
+     * ponytail: 不调 plugin_disable() 因为它依赖 global $plugins（前台未初始化），直接操作 conf.json + db
+     *
+     * @param string $errorFile 错误发生的文件路径（__FILE__ / $exception->getFile()）
+     * @param int    $errorLine 错误发生的行号
+     * @return string|null 成功归因并禁用返回插件 dir，未归因或未达阈值返回 null
+     */
+    private static function autoDisableCrashedPlugin(string $errorFile, int $errorLine): ?string
+    {
+        if (!defined('APP_PATH')) return null;
+
+        $file = str_replace('\\', '/', $errorFile);
+        $line = $errorLine;
+        $plugin_dir = null;
+
+        // 1. 错误文件直接在 plugin/xxx/ 路径下
+        if (preg_match('#/plugin/([^/]+)/#', $file, $m)) {
+            $plugin_dir = $m[1];
+        }
+        // 2. 错误文件在 tmp/ 路径下，从行号往前找 plugin-compile 注释
+        elseif (strpos($file, '/tmp/') !== false && is_file($errorFile) && $line > 0) {
+            $content = @file($errorFile);
+            if ($content !== false) {
+                $max_line = min($line, count($content));
+                for ($i = $max_line - 1; $i >= 0; $i--) {
+                    if (preg_match('#//\s*plugin-compile:\s*(\S+)#', $content[$i], $m)) {
+                        $plugin_dir = $m[1];
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (empty($plugin_dir)) return null;
+
+        // 计数 +1（1 小时窗口）
+        $cache_key = 'plugin_crash_' . $plugin_dir;
+        $count = 0;
+        if (function_exists('cache_get')) {
+            $cached = cache_get($cache_key);
+            $count = $cached ? intval($cached) : 0;
+        }
+        $count++;
+        if (function_exists('cache_set')) {
+            cache_set($cache_key, $count, 3600);
+        }
+
+        // 阈值：3 次/小时
+        $threshold = 3;
+        if ($count < $threshold) {
+            xn_log("Plugin crash count {$count}/{$threshold} for [{$plugin_dir}]", 'plugin_crash_error');
+            return null;
+        }
+
+        // 达到阈值，自动禁用
+        xn_log("Plugin [{$plugin_dir}] crashed {$count} times within 1h, auto-disabling", 'plugin_crash_error');
+
+        $plugin_path = APP_PATH . 'plugin/' . $plugin_dir;
+        $conf_file = $plugin_path . '/conf.json';
+
+        // 1. 写 conf.json enable=0
+        if (is_file($conf_file) && function_exists('file_replace_var')) {
+            try {
+                file_replace_var($conf_file, array('enable' => 0), TRUE);
+            } catch (\Throwable $e) {
+                // 忽略，继续尝试 db
+            }
+        }
+
+        // 2. 写数据库 enable=0
+        global $db, $tablepre, $time;
+        if (is_object($db) && function_exists('db_update') && isset($tablepre)) {
+            try {
+                db_update('plugin', array('dir' => $plugin_dir), array('enable' => 0, 'update_time' => $time));
+            } catch (\Throwable $e) {
+                // 忽略数据库错误
+            }
+        }
+
+        // 3. 清 tmp 目录，触发下次请求重新编译（已禁用插件的 hook 不会被编译进去）
+        global $conf;
+        if (isset($conf['tmp_path'])) {
+            $tmp_path = $conf['tmp_path'];
+            if (function_exists('rmdir_recusive')) {
+                @rmdir_recusive($tmp_path, TRUE);
+            }
+            if (function_exists('xn_unlink')) {
+                @xn_unlink($tmp_path . 'model.min.php');
+            }
+        }
+
+        return $plugin_dir;
     }
 
     /**

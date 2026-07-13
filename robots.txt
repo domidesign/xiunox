@@ -27,5 +27,72 @@ Disallow: /upload/tmp/
 # 静态资源（无需索引）
 Disallow: /view/vendor/
 
+# ===== AI 爬虫（全部允许，最大化 AI 引擎曝光）=====
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: PerplexityUser
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+# ===== 国内 AI 爬虫 =====
+# 豆包 / 字节跳动 AI（Bytespider 已在上面允许）
+User-agent: ToutiaoSpider
+Allow: /
+
+# 百度 AI / 文心一言（Baiduspider 系列）
+User-agent: Baiduspider
+Allow: /
+
+User-agent: Baiduspider-render
+Allow: /
+
+User-agent: Baiduspider-image
+Allow: /
+
+# 搜狗 AI
+User-agent: sogou spider
+Allow: /
+
+User-agent: Sogou web spider
+Allow: /
+
+# 360 AI
+User-agent: 360Spider
+Allow: /
+
+User-agent: HaosouSpider
+Allow: /
+
+# 神马搜索（UC/阿里）
+User-agent: YisouSpider
+Allow: /
+
 # Sitemap
-# Sitemap: https://www.example.com/sitemap.xml
+Sitemap: /sitemap

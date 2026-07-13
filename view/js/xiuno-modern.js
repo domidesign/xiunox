@@ -19,6 +19,16 @@
 (function (global) {
     'use strict';
 
+    // 浏览器控制台版本标识输出
+    (function () {
+        var url = 'https://github.com/domidesign/xiunox';
+        var style = 'font-size:12px;font-weight:bold;color:#fff;background:#0d6efd;padding:2px 8px;border-radius:3px;';
+        var urlStyle = 'font-size:12px;color:#6c757d;';
+        if (typeof console !== 'undefined' && console.log) {
+            console.log('%cXIUNOX%c\n' + url, style, urlStyle);
+        }
+    })();
+
     var XN = global.XN || {};
 
     // 从页面中的 CSRF token hidden input 自动获取

@@ -964,6 +964,8 @@ return array(
 	'ai_all_system_provided_title'=>'AI Service Provided by System',
 	'ai_all_system_provided_desc'=>'All AI features are configured by the site administrator. You do not need to fill in an API Key — just use them directly.',
 
+	'page_navigation'=>'Page navigation',
+
 	// hook lang_en_us_bbs_common.php
 );
 

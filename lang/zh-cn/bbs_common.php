@@ -989,6 +989,8 @@ return array(
 	'ai_all_system_provided_title'=>'AI 服务由系统提供',
 	'ai_all_system_provided_desc'=>'所有 AI 功能均由站点管理员统一配置，您无需自行填写 API Key，直接使用即可。',
 
+	'page_navigation'=>'页码导航',
+
 	// hook lang_zh_cn_bbs_common.php
 );
 

@@ -62,7 +62,7 @@ if(DEBUG || !empty($conf['cache_disable'])) {
 	if(!$isfile) {
 		$s = '';
 		foreach($include_model_files as $model_files) {
-			
+
 			// 压缩后不利于调试，有时候碰到未结束的 php 标签，会暴 500 错误
 			//$s .= php_strip_whitespace(_include($model_files));
 
@@ -70,6 +70,22 @@ if(DEBUG || !empty($conf['cache_disable'])) {
 			$t = trim($t);
 			$t = ltrim($t, '<?php');
 			$t = rtrim($t, '?>');
+
+			// 插件 model 文件做语法预检，核心 model 信任不检查
+			// 防止单个插件 Service 类语法错误导致整个 model.min.php 解析失败全站白屏
+			// ponytail: 必须检查原始文件 $model_files，不是 _include() 编译后的 tmp 文件
+			// 因为编译后的内容含 hook 注入的数组元素片段，不是完整 PHP 文件，token_get_all 会误报
+			// TOKEN_PARSE 自 PHP 7.3 起会抛 ParseError，纯 PHP 实现零开销
+			if(strpos($model_files, '/plugin/') !== false && is_file($model_files)) {
+				$raw = file_get_contents($model_files);
+				try {
+					@token_get_all($raw, TOKEN_PARSE);
+				} catch(\Throwable $e) {
+					xn_log("Plugin model file syntax error, skipped: $model_files - ".$e->getMessage(), 'plugin_syntax_error');
+					continue;
+				}
+			}
+
 			$s .= "<?php\r\n".$t."\r\n?>";
 
 		}

@@ -14,6 +14,9 @@ class AuditService {
     const STATUS_PENDING = 0;
     const STATUS_APPROVED = 1;
     const STATUS_REJECTED = 2;
+    // 忽略：从审核队列移除，内容保持不可见，作者无感知，不通知不积分不计统计
+    // 未来可通过将 audit_status 改回 STATUS_PENDING 恢复到待审
+    const STATUS_IGNORED = 3;
 
     // 重新提交次数上限（含首次发布）
     const MAX_RESUBMIT_COUNT = 5;
@@ -447,6 +450,158 @@ class AuditService {
         
         self::log_audit($operator_uid, $target_type, $target_id, 'reject', $reason);
         return true;
+    }
+
+    /**
+     * 忽略审核：从审核队列移除，内容保持不可见，作者无感知
+     * 不发通知、不计统计、不发积分、不允许重新提交
+     * 仅记录审核日志，便于未来恢复到待审
+     */
+    public static function ignore(string $target_type, int $target_id, int $operator_uid): bool {
+        $table = $target_type === 'thread' ? 'thread' : 'post';
+        $pk = $target_type === 'thread' ? 'tid' : 'pid';
+        $row = $target_type === 'thread' ? thread__read($target_id) : post__read($target_id);
+        if (empty($row)) return false;
+
+        // 仅待审状态可忽略（已通过/已驳回/已忽略的不重复操作）
+        if (intval($row['audit_status']) !== self::STATUS_PENDING) return false;
+
+        $r = db_update($table, [$pk => $target_id], ['audit_status' => self::STATUS_IGNORED]);
+        if ($r === false) return false;
+
+        self::log_audit($operator_uid, $target_type, $target_id, 'ignore', '');
+
+        // 清除受影响版块/首页列表缓存（被忽略后内容仍不出现在前台，但状态变化影响管理后台统计）
+        $fid = 0;
+        if ($target_type === 'thread') {
+            $fid = intval($row['fid']);
+        } else {
+            $thread = thread__read(intval($row['tid']));
+            $fid = $thread ? intval($thread['fid']) : 0;
+            if (!empty($thread) && function_exists('post_list_cache_bump_version')) {
+                post_list_cache_bump_version(intval($row['tid']));
+            }
+        }
+        if ($fid > 0 && function_exists('thread_forum_list_cache_delete')) {
+            thread_forum_list_cache_delete($fid);
+        }
+        if (function_exists('index_list_cache_delete')) {
+            index_list_cache_delete();
+        }
+        return true;
+    }
+
+    /**
+     * 批量忽略
+     * @return int 成功处理数
+     */
+    public static function batch_ignore(string $target_type, array $ids, int $operator_uid): int {
+        if (empty($ids)) return 0;
+        $ids = array_map('intval', $ids);
+        $ids = array_filter($ids);
+        $ids = array_unique($ids);
+        if (empty($ids)) return 0;
+
+        $table = $target_type === 'thread' ? 'thread' : 'post';
+        $pk = $target_type === 'thread' ? 'tid' : 'pid';
+        $rows = db_find($table, [$pk => $ids], [], 1, count($ids), $pk);
+        if (empty($rows)) return 0;
+
+        $valid_ids = array();
+        $affected_fids = array();
+        $affected_tids = array();
+        foreach ($rows as $id => $row) {
+            if (intval($row['audit_status']) !== self::STATUS_PENDING) continue;
+            $valid_ids[] = intval($id);
+            if ($target_type === 'thread') {
+                $_fid = intval($row['fid']);
+                if ($_fid > 0) $affected_fids[$_fid] = true;
+            } else {
+                $_tid = intval($row['tid']);
+                $affected_tids[$_tid] = true;
+            }
+        }
+        if (empty($valid_ids)) return 0;
+
+        $r = db_update($table, [$pk => $valid_ids], ['audit_status' => self::STATUS_IGNORED]);
+        if ($r === false) return 0;
+
+        // 批量记录审核日志
+        foreach ($valid_ids as $id) {
+            self::log_audit($operator_uid, $target_type, $id, 'ignore', '');
+        }
+
+        // 回帖场景需查询关联主题以收集 fid
+        if ($target_type === 'post' && !empty($affected_tids)) {
+            $tmp_threads = db_find('thread', ['tid' => array_keys($affected_tids)], [], 1, count($affected_tids), 'tid');
+            foreach ($tmp_threads as $_t) {
+                $_fid = intval($_t['fid']);
+                if ($_fid > 0) $affected_fids[$_fid] = true;
+            }
+        }
+
+        foreach ($affected_fids as $_fid => $_) {
+            if (function_exists('thread_forum_list_cache_delete')) {
+                thread_forum_list_cache_delete($_fid);
+            }
+        }
+        if ($target_type === 'post') {
+            foreach ($affected_tids as $_tid => $_) {
+                if (function_exists('post_list_cache_bump_version')) {
+                    post_list_cache_bump_version($_tid);
+                }
+            }
+        }
+        if (function_exists('index_list_cache_delete')) {
+            index_list_cache_delete();
+        }
+        return count($valid_ids);
+    }
+
+    /**
+     * 忽略个人资料变更：从资料审核队列移除，不应用变更，不通知用户
+     * 头像变更忽略时删除临时待审头像文件（与 reject 一致，避免文件残留）
+     */
+    public static function ignore_profile(int $audit_id, int $operator_uid): bool {
+        $audit = user_profile_audit_read($audit_id);
+        if (empty($audit)) return false;
+        if ($audit['audit_status'] != self::STATUS_PENDING) return false;
+
+        // 头像忽略时删除临时待审头像文件（与 reject_profile 行为一致）
+        if ($audit['field_name'] === 'avatar') {
+            global $conf;
+            $avatar_dir = substr(sprintf("%09d", $audit['uid']), 0, 3).'/';
+            $avatar_path = $conf['upload_path'].'avatar/'.$avatar_dir;
+            foreach (array('jpg', 'png') as $_ext) {
+                $pending_file = $avatar_path.$audit['uid'].'_pending_'.$audit['new_value'].'.'.$_ext;
+                if (is_file($pending_file)) {
+                    @unlink($pending_file);
+                }
+            }
+        }
+
+        global $time;
+        user_profile_audit_update($audit_id, array(
+            'audit_status' => self::STATUS_IGNORED,
+            'operator_uid' => $operator_uid,
+            'audit_date' => $time,
+        ));
+
+        self::log_audit($operator_uid, 'profile', $audit_id, 'ignore', '');
+        return true;
+    }
+
+    /**
+     * 批量忽略个人资料变更
+     */
+    public static function batch_ignore_profiles(array $ids, int $operator_uid): int {
+        $count = 0;
+        foreach ($ids as $id) {
+            if (self::ignore_profile(intval($id), $operator_uid)) {
+                $count++;
+            }
+        }
+        return $count;
     }
 
     /**
@@ -1224,7 +1379,8 @@ class AuditService {
         }
 
         // 同时写入管理员操作日志
-        $action_label = $action === 'approve' ? '审核通过' : '审核驳回';
+        $action_labels = array('approve' => '审核通过', 'reject' => '审核驳回', 'ignore' => '审核忽略');
+        $action_label = $action_labels[$action] ?? '审核' . $action;
         $detail = $action_label . ' ' . $target_type . ':' . $target_id . ($reason ? ' 原因：' . $reason : '');
         admin_log_create('audit_' . $action, $target_type, strval($target_id), $detail);
 

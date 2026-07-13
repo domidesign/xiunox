@@ -48,8 +48,20 @@ if($method == 'GET') {
         $ids = param('ids', array());
         $reason = param('reason', '', FALSE);
         if(empty($target_type) || empty($ids)) message(-1, '参数错误');
-        $count = AuditService::batch_reject($target_type, $ids, $operator_uid, $reason);
+        $count = AuditService::batch_reject($target_type, $ids, $operator_uid);
         $count > 0 ? message(0, '成功驳回 ' . $count . ' 项') : message(-1, '操作失败');
+    } elseif($audit_action == 'ignore') {
+        $target_type = param('target_type', '', FALSE);
+        $target_id = param('target_id', 0);
+        if(empty($target_type) || empty($target_id)) message(-1, '参数错误');
+        $r = AuditService::ignore($target_type, $target_id, $operator_uid);
+        $r ? message(0, '已忽略') : message(-1, '操作失败');
+    } elseif($audit_action == 'batch_ignore') {
+        $target_type = param('target_type', '', FALSE);
+        $ids = param('ids', array());
+        if(empty($target_type) || empty($ids)) message(-1, '参数错误');
+        $count = AuditService::batch_ignore($target_type, $ids, $operator_uid);
+        $count > 0 ? message(0, '成功忽略 ' . $count . ' 项') : message(-1, '操作失败');
     } elseif($audit_action == 'profile_approve') {
         $audit_id = param('audit_id', 0);
         if(empty($audit_id)) message(-1, '参数错误');
@@ -66,6 +78,16 @@ if($method == 'GET') {
         if(empty($ids)) message(-1, '参数错误');
         $r = AuditService::batch_approve_profiles($ids, $operator_uid);
         $r ? message(0, '批量通过成功') : message(-1, '操作失败');
+    } elseif($audit_action == 'profile_ignore') {
+        $audit_id = param('audit_id', 0);
+        if(empty($audit_id)) message(-1, '参数错误');
+        $r = AuditService::ignore_profile($audit_id, $operator_uid);
+        $r ? message(0, '已忽略') : message(-1, '操作失败');
+    } elseif($audit_action == 'profile_batch_ignore') {
+        $ids = param('ids', array());
+        if(empty($ids)) message(-1, '参数错误');
+        $count = AuditService::batch_ignore_profiles($ids, $operator_uid);
+        $count > 0 ? message(0, '成功忽略 ' . $count . ' 项') : message(-1, '操作失败');
     } else {
         message(-1, '未知操作');
     }
