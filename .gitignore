@@ -26,3 +26,7 @@ RULES.md
 
 # Update logs
 update_*.md
+
+# release 分支：不跟踪文档和 md 文件
+*.md
+docs/
