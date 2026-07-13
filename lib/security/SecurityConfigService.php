@@ -45,6 +45,8 @@ class SecurityConfigService {
         // 上传限制
         'security_avatar_upload_limit' => 3,           // 上传头像次数限制
         'security_avatar_max_size' => 512,             // 头像文件最大尺寸（KB）
+        // 上传 MIME 校验模式：1=严格（必须有 fileinfo 扩展），0=兼容（fileinfo 不可时图片用 getimagesize 降级，非图片仅扩展名校验）
+        'security_upload_strict_mime' => 1,
 
         // 资料修改次数限制（30天周期内）
         'security_nickname_change_limit' => 1,         // 昵称修改次数限制（30天内，0=不限制）

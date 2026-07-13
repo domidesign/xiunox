@@ -401,6 +401,60 @@ class AttachmentService {
     }
 
     /**
+     * 上传 MIME 校验（静态入口，供路由层调用，支持 fileinfo 不可用时的降级）
+     *
+     * 行为由 security_upload_strict_mime 配置控制：
+     * - 严格模式（默认 1）：fileinfo 不可用 → 拒绝上传（与旧版行为一致，安全优先）
+     * - 兼容模式（0）：fileinfo 不可用时降级
+     *     · 图片：用 getimagesize() 读取真实 MIME，命中白名单才通过
+     *     · 非图片：仅依赖扩展名白名单（调用方已校验），跳过 MIME 校验
+     *
+     * fileinfo 可用时两种模式都走严格校验，不存在降级。
+     *
+     * @param string $tmpfile        临时文件路径
+     * @param array  $allowed_mimes  MIME 白名单
+     * @param bool   $is_image       是否图片（兼容模式降级用）
+     * @return bool
+     */
+    public static function verifyUploadMime($tmpfile, array $allowed_mimes, $is_image = false) {
+        if(!class_exists('SecurityConfigService')) {
+            include_once APP_PATH.'lib/security/SecurityConfigService.php';
+        }
+        $strict = intval(SecurityConfigService::get('security_upload_strict_mime', 1));
+
+        // fileinfo 可用：两种模式都走严格校验
+        if(function_exists('finfo_open')) {
+            $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+            if($finfo) {
+                $real_mime = @finfo_file($finfo, $tmpfile);
+                if(PHP_VERSION_ID < 80000) finfo_close($finfo);
+                if($real_mime === false || !in_array($real_mime, $allowed_mimes)) {
+                    return false;
+                }
+                return true;
+            }
+        }
+
+        // fileinfo 不可用
+        if($strict) {
+            // 严格模式：拒绝
+            return false;
+        }
+
+        // 兼容模式：图片用 getimagesize 校验，非图片跳过 MIME 校验（仅扩展名校验由调用方完成）
+        // ponytail: getimagesize 仅识别图片格式，对非图片返回 false；这覆盖了头像/普通图片上传场景
+        if($is_image) {
+            $imginfo = @getimagesize($tmpfile);
+            if(!$imginfo || empty($imginfo['mime']) || !in_array($imginfo['mime'], $allowed_mimes)) {
+                return false;
+            }
+            return true;
+        }
+
+        return true;
+    }
+
+    /**
      * 保存上传信息到 session
      * @param string $url 文件URL
      * @param string $path 文件物理路径

@@ -115,6 +115,7 @@ if($action == '' || $action == 'post_limit') {
         $data = array();
         $data['security_avatar_upload_limit'] = param('security_avatar_upload_limit', 3);
         $data['security_avatar_max_size'] = param('security_avatar_max_size', 512);
+        $data['security_upload_strict_mime'] = param('security_upload_strict_mime', 1);
         $data['security_nickname_change_limit'] = param('security_nickname_change_limit', 1);
         $data['security_signature_change_limit'] = param('security_signature_change_limit', 3);
         $data['security_iframe_whitelist'] = param('security_iframe_whitelist', '', FALSE);

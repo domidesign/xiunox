@@ -831,6 +831,8 @@ return array(
 	'admin_avatar_upload_limit_label'=>'頭像上傳次數限制',
 	'admin_avatar_max_size_label'=>'頭像檔案最大尺寸',
 	'tip_limit_upload_size'=>'限制上傳檔案大小',
+	'admin_upload_strict_mime_label'=>'上傳 MIME 嚴格校驗',
+	'tip_upload_strict_mime_desc'=>'開啟：必須 fileinfo 擴充功能，安全性最高；關閉：fileinfo 不可時圖片降級到 getimagesize，非圖片僅副檔名校驗（適用於虛擬主機無法安裝 fileinfo）',
 	'admin_rate_limit'=>'操作頻率限制',
 	'admin_search_interval_label'=>'搜尋間隔',
 	'tip_prevent_frequent_search'=>'防止頻繁搜尋，0 為不限制',

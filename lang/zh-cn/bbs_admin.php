@@ -826,6 +826,8 @@ return array(
 	'admin_avatar_upload_limit_label'=>'头像上传次数限制',
 	'admin_avatar_max_size_label'=>'头像文件最大尺寸',
 	'tip_limit_upload_size'=>'限制上传文件大小',
+	'admin_upload_strict_mime_label'=>'上传 MIME 严格校验',
+	'tip_upload_strict_mime_desc'=>'开启：必须 fileinfo 扩展，安全性最高；关闭：fileinfo 不可时图片降级到 getimagesize，非图片仅扩展名校验（适用于虚拟主机无法安装 fileinfo）',
 	'admin_profile_change_limit'=>'资料修改次数限制',
 	'admin_iframe_whitelist_settings'=>'iframe 嵌入白名单',
 	'admin_iframe_whitelist_desc'=>'配置允许在帖子中嵌入的 iframe 视频域名白名单，每行一个域名，支持通配符 *.example.com',

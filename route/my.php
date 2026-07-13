@@ -515,22 +515,15 @@ if(empty($action)) {
 			$ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
 			!in_array($ext, $allowed) AND message(-1, lang('file_type_not_allowed'));
 			// 真实 MIME 校验，防止伪造扩展名上传恶意文件（参考 route/attach.php）
-			// finfo 不可用或无法识别文件类型时拒绝上传，不静默降级
+			// 行为受 security_upload_strict_mime 控制：严格模式必须有 fileinfo；兼容模式 fileinfo 不可时图片降级到 getimagesize
+			if(!class_exists('AttachmentService')) {
+				include APP_PATH.'service/AttachmentService.php';
+			}
 			$avatar_mimes = array('image/jpeg', 'image/pjpeg', 'image/png', 'image/gif', 'image/bmp', 'image/x-ms-bmp');
 			if(in_array('webp', $allowed)) {
 				$avatar_mimes[] = 'image/webp';
 			}
-			if(!function_exists('finfo_open')) {
-				message(-1, lang('file_mime_not_allowed'));
-			}
-			$finfo = @finfo_open(FILEINFO_MIME_TYPE);
-			if(!$finfo) {
-				message(-1, lang('file_mime_not_allowed'));
-			}
-			$real_mime = @finfo_file($finfo, $file['tmp_name']);
-			// PHP 8.0+ finfo 是对象，finfo_close 是 no-op，PHP 8.5 已 deprecated
-			if(PHP_VERSION_ID < 80000) finfo_close($finfo);
-			if($real_mime === false || !in_array($real_mime, $avatar_mimes)) {
+			if(!AttachmentService::verifyUploadMime($file['tmp_name'], $avatar_mimes, true)) {
 				message(-1, lang('file_mime_not_allowed'));
 			}
 			// 校验文件大小（使用后台配置，0=不限制）

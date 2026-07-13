@@ -662,6 +662,8 @@ return array(
 	'admin_avatar_upload_limit_label'=>'Avatar upload limit',
 	'admin_avatar_max_size_label'=>'Max avatar file size',
 	'tip_limit_upload_size'=>'Limit upload file size',
+	'admin_upload_strict_mime_label'=>'Strict MIME check on upload',
+	'tip_upload_strict_mime_desc'=>'On: requires fileinfo extension (most secure). Off: when fileinfo is unavailable, images fall back to getimagesize and other files use extension check only (suitable for shared hosts without fileinfo)',
 	'admin_rate_limit'=>'Rate Limits',
 	'admin_search_interval_label'=>'Search interval',
 	'tip_prevent_frequent_search'=>'Prevent frequent searches, 0 = no limit',

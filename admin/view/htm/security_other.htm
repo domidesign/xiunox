@@ -28,6 +28,16 @@
 				</div>
 				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_limit_upload_size')?></small></div>
 			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_upload_strict_mime_label')?></label>
+				<div class="col-sm-6">
+					<input type="hidden" name="security_upload_strict_mime" value="0">
+					<div class="form-check form-switch">
+						<input class="form-check-input" type="checkbox" name="security_upload_strict_mime" value="1" <?php echo !empty($security_config['security_upload_strict_mime']) ? 'checked' : '';?>>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_upload_strict_mime_desc')?></small></div>
+			</div>
 
 			<hr class="my-4">
 
