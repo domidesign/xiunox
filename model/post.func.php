@@ -20,13 +20,20 @@ function post__create($arr, $gid) {
 function post__update($pid, $arr) {
 	// hook model_post__update_start.php
 	$r = db_update('post', array('pid'=>$pid), $arr);
+	// 清除 post__read 的请求级缓存
+	global $g_post_read_cache;
+	unset($g_post_read_cache[$pid]);
 	// hook model_post__update_end.php
 	return $r;
 }
 
 function post__read($pid) {
 	// hook model_post__read_start.php
+	global $g_post_read_cache;
+	if (!is_array($g_post_read_cache)) $g_post_read_cache = array();
+	if (isset($g_post_read_cache[$pid])) return $g_post_read_cache[$pid];
 	$post = db_find_one('post', array('pid'=>$pid));
+	$g_post_read_cache[$pid] = $post;
 	// hook model_post__read_end.php
 	return $post;
 }
@@ -34,6 +41,9 @@ function post__read($pid) {
 function post__delete($pid) {
 	// hook model_post__delete_start.php
 	$r = db_delete('post', array('pid'=>$pid));
+	// 清除 post__read 的请求级缓存
+	global $g_post_read_cache;
+	unset($g_post_read_cache[$pid]);
 	// hook model_post__delete_end.php
 	return $r;
 }

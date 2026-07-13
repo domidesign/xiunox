@@ -649,7 +649,7 @@ return array(
 	'clear'=>'清空',
 	'no_thread_found'=>'未找到相关帖子',
 	'no_user_found'=>'未找到相关用户',
-	'keyword_too_short'=>'关键词至少需要2个字符',
+	'keyword_too_short'=>'关键词至少需要 {min} 个字符',
 	'search_content'=>'内容',
 	'search_summary'=>'摘要',
 	'search_relevance'=>'相关度',

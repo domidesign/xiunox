@@ -79,15 +79,25 @@
 				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_prevent_frequent_search')?></small></div>
 			</div>
 			<div class="row mb-3">
-				<label class="col-sm-3 col-form-label"><?php echo lang('admin_search_require_login_label')?></label>
-				<div class="col-sm-6">
-					<input type="hidden" name="security_search_require_login" value="0">
-					<div class="form-check form-switch">
-						<input class="form-check-input" type="checkbox" name="security_search_require_login" value="1" <?php echo !empty($security_config['security_search_require_login']) ? 'checked' : '';?>>
-					</div>
+			<label class="col-sm-3 col-form-label"><?php echo lang('admin_search_require_login_label')?></label>
+			<div class="col-sm-6">
+				<input type="hidden" name="security_search_require_login" value="0">
+				<div class="form-check form-switch">
+					<input class="form-check-input" type="checkbox" name="security_search_require_login" value="1" <?php echo !empty($security_config['security_search_require_login']) ? 'checked' : '';?>>
 				</div>
-				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_search_require_login_desc')?></small></div>
 			</div>
+			<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_search_require_login_desc')?></small></div>
+		</div>
+		<div class="row mb-3">
+			<label class="col-sm-3 col-form-label"><?php echo lang('admin_search_min_length_label')?></label>
+			<div class="col-sm-6">
+				<div class="input-group">
+					<input type="number" class="form-control rounded-pill" name="security_search_min_length" value="<?php echo $security_config['security_search_min_length'];?>" min="1" max="10">
+					<span class="input-group-text"><?php echo lang('unit_char')?></span>
+				</div>
+			</div>
+			<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_search_min_length_desc')?></small></div>
+		</div>
 
 			<hr class="my-4">
 

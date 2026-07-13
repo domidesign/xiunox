@@ -70,7 +70,8 @@ function user_profile_audit_find_by_uid($uid, $audit_status = 0) {
 
 // 获取待审资料列表
 function user_profile_audit_find_pending($page = 1, $pagesize = 20) {
-    $cond = array('audit_status'=>0);
+    // 包含待审(0)和已忽略(3)：已忽略的仍留在列表供后续通过/拒绝
+    $cond = array('audit_status'=>array(0, 3));
     $auditlist = db_find('user_profile_audit', $cond, array('id'=>-1), $page, $pagesize, 'id');
     if($auditlist) {
         global $conf;

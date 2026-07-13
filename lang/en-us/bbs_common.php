@@ -633,7 +633,7 @@ return array(
 	'clear'=>'Clear',
 	'no_thread_found'=>'No related threads found',
 	'no_user_found'=>'No related users found',
-	'keyword_too_short'=>'Keyword must be at least 2 characters',
+	'keyword_too_short'=>'Keyword must be at least {min} characters',
 	'search_content'=>'Content',
 	'search_summary'=>'Summary',
 	'search_relevance'=>'Relevance',

@@ -120,6 +120,7 @@ if($action == '' || $action == 'post_limit') {
         $data['security_iframe_whitelist'] = param('security_iframe_whitelist', '', FALSE);
         $data['security_search_interval'] = param('security_search_interval', 10);
         $data['security_search_require_login'] = param('security_search_require_login', 0);
+        $data['security_search_min_length'] = max(1, min(10, intval(param('security_search_min_length', 2))));
         $data['security_cookie_secure'] = param('security_cookie_secure', 0);
         $data['security_cookie_httponly'] = param('security_cookie_httponly', 1);
         $data['security_cookie_samesite'] = param('security_cookie_samesite', 'Lax');

@@ -68,6 +68,16 @@ $keyword_safe = str_replace(array('\'', '\\', '"', '%', '<', '>', '`', '*', '&',
 $keyword_safe = preg_replace('#\s+#', ' ', $keyword_safe);
 $keyword_safe = trim($keyword_safe);
 
+// LIKE 查询用的转义值（转义 _ 和 % 通配符，避免搜索词中的符号被当通配符导致匹配范围爆炸）
+$kw_like = '%' . str_replace(array('\\', '%', '_'), array('\\\\', '\\%', '\\_'), $keyword_safe) . '%';
+
+// 检测关键词是否纯 ASCII（英文/数字/符号）
+// 纯 ASCII 关键词跳过 FULLTEXT+ngram（ngram 对英文分词不友好且会过滤符号），直接用 LIKE 精确子串匹配
+$is_ascii_keyword = !preg_match('/[^\x20-\x7E]/', $keyword_safe);
+
+// 搜索最小字符数（供模板使用）
+$search_min_length = SecurityConfigService::get('security_search_min_length', 2);
+
 $pagesize = $conf['pagesize'];
 $threadlist = array();
 $pagination = '';
@@ -132,9 +142,9 @@ function search_ensure_fulltext($table, $column, $index_name) {
 }
 
 if($keyword_safe) {
-    // 关键词长度校验（FULLTEXT + ngram 最少2字符，最多50字符防 DoS）
+    // 关键词长度校验（最多50字符防 DoS）
     $_kw_len = mb_strlen($keyword_safe);
-    if($_kw_len < 2) {
+    if($_kw_len < $search_min_length) {
         $keyword_too_short = true;
     } elseif($_kw_len > 50) {
         message(-1, lang('search_keyword_too_long'));
@@ -148,19 +158,21 @@ if($keyword_safe) {
 
         // 搜索建议模式：只返回标题匹配
         if($suggest) {
-            // 确保 FULLTEXT 索引存在
-            $has_fulltext = search_ensure_fulltext('thread', 'subject', 'ft_subject');
+            // 纯 ASCII 关键词跳过 FULLTEXT（ngram 对英文/符号分词不友好），直接 LIKE
+            $has_fulltext = !$is_ascii_keyword && search_ensure_fulltext('thread', 'subject', 'ft_subject');
 
             if($has_fulltext) {
                 $suggestlist = db_sql_find_prepared("SELECT tid, subject FROM {$db->tablepre}thread WHERE MATCH(subject) AGAINST(? IN BOOLEAN MODE) ORDER BY tid DESC LIMIT 5", array($keyword_boolean));
             }
-            // FULLTEXT 失败时回退到 LIKE
+            // FULLTEXT 失败或纯 ASCII 时回退到 LIKE
             if(empty($suggestlist)) {
-                $suggestlist = db_find('thread', array('subject' => array('LIKE' => $keyword_safe)), array('tid' => -1), 1, 5, 'tid', array('tid', 'subject'));
+                $suggestlist = db_find('thread', array('subject' => array('LIKE' => $kw_like)), array('tid' => -1), 1, 5, 'tid', array('tid', 'subject'));
             }
             if($suggestlist) {
                 foreach($suggestlist as &$s) {
-                    $s['subject'] = str_ireplace($keyword_safe, '<mark>' . $keyword_safe . '</mark>', $s['subject']);
+                    // 先 esc_html 转义内容和关键词，再用 <mark> 包裹（避免 esc_html 把 <mark> 标签也转义）
+                    $_kw_esc = esc_html($keyword_safe);
+                    $s['subject'] = str_ireplace($_kw_esc, '<mark>' . $_kw_esc . '</mark>', esc_html($s['subject']));
                     $s['url'] = thread_url($s['tid']);
                 }
                 echo '<div class="list-group list-group-flush">';
@@ -174,13 +186,13 @@ if($keyword_safe) {
 
         // 编辑器引用帖子搜索：返回 JSON 格式
         if($ref_suggest) {
-            $has_fulltext = search_ensure_fulltext('thread', 'subject', 'ft_subject');
+            $has_fulltext = !$is_ascii_keyword && search_ensure_fulltext('thread', 'subject', 'ft_subject');
             $reflist = array();
             if($has_fulltext) {
                 $reflist = db_sql_find_prepared("SELECT tid, subject FROM {$db->tablepre}thread WHERE MATCH(subject) AGAINST(? IN BOOLEAN MODE) ORDER BY tid DESC LIMIT 10", array($keyword_boolean));
             }
             if(empty($reflist)) {
-                $reflist = db_find('thread', array('subject' => array('LIKE' => $keyword_safe)), array('tid' => -1), 1, 10, 'tid', array('tid', 'subject'));
+                $reflist = db_find('thread', array('subject' => array('LIKE' => $kw_like)), array('tid' => -1), 1, 10, 'tid', array('tid', 'subject'));
             }
             $result = array();
             if($reflist) {
@@ -227,7 +239,8 @@ if($keyword_safe) {
 
         $has_fulltext_subject = search_ensure_fulltext('thread', 'subject', 'ft_subject');
         $has_fulltext_message = search_ensure_fulltext('post', 'message', 'ft_message');
-        $use_fulltext = $has_fulltext_subject && $has_fulltext_message;
+        // 纯 ASCII 关键词跳过 FULLTEXT（ngram 对英文/符号分词不友好），直接走 LIKE 精确子串匹配
+        $use_fulltext = $has_fulltext_subject && $has_fulltext_message && !$is_ascii_keyword;
 
         if($use_fulltext) {
             // FULLTEXT 搜索：BOOLEAN MODE + 双引号实现精确短语匹配
@@ -269,7 +282,7 @@ if($keyword_safe) {
             // 原查询：1) subject LIKE  2) 自己待审(subject)  3) post LIKE  4) thread过滤(post)  5) 自己待审(post)
             // 合并后：1) subject LIKE（含自己待审，OR 条件）  2) post LIKE JOIN thread（含自己待审，OR 条件）
             $merged = array();
-            $kw_like = '%' . $keyword_safe . '%';
+            // $kw_like 已在顶部定义（已转义 _ 和 % 通配符）
 
             // 构建权限/审核 SQL 片段
             // 管理员（gid=1,2）：subject 无限制；post 保持原逻辑 audit_status=1
@@ -369,8 +382,9 @@ if($keyword_safe) {
                 foreach($threadlist as &$thread) {
                     thread_format($thread);
 
-                    // 标题高亮
-                    $thread['subject'] = str_ireplace($keyword_safe, '<mark>' . $keyword_safe . '</mark>', $thread['subject']);
+                    // 标题高亮：thread_format 已对 subject 做 esc_html，关键词也需转义后在已转义的 subject 中匹配
+                    $_kw_esc = esc_html($keyword_safe);
+                    $thread['subject'] = str_ireplace($_kw_esc, '<mark>' . $_kw_esc . '</mark>', $thread['subject']);
 
                     // 获取内容摘要（从批量查询结果取）
                     $post = isset($_first_posts[$thread['tid']]) ? $_first_posts[$thread['tid']] : array();
@@ -391,7 +405,8 @@ if($keyword_safe) {
                             $summary = mb_substr($message, 0, 160);
                             if(mb_strlen($message) > 160) $summary .= '...';
                         }
-                        $thread['summary'] = str_ireplace($keyword_safe, '<mark>' . $keyword_safe . '</mark>', $summary);
+                        // 摘要先 esc_html 转义，再用 <mark> 包裹已转义的关键词
+                        $thread['summary'] = str_ireplace($_kw_esc, '<mark>' . $_kw_esc . '</mark>', esc_html($summary));
                     } else {
                         $thread['summary'] = '';
                     }
@@ -411,9 +426,9 @@ if($keyword_safe) {
     if($search_type == 'user' || $search_type == 'thread') {
         // 检查 nickname 字段是否存在
         $has_nickname = db_check_column_exists('user', 'nickname');
-        
+
         // 构建 SQL 查询（子查询去重，防止 username 和 nickname 同时匹配时重复）；PDO 预处理防注入
-        $kw_like = '%' . $keyword_safe . '%';
+        // $kw_like 已在顶部定义（已转义 _ 和 % 通配符）
         if($has_nickname) {
             $user_sql = "SELECT u.* FROM {$db->tablepre}user u INNER JOIN (SELECT DISTINCT uid FROM {$db->tablepre}user WHERE username LIKE ? OR nickname LIKE ?) t ON u.uid = t.uid ORDER BY u.uid DESC LIMIT 20";
             $user_count_sql = "SELECT COUNT(DISTINCT uid) as num FROM {$db->tablepre}user WHERE username LIKE ? OR nickname LIKE ?";

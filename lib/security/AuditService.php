@@ -14,8 +14,8 @@ class AuditService {
     const STATUS_PENDING = 0;
     const STATUS_APPROVED = 1;
     const STATUS_REJECTED = 2;
-    // 忽略：从审核队列移除，内容保持不可见，作者无感知，不通知不积分不计统计
-    // 未来可通过将 audit_status 改回 STATUS_PENDING 恢复到待审
+    // 忽略：不计入未审核数量，内容保持不可见，作者无感知，不通知不积分不计统计
+    // 记录仍保留在审核列表中，可后续通过或拒绝
     const STATUS_IGNORED = 3;
 
     // 重新提交次数上限（含首次发布）
@@ -96,7 +96,8 @@ class AuditService {
      * @return array
      */
     public static function get_pending_list(string $type = 'thread', int $page = 1, int $pagesize = 20): array {
-        $cond = ['audit_status' => self::STATUS_PENDING];
+        // 包含待审(0)和已忽略(3)：已忽略的仍留在列表供后续通过/拒绝，但不计入未审核数量
+        $cond = ['audit_status' => [self::STATUS_PENDING, self::STATUS_IGNORED]];
 
         if ($type === 'thread') {
             $list = db_find('thread', $cond, ['tid' => -1], $page, $pagesize);
@@ -453,9 +454,9 @@ class AuditService {
     }
 
     /**
-     * 忽略审核：从审核队列移除，内容保持不可见，作者无感知
-     * 不发通知、不计统计、不发积分、不允许重新提交
-     * 仅记录审核日志，便于未来恢复到待审
+     * 忽略审核：从不计入未审核数量，内容保持不可见，作者无感知
+     * 不发通知、不计统计、不发积分
+     * 记录仍保留在审核列表中，可后续通过或拒绝
      */
     public static function ignore(string $target_type, int $target_id, int $operator_uid): bool {
         $table = $target_type === 'thread' ? 'thread' : 'post';
@@ -1202,7 +1203,8 @@ class AuditService {
     public static function approve_profile(int $audit_id, int $operator_uid): bool {
         $audit = user_profile_audit_read($audit_id);
         if (empty($audit)) return false;
-        if ($audit['audit_status'] != self::STATUS_PENDING) return false;
+        // 允许对待审(0)和已忽略(3)的记录执行通过操作
+        if (!in_array(intval($audit['audit_status']), [self::STATUS_PENDING, self::STATUS_IGNORED], true)) return false;
 
         // 应用变更到用户表
         $uid = $audit['uid'];
@@ -1231,8 +1233,9 @@ class AuditService {
                     if(is_file($_old_file)) @unlink($_old_file);
                 }
                 @rename($pending_file, $final_file);
+                user_update($uid, array('avatar' => intval($new_value)));
             }
-            user_update($uid, array('avatar' => intval($new_value)));
+            // ponytail: 临时文件不存在时（被忽略时已清理）跳过头像更新，审核状态仍标记为已通过
         } elseif ($field_name === 'signature') {
             user_update($uid, array('signature' => $new_value));
         } elseif ($field_name === 'nickname') {
@@ -1272,7 +1275,8 @@ class AuditService {
     public static function reject_profile(int $audit_id, int $operator_uid, string $reason = ''): bool {
         $audit = user_profile_audit_read($audit_id);
         if (empty($audit)) return false;
-        if ($audit['audit_status'] != self::STATUS_PENDING) return false;
+        // 允许对待审(0)和已忽略(3)的记录执行驳回操作
+        if (!in_array(intval($audit['audit_status']), [self::STATUS_PENDING, self::STATUS_IGNORED], true)) return false;
 
         // 头像审核驳回时删除临时头像文件
         if ($audit['field_name'] === 'avatar') {

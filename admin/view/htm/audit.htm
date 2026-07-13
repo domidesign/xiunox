@@ -55,7 +55,12 @@
                         <?php foreach($pending_threads as $thread): ?>
                         <tr>
                             <td><input type="checkbox" class="form-check-input thread-check" value="<?php echo $thread['tid'];?>"></td>
-                            <td><a href="<?php echo frontend_thread_url($thread['tid']);?>" target="_blank"><?php echo esc_html($thread['subject']);?></a></td>
+                            <td>
+                                <a href="<?php echo frontend_thread_url($thread['tid']);?>" target="_blank"><?php echo esc_html($thread['subject']);?></a>
+                                <?php if(intval($thread['audit_status']) === AuditService::STATUS_IGNORED): ?>
+                                <span class="badge bg-secondary ms-1"><?php echo lang('admin_status_ignored');?></span>
+                                <?php endif; ?>
+                            </td>
                             <td><?php echo esc_html($thread['username'] ?? '');?></td>
                             <td><?php echo esc_html($thread['forum_name'] ?? '');?></td>
                             <td>
@@ -73,9 +78,11 @@
                                 <a href="javascript:;" class="row-action text-danger audit-reject" data-type="thread" data-id="<?php echo $thread['tid'];?>">
                                     <i class="ti ti-x"></i><?php echo lang('admin_action_reject')?>
                                 </a>
+                                <?php if(intval($thread['audit_status']) !== AuditService::STATUS_IGNORED): ?>
                                 <a href="javascript:;" class="row-action text-body-secondary audit-ignore" data-type="thread" data-id="<?php echo $thread['tid'];?>">
                                     <i class="ti ti-eye-off"></i><?php echo lang('admin_action_ignore')?>
                                 </a>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -119,7 +126,12 @@
                         <?php foreach($pending_posts as $post): ?>
                         <tr>
                             <td><input type="checkbox" class="form-check-input post-check" value="<?php echo $post['pid'];?>"></td>
-                            <td><?php echo esc_html(mb_substr($post['message'] ?? '', 0, 80));?></td>
+                            <td>
+                                <?php echo esc_html(mb_substr($post['message'] ?? '', 0, 80));?>
+                                <?php if(intval($post['audit_status']) === AuditService::STATUS_IGNORED): ?>
+                                <span class="badge bg-secondary ms-1"><?php echo lang('admin_status_ignored');?></span>
+                                <?php endif; ?>
+                            </td>
                             <td><?php echo esc_html($post['username'] ?? '');?></td>
                             <td><a href="<?php echo frontend_thread_url($post['tid']);?>" target="_blank"><?php echo esc_html(mb_substr($post['subject'] ?? '', 0, 20));?></a></td>
                             <td>
@@ -137,9 +149,11 @@
                                 <a href="javascript:;" class="row-action text-danger audit-reject" data-type="post" data-id="<?php echo $post['pid'];?>">
                                     <i class="ti ti-x"></i><?php echo lang('admin_action_reject')?>
                                 </a>
+                                <?php if(intval($post['audit_status']) !== AuditService::STATUS_IGNORED): ?>
                                 <a href="javascript:;" class="row-action text-body-secondary audit-ignore" data-type="post" data-id="<?php echo $post['pid'];?>">
                                     <i class="ti ti-eye-off"></i><?php echo lang('admin_action_ignore')?>
                                 </a>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -188,7 +202,11 @@
                                 <?php if(!empty($pa['avatar_url'])): ?>
                                 <img class="rounded-circle me-1" src="<?php echo $pa['avatar_url'];?>" style="width:24px;height:24px" onerror="this.onerror=null;this.src='<?php echo $conf['view_url']; ?>img/avatar.png'">
                                 <?php endif; ?>
-                                <?php echo esc_html($pa['username'] ?? '');?></td>
+                                <?php echo esc_html($pa['username'] ?? '');?>
+                                <?php if(intval($pa['audit_status']) === AuditService::STATUS_IGNORED): ?>
+                                <span class="badge bg-secondary ms-1"><?php echo lang('admin_status_ignored');?></span>
+                                <?php endif; ?>
+                            </td>
                             <td>
                                 <?php
                                 $field_labels = array('avatar'=>lang('admin_field_avatar'), 'signature'=>lang('admin_field_signature'), 'nickname'=>lang('admin_field_nickname'));
@@ -214,9 +232,11 @@
                                 <a href="javascript:;" class="row-action text-danger audit-profile-reject" data-id="<?php echo $pa['id'];?>">
                                     <i class="ti ti-x"></i><?php echo lang('admin_action_reject')?>
                                 </a>
+                                <?php if(intval($pa['audit_status']) !== AuditService::STATUS_IGNORED): ?>
                                 <a href="javascript:;" class="row-action text-body-secondary audit-profile-ignore" data-id="<?php echo $pa['id'];?>">
                                     <i class="ti ti-eye-off"></i><?php echo lang('admin_action_ignore')?>
                                 </a>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; ?>

@@ -56,6 +56,7 @@ class SecurityConfigService {
         // 操作频率限制
         'security_search_interval' => 10,              // 搜索间隔（秒）
         'security_search_require_login' => 1,          // 搜索需要登录，1=需要 0=不需要
+        'security_search_min_length' => 2,             // 搜索关键词最小字符数
 
         // Cookie 安全
         // security_cookie_secure: 0=自动检测HTTPS（运行时判断，默认安全），1=强制Secure

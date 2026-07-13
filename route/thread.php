@@ -807,6 +807,30 @@ if($action == 'create') {
 				}
 			}
 
+			// 批量预加载楼中楼回复的点赞状态和隐藏内容，消除 post_format 中的 N+1 查询
+			if(!empty($_all_replies)) {
+				global $uid, $g_preloaded_post_likes;
+				$_reply_pids = array();
+				foreach($_all_replies as $_r) $_reply_pids[] = $_r['pid'];
+
+				// 补充预加载点赞状态（合并一级评论已预加载的数据）
+				if(!empty($uid) && !empty($_reply_pids)) {
+					if(!isset($g_preloaded_post_likes)) $g_preloaded_post_likes = array();
+					$_need_like_pids = array();
+					foreach($_reply_pids as $_pid) {
+						if(!isset($g_preloaded_post_likes[$_pid])) $_need_like_pids[] = $_pid;
+					}
+					if(!empty($_need_like_pids)) {
+						$g_preloaded_post_likes = array_merge($g_preloaded_post_likes, post_like_read_batch($uid, $_need_like_pids));
+					}
+				}
+
+				// 批量预加载隐藏内容
+				if(class_exists('HiddenService', false)) {
+					HiddenService::preloadHiddenByPostIds($_reply_pids);
+				}
+			}
+
 			// 先格式化所有二级评论（补 username/avatar 等），必须在构建 pid_map 之前完成
 			// 否则 pid_map 存的是未格式化数据，深层回复取 reply_to_username 时会拿到空值
 			foreach($_all_replies as &$_r) {

@@ -785,41 +785,23 @@ class HealthCheckService {
             );
         }
 
-        // EdgeOne 插件检查（仅检查是否安装和配置，不做 HTTP 请求避免阻塞）
+        // EdgeOne 插件检查（检测是否启用：enabled=1 且 cdn_domain 非空）
         $edgeoneDir = APP_PATH . 'plugin/xnx_edgeone/';
         if(is_dir($edgeoneDir)) {
-            $results[] = array(
-                'status' => 'pass',
-                'label' => lang('admin_hc_edgeone_plugin'),
-                'value' => lang('admin_hc_installed'),
-                'message' => '',
-            );
-            // 检查域名是否已配置
-            $edgeoneDomain = '';
-            if(function_exists('setting_get')) {
-                $edgeoneConfig = setting_get('xnx_edgeone_config');
-                if(!empty($edgeoneConfig) && isset($edgeoneConfig['domain'])) {
-                    $edgeoneDomain = $edgeoneConfig['domain'];
-                }
-            }
-            if(empty($edgeoneDomain) && file_exists($edgeoneDir . 'conf.php')) {
-                $pluginConf = @include($edgeoneDir . 'conf.php');
-                if(!empty($pluginConf['domain'])) {
-                    $edgeoneDomain = $pluginConf['domain'];
-                }
-            }
-            if(!empty($edgeoneDomain)) {
+            $edgeoneSettings = function_exists('setting_get') ? setting_get('xnx_edgeone') : array();
+            $enabled = !empty($edgeoneSettings['enabled']) && !empty($edgeoneSettings['cdn_domain']);
+            if($enabled) {
                 $results[] = array(
                     'status' => 'pass',
-                    'label' => lang('admin_hc_edgeone_reachable'),
-                    'value' => $edgeoneDomain,
-                    'message' => '',
+                    'label' => lang('admin_hc_edgeone_plugin'),
+                    'value' => $edgeoneSettings['cdn_domain'],
+                    'message' => lang('admin_hc_enabled'),
                 );
             } else {
                 $results[] = array(
                     'status' => 'info',
-                    'label' => lang('admin_hc_edgeone_domain'),
-                    'value' => lang('admin_hc_domain_not_configured'),
+                    'label' => lang('admin_hc_edgeone_plugin'),
+                    'value' => lang('admin_hc_not_enabled'),
                     'message' => lang('admin_hc_edgeone_no_domain'),
                 );
             }

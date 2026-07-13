@@ -740,7 +740,7 @@ return array(
 	'thread_batch_digest_threads'=>'設為精華',
 	'thread_batch_announcement_threads'=>'設為公告',
 	'thread_batch_move_threads'=>'移動貼子',
-	'keyword_too_short'=>'關鍵詞至少需要2個字符',
+	'keyword_too_short'=>'關鍵詞至少需要 {min} 個字元',
 	'search_content'=>'內容',
 	'search_summary'=>'摘要',
 	'search_relevance'=>'相關度',

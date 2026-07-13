@@ -108,7 +108,7 @@ $search_disabled = ($search_require_login && (empty($uid) || $uid == 0));
 		<div class="x-card card mt-3">
 			<div class="card-body text-center py-5 text-body-secondary">
 				<i class="ti ti-alert-circle fs-1 mb-3 d-block opacity-25"></i>
-				<p class="fs-5 fw-semibold"><?php echo lang('keyword_too_short');?></p>
+				<p class="fs-5 fw-semibold"><?php echo str_replace('{min}', $search_min_length, lang('keyword_too_short'));?></p>
 			</div>
 		</div>
 		<?php } elseif($keyword_safe) { ?>
@@ -136,10 +136,10 @@ $search_disabled = ($search_require_login && (empty($uid) || $uid == 0));
 							<?php foreach($threadlist as $thread) { ?>
 							<div class="  pb-3 mb-1">
 								<div class="mb-1">
-									<a href="<?php echo thread_url($thread['tid']);?>" class="fw-semibold text-decoration-none fs-6"><?php echo esc_html($thread['subject']);?></a>
-								</div>
-								<?php if(!empty($thread['summary'])) { ?>
-								<div class="small text-body-secondary mb-2 line-clamp-2"><?php echo esc_html($thread['summary']);?></div>
+									<a href="<?php echo thread_url($thread['tid']);?>" class="fw-semibold text-decoration-none fs-6"><?php echo $thread['subject'];?></a>
+							</div>
+							<?php if(!empty($thread['summary'])) { ?>
+							<div class="small text-body-secondary mb-2 line-clamp-2"><?php echo $thread['summary'];?></div>
 								<?php } ?>
 								<div class="d-flex align-items-center gap-3 small text-body-secondary">
 									<?php if(!empty($thread['forumname'])) { ?>

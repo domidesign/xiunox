@@ -731,6 +731,7 @@ function thread_find($cond = array(), $orderby = array(), $page = 1, $pagesize =
 		$lastuids = arrlist_values($threadlist, 'lastuid');
 		user_preload(array_merge($uids, $lastuids));
 
+		// hook model_thread_find_preload.php
 		foreach ($threadlist as &$thread) thread_format($thread);
 	}
 	// hook model_thread_find_end.php
