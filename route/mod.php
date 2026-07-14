@@ -207,7 +207,11 @@ if($action == 'top') {
 } elseif($action == 'move') {
 
 	if($method == 'GET') {
-		$forumarr = arrlist_key_values(forum_list_cache(), 'fid', 'name');
+		$forumarr = array();
+		foreach(forum_list_cache() as $_f) {
+			if(!empty($_f['type'])) continue; // 过滤分区，分区不能存放帖子
+			$forumarr[$_f['fid']] = $_f['name'];
+		}
 		include _include(APP_PATH.'view/htm/mod_move.htm');
 		
 	} else {

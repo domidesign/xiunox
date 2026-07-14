@@ -373,31 +373,19 @@ class AttachmentService {
     }
 
     /**
-     * 校验文件真实 MIME 类型（基于 finfo_file，防止伪造扩展名上传恶意文件）
+     * 校验文件真实 MIME 类型（委托给 verifyUploadMime，自动应用 security_upload_strict_mime 配置）
      * @param string $tmpName 临时文件路径（$_FILES['xx']['tmp_name'] 或已落盘的文件）
      * @param array $allowedMimes 允许的 MIME 白名单
      * @return string|false 成功返回真实 MIME，失败返回 false（拒绝上传）
      */
     private function validateMime($tmpName, $allowedMimes = array()) {
-        if(!function_exists('finfo_open')) {
-            return false; // 无 finfo 扩展，拒绝上传
+        // 判断是否图片白名单（兼容模式下走 getimagesize 降级）
+        $is_image = !empty(array_intersect($allowedMimes, self::$imageMimes));
+        if(self::verifyUploadMime($tmpName, $allowedMimes, $is_image)) {
+            // 返回白名单中第一个匹配的 MIME 供调用方记录（不再二次调用 finfo）
+            return reset($allowedMimes);
         }
-        $finfo = @finfo_open(FILEINFO_MIME_TYPE);
-        if(!$finfo) {
-            return false; // finfo 打开失败，拒绝
-        }
-        $realMime = @finfo_file($finfo, $tmpName);
-        // PHP 8.0+ finfo 是对象，finfo_close 是 no-op，PHP 8.5 已 deprecated
-        if(PHP_VERSION_ID < 80000) {
-            finfo_close($finfo);
-        }
-        if($realMime === false) {
-            return false; // 无法识别文件类型，拒绝
-        }
-        if(!in_array($realMime, $allowedMimes)) {
-            return false; // MIME 不在白名单，拒绝
-        }
-        return $realMime;
+        return false;
     }
 
     /**

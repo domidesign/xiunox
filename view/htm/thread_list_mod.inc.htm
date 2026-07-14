@@ -38,7 +38,14 @@
 </div>
 
 <script>
-window.__modForumOpts = <?php $farr = arrlist_key_values($forumlist, 'fid', 'name'); echo json_encode(form_options($farr, 0));?>;
+window.__modForumOpts = <?php
+$_farr = array();
+foreach($forumlist as $_f) {
+	if(!empty($_f['type'])) continue; // 过滤分区，分区不能存放帖子
+	$_farr[$_f['fid']] = $_f['name'];
+}
+echo json_encode(form_options($_farr, 0));
+?>;
 </script>
 
 <?php } ?>
