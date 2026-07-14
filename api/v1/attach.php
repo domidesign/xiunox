@@ -62,21 +62,8 @@ switch ($method) {
             'application/x-bittorrent',
             'application/vnd.ms-htmlhelp',
         );
-        if(function_exists('finfo_open')) {
-            $finfo = @finfo_open(FILEINFO_MIME_TYPE);
-            if($finfo) {
-                $real_mime = @finfo_file($finfo, $tmp_name);
-                if(PHP_VERSION_ID < 80000) finfo_close($finfo);
-                // finfo_file 返回 false 或 MIME 不在白名单，拒绝上传
-                if($real_mime === false || !in_array($real_mime, $allowed_mimes)) {
-                    ApiResponse::validationError('文件类型不允许');
-                }
-            } else {
-                // finfo 打开失败，拒绝上传
-                ApiResponse::validationError('文件类型不允许');
-            }
-        } else {
-            // 无 finfo 扩展，拒绝上传
+        // 真实 MIME 校验，行为受 security_upload_strict_mime 控制
+        if(!AttachmentService::verifyUploadMime($tmp_name, $allowed_mimes, $filetype == 'image')) {
             ApiResponse::validationError('文件类型不允许');
         }
 

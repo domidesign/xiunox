@@ -175,20 +175,12 @@ if(empty($action) || $action == 'list') {
 				message(-1, lang('forum_icon_format_unsupported'));
 			}
 
-			// 真实 MIME 校验，防止伪造扩展名上传恶意文件（参考 route/attach.php）
-			// finfo 不可用或无法识别文件类型时拒绝上传，不静默降级
+			// 真实 MIME 校验，行为受 security_upload_strict_mime 控制
 			$icon_mimes = array('image/jpeg', 'image/pjpeg', 'image/png', 'image/gif', 'image/webp');
-			if(!function_exists('finfo_open')) {
-				message(-1, lang('file_mime_not_allowed'));
+			if(!class_exists('AttachmentService')) {
+				include APP_PATH.'service/AttachmentService.php';
 			}
-			$finfo = @finfo_open(FILEINFO_MIME_TYPE);
-			if(!$finfo) {
-				message(-1, lang('file_mime_not_allowed'));
-			}
-			$real_mime = @finfo_file($finfo, $icon_file['tmp_name']);
-			// PHP 8.0+ finfo 是对象，finfo_close 是 no-op，PHP 8.5 已 deprecated
-			if(PHP_VERSION_ID < 80000) finfo_close($finfo);
-			if($real_mime === false || !in_array($real_mime, $icon_mimes)) {
+			if(!AttachmentService::verifyUploadMime($icon_file['tmp_name'], $icon_mimes, true)) {
 				message(-1, lang('file_mime_not_allowed'));
 			}
 
@@ -314,22 +306,14 @@ if(empty($action) || $action == 'list') {
 				// 验证文件类型
 				$ext = strtolower(pathinfo($icon_file['name'], PATHINFO_EXTENSION));
 				if(in_array($ext, $allowed_exts)) {
-					// 真实 MIME 校验，防止伪造扩展名上传恶意文件（参考 route/attach.php）
-					// finfo 不可用或无法识别文件类型时拒绝上传，不静默降级
-					$icon_mimes = array('image/jpeg', 'image/pjpeg', 'image/png', 'image/gif', 'image/webp');
-					if(!function_exists('finfo_open')) {
-						message(-1, lang('file_mime_not_allowed'));
-					}
-					$finfo = @finfo_open(FILEINFO_MIME_TYPE);
-					if(!$finfo) {
-						message(-1, lang('file_mime_not_allowed'));
-					}
-					$real_mime = @finfo_file($finfo, $icon_file['tmp_name']);
-					// PHP 8.0+ finfo 是对象，finfo_close 是 no-op，PHP 8.5 已 deprecated
-					if(PHP_VERSION_ID < 80000) finfo_close($finfo);
-					if($real_mime === false || !in_array($real_mime, $icon_mimes)) {
-						message(-1, lang('file_mime_not_allowed'));
-					}
+					// 真实 MIME 校验，行为受 security_upload_strict_mime 控制
+				$icon_mimes = array('image/jpeg', 'image/pjpeg', 'image/png', 'image/gif', 'image/webp');
+				if(!class_exists('AttachmentService')) {
+					include APP_PATH.'service/AttachmentService.php';
+				}
+				if(!AttachmentService::verifyUploadMime($icon_file['tmp_name'], $icon_mimes, true)) {
+					message(-1, lang('file_mime_not_allowed'));
+				}
 
 					// 创建上传目录
 					$upload_dir = APP_PATH.'upload/forum/';
