@@ -1,0 +1,33 @@
+name: 问题咨询
+description: 使用问题或技术咨询
+title: "[Question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢提问！请详细描述你的问题。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 你遇到了什么问题？
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 已尝试方案
+      description: 你已经尝试过哪些方法？
+    validations:
+      required: false
+
+  - type: input
+    id: xiunox-version
+    attributes:
+      label: XiunoX 版本
+      placeholder: "如 1.0.8"
+    validations:
+      required: true

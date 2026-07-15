@@ -1,0 +1,92 @@
+name: Bug 报告
+description: 报告一个 Bug 或异常行为
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢报告 Bug！请尽量详细填写以下信息，便于快速定位问题。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug 描述
+      description: 简要描述遇到了什么问题。
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 详细描述如何复现这个问题。
+      placeholder: |
+        1. 进入页面 '...'
+        2. 点击 '...'
+        3. 看到 '...'
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 你期望发生什么？
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 实际发生了什么？
+    validations:
+      required: true
+
+  - type: input
+    id: php-version
+    attributes:
+      label: PHP 版本
+      placeholder: "如 8.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: mysql-version
+    attributes:
+      label: MySQL 版本
+      placeholder: "如 8.0.35"
+    validations:
+      required: true
+
+  - type: input
+    id: xiunox-version
+    attributes:
+      label: XiunoX 版本
+      placeholder: "如 1.0.8"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: browser
+    attributes:
+      label: 浏览器
+      options:
+        - Chrome
+        - Firefox
+        - Safari
+        - Edge
+        - Opera
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关日志
+      description: 如有错误日志或截图，请粘贴或上传。
+      render: shell
+    validations:
+      required: false
