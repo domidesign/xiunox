@@ -1,0 +1,34 @@
+<?php
+// 三栏布局公共骨架
+// 统一封装 row 栅格容器 + htmx boost 属性 + 左/中/右栏栅格，避免 15 个页面重复硬编码
+// 使用方式：include 前用 ob_start() 将中栏内容写入 $main_content
+// 可选变量（均有默认值）：
+//   $sidebar_left_file  左栏 include 文件名，默认 sidebar_left.inc.htm，空字符串则不渲染
+//   $sidebar_right_file 右栏 include 文件名，默认 sidebar_right.inc.htm，空字符串则不渲染
+//   $right_html         右栏内联 HTML（优先于 $sidebar_right_file，forum 版块信息卡用）
+//   $main_file          中栏 include 文件名（优先于 $main_content，thread 用）
+//   $col_main           中栏 xl 栅格宽，默认 7
+//   $left_lg            左栏是否 lg 断点起显示，默认 true；thread 操作栏传 false（xl 起显示）
+//   $main_class         中栏额外 class（forum 传 'main'）
+//   $right_class        右栏额外 class（forum 传 'aside'）
+$main_content = isset($main_content) ? $main_content : '';
+$main_file = isset($main_file) ? $main_file : '';
+$sidebar_left_file = isset($sidebar_left_file) ? $sidebar_left_file : 'sidebar_left.inc.htm';
+$sidebar_right_file = isset($sidebar_right_file) ? $sidebar_right_file : 'sidebar_right.inc.htm';
+$right_html = isset($right_html) ? $right_html : '';
+$col_main = isset($col_main) ? $col_main : 7;
+$left_lg = isset($left_lg) ? $left_lg : true;
+$main_class = isset($main_class) ? $main_class : '';
+$right_class = isset($right_class) ? $right_class : '';
+?>
+<div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
+	<div class="d-none d-<?php echo $left_lg ? 'lg' : 'xl'; ?>-block<?php echo $left_lg ? ' col-lg-2' : ''; ?> col-xl-2">
+		<?php if($sidebar_left_file) include _include(APP_PATH.'view/htm/'.$sidebar_left_file);?>
+	</div>
+	<div class="<?php echo $left_lg ? 'col-lg-10 ' : ''; ?>col-xl-<?php echo $col_main; ?><?php if($main_class) echo ' '.$main_class;?>" style="min-width:0">
+		<?php if($main_file) { include _include(APP_PATH.'view/htm/'.$main_file); } else { echo $main_content; } ?>
+	</div>
+	<div class="d-none d-xl-block col-xl-3<?php if($right_class) echo ' '.$right_class;?>">
+		<?php if($right_html !== '') { echo $right_html; } elseif($sidebar_right_file) { include _include(APP_PATH.'view/htm/'.$sidebar_right_file); } ?>
+	</div>
+</div>

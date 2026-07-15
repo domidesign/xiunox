@@ -8,11 +8,7 @@ $search_disabled = ($search_require_login && (empty($uid) || $uid == 0));
 
 <!--{hook search_start.htm}-->
 
-<div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
-	<div class="d-none d-lg-block col-lg-2 col-xl-2">
-		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
-	</div>
-	<div class="col-lg-10 col-xl-7" style="min-width:0">
+<?php ob_start();?>
 		<!--{hook search_main_start.htm}-->
 
 		<div class="py-3">
@@ -224,11 +220,7 @@ $search_disabled = ($search_require_login && (empty($uid) || $uid == 0));
 		</div>
 
 		<!--{hook search_main_end.htm}-->
-	</div>
-	<div class="d-none d-xl-block col-xl-3">
-		<?php include _include(APP_PATH.'view/htm/sidebar_right.inc.htm');?>
-	</div>
-</div>
+<?php $main_content = ob_get_clean(); include _include(APP_PATH.'view/htm/layout_three_column.inc.htm');?>
 
 <!--{hook search_end.htm}-->
 

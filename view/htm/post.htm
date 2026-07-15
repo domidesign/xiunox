@@ -212,7 +212,7 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 	</div>
 
 	<!-- 桌面端：右侧高级功能区块 -->
-	<div class="d-none d-xl-block col-xl-auto" style="width:280px;min-width:240px">
+	<div class="d-none d-xl-block col-xl-auto" style="width:280px;min-width:240px;position:sticky;top:1rem;align-self:flex-start;max-height:calc(100vh - 2rem);overflow-y:auto;">
 		<!--{hook post_sidebar_top.htm}-->
 
 		<?php if($isfirst && $uid > 0): ?>

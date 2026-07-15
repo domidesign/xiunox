@@ -322,6 +322,16 @@ if(empty($action)) {
 		$replace['installed'] = 1;
 		$replace['version'] = XIUNOX_VERSION;
 
+		// 默认导航项（首页 + 默认版块）
+		$replace['nav_items'] = array(
+			array('type'=>'link', 'icon'=>'ti ti-home', 'name'=>lang('index_page'), 'slug'=>'home', 'url'=>'index', 'class'=>'', 'rank'=>0),
+			array('type'=>'link', 'icon'=>'ti ti-message-circle', 'name'=>lang('default_forum_name'), 'slug'=>'default-forum', 'url'=>'forum-1', 'class'=>'', 'rank'=>10),
+		);
+		$replace['sidebar_nav_items'] = array(
+			array('type'=>'link', 'icon'=>'ti ti-home', 'name'=>lang('index_page'), 'slug'=>'home', 'url'=>'index', 'class'=>'', 'rank'=>0),
+			array('type'=>'link', 'icon'=>'ti ti-message-circle', 'name'=>lang('default_forum_name'), 'slug'=>'default-forum', 'url'=>'forum-1', 'class'=>'', 'rank'=>10),
+		);
+
 		// 创建默认 API 应用
 		$default_appid = bin2hex(random_bytes(8));
 		$default_secret = bin2hex(random_bytes(16));
@@ -388,6 +398,36 @@ if(empty($action)) {
 		group_update(105, array('name'=>lang('group_105')));
 
 		forum_update(1, array('name'=>lang('default_forum_name'), 'brief'=>lang('default_forum_brief')));
+
+		// 创建欢迎帖
+		$welcome_subject = lang('welcome_thread_subject');
+		$welcome_message = lang('welcome_thread_message');
+		$welcome_tid = db_insert('thread', array(
+			'fid'=>1,
+			'uid'=>1,
+			'subject'=>$welcome_subject,
+			'create_date'=>$time,
+			'last_date'=>$time,
+			'views'=>1,
+			'posts'=>0,
+			'audit_status'=>1,
+		));
+		if($welcome_tid) {
+			$welcome_pid = db_insert('post', array(
+				'tid'=>$welcome_tid,
+				'uid'=>1,
+				'isfirst'=>1,
+				'create_date'=>$time,
+				'doctype'=>0,
+				'message'=>$welcome_message,
+				'message_fmt'=>$welcome_message,
+				'audit_status'=>1,
+			));
+			if($welcome_pid) {
+				db_update('thread', array('tid'=>$welcome_tid), array('firstpid'=>$welcome_pid, 'lastpid'=>$welcome_pid));
+				db_update('forum', array('fid'=>1), array('threads'=>1, 'todaythreads'=>1));
+			}
+		}
 
 		xn_mkdir(APP_PATH.'upload/tmp', 0777);
 		xn_mkdir(APP_PATH.'upload/attach', 0777);

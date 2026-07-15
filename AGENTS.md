@@ -20,7 +20,14 @@
 git -c http.proxy=http://127.0.0.1:7897 -c https.proxy=http://127.0.0.1:7897 push origin main
 ```
 
+## 分支与推送规则
+
+- 仓库维护两个分支：`main`（完整代码，含 docs/ 和 .md 文档）和 `release`（生产分支，不跟踪 .md 和 docs/）
+- 每次推送必须同时推送 `main` 和 `release` 两个分支
+- 推送 main 后切换到 release merge main 再推送 release
+
 ## 通用规则
 
 - 所有回答使用中文。
 - 不主动开发代码，仅负责提交推送与返回日志。
+- AGENTS.md 不提交到 git。

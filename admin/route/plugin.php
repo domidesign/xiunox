@@ -292,11 +292,21 @@ if($action == 'local') {
 	plugin_check_dependency($dir, 'install');
 
 	// 启用插件
-	plugin_enable($dir);
+plugin_enable($dir);
 
-	plugin_lock_end();
+// 主题互斥：启用主题时自动禁用其他已启用的主题（保留配置，方便切换）
+if(strpos($dir, '_theme_') !== FALSE) {
+	foreach($plugins as $_dir => $_plugin) {
+		if($dir == $_dir) continue;
+		if(strpos($_dir, '_theme_') !== FALSE && !empty($_plugin['enable'])) {
+			plugin_disable($_dir);
+		}
+	}
+}
 
-	admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
+plugin_lock_end();
+
+admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 
 	$msg = lang('plugin_enable_sucessfully', array('name'=>$name));
 	message(0, $msg, array('redirect_url' => admin_plugin_url()));
