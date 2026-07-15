@@ -45,7 +45,9 @@ html {
 
 
 
- 
+ #message-editor-wrap .aie-content{
+max-height: 80vh;
+ }
 
 /* ===== Layout ===== */
 #header {
@@ -1389,7 +1391,7 @@ a.hover-bg-body-secondary:hover {
 .bbs-footer {
     background: var(--bs-tertiary-bg);
     padding: 2rem 0 1rem;
-    margin-top: 2rem;
+   
 }
  
 

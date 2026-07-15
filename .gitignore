@@ -23,6 +23,7 @@ upload/avatar/*
 
 # IDE and project rules
 RULES.md
+AGENTS.md
 
 # Update logs
 update_*.md

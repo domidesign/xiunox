@@ -90,7 +90,7 @@ $_cols = count($_stats) > 0 ? min(count($_stats), 4) : 4;
                 <?php foreach ($_stats as $_s): ?>
                 <div>
                     <span class="text-secondary"><?php echo esc_html($_s['label']); ?></span><br>
-                    <b class="stat-count sidebar-stat" data-key="<?php echo esc_attr($_s['key'] ?? ''); ?>" data-count="<?php echo intval($_s['value']); ?>"><?php echo intval($_s['value']); ?></b>
+                    <b id="sidebar-stat-<?php echo esc_attr($_s['key'] ?? ''); ?>" class="stat-count sidebar-stat <?php echo esc_attr($_s['class'] ?? ''); ?>" data-key="<?php echo esc_attr($_s['key'] ?? ''); ?>" data-count="<?php echo intval($_s['value']); ?>"><?php echo intval($_s['value']); ?></b>
                 </div>
                 <?php endforeach; ?>
             </div>

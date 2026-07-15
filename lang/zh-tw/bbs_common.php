@@ -300,6 +300,8 @@ return array(
 	'group_105'=>'五級用戶組',
 	'default_forum_name'=>'默認版塊',
 	'default_forum_brief'=>'默認版塊介紹',
+	'welcome_thread_subject'=>'歡迎來到本站！',
+	'welcome_thread_message'=>'<p>恭喜，論壇已安裝成功！</p><p>這是一篇自動生成的歡迎帖，您可以編輯或刪除它。</p><p>接下來您可以：</p><ul><li>進入 <a href="admin/">後台管理</a> 修改站點設置、創建版塊</li><li>在 <a href="admin/?setting-nav.htm">導航設置</a> 中調整導航菜單</li><li>安裝插件來擴展功能</li></ul>',
 	'password_old'=>'舊密碼',
 	'password_new'=>'新密碼',
 	'password_new_repeat'=>'重復新密碼',

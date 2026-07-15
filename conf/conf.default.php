@@ -93,7 +93,7 @@ return array (
 	'postlist_pagesize' => 10,
 	'cache_thread_list_pages' => 10,
 	'online_update_span' => 120,	// 在线更新频度，大站设置的长一些
-	'online_hold_time' => 3600,	// 在线的时间
+	'online_hold_time' => 86400,	// 在线的时间
 	'session_delay_update' => 0,
 	'upload_image_width' => 927,	// 上传图片自动缩略的最大宽度
 	'order_default' => 'lastpid',

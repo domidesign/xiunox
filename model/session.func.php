@@ -198,8 +198,8 @@ function sess_write($sid, $data) {
 		// ponytail: 并发场景下多个请求可能同时进入此分支，IGNORE 让第二个静默成功
 		$_t = $db->tablepre ?? '';
 		db_exec("INSERT IGNORE INTO {$_t}session_data (`sid`) VALUES ('" . addslashes($sid) . "')");
-		// 标记 bigdata=1，避免后续请求重复插入
-		$g_session['bigdata'] = 1;
+		// 注意：不在此处修改 $g_session['bigdata']，否则下方 array_diff_value 会认为 bigdata 无变化
+		// 导致 session 表 bigdata 列不更新（保持 0），后续请求读不到 session_data 中的大数据
 	}
 	if($len <= 255) {
 		$update = array_diff_value($arr, $g_session);
@@ -216,6 +216,8 @@ function sess_write($sid, $data) {
 		if($session_delay_update_on) unset($arr2['last_date']);
 		$update2 = array_diff_value($arr2, $g_session);
 		$update2 AND db_update('session_data', array('sid'=>$sid), $update2);
+		// 更新 DB 后再同步 $g_session，避免同请求内重复 INSERT
+		$g_session['bigdata'] = 1;
 	}
 	return TRUE;
 }

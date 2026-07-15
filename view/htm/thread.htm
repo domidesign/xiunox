@@ -23,17 +23,13 @@ $sec_can_delete_thread = $allowdelete ? TRUE : ($first['allowdelete'] && $sec_al
 
 <!--{hook thread_start.htm}-->
 
-<div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
-	<div class="d-none d-xl-block col-xl-2">
-		<?php include _include(APP_PATH.'view/htm/thread_left.inc.htm');?>
-	</div>
-	<div class="col-xl-7" style="min-width:0">
-		<?php include _include(APP_PATH.'view/htm/thread_main.inc.htm');?>
-	</div>
-	<div class="d-none d-xl-block col-xl-3">
-		<?php include _include(APP_PATH.'view/htm/thread_right.inc.htm');?>
-	</div>
-</div>
+<?php
+$sidebar_left_file = 'thread_left.inc.htm';
+$sidebar_right_file = 'thread_right.inc.htm';
+$main_file = 'thread_main.inc.htm';
+$left_lg = false;
+include _include(APP_PATH.'view/htm/layout_three_column.inc.htm');
+?>
 
 <!--{hook thread_end.htm}-->
 

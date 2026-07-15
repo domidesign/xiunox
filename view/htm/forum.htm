@@ -4,11 +4,7 @@
 
 <!--{hook forum_start.htm}-->
 
-<div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
-	<div class="d-none d-lg-block col-lg-2 col-xl-2">
-		<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
-	</div>
-	<div class="col-lg-10 col-xl-7 main" style="min-width:0">
+<?php ob_start();?>
 
 
 		<div class="index-threadlist">
@@ -45,8 +41,7 @@
 		<!--{hook forum_page_before.htm}-->
 		<?php include _include(APP_PATH.'view/htm/pagination.inc.htm');?>
 		<!--{hook forum_page_after.htm}-->
-	</div>
-	<div class="d-none d-xl-block col-xl-3 aside">
+<?php $main_content = ob_get_clean(); ob_start();?>
 		<div class="x-card card card-forum-info   mb-3">
 			<div class="card-body">
 				<div class="d-flex align-items-center gap-3">
@@ -121,8 +116,7 @@
 		<?php  } ?>
 		<!--{hook forum_mod_after.htm}-->
 
-	</div>
-</div>
+<?php $right_html = ob_get_clean(); $sidebar_right_file = ''; $main_class = 'main'; $right_class = 'aside'; include _include(APP_PATH.'view/htm/layout_three_column.inc.htm');?>
 
 
 <!--{hook forum_end.htm}-->
