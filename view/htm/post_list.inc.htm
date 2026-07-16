@@ -236,7 +236,7 @@
 											<span class="text-body-secondary small"><?php echo lang('colon_separator'); ?></span>
 											<?php } ?>
 										</div>
-										<div class="small"><?php if($_reply_banned) { echo user_ban_hidden_notice_html(); } else { echo preg_replace('#<blockquote\s+class="blockquote"[^>]*>.*?</blockquote>#is', '', $_reply['message_fmt']); } ?></div>
+										<div class="message small"><?php if($_reply_banned) { echo user_ban_hidden_notice_html(); } else { echo preg_replace('#<blockquote\s+class="blockquote"[^>]*>.*?</blockquote>#is', '', $_reply['message_fmt']); } ?></div>
 										<div class="d-flex justify-content-between align-items-center mt-1">
 											<div class="d-flex align-items-center">
 												<span class="date text-body-secondary" style="font-size:0.75em"><?php echo $_reply['create_date_fmt'];?></span>

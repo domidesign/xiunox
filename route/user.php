@@ -755,6 +755,11 @@ if(empty($action)) {
 		$password = param('password', '', FALSE);
 		empty($password) AND message('password', lang('please_input_password'));
 
+		// 密码策略校验（读取后台 security-account 配置，与 resetpw 第 1 步、my/password 保持一致）
+		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+		$policy_err = SecurityConfigService::checkPasswordPolicy($password);
+		$policy_err AND message('password', $policy_err);
+
 		$update = array(
 			'password' => '',
 			'salt' => '',

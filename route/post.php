@@ -12,7 +12,8 @@ if($action == 'create') {
 	
 	$tid = param(2, 0);
 	$quick = param(3, 0);
-	$quotepid = param(4, 0);
+	// quotepid 优先读 URL 路径段（兼容旧格式），fallback 读 query 参数（高级回复按钮跳转时携带）
+	$quotepid = param(4, 0) ?: param('quotepid', 0);
 	
 	$thread = thread_read($tid);
 	if(empty($thread)) {
