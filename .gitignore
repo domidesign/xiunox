@@ -25,8 +25,9 @@ upload/avatar/*
 RULES.md
 AGENTS.md
 
-# Plugins (local only)
+# Plugins (keep directory, ignore contents)
 plugin/*
+!plugin/.gitkeep
 
 # Update logs
 update_*.md
