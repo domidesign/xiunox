@@ -1686,6 +1686,7 @@ return array(
 	'admin_mobile_nav_icon_tip'=>'图标类名，如 ti-smart-home, ti-category, ti-compass, ti-user, ti-circle-plus',
 	'admin_mobile_nav_need_login'=>'需登录',
 	'admin_mobile_nav_enable'=>'启用手机底部导航',
+	'admin_sidebar_nav_enable'=>'启用左侧导航（关闭后前台不显示左侧栏）',
 	'admin_col_icon_active'=>'选中图标',
 
 	// 导航设置 - URL 预设类型
@@ -1874,6 +1875,13 @@ return array(
 	'admin_online_upgrade_latest_version'=>'最新版本',
 	'admin_online_upgrade_check_failed'=>'检查失败',
 	'admin_online_upgrade_request_failed'=>'请求失败：',
+	'admin_online_upgrade_check_limited_title'=>'检查频率受限',
+	'admin_online_upgrade_check_limited_msg'=>'24 小时内已检查过更新，请 %s 后再试。',
+	'admin_online_upgrade_check_limited_btn'=>'24h 内已检查',
+	'admin_online_upgrade_check_limited_hour'=>'小时',
+	'admin_online_upgrade_check_limited_minute'=>'分钟',
+	'admin_online_upgrade_check_done_limited'=>'检查已完成，24 小时内仅允许检查一次，到期后可再次检查。',
+	'admin_online_upgrade_check_cached_tip'=>'（本次结果来自服务端缓存）',
 	'admin_online_upgrade_retry'=>'重试',
 	'admin_online_upgrade_rolling_back'=>'正在回滚...',
 	'admin_online_upgrade_reinstall_confirm'=>'确定要重装当前版本吗？将下载并覆盖当前版本的全部代码文件。',

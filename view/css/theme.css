@@ -208,7 +208,8 @@ textarea {
 .btn.active,
 .btn.show,
 .btn:first-child:active,
-:not(.btn-check)+.btn:active {
+:not(.btn-check)+.btn:active,
+.list-group-item.active {
     border-color: var(--bs-primary);
     background-color: var(--bs-link-color-hover);
     color: #fff;

@@ -322,14 +322,15 @@ if(empty($action)) {
 		$replace['installed'] = 1;
 		$replace['version'] = XIUNOX_VERSION;
 
-		// 默认导航项（首页 + 默认版块）
+		// 默认导航项（顶部：首页/版块/排行；左侧：默认版块）
+		// URL 用 ?xxx.htm 查询格式，与默认 url_rewrite_on=0 一致，兼容子目录部署
 		$replace['nav_items'] = array(
-			array('type'=>'link', 'icon'=>'ti ti-home', 'name'=>lang('index_page'), 'slug'=>'home', 'url'=>'index', 'class'=>'', 'rank'=>0),
-			array('type'=>'link', 'icon'=>'ti ti-message-circle', 'name'=>lang('default_forum_name'), 'slug'=>'default-forum', 'url'=>'forum-1', 'class'=>'', 'rank'=>10),
+			array('type'=>'link', 'icon'=>'ti ti-home', 'name'=>lang('index_page'), 'slug'=>'home', 'url'=>'?index.htm', 'class'=>'', 'rank'=>0),
+			array('type'=>'link', 'icon'=>'ti ti-category', 'name'=>lang('forum'), 'slug'=>'forums', 'url'=>'?forums.htm', 'class'=>'', 'rank'=>10),
+			array('type'=>'link', 'icon'=>'ti ti-trophy', 'name'=>lang('rank_page'), 'slug'=>'rank', 'url'=>'?rank.htm', 'class'=>'', 'rank'=>20),
 		);
 		$replace['sidebar_nav_items'] = array(
-			array('type'=>'link', 'icon'=>'ti ti-home', 'name'=>lang('index_page'), 'slug'=>'home', 'url'=>'index', 'class'=>'', 'rank'=>0),
-			array('type'=>'link', 'icon'=>'ti ti-message-circle', 'name'=>lang('default_forum_name'), 'slug'=>'default-forum', 'url'=>'forum-1', 'class'=>'', 'rank'=>10),
+			array('type'=>'link', 'icon'=>'ti ti-message-circle', 'name'=>lang('default_forum_name'), 'slug'=>'default-forum', 'url'=>'?forum-1.htm', 'class'=>'', 'rank'=>0),
 		);
 
 		// 创建默认 API 应用

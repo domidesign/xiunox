@@ -227,6 +227,7 @@ return array (
 	'default_lang' => '',                // 默认语言（空=跟随浏览器）
 	'mobile_nav_items' => array(),       // 手机底部导航（空=使用默认）
 	'mobile_nav_enable' => 0,            // 手机底部导航开关
+	'sidebar_nav_enable' => 1,           // 左侧导航开关（1=开启，0=关闭，默认开启保持向前兼容）
 
 	// -------------------> 基础设施配置（Task 9 新增）
 	// 字符集（数据库连接 + SET NAMES）

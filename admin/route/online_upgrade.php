@@ -10,8 +10,31 @@ $onlineUpgradeService = new OnlineUpgradeService($db, $conf);
 // hook admin_online_upgrade_start.php
 
 if($action == 'check') {
-    // 检查最新版本
+    // 检查最新版本（24 小时频率限制：避免对官方升级服务器频繁请求）
+    // ponytail: 双层限制——后端 cache 兜底，前端 localStorage 拦截；上限是 86400 秒一次
+    $cacheKey = 'online_upgrade_check_last';
+    $cached = cache_get($cacheKey);
+    $cacheTtl = 86400; // 24 小时
+    if ($cached && isset($cached['timestamp']) && isset($cached['result'])
+        && (time() - $cached['timestamp'] < $cacheTtl)) {
+        $result = $cached['result'];
+        $result['cached'] = true;
+        $result['next_check_at'] = $cached['timestamp'] + $cacheTtl;
+        $result['seconds_until_next'] = max(0, $cached['timestamp'] + $cacheTtl - time());
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     $result = $onlineUpgradeService->checkLatestVersion();
+
+    // 仅在检查成功时写缓存，失败不缓存（允许用户立即重试）
+    if (isset($result['ok']) && $result['ok']) {
+        cache_set($cacheKey, ['timestamp' => time(), 'result' => $result], $cacheTtl);
+        $result['next_check_at'] = time() + $cacheTtl;
+        $result['seconds_until_next'] = $cacheTtl;
+    }
+
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($result, JSON_UNESCAPED_UNICODE);
     exit;
@@ -62,6 +85,8 @@ if($action == 'check') {
             break;
         case 'cleanup':
             $result = $onlineUpgradeService->cleanup();
+            // 升级完成后清除检查频率限制缓存，允许用户立即重新检查版本
+            cache_delete('online_upgrade_check_last');
             break;
         case 'maintenance_off':
             $result = $onlineUpgradeService->maintenanceOff();
