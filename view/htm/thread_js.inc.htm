@@ -169,6 +169,16 @@
         });
     });
 
+    // 同步高级回复按钮的 quotepid（点击 .post_reply 时携带，关闭引用条时移除）
+    var advancedReplyBtn = document.getElementById('advanced_reply');
+    var advancedReplyBaseHref = advancedReplyBtn ? advancedReplyBtn.getAttribute('href') : '';
+    function syncAdvancedReplyHref(quotepid) {
+        if (!advancedReplyBtn) return;
+        advancedReplyBtn.href = quotepid
+            ? advancedReplyBaseHref + (advancedReplyBaseHref.indexOf('?') !== -1 ? '&' : '?') + 'quotepid=' + quotepid
+            : advancedReplyBaseHref;
+    }
+
     // 回复按钮：原生 JS 实现（显示引用条，设置 quotepid 并滚动到回复框）
     document.getElementById('postlist').addEventListener('click', function(e) {
         var btn = e.target.closest('.post_reply');
@@ -186,6 +196,8 @@
         // 设置引用的 pid
         var quotepidInput = document.querySelector('input[name="quotepid"]');
         if(quotepidInput) quotepidInput.value = pid;
+        // 同步高级回复按钮 href 携带 quotepid
+        syncAdvancedReplyHref(pid);
         // 显示引用条
         var quoteBar = document.getElementById('reply-quote-bar');
         var quoteUserEl = document.getElementById('reply-quote-username');
@@ -211,23 +223,37 @@
             if(quoteBar) quoteBar.classList.add('d-none');
             var quotepidInput = document.querySelector('input[name="quotepid"]');
             if(quotepidInput) quotepidInput.value = 0;
+            // 同步移除高级回复按钮的 quotepid
+            syncAdvancedReplyHref(0);
         });
     })();
 
+    // 图片灯箱：原生 JS 实现，支持 htmx 局部刷新后重绑定（参考 bindCopyCode 模式）
     var lightboxImages = [];
     var lightboxIndex = 0;
-    $(function () {
-        $('.message img').each(function () {
-            var src = $(this).attr('src');
-            if (src && !$(this).closest('a').length) {
-                lightboxImages.push(src);
-                $(this).css('cursor', 'pointer').on('click', function () {
+    function bindLightbox(container) {
+        var root = container || document;
+        if (!root.querySelectorAll) return;
+        var nodes = root.querySelectorAll('.message img');
+        for (var i = 0; i < nodes.length; i++) {
+            (function (img) {
+                if (img.dataset.lightboxBound === '1') return;  // 避免重复绑定
+                var src = img.getAttribute('src');
+                if (!src || img.closest('a')) return;  // 裸图才绑定，被 <a> 包裹的保留跳转行为
+                img.dataset.lightboxBound = '1';
+                if (lightboxImages.indexOf(src) === -1) lightboxImages.push(src);
+                img.style.cursor = 'pointer';
+                img.addEventListener('click', function () {
                     lightboxIndex = lightboxImages.indexOf(src);
                     $('#lightboxImage').attr('src', src);
                     new bootstrap.Modal(document.getElementById('imageLightbox')).show();
                 });
-            }
-        });
+            })(nodes[i]);
+        }
+    }
+    bindLightbox(document);
+    document.addEventListener('htmx:after:swap', function (evt) {
+        bindLightbox(evt.target);
     });
     $('#lightboxPrev').on('click', function () {
         if (lightboxImages.length === 0) return;

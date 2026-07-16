@@ -255,6 +255,11 @@ fieldset:disabled .btn {
 .aie-content .copy-code {
     padding:2px 4px;
 }
+.nav-pills 
+ {
+ 
+    --bs-nav-pills-link-active-bg: var(--bs-primary);
+}
 @media screen and (max-width: 767.98px) {
 
     .row>* {

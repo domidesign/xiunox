@@ -308,6 +308,20 @@ window.resetPostSubmit = function() {
 	}
 };
 
+// htmx:confirm 请求被阻止时（如抽奖校验失败）恢复按钮
+// ponytail: htmx:confirm 中 preventDefault/dropRequest 不会触发 htmx:after:request，
+// 导致 submit 捕获阶段禁用的按钮卡在"正在提交..."。setTimeout(0) 在所有 confirm
+// 监听器执行完后检查 defaultPrevented，被阻止则恢复按钮。
+// 排除异步确认场景（window._htmxConfirmAsync=true）：插件弹异步确认框时按钮保持
+// 禁用，确认/取消后由插件自行恢复按钮并决定是否重新提交。
+document.getElementById('form').addEventListener('htmx:confirm', function(evt) {
+	setTimeout(function() {
+		if (evt.defaultPrevented && !window._htmxConfirmAsync) {
+			window.resetPostSubmit();
+		}
+	}, 0);
+});
+
 // htmx 请求前：设置按钮为 loading 状态
 document.getElementById('form').addEventListener('htmx:before:request', function(event) {
 	$('#submit').button('loading');

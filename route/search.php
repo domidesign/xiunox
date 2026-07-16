@@ -38,27 +38,6 @@ if ($keyword_from_qs !== '' && $keyword_from_qs !== null) {
     $page = param(2, 1);
 }
 
-// 搜索频率限制检查（建议模式和翻页模式跳过，翻页只是浏览已有结果）
-if (!$suggest && !$ref_suggest && $page <= 1) {
-    $search_interval = SecurityConfigService::get('security_search_interval', 10);
-    if ($search_interval > 0) {
-        $search_key = 'security_search_time_' . ($uid > 0 ? $uid : $longip);
-        $last_search = kv_get($search_key);
-        if (!empty($last_search) && ($time - intval($last_search)) < $search_interval) {
-            $remaining = $search_interval - ($time - intval($last_search));
-            $is_htmx = !empty($_SERVER['HTTP_HX_REQUEST']);
-            if($is_htmx) {
-                $msg = '搜索间隔太短，请' . $remaining . '秒后再试';
-                echo '<div id="searchResults"><div class="x-card card mt-3"><div class="card-body text-center py-5 text-body-secondary"><i class="ti ti-alert-circle fs-1 mb-3 d-block opacity-25"></i><p class="fs-5 fw-semibold">'.$msg.'</p></div></div></div>';
-                echo '<script type="text/javascript">if(typeof XN.toast==="function")XN.toast("'.$msg.'","danger");</script>';
-                exit;
-            }
-            message(-1, '搜索间隔太短，请' . $remaining . '秒后再试');
-        }
-        kv_set($search_key, $time);
-    }
-}
-
 // 获取 keyword（优先 query string，回退到 URL 路径位置 1）
 $keyword = $keyword_from_qs;
 empty($keyword) AND $keyword = param(1);
@@ -142,6 +121,28 @@ function search_ensure_fulltext($table, $column, $index_name) {
 }
 
 if($keyword_safe) {
+    // 搜索频率限制检查（只有真正发起搜索才计时；建议模式/翻页/纯访问搜索页不计）
+    // 翻页只是浏览已有结果，不计入；page<=1 表示首次搜索
+    if (!$suggest && !$ref_suggest && $page <= 1) {
+        $search_interval = SecurityConfigService::get('security_search_interval', 10);
+        if ($search_interval > 0) {
+            $search_key = 'security_search_time_' . ($uid > 0 ? $uid : $longip);
+            $last_search = kv_get($search_key);
+            if (!empty($last_search) && ($time - intval($last_search)) < $search_interval) {
+                $remaining = $search_interval - ($time - intval($last_search));
+                $is_htmx = !empty($_SERVER['HTTP_HX_REQUEST']);
+                if($is_htmx) {
+                    $msg = '搜索间隔太短，请' . $remaining . '秒后再试';
+                    echo '<div id="searchResults"><div class="x-card card mt-3"><div class="card-body text-center py-5 text-body-secondary"><i class="ti ti-alert-circle fs-1 mb-3 d-block opacity-25"></i><p class="fs-5 fw-semibold">'.$msg.'</p></div></div></div>';
+                    echo '<script type="text/javascript">if(typeof XN.toast==="function")XN.toast("'.$msg.'","danger");</script>';
+                    exit;
+                }
+                message(-1, '搜索间隔太短，请' . $remaining . '秒后再试');
+            }
+            kv_set($search_key, $time);
+        }
+    }
+
     // 关键词长度校验（最多50字符防 DoS）
     $_kw_len = mb_strlen($keyword_safe);
     if($_kw_len < $search_min_length) {
