@@ -25,5 +25,8 @@ upload/avatar/*
 RULES.md
 AGENTS.md
 
+# Plugins (local only)
+plugin/*
+
 # Update logs
 update_*.md
