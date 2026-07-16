@@ -302,6 +302,8 @@ if($action == 'base') {
 		$discover_items = isset($conf['discover_items']) ? $conf['discover_items'] : array();
 		$mobile_nav_items = isset($conf['mobile_nav_items']) ? $conf['mobile_nav_items'] : array();
 		$mobile_nav_enable = !empty($conf['mobile_nav_enable']);
+		// 左侧导航开关：默认开启（未配置时视为 1，保持向前兼容）
+		$sidebar_nav_enable = !isset($conf['sidebar_nav_enable']) ? 1 : (!empty($conf['sidebar_nav_enable']) ? 1 : 0);
 
 		// 标记用户自定义项的 source（便于后台区分插件项与用户项）
 		foreach ($nav_items as &$_ni) { $_ni['source'] = 'custom'; }
@@ -462,6 +464,7 @@ if($action == 'base') {
 
 		$replace['mobile_nav_items'] = $mobile_items;
 		$replace['mobile_nav_enable'] = param('mobile_nav_enable', 0) ? 1 : 0;
+		$replace['sidebar_nav_enable'] = param('sidebar_nav_enable', 0) ? 1 : 0;
 
 		// 页脚设置
 		$footer_icp = param('footer_icp', '');
@@ -525,6 +528,7 @@ if($action == 'base') {
 			'mobile_nav_items' => $_return_mobile,
 			'discover_items' => $_return_discover,
 			'mobile_nav_enable' => $replace['mobile_nav_enable'],
+			'sidebar_nav_enable' => $replace['sidebar_nav_enable'],
 		));
 	}
 

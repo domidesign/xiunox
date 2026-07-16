@@ -108,15 +108,7 @@
 		</div>
 			<button type="button" class="btn btn-sm btn-outline-secondary" data-op="move" disabled><i class="ti ti-arrows-move"></i> <?php echo lang('move');?></button>
 			<button type="button" class="btn btn-sm btn-outline-danger" data-op="delete" disabled><i class="ti ti-trash"></i> <?php echo lang('delete');?></button>
-			<!-- 移动版块选择（默认隐藏） -->
-			<select id="move_forum" class="form-select form-select-sm d-none" style="width:150px">
-				<option value=""><?php echo lang('admin_thread_please_select_forum');?></option>
-				<?php foreach ($forumlist as $forum) { ?>
-				<?php if(!empty($forum['type'])) continue; // 过滤分区，分区不能存放帖子 ?>
-				<option value="<?php echo $forum['fid']; ?>"><?php echo $forum['name']; ?></option>
-				<?php } ?>
-			</select>
-		</div>
+	</div>
 
 		<!-- 帖子列表 -->
 		<div class="table-responsive">
@@ -151,6 +143,32 @@
 			<span class="small text-secondary"><?php echo lang('admin_thread_pagesize');?></span>
 		</div>
 		<div id="pagination_area"></div>
+	</div>
+</div>
+
+<!-- 移动帖子选择版块弹窗 -->
+<div class="modal fade" id="moveThreadModal" tabindex="-1">
+	<div class="modal-dialog modal-dialog-centered">
+		<div class="modal-content border-0 rounded-1">
+			<div class="modal-header border-0">
+				<h5 class="modal-title"><i class="ti ti-arrows-move"></i> <?php echo lang('move');?></h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+			</div>
+			<div class="modal-body">
+				<div class="mb-2 text-secondary"><?php echo lang('admin_thread_move_to_forum');?></div>
+				<select id="move_forum" class="form-select">
+					<option value=""><?php echo lang('admin_thread_please_select_forum');?></option>
+					<?php foreach ($forumlist as $forum) { ?>
+					<?php if(!empty($forum['type'])) continue; // 过滤分区，分区不能存放帖子 ?>
+					<option value="<?php echo $forum['fid']; ?>"><?php echo $forum['name']; ?></option>
+					<?php } ?>
+				</select>
+			</div>
+			<div class="modal-footer border-0">
+				<button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?php echo lang('cancel');?></button>
+				<button type="button" class="btn btn-primary" id="moveThreadConfirmBtn"><?php echo lang('confirm');?></button>
+			</div>
+		</div>
 	</div>
 </div>
 
@@ -309,7 +327,6 @@ function doBatch(op, extra) {
 	if(op === 'move') {
 		var targetFid = jmove_forum.val();
 		if(!targetFid) {
-			jmove_forum.removeClass('d-none');
 			showToast('<?php echo lang('admin_thread_please_select_forum');?>', 'warning');
 			return;
 		}
@@ -337,10 +354,12 @@ function doBatch(op, extra) {
 		else if(digestVal === 2) confirmMsg = '<?php echo lang('admin_thread_confirm_batch_digest_2');?>';
 		else confirmMsg = '<?php echo lang('admin_thread_confirm_batch_digest_3');?>';
 	}
-	else if(op === 'move') confirmMsg = '<?php echo lang('admin_thread_move_to_forum');?>';
+	else if(op === 'move') {
+		// move 已通过 modal 弹窗确认，不再二次确认
+	}
 	else return;
 
-	XN.confirm(confirmMsg, function() {
+	function doSubmit() {
 	var url = '<?php echo admin_thread_batch_url();?>';
 	var postdata = {
 		tids: tids.join(','),
@@ -366,16 +385,37 @@ function doBatch(op, extra) {
 			}
 			showToast('<?php echo lang('admin_thread_batch_success');?>', 'success');
 			loadThreadResults(currentFoundPage);
+			if(op === 'move' && moveThreadModal) {
+				moveThreadModal.hide();
+				jmove_forum.val('');
+			}
 		} else {
 			showToast(message || '<?php echo lang('admin_thread_batch_failed');?>', 'error');
 		}
 	});
-	});
+	}
+
+	if(confirmMsg) {
+		XN.confirm(confirmMsg, doSubmit);
+	} else {
+		doSubmit();
+	}
 }
 
 // 按钮（除置顶/精华外）直接触发
 jbatch_btns.on('click', function() {
-	doBatch($(this).data('op'));
+	var op = $(this).data('op');
+	if(op === 'move') {
+		var tids = getSelectedTids();
+		if(tids.length === 0) {
+			showToast('<?php echo lang('admin_thread_no_selection');?>', 'warning');
+			return;
+		}
+		jmove_forum.val('');
+		if(moveThreadModal) moveThreadModal.show();
+		return;
+	}
+	doBatch(op);
 });
 
 // 置顶/精华/公告 dropdown 项触发
@@ -391,10 +431,14 @@ $('#batch_toolbar').on('click', 'a.dropdown-item[data-op="top"], a.dropdown-item
 	}
 });
 
-// 移动按钮点击时显示版块选择
-jbatch_toolbar.find('button[data-op="move"]').on('click', function() {
-	jmove_forum.toggleClass('d-none');
-});
+// 移动帖子弹窗：确认按钮触发提交（doBatch 内已选版块，跳过二次确认）
+var moveThreadModalEl = document.getElementById('moveThreadModal');
+var moveThreadModal = moveThreadModalEl ? new bootstrap.Modal(moveThreadModalEl) : null;
+if(moveThreadModalEl) {
+	document.getElementById('moveThreadConfirmBtn').addEventListener('click', function() {
+		doBatch('move');
+	});
+}
 
 </script>
 

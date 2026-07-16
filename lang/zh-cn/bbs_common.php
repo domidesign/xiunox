@@ -87,6 +87,7 @@ return array(
 	'piece'=>'篇',
 	'index_page'=>'首页',
 	'forum'=>'版块',
+	'rank_page'=>'排行',
 	'discover'=>'发现',
 	'admin_page'=>'后台管理',
 	'admin_login'=>'管理员登录',

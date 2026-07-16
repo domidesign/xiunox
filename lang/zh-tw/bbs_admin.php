@@ -1611,6 +1611,7 @@ return array(
 	'admin_mobile_nav_icon_tip'=>'圖標類名，如 ti-smart-home, ti-category, ti-compass, ti-user, ti-circle-plus',
 	'admin_mobile_nav_need_login'=>'需登入',
 	'admin_mobile_nav_enable'=>'啟用手機底部導航',
+	'admin_sidebar_nav_enable'=>'啟用左側導航（關閉後前台不顯示左側欄）',
 	'admin_col_icon_active'=>'選中圖標',
 
 	// 導航設置 - URL 預設類型
@@ -1799,6 +1800,13 @@ return array(
 	'admin_online_upgrade_latest_version'=>'最新版本',
 	'admin_online_upgrade_check_failed'=>'檢查失敗',
 	'admin_online_upgrade_request_failed'=>'請求失敗：',
+	'admin_online_upgrade_check_limited_title'=>'檢查頻率受限',
+	'admin_online_upgrade_check_limited_msg'=>'24 小時內已檢查過更新，請 %s 後再試。',
+	'admin_online_upgrade_check_limited_btn'=>'24h 內已檢查',
+	'admin_online_upgrade_check_limited_hour'=>'小時',
+	'admin_online_upgrade_check_limited_minute'=>'分鐘',
+	'admin_online_upgrade_check_done_limited'=>'檢查已完成，24 小時內僅允許檢查一次，到期後可再次檢查。',
+	'admin_online_upgrade_check_cached_tip'=>'（本次結果來自伺服器快取）',
 	'admin_online_upgrade_retry'=>'重試',
 	'admin_online_upgrade_rolling_back'=>'正在回滾...',
 	'admin_online_upgrade_reinstall_confirm'=>'確定要重裝當前版本嗎？將下載並覆蓋當前版本的全部代碼文件。',

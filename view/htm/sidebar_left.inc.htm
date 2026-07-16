@@ -1,4 +1,9 @@
 <!--{hook sidebar_left_start.htm}-->
+<?php
+// ponytail: 左侧导航开关 - 默认开启（未配置视为 1），关闭时整个左侧栏（含容器）不输出
+$_sidebar_nav_enable = !isset($conf['sidebar_nav_enable']) ? 1 : (!empty($conf['sidebar_nav_enable']) ? 1 : 0);
+?>
+<?php if ($_sidebar_nav_enable): ?>
 <div class="d-none d-lg-block mb-3">
 	<div class="sidebar-left x-card card  overflow-hidden">
 		<!--{hook sidebar_left_quick_before.htm}-->
@@ -93,4 +98,5 @@
 		<!--{hook sidebar_left_forum_after.htm}-->
 	</div>
 </div>
+<?php endif; ?>
 <!--{hook sidebar_left_end.htm}-->

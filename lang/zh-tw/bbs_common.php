@@ -87,6 +87,7 @@ return array(
 	'piece'=>'篇',
 	'index_page'=>'首頁',
 	'forum'=>'版塊',
+	'rank_page'=>'排行',
 	'admin_page'=>'後臺管理',
 	'admin_login'=>'管理員登錄',
 	'toggler_menu'=>'展開菜單',

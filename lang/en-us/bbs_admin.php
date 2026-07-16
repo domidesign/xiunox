@@ -1624,6 +1624,7 @@ return array(
 	'admin_mobile_nav_icon_tip'=>'Icon class, e.g. ti-smart-home, ti-category, ti-compass, ti-user, ti-circle-plus',
 	'admin_mobile_nav_need_login'=>'Require Login',
 	'admin_mobile_nav_enable'=>'Enable Mobile Bottom Nav',
+	'admin_sidebar_nav_enable'=>'Enable Side Navigation (left sidebar hidden when off)',
 	'admin_col_icon_active'=>'Active Icon',
 
 	// Nav settings - URL preset types
@@ -1812,6 +1813,13 @@ return array(
 	'admin_online_upgrade_latest_version'=>'Latest Version',
 	'admin_online_upgrade_check_failed'=>'Check failed',
 	'admin_online_upgrade_request_failed'=>'Request failed: ',
+	'admin_online_upgrade_check_limited_title'=>'Check Rate Limited',
+	'admin_online_upgrade_check_limited_msg'=>'Update check already performed within 24 hours. Please try again in %s.',
+	'admin_online_upgrade_check_limited_btn'=>'Checked (24h)',
+	'admin_online_upgrade_check_limited_hour'=>'h',
+	'admin_online_upgrade_check_limited_minute'=>'m',
+	'admin_online_upgrade_check_done_limited'=>'Check completed. Only one check is allowed per 24 hours; you may check again after the cooldown.',
+	'admin_online_upgrade_check_cached_tip'=>'(result served from server cache)',
 	'admin_online_upgrade_retry'=>'Retry',
 	'admin_online_upgrade_rolling_back'=>'Rolling back...',
 	'admin_online_upgrade_reinstall_confirm'=>'Are you sure you want to reinstall the current version? This will download and overwrite all code files.',

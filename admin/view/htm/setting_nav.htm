@@ -138,6 +138,11 @@
 
 				<!-- 左侧导航 -->
 			<div class="nav-tab-pane" id="sideNavPane" style="display:none;">
+				<div class="form-check form-switch mb-3">
+					<input type="hidden" name="sidebar_nav_enable" value="0">
+					<input class="form-check-input" type="checkbox" name="sidebar_nav_enable" id="sidebarNavEnable" value="1" <?php echo !empty($sidebar_nav_enable) ? 'checked' : '';?>>
+					<label class="form-check-label" for="sidebarNavEnable"><?php echo lang('admin_sidebar_nav_enable');?></label>
+				</div>
 				<p class="text-body-secondary small mb-2">
 				<i class="ti ti-info-circle me-1"></i><?php echo lang('admin_nav_drag_tip');?>
 			</p>
@@ -1144,8 +1149,11 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 					renderMobileNavList(mobileNavItems);
 				}
 				if (data.mobile_nav_enable !== undefined) {
-					document.getElementById('mobileNavEnable').checked = !!data.mobile_nav_enable;
-				}
+				document.getElementById('mobileNavEnable').checked = !!data.mobile_nav_enable;
+			}
+			if (data.sidebar_nav_enable !== undefined) {
+				document.getElementById('sidebarNavEnable').checked = !!data.sidebar_nav_enable;
+			}
 
 				// 重新渲染所有预览
 				refreshAllPreviews();

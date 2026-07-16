@@ -145,7 +145,7 @@ function plugin_init() {
 			$arr = xn_json_decode(file_get_contents($conffile));
 			if(empty($arr)) continue;
 			$plugins[$dir] = $arr;
-			
+
 			// 额外的信息
 			$plugins[$dir]['hooks'] = array();
 			$hookpaths = glob(APP_PATH."plugin/$dir/hook/*.*"); // path
@@ -155,9 +155,36 @@ function plugin_init() {
 					$plugins[$dir]['hooks'][$hookname] = $hookpath;
 				}
 			}
-			
+
 			// 本地 + 线上数据
 			$plugins[$dir] = plugin_read_by_dir($dir);
+		}
+	}
+
+	// db 为权威：用 bbs_plugin 表覆盖 enable/installed，无记录的老插件平移 conf.json 状态
+	// ponytail: 兜底——db 异常时跳过，保留 conf.json 值，避免后台白屏
+	if (!empty($plugins)) {
+		$db_list = array();
+		try {
+			$db_list = plugin_db_get_all();
+		} catch (\Throwable $e) {
+			$db_list = array();
+		}
+		foreach ($plugins as $dir => $unused) {
+			if (isset($db_list[$dir])) {
+				// db 权威覆盖
+				$plugins[$dir]['installed'] = isset($db_list[$dir]['installed']) ? (int)$db_list[$dir]['installed'] : 0;
+				$plugins[$dir]['enable']    = isset($db_list[$dir]['enable'])    ? (int)$db_list[$dir]['enable']    : 0;
+				if (isset($db_list[$dir]['version']) && $db_list[$dir]['version'] !== '') {
+					$plugins[$dir]['db_version'] = $db_list[$dir]['version'];
+				}
+			} else {
+				// 老插件首次进入：用 conf.json 当前值平移到 db，以后以 db 为准
+				plugin_db_init($dir, $plugins[$dir]);
+				if (!empty($plugins[$dir]['installed'])) plugin_db_set_installed($dir, 1);
+				if (!empty($plugins[$dir]['enable']))    plugin_db_set_enable($dir, 1);
+				if (!empty($plugins[$dir]['version']))   plugin_db_set_version($dir, $plugins[$dir]['version']);
+			}
 		}
 	}
 }
@@ -264,9 +291,7 @@ function plugin_enable($dir) {
 	//plugin_overwrite($dir, 'install');
 	//plugin_hook($dir, 'install');
 
-	file_replace_var(APP_PATH."plugin/$dir/conf.json", array('enable'=>1), TRUE);
-	
-	// 写入数据库
+	// 写入数据库（db 为权威，conf.json 不再被运行时改写）
 	plugin_db_init($dir, $plugins[$dir]);
 	plugin_db_set_enable($dir, 1);
 
@@ -294,9 +319,7 @@ function plugin_disable($dir) {
 	//plugin_overwrite($dir, 'unstall');
 	//plugin_hook($dir, 'unstall');
 
-	file_replace_var(APP_PATH."plugin/$dir/conf.json", array('enable'=>0), TRUE);
-	
-	// 写入数据库
+	// 写入数据库（db 为权威，conf.json 不再被运行时改写）
 	plugin_db_init($dir, $plugins[$dir]);
 	plugin_db_set_enable($dir, 0);
 
@@ -345,10 +368,7 @@ function plugin_install($dir) {
 	// 2. 钩子的方式
 	//plugin_hook($dir, 'install');
 
-	// 写入配置文件
-	file_replace_var(APP_PATH."plugin/$dir/conf.json", array('installed'=>1, 'enable'=>1), TRUE);
-
-	// 写入数据库
+	// 写入数据库（db 为权威，conf.json 不再被运行时改写）
 	plugin_db_init($dir, $plugins[$dir]);
 	plugin_db_set_installed($dir, 1);
 	plugin_db_set_enable($dir, 1);
@@ -377,10 +397,7 @@ function plugin_unstall($dir) {
 	// 2. 钩子的方式
 	//plugin_hook($dir, 'unstall');
 
-	// 写入配置文件
-	file_replace_var(APP_PATH."plugin/$dir/conf.json", array('installed'=>0, 'enable'=>0), TRUE);
-	
-	// 写入数据库
+	// 写入数据库（db 为权威，conf.json 不再被运行时改写）
 	plugin_db_init($dir, $plugins[$dir]);
 	plugin_db_set_installed($dir, 0);
 	plugin_db_set_enable($dir, 0);
@@ -396,12 +413,35 @@ function plugin_paths_enabled() {
 		$return_paths = array();
 		$plugin_paths = glob(APP_PATH.'plugin/*', GLOB_ONLYDIR);
 		if(empty($plugin_paths)) return array();
+
+		// db 为权威：批量取 enable/installed
+		// ponytail: 兜底——db 异常或表不存在(install 阶段)回退读 conf.json
+		$db_list = array();
+		try {
+			$db_list = plugin_db_get_all();
+		} catch (\Throwable $e) {
+			$db_list = array();
+		}
+
 		foreach($plugin_paths as $path) {
 			$conffile = $path."/conf.json";
 			if(!is_file($conffile)) continue;
 			$pconf = xn_json_decode(file_get_contents($conffile));
 			if(empty($pconf)) continue;
-			if(empty($pconf['enable']) || empty($pconf['installed'])) continue;
+
+			$dir = file_name($path);
+			if (isset($db_list[$dir])) {
+				// db 权威
+				$enable    = !empty($db_list[$dir]['enable']);
+				$installed = !empty($db_list[$dir]['installed']);
+			} else {
+				// db 无记录或 db 不可用：回退 conf.json
+				$enable    = !empty($pconf['enable']);
+				$installed = !empty($pconf['installed']);
+			}
+			if(!$enable || !$installed) continue;
+			$pconf['enable'] = 1;
+			$pconf['installed'] = 1;
 			$return_paths[$path] = $pconf;
 		}
 	}
@@ -636,15 +676,11 @@ function plugin_db_get($dir) {
     return $arr ? $arr : array();
 }
 
-// 获取所有插件数据库记录
+// 获取所有插件数据库记录（以 dir 为 key 的关联数组）
+// ponytail: db 类无 find_all 方法，用 find + key='dir' 直接返回以 dir 为 key 的数组
 function plugin_db_get_all() {
     global $db, $tablepre;
-    $arr = $db->find_all($tablepre.'plugin');
-    $list = array();
-    foreach ((array)$arr as $v) {
-        $list[$v['dir']] = $v;
-    }
-    return $list;
+    return $db->find($tablepre.'plugin', [], [], 1, 1000000, 'dir');
 }
 
 // 初始化插件数据库记录（如果不存在则创建）

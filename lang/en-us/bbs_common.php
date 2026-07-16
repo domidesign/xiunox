@@ -87,6 +87,7 @@ return array(
 	'piece'=>'Piece',
 	'index_page'=>'Index',
 	'forum'=>'Forums',
+	'rank_page'=>'Rankings',
 	'discover'=>'Discover',
 	'admin_page'=>'Management',
 	'admin_login'=>'Admin Login',
