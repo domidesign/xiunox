@@ -204,7 +204,7 @@ var jfileForm = $('#file-import-form');
 jfileForm.on('submit', function() {
 	var formData = new FormData(this);
 	var jsubmit = jfileForm.find('button[type="submit"]');
-	jsubmit.button('loading');
+	setBtnLoading(jsubmit, true);
 	$.ajax({
 		url: jfileForm.attr('action'),
 		type: 'POST',
@@ -219,11 +219,11 @@ jfileForm.on('submit', function() {
 			} else {
 				showToast(s && s.message ? s.message : '<?php echo lang('admin_import_failed');?>', 'error');
 			}
-			jsubmit.button('reset');
+			setBtnLoading(jsubmit, false);
 		},
 		error: function() {
 			showToast('<?php echo lang('admin_request_failed');?>', 'error');
-			jsubmit.button('reset');
+			setBtnLoading(jsubmit, false);
 		}
 	});
 	return false;

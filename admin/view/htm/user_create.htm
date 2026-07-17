@@ -56,7 +56,7 @@ var jform = $('#form');
 var jsubmit = $('#submit');
 jform.on('submit', function() {
 	jform.reset();
-	jsubmit.button('loading');
+	setBtnLoading(jsubmit, true);
 	var postdata = jform.serialize();
 	$.xpost(jform.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
@@ -64,10 +64,10 @@ jform.on('submit', function() {
 			jsubmit.text(message).delay(1000).location(xn.url('user-list'));
 		} else if(xn.is_number(code)) {
 			showToast(message, 'error');
-			jsubmit.button('reset');
+			setBtnLoading(jsubmit, false);
 		} else {
 			jform.find('[name="'+code+'"]').alert(message).focus();
-			jsubmit.button('reset');
+			setBtnLoading(jsubmit, false);
 		}
 	});
 	return false;

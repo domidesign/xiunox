@@ -61,7 +61,7 @@
 var jform = $('form');
 var jsubmit = jform.find('button[type="submit"]');
 jform.on('submit', function() {
-	jsubmit.button('loading');
+	setBtnLoading(jsubmit, true);
 	var postdata = jform.serialize();
 	$.xpost(jform.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
@@ -69,7 +69,7 @@ jform.on('submit', function() {
 			setTimeout(function(){ window.location.reload(); }, 1000);
 		} else {
 			showToast(message, 'error');
-			jsubmit.button('reset');
+			setBtnLoading(jsubmit, false);
 		}
 	});
 	return false;

@@ -387,8 +387,10 @@ switch ($action) {
             }
 
             $r = xn_send_mail($smtp, $conf['sitename'], $email, $subject, $message, array('is_html' => TRUE));
-            if ($r === FALSE) {
-                ApiResponse::error(500, '邮件发送失败，请检查邮箱配置');
+            if ($r !== TRUE) {
+                // xn_send_mail 失败时返回错误字符串（非 FALSE），需用 !== TRUE 判断
+                $err_detail = is_string($r) ? $r : '邮件发送失败，请检查邮箱配置';
+                ApiResponse::error(500, '邮件发送失败：' . $err_detail);
             }
 
             xn_email_rate_record($email, $longip);

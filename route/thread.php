@@ -658,7 +658,7 @@ if($action == 'create') {
 		}
 
 		if($need_audit) {
-			message(0, '帖子已提交，等待审核', array('redirect_url' => forum_url($fid), 'change_desc' => $change_desc));
+			message(0, lang('create_thread_pending_audit'), array('redirect_url' => thread_url($tid), 'change_desc' => $change_desc));
 		} else {
 			message(0, lang('create_thread_sucessfully'), array('redirect_url' => thread_url($tid), 'change_desc' => $change_desc));
 		}

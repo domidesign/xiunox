@@ -233,7 +233,7 @@ var jsubmit = $('#submit');
 var langCreditsReasonRequired = <?php echo json_encode(lang('admin_credits_reason_required'));?>;
 jform.on('submit', function() {
 	jform.reset();
-	jsubmit.button('loading');
+	setBtnLoading(jsubmit, true);
 	// 积分调整时必须填写理由
 	var hasCreditsChange = false;
 	['credits', 'golds', 'rmbs'].forEach(function(k) {
@@ -244,7 +244,7 @@ jform.on('submit', function() {
 	if(hasCreditsChange && !jform.find('[name="credits_reason"]').val().trim()) {
 		showToast(langCreditsReasonRequired, 'error');
 		jform.find('[name="credits_reason"]').addClass('is-invalid').focus();
-		jsubmit.button('reset');
+		setBtnLoading(jsubmit, false);
 		return false;
 	}
 	jform.find('[name="credits_reason"]').removeClass('is-invalid');
@@ -255,11 +255,11 @@ jform.on('submit', function() {
 			setTimeout(function(){ window.location.reload(); }, 1000);
 		} else if(xn.is_number(code)) {
 			showToast(message, 'error');
-			jsubmit.button('reset');
+			setBtnLoading(jsubmit, false);
 		} else {
 			showToast(message, 'error');
 			jform.find('[name="'+code+'"]').alert(message).focus();
-			jsubmit.button('reset');
+			setBtnLoading(jsubmit, false);
 		}
 	});
 	return false;

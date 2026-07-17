@@ -261,10 +261,10 @@ jpagination.on('click', 'a.page-link', function(e) {
 
 // 搜索：直接加载 found 第1页（无需 scan 扫描入队列）
 jsubmit.on('click', function() {
-	jsubmit.button('loading');
+	setBtnLoading(jsubmit, true);
 	jsearch_result.show();
 	loadThreadResults(1, function() {
-		jsubmit.button('reset');
+		setBtnLoading(jsubmit, false);
 		if(lastTotal > 0) {
 			showToast('<?php echo lang('search_complete');?>', 'success');
 		} else {

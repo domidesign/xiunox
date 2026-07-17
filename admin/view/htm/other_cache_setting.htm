@@ -293,6 +293,57 @@ $runtimeStats = $pluginStats['runtime_stats'];
                 </div>
             </div>
 
+            <!-- 缓存前缀 -->
+            <div class="mb-3 d-flex flex-column flex-sm-row align-items-sm-center gap-2">
+                <label class="col-sm-6 fw-medium"><?php echo lang('admin_cache_prefix');?>：
+                    <div class="form-text small text-secondary"><?php echo lang('admin_cache_prefix_tip');?></div>
+                </label>
+                <div class="col-sm-6">
+                    <input type="text" class="form-control font-monospace" name="cachepre" value="<?php echo esc_html($currentCachepre);?>" maxlength="32" pattern="[a-zA-Z0-9_\-]{1,32}" required>
+                </div>
+            </div>
+
+            <!-- 核心缓存键 TTL 自定义 -->
+            <?php if(!empty($coreTtlKeys)): ?>
+            <div class="mb-3">
+                <label class="fw-medium d-block mb-2"><?php echo lang('admin_cache_ttl_config');?>：
+                    <div class="form-text small text-secondary"><?php echo lang('admin_cache_ttl_config_tip');?></div>
+                </label>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th><?php echo lang('admin_cache_col_key');?></th>
+                                <th style="width:120px;"><?php echo lang('admin_cache_col_desc');?></th>
+                                <th style="width:100px;"><?php echo lang('admin_cache_default_ttl');?></th>
+                                <th style="width:140px;"><?php echo lang('admin_cache_custom_ttl');?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach($coreTtlKeys as $keyPattern => $meta): ?>
+                                <?php
+                                $defaultTtl = $meta[0];
+                                $desc = $meta[1];
+                                $customTtl = isset($ttlConfig[$keyPattern]) ? $ttlConfig[$keyPattern] : '';
+                                ?>
+                                <tr>
+                                    <td class="font-monospace small"><?php echo esc_html($keyPattern);?></td>
+                                    <td class="small"><?php echo $desc;?></td>
+                                    <td class="small text-secondary"><?php echo $defaultTtl == 0 ? lang('admin_cache_permanent') : $defaultTtl . 's';?></td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" class="form-control" name="ttl_config[<?php echo esc_attr($keyPattern);?>]" value="<?php echo esc_attr($customTtl);?>" min="0" placeholder="<?php echo $defaultTtl;?>">
+                                            <span class="input-group-text"><?php echo lang('admin_cache_seconds');?></span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <?php endif; ?>
+
             <!-- 测试连接 + 保存 -->
             <div class="mb-3 d-flex flex-column flex-sm-row gap-2">
                 <label class="col-sm-6"></label>

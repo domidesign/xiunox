@@ -538,6 +538,7 @@ return array(
 	'create_post_failed'=>'Create post failed',
 	'create_thread_failed'=>'Create thread failed',
 	'create_thread_sucessfully'=>'Thread created successfully',
+	'create_thread_pending_audit'=>'Thread submitted, pending review',
 	'data_malformation'=>'Data malformation',
 	'thread_detail'=>'Thread Detail',
 	'create_post_sucessfully'=>'Reply posted successfully',

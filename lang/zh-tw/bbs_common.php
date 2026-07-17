@@ -459,6 +459,7 @@ return array(
 	'create_post_failed'=>'創建帖子失敗',
 	'create_thread_failed'=>'創建主題失敗',
 	'create_thread_sucessfully'=>'發帖成功',
+	'create_thread_pending_audit'=>'發帖成功，等待管理員審核',
 	'data_malformation'=>'數據有問題',
 	'thread_detail'=>'帖子詳情',
 	'create_post_sucessfully'=>'回帖成功',

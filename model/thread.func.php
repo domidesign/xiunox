@@ -12,6 +12,18 @@ function thread_forum_list_cache_delete($fid) {
 	CacheHelper::deleteByPrefix('core_forum_tl_' . $fid . '_');
 }
 
+// 带下限保护的计数器递减：GREATEST(field-N, 0)，防止负数
+// ponytail: thread__update(array('posts-'=>N)) 走 db_array_to_update_sqladd 无保护，统一改用本函数
+function thread_dec($tid, $field, $n = 1) {
+	$tid = intval($tid);
+	$n = intval($n);
+	if($tid <= 0 || $n <= 0) return FALSE;
+	if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $field)) return FALSE;
+	global $db;
+	$tablepre = $db->tablepre;
+	return db_exec("UPDATE `{$tablepre}thread` SET `$field` = GREATEST(`$field` - $n, 0) WHERE tid = '$tid'");
+}
+
 // 清除首页帖子列表缓存（core_index_tl_ 列表 + core_index_thread_count_ 总数）
 // 缓存键由 fid 列表的 md5 组合而成，无法按 fid 单独删除——直接清掉所有首页列表/计数缓存
 // 在帖子创建/回复/删除/软删除时调用，确保新内容在首页 60s 内可见
@@ -242,13 +254,15 @@ function thread_update($tid, $arr) {
 	// 更改 fid, 移动主题，相关资源也需要更新
 	if(isset($arr['fid']) && $arr['fid'] != $thread['fid']) {
 		forum__update($arr['fid'], array('threads+'=>1));
-		forum__update($thread['fid'], array('threads-'=>1));
+		forum_dec($thread['fid'], 'threads', 1);
 		thread_top_update_by_tid($tid, $arr['fid']);
 		// 清除新旧版块的帖子列表缓存
 		thread_forum_list_cache_delete($arr['fid']);
 		thread_forum_list_cache_delete($thread['fid']);
 		// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
 		index_list_cache_delete();
+		// 清除全局置顶帖列表缓存（移动置顶帖时 thread_top 表 fid 已更新，旧缓存仍指向原版块）
+		thread_top_cache_delete();
 	}
 	
 	if(!$arr) return TRUE;
@@ -326,8 +340,8 @@ function thread_delete($tid) {
 	$is_deleted = isset($thread['is_deleted']) ? intval($thread['is_deleted']) : 0;
 	$audit_status = isset($thread['audit_status']) ? intval($thread['audit_status']) : 1;
 	if($audit_status == 1 && $is_deleted == 0) {
-		forum__update($fid, array('threads-'=>1));
-		user__update($uid, array('threads-'=>1));
+		forum_dec($fid, 'threads', 1);
+		user_dec($uid, 'threads', 1);
 		runtime_set('threads-', 1);
 	}
 
@@ -386,7 +400,7 @@ function thread_delete_batch($tids) {
 		$forum_threads_dec[$fid]++;
 	}
 	foreach($forum_threads_dec as $fid => $dec) {
-		forum__update($fid, array('threads-'=>$dec));
+		forum_dec($fid, 'threads', $dec);
 	}
 
 	// 8. 汇总 user 统计：按 uid 分组累计 threads 减量（待审/已软删帖子不计入）
@@ -402,7 +416,7 @@ function thread_delete_batch($tids) {
 		$user_threads_dec[$u]++;
 	}
 	foreach($user_threads_dec as $u => $dec) {
-		user__update($u, array('threads-'=>$dec));
+		user_dec($u, 'threads', $dec);
 	}
 
 	// 9. 全站统计（仅计审核通过且非软删的）
@@ -443,8 +457,8 @@ function thread_soft_delete($tid, $deleted_by) {
 	// 减计统计（仅审核通过的帖子）
 	$audit_status = isset($thread['audit_status']) ? intval($thread['audit_status']) : 1;
 	if($audit_status == 1) {
-		forum__update($fid, array('threads-'=>1));
-		user__update($uid, array('threads-'=>1));
+		forum_dec($fid, 'threads', 1);
+		user_dec($uid, 'threads', 1);
 		runtime_set('threads-', 1);
 	}
 
@@ -466,7 +480,7 @@ function thread_soft_delete($tid, $deleted_by) {
 	}
 	$non_first_count AND runtime_set('posts-', $non_first_count);
 	foreach($user_post_count as $_uid => $cnt) {
-		user__update($_uid, array('posts-'=>$cnt));
+		user_dec($_uid, 'posts', $cnt);
 	}
 
 	// 清除 forum_list 缓存
@@ -529,10 +543,10 @@ function thread_soft_delete_batch($tids, $deleted_by) {
 		}
 	}
 	foreach($forum_threads_dec as $fid => $dec) {
-		forum__update($fid, array('threads-'=>$dec));
+		forum_dec($fid, 'threads', $dec);
 	}
 	foreach($user_threads_dec as $u => $dec) {
-		user__update($u, array('threads-'=>$dec));
+		user_dec($u, 'threads', $dec);
 	}
 	runtime_set('threads-', $approved_count);
 
@@ -554,7 +568,7 @@ function thread_soft_delete_batch($tids, $deleted_by) {
 	}
 	$non_first_count AND runtime_set('posts-', $non_first_count);
 	foreach($user_post_count as $_uid => $cnt) {
-		user__update($_uid, array('posts-'=>$cnt));
+		user_dec($_uid, 'posts', $cnt);
 	}
 
 	// 7. 清除 forum_list 缓存

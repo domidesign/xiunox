@@ -180,18 +180,18 @@ document.querySelectorAll('[data-credits-tab]').forEach(function(a) {
 var jglobalForm = $('#globalForm');
 var jglobalSubmit = $('#globalSubmit');
 jglobalForm.on('submit', function() {
-	jglobalSubmit.button('loading');
+	setBtnLoading(jglobalSubmit, true);
 	var postdata = jglobalForm.serialize();
 	$.xpost(jglobalForm.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
 			showToast(message, 'success');
-			jglobalSubmit.button('reset');
+			setBtnLoading(jglobalSubmit, false);
 		} else if(xn.is_number(code)) {
 			showToast(message, 'error');
-			jglobalSubmit.button('reset');
+			setBtnLoading(jglobalSubmit, false);
 		} else {
 			jglobalForm.find('[name="'+code+'"]').alert(message).focus();
-			jglobalSubmit.button('reset');
+			setBtnLoading(jglobalSubmit, false);
 		}
 	});
 	return false;

@@ -870,8 +870,10 @@ if(empty($action)) {
 		$interval = class_exists('SecurityConfigService') ? intval(SecurityConfigService::get('security_email_code_interval', 60)) : 60;
 		message(0, lang('send_successfully'), array('wait' => $interval));
 	} else {
-		xn_log($errstr, 'send_mail_error');
-		message(-1, $errstr);
+		// xn_send_mail 失败时返回错误字符串，$r 与全局 $errstr 内容一致
+		$err_detail = is_string($r) ? $r : (isset($errstr) ? $errstr : '邮件发送失败');
+		xn_log($err_detail, 'send_mail_error');
+		message(-1, $err_detail);
 	}
 
 // 简单的同步登陆实现：| sync login implement simply

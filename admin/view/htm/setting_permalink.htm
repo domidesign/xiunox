@@ -318,7 +318,7 @@ jform.on('submit', function(e) {
 });
 
 function doSubmitForm() {
-	jsubmit.button('loading');
+	setBtnLoading(jsubmit, true);
 	var postdata = jform.serialize();
 	$.xpost(jform.attr('action'), postdata, function(code, message) {
 		if(code == 0) {
@@ -326,10 +326,10 @@ function doSubmitForm() {
 			setTimeout(function(){ window.location.reload(); }, 1000);
 		} else if(xn.is_number(code)) {
 			showToast(message, 'error');
-			jsubmit.button('reset');
+			setBtnLoading(jsubmit, false);
 		} else {
 			jform.find('[name="'+code+'"]').alert(message).focus();
-			jsubmit.button('reset');
+			setBtnLoading(jsubmit, false);
 		}
 	});
 }

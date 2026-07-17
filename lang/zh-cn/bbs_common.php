@@ -551,6 +551,7 @@ return array(
 	'create_post_failed'=>'创建帖子失败',
 	'create_thread_failed'=>'创建帖子失败',
 	'create_thread_sucessfully'=>'发帖成功',
+	'create_thread_pending_audit'=>'发帖成功，等待管理员审核',
 	'data_malformation'=>'数据有问题',
 	'thread_detail'=>'帖子详情',
 	'create_post_sucessfully'=>'回帖成功',

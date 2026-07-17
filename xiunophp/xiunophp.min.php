@@ -1549,14 +1549,15 @@ function db_array_to_update_sqladd($arr) {
 				continue;
 			}
 			$s .= "`$col`=$col$op?,";
-			$params[] = $v;
+			// ponytail: 防御数组值触发 Array to string conversion；上游若误传数组自动 JSON 序列化
+			$params[] = is_array($v) ? xn_json_encode($v) : $v;
 		} else {
 			// 字段名白名单校验
 			if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $k)) {
 				continue;
 			}
 			$s .= "`$k`=?,";
-			$params[] = $v;
+			$params[] = is_array($v) ? xn_json_encode($v) : $v;
 		}
 	}
 	return array(substr($s, 0, -1), $params);
@@ -1574,7 +1575,7 @@ function db_array_to_insert_sqladd($arr) {
 		}
 		$keys[] = '`'.$k.'`';
 		$placeholders[] = '?';
-		$params[] = $v;
+		$params[] = is_array($v) ? xn_json_encode($v) : $v;
 	}
 	$keystr = implode(',', $keys);
 	$phstr = implode(',', $placeholders);
@@ -3285,12 +3286,13 @@ function xn_mkdir($dir, $mod = 0777, $recusive = TRUE) {
 }
 
 function xn_rmdir($dir) {
-	$r = is_dir($dir) ? rmdir($dir) : FALSE;
+	// ponytail: 并发场景下 is_dir stat 缓存可能失效导致 TOCTOU 竞态，加 @ 抑制 unlink/rmdir 已被另一请求删除时的 Warning
+	$r = is_dir($dir) ? @rmdir($dir) : FALSE;
 	return $r;
 }
 
 function xn_unlink($file) {
-	$r = is_file($file) ? unlink($file) : FALSE;
+	$r = is_file($file) ? @unlink($file) : FALSE;
 	return $r;
 }
 

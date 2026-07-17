@@ -111,8 +111,11 @@ class CreditsRuleService {
 			$lockKey = 'credits_' . $event . '_' . $uid . ($source !== '' ? '_' . $source : '');
 			if (isset($db->wlink) && $db->wlink) {
 				$stmt = $db->wlink->query("SELECT GET_LOCK(" . $db->wlink->quote($lockKey) . ", 3) AS lk");
-				if ($stmt && $stmt->fetchColumn() == 1) {
-					$lockAcquired = TRUE;
+				if ($stmt) {
+					$lockAcquired = ($stmt->fetchColumn() == 1);
+					// ponytail: 必须显式 closeCursor，否则 PDOStatement 残留活跃状态到 shutdown，
+					// 导致 session_write_close 的 UPDATE bbs_session 触发 PDO 2014 unbuffered queries 错误
+					$stmt->closeCursor();
 				}
 			}
 			// 获取锁失败说明存在并发冲突，拒绝本次操作以防重复发放
@@ -514,7 +517,10 @@ class CreditsRuleService {
 		if (!$acquired || $key === null) return;
 		global $db;
 		if (isset($db->wlink) && $db->wlink) {
-			$db->wlink->exec("SELECT RELEASE_LOCK(" . $db->wlink->quote($key) . ")");
+			// ponytail: PDO::exec 对 SELECT 语句无效（不返回结果集也不执行），
+			// 改用 query + closeCursor 才能真正触发 RELEASE_LOCK
+			$stmt = $db->wlink->query("SELECT RELEASE_LOCK(" . $db->wlink->quote($key) . ")");
+			if ($stmt) $stmt->closeCursor();
 		}
 	}
 

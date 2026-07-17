@@ -84,6 +84,19 @@ function user__update($uid, $update) {
 	return $r;
 }
 
+// 带下限保护的计数器递减：GREATEST(field-N, 0)，防止负数
+// ponytail: user__update(array('threads-'=>N)) 走 db_array_to_update_sqladd 生成 threads=threads-N 无保护，
+// 并发/历史脏数据/重复删除场景会变负数，统一改用本函数。已知天花板：调用方需自行 cache_delete('user-$uid')（与 user__update 一致）
+function user_dec($uid, $field, $n = 1) {
+	$uid = intval($uid);
+	$n = intval($n);
+	if($uid <= 0 || $n <= 0) return FALSE;
+	if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $field)) return FALSE; // 字段名白名单
+	global $db;
+	$tablepre = $db->tablepre;
+	return db_exec("UPDATE `{$tablepre}user` SET `$field` = GREATEST(`$field` - $n, 0) WHERE uid = '$uid'");
+}
+
 function user__read($uid) {
 	// hook model_user__read_start.php
 	$user = db_find_one('user', array('uid'=>$uid));
@@ -456,6 +469,7 @@ function user_update_group($uid) {
 				global $g_static_users;
 				!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
 				isset($g_static_users[$uid]) AND $g_static_users[$uid]['gid'] = $group['gid'];
+				// hook model_user_update_group_success.php
 				return TRUE;
 			}
 		}

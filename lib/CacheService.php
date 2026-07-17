@@ -109,7 +109,7 @@ class CacheService
             if ($currentType === 'redis' && $currentCache instanceof cache_redis) {
                 $newRedisCfg = isset($cacheConfig['redis']) ? $cacheConfig['redis'] : array();
                 $oldRedisCfg = $currentCache->conf;
-                foreach (array('host', 'port', 'password', 'database') as $field) {
+                foreach (array('host', 'port', 'password', 'database', 'cachepre') as $field) {
                     $oldVal = isset($oldRedisCfg[$field]) ? (string)$oldRedisCfg[$field] : '';
                     $newVal = isset($newRedisCfg[$field]) ? (string)$newRedisCfg[$field] : '';
                     if ($oldVal !== $newVal) {
@@ -120,13 +120,31 @@ class CacheService
             } elseif ($currentType === 'memcached' && $currentCache instanceof cache_memcached) {
                 $newMcCfg = isset($cacheConfig['memcached']) ? $cacheConfig['memcached'] : array();
                 $oldMcCfg = $currentCache->conf;
-                foreach (array('host', 'port') as $field) {
+                foreach (array('host', 'port', 'cachepre') as $field) {
                     $oldVal = isset($oldMcCfg[$field]) ? (string)$oldMcCfg[$field] : '';
                     $newVal = isset($newMcCfg[$field]) ? (string)$newMcCfg[$field] : '';
                     if ($oldVal !== $newVal) {
                         $needRebuild = true;
                         break;
                     }
+                }
+            } elseif ($currentType === 'file' && $currentCache instanceof cache_file) {
+                // file 驱动也要比较 cachepre，改前缀后需重建实例
+                $newFileCfg = isset($cacheConfig['file']) ? $cacheConfig['file'] : array();
+                $oldFileCfg = $currentCache->conf;
+                $oldVal = isset($oldFileCfg['cachepre']) ? (string)$oldFileCfg['cachepre'] : '';
+                $newVal = isset($newFileCfg['cachepre']) ? (string)$newFileCfg['cachepre'] : '';
+                if ($oldVal !== $newVal) {
+                    $needRebuild = true;
+                }
+            } elseif ($currentType === 'mysql' && $currentCache instanceof cache_mysql) {
+                // mysql 驱动也要比较 cachepre
+                $newMysqlCfg = isset($cacheConfig['mysql']) ? $cacheConfig['mysql'] : array();
+                $oldMysqlCfg = $currentCache->conf;
+                $oldVal = isset($oldMysqlCfg['cachepre']) ? (string)$oldMysqlCfg['cachepre'] : '';
+                $newVal = isset($newMysqlCfg['cachepre']) ? (string)$newMysqlCfg['cachepre'] : '';
+                if ($oldVal !== $newVal) {
+                    $needRebuild = true;
                 }
             }
             if (!$needRebuild) return $currentCache;

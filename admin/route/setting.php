@@ -161,7 +161,10 @@ if($action == 'base') {
 	empty($test_email) AND message(-1, '请输入测试邮箱');
 	!filter_var($test_email, FILTER_VALIDATE_EMAIL) AND message(-1, '邮箱格式不正确');
 
-	$smtplist = include _include(APP_PATH.'conf/smtp.conf.php');
+	// ponytail: smtp.conf.php 是后台动态写入的配置文件，禁止走 _include() 编译缓存
+	// _include() 不比较源文件 mtime，后台保存后未清 tmp/conf_smtp.conf.php 会导致测试邮件读旧缓存
+	// 应与 xn_smtp_get()/smtp_init()/HealthCheckService 保持一致，直接 include 源文件
+	$smtplist = include APP_PATH.'conf/smtp.conf.php';
 	if(!is_array($smtplist) || empty($smtplist)) {
 		message(-1, '未配置 SMTP 服务器');
 	}
@@ -180,11 +183,13 @@ if($action == 'base') {
 	$subject = '测试邮件 - ' . $conf['sitename'];
 	$body = '<h3>测试邮件</h3><p>这是一封来自 <strong>' . esc_html($conf['sitename']) . '</strong> 的测试邮件。</p><p>如果您收到此邮件，说明 SMTP 配置正确。</p><p>发送时间：' . date('Y-m-d H:i:s') . '</p>';
 
-	$r = xn_send_mail($smtp, $conf['sitename'], $test_email, $subject, $body);
+	// ponytail: 测试邮件传 timeout=5，让 SMTP 连接/SSL 握手失败时更快返回（默认 10s 偏慢）
+	$r = xn_send_mail($smtp, $conf['sitename'], $test_email, $subject, $body, array('timeout' => 5));
 
 	if($r === TRUE) {
 		message(0, '测试邮件发送成功，请检查收件箱');
 	} else {
+		// xn_send_mail 失败时返回错误字符串，如 SMTP connect() failed 等
 		$error_msg = is_string($r) ? $r : '未知错误';
 		message(-1, '测试邮件发送失败：' . $error_msg);
 	}

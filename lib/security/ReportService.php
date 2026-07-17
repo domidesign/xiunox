@@ -254,7 +254,55 @@ class ReportService {
             self::notify_admins('user', $target_id, $count);
         }
 
+        // 触发审核后通知管理员（站内通知 + 邮件，AdminNotifyService 内置 24h 防抖）
+        self::notifyAuditAdmins($target_type, $target_id, $count);
+
         return true;
+    }
+
+    /**
+     * 通知管理员审核待办（委托 AdminNotifyService，自动防抖）
+     * AdminNotifyService 内部从 setting_get('xnx_report') 读 admin_notify_enabled / admin_notify_uids
+     * 语言键 report_notify_admin_subject/body 由插件 lang/{locale}.php 提供
+     */
+    private static function notifyAuditAdmins(string $target_type, int $target_id, int $count): void {
+        if (!class_exists('AdminNotifyService', false)) {
+            include_once APP_PATH . 'lib/AdminNotifyService.php';
+        }
+        if (!class_exists('AdminNotifyService')) return;
+
+        // 取最新一条举报记录的 reason 作为通知正文（含分类与补充说明）
+        $latest = db_find_one('report', array('target_type' => $target_type, 'target_id' => $target_id), array('reportid' => -1));
+        $reason = '';
+        if (!empty($latest)) {
+            $reason = self::REASON_TYPES[$latest['reason_type']] ?? $latest['reason_type'];
+            if (!empty($latest['reason_text'])) {
+                $reason .= '：' . $latest['reason_text'];
+            }
+        }
+
+        AdminNotifyService::audit(
+            'xnx_report',
+            'report_trigger',
+            lang('report_notify_admin_subject'),
+            lang('report_notify_admin_body', array('count' => $count, 'reason' => $reason)),
+            url('plugin-setting-xnx_report-list-pending')
+        );
+    }
+
+    /**
+     * 处理完举报后检查 pending 是否清零，清零则清除审核通知防抖标记
+     * 让下次新待办能再次发送（避免连续防抖导致漏通知）
+     */
+    private static function maybeClearAuditDebounce(): void {
+        $pending = db_count('report', array('status' => self::STATUS_PENDING));
+        if ($pending > 0) return;
+        if (!class_exists('AdminNotifyService', false)) {
+            include_once APP_PATH . 'lib/AdminNotifyService.php';
+        }
+        if (class_exists('AdminNotifyService')) {
+            AdminNotifyService::clearDebounce('xnx_report', 'report_trigger');
+        }
     }
 
     /**
@@ -539,6 +587,7 @@ class ReportService {
             $ban_result = self::execute_ban($target_uid, $report, $handler_uid);
             if ($ban_result['code'] !== 0) {
                 // 内容已删除不可恢复，封禁失败时举报状态保持已处理，提示管理员
+                self::maybeClearAuditDebounce();
                 return ['code' => 0, 'message' => '内容已删除，但封禁失败：' . $ban_result['message']];
             }
         }
@@ -564,6 +613,7 @@ class ReportService {
             }
         }
 
+        self::maybeClearAuditDebounce();
         return ['code' => 0, 'message' => '处理成功'];
     }
 
@@ -659,6 +709,7 @@ class ReportService {
             }
         }
 
+        self::maybeClearAuditDebounce();
         return ['code' => 0, 'message' => "处理完成：成功{$success}条，失败{$fail}条"];
     }
 
