@@ -58,7 +58,7 @@
 					<tr>
 						<td><?php echo $log['uid'];?></td>
 						<td><?php echo isset($users[$log['uid']]) ? esc_html($users[$log['uid']]) : '-';?></td>
-						<td><span class="badge bg-info"><?php echo esc_html($log['action']);?></span></td>
+						<td><span class="badge bg-info"><?php echo isset($action_labels[$log['action']]) ? $action_labels[$log['action']] : esc_html($log['action']);?></span></td>
 						<td><?php echo esc_html($log['target_ids']);?></td>
 						<td><span class="d-inline-block text-truncate" style="max-width:300px;" title="<?php echo esc_html($log['detail']);?>"><?php echo esc_html($log['detail']);?></span></td>
 						<td><?php echo $log['ip_fmt'];?></td>

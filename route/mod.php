@@ -300,7 +300,7 @@ if($action == 'top') {
 	$r === FALSE AND message(-1, lang('delete_failed'));
 
 	// hook mod_delete_user_end.php
-	
+
 	header('Content-Type: application/json; charset=utf-8');
 	echo json_encode(array('code' => 0, 'message' => lang('delete_successfully'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
 	exit;

@@ -1,30 +1,3 @@
-// ========== Bootstrap 5 jQuery 插件桥接 ==========
-// 让旧插件的 $(el).modal('show') 等调用正常工作
-if (typeof jQuery !== 'undefined' && typeof bootstrap !== 'undefined') {
-    var _bsBridge = {
-        modal: 'Modal', dropdown: 'Dropdown', tooltip: 'Tooltip',
-        popover: 'Popover', collapse: 'Collapse', alert: 'Alert', tab: 'Tab'
-    };
-    Object.keys(_bsBridge).forEach(function(pluginName) {
-        if (jQuery.fn[pluginName] === undefined) {
-            jQuery.fn[pluginName] = function(methodOrOptions) {
-                var bsClassName = _bsBridge[pluginName];
-                return this.each(function() {
-                    var instance = bootstrap[bsClassName].getInstance(this) || new bootstrap[bsClassName](this);
-                    if (typeof methodOrOptions === 'string') {
-                        if (methodOrOptions === 'toggle' || methodOrOptions === 'show' || methodOrOptions === 'hide' || methodOrOptions === 'dispose') {
-                            instance[methodOrOptions]();
-                        }
-                    } else if (pluginName === 'tooltip' || pluginName === 'popover') {
-                        // tooltip/popover 需要传入 options 对象
-                        // instance 已在 new 时创建，无需额外操作
-                    }
-                });
-            };
-        }
-    });
-}
-
 // ========== 通用函数 ==========
 
 // 提取导航高亮逻辑为独立函数
@@ -414,7 +387,10 @@ function updateSignatureDisplay(form) {
 }
 
 // ========== htmx 事件配置 ==========
-if(typeof htmx !== 'undefined') {
+// ponytail: 不用 if(typeof htmx !== 'undefined') 守卫——这些是 addEventListener 注册在
+// document/body/window 上的自定义事件监听器，注册时不需要 htmx 已加载。
+// htmx 加 defer 后在 bbs.js 之后执行，但事件监听器会捕获 htmx 后续触发的事件。
+// 之前用守卫导致 htmx defer 化后 CSRF header 注入监听器从未注册（已违反 1 次，关注/取消关注 CSRF 失败）
     // htmx:config:request — 只添加 header，不修改 parameters（表单已有 CsrfService::input() 的 hidden input）
     document.body.addEventListener('htmx:config:request', function(evt) {
         // htmx 4 使用 fetch API，不再自动发送 X-Requested-With 头
@@ -500,7 +476,6 @@ if(typeof htmx !== 'undefined') {
 			});
 		}
 	});
-}
 
 // ========== 通知页面：标记已读（htmx 事件驱动） ==========
 (function() {

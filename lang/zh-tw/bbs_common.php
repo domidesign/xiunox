@@ -54,6 +54,7 @@ return array(
 	'top'=>'置頂',
 	'guest'=>'遊客',
 	'guest_group'=>'遊客組',
+	'deleted_user_label'=>'已註銷用戶',
 	'create_date'=>'註冊時間',
 	'tips'=>'註',
 	'keyword'=>'關鍵詞',
@@ -511,6 +512,10 @@ return array(
 	'back_to_first_page'=>'返回主題第壹頁',
 	'digest'=>'精華',
 	'no_thread_tip'=>'暫無帖子',
+	'no_my_thread'=>'暫無主題',
+	'no_my_post'=>'暫無回覆',
+	'no_my_like'=>'暫無點讚',
+	'no_my_favorite'=>'暫無收藏',
 	'be_first_poster'=>'成為第壹個發帖的人吧！',
 	'follow_interest_users'=>'關注妳感興趣的用戶',
 

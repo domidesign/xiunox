@@ -482,6 +482,9 @@ if($keyword_safe) {
 $header['title'] = $keyword_safe ? lang('search_results') . ': ' . $keyword_safe : lang('search');
 $header['keywords'] = $keyword_safe;
 $header['description'] = lang('search_results') . ': ' . $keyword_safe;
+// SEO: 搜索结果页禁止索引，避免低质量重复内容被搜索引擎收录
+$header['noindex'] = TRUE;
+$header['canonical'] = absolute_url(url('search'));
 
 $_SESSION['fid'] = 0;
 

@@ -25,12 +25,16 @@ function thread_dec($tid, $field, $n = 1) {
 }
 
 // 清除首页帖子列表缓存（core_index_tl_ 列表 + core_index_thread_count_ 总数）
-// 缓存键由 fid 列表的 md5 组合而成，无法按 fid 单独删除——直接清掉所有首页列表/计数缓存
-// 在帖子创建/回复/删除/软删除时调用，确保新内容在首页 60s 内可见
+// 首页列表/计数缓存使用版本号机制：递增版本号使旧缓存键自然失效
+// 原因：cache_set 对 >32 字符的键做 md5 哈希（bbs_cache.k 是 char(32)），而
+// deleteByPrefix 用原始前缀匹配不到哈希后的键，导致首页缓存无法主动清理
+// 版本号机制不依赖 deleteByPrefix，通过改变键名使旧缓存自然不匹配（参考 post_list_cache_bump_version）
+// 在帖子创建/回复/删除/软删除/移动时调用，确保新内容在首页 60s 内可见
 function index_list_cache_delete() {
-	if(!class_exists('CacheHelper', false)) return;
-	CacheHelper::deleteByPrefix('core_index_tl_');
-	CacheHelper::deleteByPrefix('core_index_thread_count_');
+	if(!function_exists('cache_get') || !function_exists('cache_set') || empty($_SERVER['cache'])) return;
+	$v = cache_get('core_index_v');
+	$v = ($v === NULL || $v === FALSE) ? 1 : intval($v) + 1;
+	cache_set('core_index_v', $v, 0); // 0 = 永不过期
 }
 
 // ------------> 积分事件中文名称映射

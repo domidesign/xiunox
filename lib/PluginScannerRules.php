@@ -180,6 +180,24 @@ class PluginScannerRules {
             'jquery_html_xss' => [
                 '\$\(.*\)\.html\s*\(' => 'jQuery .html() 设置 innerHTML 会导致 DOM XSS，应使用 .text() 或 DOM API',
             ],
+            // 07-17 起 6 个旧 JS 文件已从 footer.inc.htm 删除引用，shim 在 xiuno-modern.js 实现
+            // 插件禁止 <script src> 引用这些文件（会导致 jQuery 重复加载、shim 失效）
+            // 实际检测在 PluginScanner::scanPluginDir 主循环中按文件内容匹配，不通过 scanLine 按行匹配
+            'deprecated_js_ref' => [
+                'jquery-3.7.1.min.js' => '07-17 起已删除 jQuery 引用，xiuno-modern.js 内置 jQuery 兼容 shim（window.jQuery=$），禁止 <script src> 重新引入 jquery-3.7.1.min.js',
+                'view/js/xiuno.js' => '07-17 起已删除 xiuno.js 引用，xn.* 函数库已迁移到 xiuno-modern.js，禁止 <script src> 引用 view/js/xiuno.js',
+                'view/js/bootstrap-plugin.js' => '07-17 起已删除 bootstrap-plugin.js 引用，$.alert/$.confirm 已由 XN.alert/XN.confirm + shim 覆盖，禁止 <script src> 引用 view/js/bootstrap-plugin.js',
+                'view/js/form.js' => '07-17 起已删除 form.js 引用，xn.form_radio/options/select 已由 bbs.js 重新定义，禁止 <script src> 引用 view/js/form.js',
+                'view/js/async.js' => '07-17 起已删除 async.js 引用，该文件无任何全局符号导出是纯死代码，禁止 <script src> 引用 view/js/async.js',
+                'view/js/upload.js' => '07-17 起已删除 upload.js 引用，FileUploader 已被 upload-service.js 的 UploadService 替代，禁止 <script src> 引用 view/js/upload.js',
+            ],
+            // 07-17 起插件 JS 必须放 plugin/<dir>/static/js/，CSS 放 static/css/
+            // 放 view/htm/ 会被 _include() 当模板编译导致 fatal
+            // 实际检测在 PluginScanner::scanPluginDir 主循环中按文件路径匹配
+            'js_resource_location' => [
+                'view/htm/*.js' => 'JS 文件禁止放在 view/htm/ 目录（会被 _include() 当模板编译导致 fatal），必须放在 plugin/<dir>/static/js/',
+                'view/htm/*.css' => 'CSS 文件禁止放在 view/htm/ 目录（会被 _include() 当模板编译导致 fatal），必须放在 plugin/<dir>/static/css/',
+            ],
         ];
     }
 
@@ -225,6 +243,8 @@ class PluginScannerRules {
             'js_eval_call' => 'warning',
             'js_dom_xss' => 'warning',
             'jquery_html_xss' => 'warning',
+            'deprecated_js_ref' => 'fatal',
+            'js_resource_location' => 'warning',
         ];
     }
 
@@ -246,6 +266,7 @@ class PluginScannerRules {
             'hook_htm_header',
             'app_path_in_url',
             'conf_version',
+            'deprecated_js_ref',
         ];
     }
 
@@ -291,6 +312,8 @@ class PluginScannerRules {
             'js_eval_call' => 'JS eval() 调用（代码注入风险）',
             'js_dom_xss' => 'JS DOM XSS（innerHTML/document.write 等）',
             'jquery_html_xss' => 'jQuery .html() 调用（XSS 风险）',
+            'deprecated_js_ref' => '引用已删除的旧 JS 文件（07-17 去 jQuery 化）',
+            'js_resource_location' => 'JS/CSS 放置位置错误（应在 static/ 而非 view/htm/）',
         ];
     }
 

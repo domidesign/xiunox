@@ -260,6 +260,11 @@ if($action == 'credits') {
 		'user_create' => lang('admin_op_user_create'),
 		'user_update' => lang('admin_op_user_update'),
 		'user_delete' => lang('admin_op_user_delete'),
+		'user_ban' => lang('admin_op_user_ban'),
+		'user_unban' => lang('admin_op_user_unban'),
+		'user_clear_content' => lang('admin_op_user_clear_content'),
+		'user_anonymize' => lang('admin_op_user_anonymize'),
+		'user_purge' => lang('admin_op_user_purge'),
 		// 帖子管理
 		'thread_delete' => lang('admin_op_thread_delete'),
 		'thread_batch_delete' => lang('admin_op_thread_batch_delete'),
@@ -267,6 +272,12 @@ if($action == 'credits') {
 		'thread_top' => lang('admin_op_thread_top'),
 		'thread_close' => lang('admin_op_thread_close'),
 		'thread_digest' => lang('admin_op_thread_digest'),
+		'thread_announcement' => lang('admin_op_thread_announcement'),
+		'thread_restore' => lang('admin_op_thread_restore'),
+		'thread_hard_delete' => lang('admin_op_thread_hard_delete'),
+		// 评论管理
+		'post_restore' => lang('admin_op_post_restore'),
+		'post_hard_delete' => lang('admin_op_post_hard_delete'),
 		// 版块管理
 		'forum_create' => lang('admin_op_forum_create'),
 		'forum_update' => lang('admin_op_forum_update'),
@@ -275,6 +286,9 @@ if($action == 'credits') {
 		'attach_delete' => lang('admin_op_attach_delete'),
 		'attach_batch_delete' => lang('admin_op_attach_batch_delete'),
 		'attach_force_delete' => lang('admin_op_attach_force_delete'),
+		// IP黑名单
+		'banned_ip_create' => lang('admin_op_banned_ip_create'),
+		'banned_ip_delete' => lang('admin_op_banned_ip_delete'),
 		// 设置修改
 		'setting_site' => lang('admin_op_setting_site'),
 		'setting_ai' => lang('admin_op_setting_ai'),
@@ -299,12 +313,19 @@ if($action == 'credits') {
 		// 审核
 		'audit_approve' => lang('admin_op_audit_approve'),
 		'audit_reject' => lang('admin_op_audit_reject'),
+		'audit_ignore' => lang('admin_op_audit_ignore'),
+		// AI 配置
+		'ai_providers' => lang('admin_op_ai_providers'),
+		'ai_features' => lang('admin_op_ai_features'),
+		'ai_editor' => lang('admin_op_ai_editor'),
 		// 其他
 		'group_update' => lang('admin_op_group_update'),
 		'credits_rule_update' => lang('admin_op_credits_rule_update'),
-
 		'theme_switch' => lang('admin_op_theme_switch'),
 		'cache_clear' => lang('admin_op_cache_clear'),
+		'cache_warmup' => lang('admin_op_cache_warmup'),
+		'cache_clear_plugin' => lang('admin_op_cache_clear_plugin'),
+		'health_check' => lang('admin_op_health_check'),
 	);
 
 	// 目标类型选项
@@ -315,6 +336,7 @@ if($action == 'credits') {
 		'forum' => lang('admin_op_target_forum'),
 		'post' => lang('admin_op_target_post'),
 		'attach' => lang('admin_op_target_attach'),
+		'banned_ip' => lang('admin_op_target_banned_ip'),
 		'setting' => lang('admin_op_target_setting'),
 		'plugin' => lang('admin_op_target_plugin'),
 		'security' => lang('admin_op_target_security'),
@@ -485,6 +507,82 @@ if($action == 'credits') {
 	// hook admin_log_audit_end.php
 
 	include _include(ADMIN_PATH.'view/htm/log_audit.htm');
+
+} elseif($action == 'attach') {
+
+	// hook admin_log_attach_start.php
+
+	$page = param('page', 1);
+	$pagesize = isset($conf['pagesize']) ? intval($conf['pagesize']) : 20;
+
+	// 筛选参数
+	$filter_uid = param('uid', 0);
+	$filter_action = param('log_action', '');
+	$filter_date_start = param('date_start', '');
+	$filter_date_end = param('date_end', '');
+
+	// 构建查询条件（附件日志固定 target_type=attach）
+	$cond = array('target_type' => 'attach');
+	if($filter_uid > 0) {
+		$cond['uid'] = $filter_uid;
+	}
+	if(!empty($filter_action)) {
+		$cond['action'] = $filter_action;
+	}
+	if(!empty($filter_date_start)) {
+		$cond['create_date'] = array('>' => strtotime($filter_date_start));
+	}
+	if(!empty($filter_date_end)) {
+		if(isset($cond['create_date'])) {
+			$cond['create_date']['<'] = strtotime($filter_date_end . ' 23:59:59');
+		} else {
+			$cond['create_date'] = array('<' => strtotime($filter_date_end . ' 23:59:59'));
+		}
+	}
+
+	$logs = db_find('admin_log', $cond, array('id'=>-1), $page, $pagesize);
+	$count = db_count('admin_log', $cond);
+
+	// 格式化数据
+	if($logs) {
+		$uids = array();
+		foreach($logs as &$log) {
+			$uids[] = $log['uid'];
+			$log['ip_fmt'] = long2ip(intval($log['ip']));
+			$log['create_date_fmt'] = date('Y-m-d H:i:s', $log['create_date']);
+		}
+		unset($log);
+
+		// 批量获取用户名
+		$uids = array_unique($uids);
+		$users = array();
+		foreach($uids as $uid) {
+			$_u = user_read_cache($uid);
+			if(!empty($_u)) $users[$uid] = $_u['display_name'] ?? $_u['username'];
+		}
+	} else {
+		$logs = array();
+		$users = array();
+	}
+
+	// 附件操作类型选项
+	$action_options = array(
+		'' => lang('admin_log_success_all'),
+		'attach_delete' => lang('admin_op_attach_delete'),
+		'attach_batch_delete' => lang('admin_op_attach_batch_delete'),
+		'attach_force_delete' => lang('admin_op_attach_force_delete'),
+	);
+
+	// 操作类型标签映射（用于表格展示，与 operation action 保持一致）
+	$action_labels = $action_options;
+	unset($action_labels['']);
+
+	$header['title'] = lang('admin_log_attach');
+	$header['mobile_title'] = lang('admin_log_attach');
+
+	// hook admin_log_attach_end.php
+
+	include _include(ADMIN_PATH.'view/htm/log_attach.htm');
 
 }
 

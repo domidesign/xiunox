@@ -389,7 +389,7 @@ jsmtpForm.on('submit', function() {
             showToast(message, 'error');
             setBtnLoading(jsmtpSubmit, false);
         } else {
-            jsmtpForm.find('[name="'+code+'"]').alert(message).focus();
+            jsmtpForm.find('[name="'+code+'"]').fieldError(message).focus();
             setBtnLoading(jsmtpSubmit, false);
         }
     });

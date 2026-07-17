@@ -99,7 +99,7 @@ foreach ($userlist as &$_user) {
 
 		$email = param('email');
 		$username = param('username');
-		$password = param('password');
+		$password = param('password', '', FALSE);
 		$_gid = param('_gid');
 		
 		// hook admin_user_create_post_start.php
@@ -188,7 +188,7 @@ foreach ($userlist as &$_user) {
 		$email = param('email');
 		$username = param('username');
 		$nickname = param('nickname');
-		$password = param('password');
+		$password = param('password', '', FALSE);
 		$_gid = param('_gid');
 		$signature = param('signature', '', FALSE);
 	// 签名支持HTML：使用xn_signature_purify净化
@@ -311,21 +311,46 @@ foreach ($userlist as &$_user) {
 	CsrfService::check();
 
 	$_uid = param('uid', 0);
-	
+
 	// hook admin_user_delete_start.php
-	
+
 	$_user = user_read($_uid);
 	empty($_user) AND message(-1, lang('user_not_exists'));
 	($_user['gid'] == 1) AND message(-1, 'admin_cant_be_deleted');
 
+	// 默认走匿名化（保留帖子，清身份信息），user_purge 是彻底物理删除
 	$r = user_delete($_uid);
 	$r === FALSE AND message(-1, lang('delete_failed'));
 
-	admin_log_create('user_delete', 'user', strval($_uid), '删除用户：' . $_user['username']);
+	admin_log_create('user_anonymize', 'user', strval($_uid), '注销用户（匿名化）：' . $_user['username']);
 
 	// hook admin_user_delete_end.php
 
-	message(0, lang('delete_successfully'));
+	message(0, lang('user_anonymize_success'));
+
+} elseif($action == 'purge') {
+
+	// 彻底物理删除用户及其所有内容（不可恢复）
+	if($method != 'POST') message(-1, 'Method Error.');
+
+	CsrfService::check();
+
+	$_uid = param('uid', 0);
+
+	// hook admin_user_purge_start.php
+
+	$_user = user_read($_uid);
+	empty($_user) AND message(-1, lang('user_not_exists'));
+	($_user['gid'] == 1) AND message(-1, 'admin_cant_be_deleted');
+
+	$r = user_purge($_uid);
+	$r === FALSE AND message(-1, lang('delete_failed'));
+
+	admin_log_create('user_purge', 'user', strval($_uid), '彻底删除用户（含帖子）：' . $_user['username']);
+
+	// hook admin_user_purge_end.php
+
+	message(0, lang('user_purge_success'));
 
 } elseif($action == 'ban') {
 
@@ -356,7 +381,7 @@ foreach ($userlist as &$_user) {
 
 	$_user = user_read($uid);
 	$username = isset($_user['username']) ? $_user['username'] : '';
-	admin_log_create('admin_op_user_ban', 'user', strval($uid), lang('admin_user_ban_log_op').$username.' (type:'.$ban_type.',duration:'.$duration.')');
+	admin_log_create('user_ban', 'user', strval($uid), lang('admin_user_ban_log_op').$username.' (type:'.$ban_type.',duration:'.$duration.')');
 
 	message(0, lang('user_ban_success'));
 
@@ -387,7 +412,7 @@ foreach ($userlist as &$_user) {
 
 	$_user = user_read($uid);
 	$username = isset($_user['username']) ? $_user['username'] : '';
-	admin_log_create('admin_op_user_unban', 'user', strval($uid), lang('admin_user_unban_log_op').$username);
+	admin_log_create('user_unban', 'user', strval($uid), lang('admin_user_unban_log_op').$username);
 
 	message(0, lang('user_unban_success'));
 
@@ -422,7 +447,7 @@ foreach ($userlist as &$_user) {
 
 	$_user = user_read($uid);
 	$username = isset($_user['username']) ? $_user['username'] : '';
-	admin_log_create('admin_op_user_clear_content', 'user', strval($uid), lang('admin_user_clear_content_log_op').$username);
+	admin_log_create('user_clear_content', 'user', strval($uid), lang('admin_user_clear_content_log_op').$username);
 
 	message(0, lang('user_clear_content_success'));
 

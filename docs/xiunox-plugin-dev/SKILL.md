@@ -1,5 +1,5 @@
 ---
-name: xiuno-plugin-dev
+name: xiunox-plugin-dev
 description: >
   XIUNOX 插件开发专家。
   当用户要求写/改/调试 XIUNOX 插件、加 hook、加后台设置页、加路由、
@@ -28,6 +28,9 @@ description: >
 ### 禁止
 
 - ❌ jQuery（`$()`、`.on()`、`.ajax()`）
+  - **07-17 起项目内置 jQuery 兼容 shim**（`view/js/xiuno-modern.js` 暴露 `window.jQuery = $`），让 20 个存量插件 JS 和 .htm 模板内联 `$` 代码继续工作。**新插件/新代码强制用 XN API**（`XN.toast()` / `XN.ajax()` / `XN.confirm()` / `XN.$()`），存量 `$` 代码暂不强制重写、留待后续阶段逐个迁移
+  - **shim 已覆盖**（存量代码可继续用）：`$()` 选择器链式、`$.fn.*`（BS5 桥接 modal/dropdown/tooltip/tab/collapse + loading/checked/serializeObject 等 17 个扩展）、`$.ajax`/`$.get`/`$.post`/`$.getJSON`、`$.alert`/`$.confirm`/`$.ajax_modal`、`$.Event`、`xn.*` PHP 函数库（intval/json_encode/url 等 30+）
+  - **shim 不支持**（写了会静默失败或报错，必须改用 `XN.ajax()` + `async/await` 或原生 `fetch`）：`jqXHR.done/.fail/.always` 链式回调、同步 xhr（`async: false`）、`jsonp`/`script` dataType、`$.when()` 多请求编排、`.animate()` 队列动画
 - ❌ Alpine.js（`x-data`、`x-show`、`x-bind`、`x-model` 等）
 - ❌ idiomorph / alpine-morph 扩展
 - ❌ `htmlspecialchars` 裸写 → 用 `esc_html()` / `esc_attr()` / `esc_js()`
@@ -75,6 +78,39 @@ description: >
 - ❌ **新增入口级安全检查（IP 黑名单/封禁检查）只补主入口** → 必须用 Grep 全局搜索所有「用户可发表内容/可登录」入口（login/create/resetpw 发帖回帖改密找密）逐个补齐。Spec checklist 验证阶段比单元测试更能发现这类遗漏 ⚠️ 已违反 1 次（route/thread.php create 缺 IP 黑名单检查）
 - ❌ **用户未指定插件前缀时使用 `xn_` 或 `xnx_` 前缀** → 这两个是官方预留前缀（如 `xn_url`、`xnx_checkin` 等核心/官方插件已占用），第三方插件禁止使用。应改用插件目录名或其缩写作为前缀（如插件目录 `my_plugin` 则用 `my_` 前缀）。即使用户指定了目录名，若该目录名以 `xn_` 或 `xnx_` 开头，也应提醒用户更换为其他前缀
 - ❌ **插件层用 `db_find('user', ...)` 获取用户信息后直接取 `username` 字段显示** → `db_find('user')` 绕过核心层，返回的数据**不含 `display_name` 字段**（`display_name` 由核心层 `model/user.func.php` 的 `user_format()` 生成：`nickname` 优先，为空 fallback 到 `username`）。直接取 `username` 会显示登录用户名而非用户可修改的昵称。必须改用 `user_find_by_uids(implode(',', $uids))` / `user_read($uid)` / `user_read_cache($uid)` 等核心函数（自动调用 `user_format()`），模板显示时取 `$user['display_name']`。⚠️ 已违反 1 次，影响 5 个插件（xnx_duel / xnx_dice / xnx_invite / xnx_attach_access / xnx_landing），根因是 `$u['display_name'] ?? $u['username']` 这种 fallback 写法在 `db_find` 结果上无效（`display_name` 键根本不存在，始终 fallback 到 `username`）
+- ❌ **PHP hook 在顶层作用域用 `return` 提前退出** → hook 编译进 `route/*.php`、`index.inc.php`、`model.inc.php` 等文件的**顶层作用域**（非函数/方法内部）时，`return` 会终止**整个路由文件**执行，跳过 hook 标记后的所有代码（积分扣减、通知、`message()` 跳转、`exit` 等），导致白屏/无提示/无跳转/htmx 响应被污染。必须用 `if (条件) { ...全部逻辑... }` 包裹整个 hook 内容。典型违规写法：`if (!class_exists('XxxService', false)) return;`、`if (empty($list)) return;`、`if ($audit_status != 1) return;`。判断 hook 是否在顶层作用域：看核心文件中 `// hook xxx.php` 标记所在位置是否在任何 `function`/`method` 外。`.htm` 模板 hook 同理（编译进模板顶层）。⚠️ 已违反 3 次（xnx_feeds thread_create_thread_end 审核场景无提示无跳转 / xnx_feeds user_create_post_end 注册后无提示 / xnx_hidden post_create_htmx_reply_end 回复后 htmx 响应污染）
+  - ✅ 正确范式（参考 `xnx_fields/hook/thread_create_thread_end.php`）：
+    ```php
+    <?php exit;
+    // 注意：此 hook 位于 route 文件顶层作用域，禁止使用 return；用 if 包裹整个逻辑
+    if (!empty($tid) && !empty($fid)) {
+        if (!class_exists('XxxService', false)) { include_once APP_PATH.'plugin/.../XxxService.php'; }
+        if (class_exists('XxxService', false) && (empty($audit_status) || $audit_status == 1)) {
+            XxxService::doSomething($tid);
+        }
+    }
+    ```
+  - ❌ 错误写法（裸 return 退出整个路由）：
+    ```php
+    <?php exit;
+    if (!class_exists('XxxService', false)) return;     // ← 退出整个 route 文件
+    if ($audit_status != 1) return;                      // ← 退出整个 route 文件
+    XxxService::doSomething($tid);
+    ```
+- ❌ **发帖/回复共用 `post.htm` 模板的 hook 不区分场景** → `view/htm/post.htm` 同时用于**发帖页**（`$route == 'thread' && $action == 'create'`）和**高级回复页**（`$route == 'post' && $action == 'create'`）。插件功能若只需发帖场景（如隐藏内容、投票、抽奖等主题级功能），hook 必须加 `if ($route == 'thread' && $action == 'create') { ... }` 判断，否则回复页也会加载不需要的卡片/Modal/JS，造成界面污染和资源浪费。涉及场景区分的常见 hook：`post_ref_thread_after.htm`（右侧卡片）、`post_ref_thread_after_mobile.htm`（手机端卡片）、`post_end.htm`（底部 Modal）、`post_js.htm`（底部 JS）。⚠️ 已违反 1 次（xnx_hidden 4 个 hook 未区分，回复页右侧显示隐藏内容模块）
+  - ✅ 正确写法：
+    ```php
+    <?php
+    // 仅发帖页加载，回复页不需要
+    if ($route == 'thread' && $action == 'create') {
+        $settings = XxxService::getSettings();
+        if (!empty($settings['enabled'])) {
+            // ... 渲染卡片/Modal ...
+        }
+    }
+    ?>
+    ```
+  - 💡 判断变量来源：`$route` 和 `$action` 是 `index.inc.php` 解析路由时设置的全局变量，`post.htm` 模板顶部已用 `($route == 'thread' && $action == 'create')` 区分发帖/回复/编辑三种场景
 
 ### 必须
 
@@ -86,6 +122,8 @@ description: >
 - ✅ 插件静态资源（JS/CSS）放在 `plugin/<dir>/static/js/` 和 `plugin/<dir>/static/css/`
 - ✅ 引用插件静态资源用 `$conf['view_url'] . '../plugin/<dir>/static/js/xxx.js'`
 - ✅ 引用核心静态资源用 `$conf['view_url']js/xxx.js`（非相对路径 `../view/js/`）
+- ✅ **新插件 JS 放 `plugin/<dir>/static/js/`，CSS 放 `plugin/<dir>/static/css/`**，禁止放 `view/htm/`（会被 `_include()` 当模板编译）
+- ✅ **JS 代码量约束**：单文件 <50 行可内联到 `.htm` hook（如 `post_js.htm`），≥50 行必须独立 `.js` 文件用 `<script src>` 引用（便于浏览器缓存 + 静态版本控制）
 - ✅ 跨插件共享配置时，统一使用一个存储键读写（如 `setting_get/set('plugin_discover_items', $arr)`），不要存到各自插件 key 再从另一个 key 读取
 - ✅ `setting_set/get` 原生支持数组存取，不需要 `xn_json_encode/decode` 中转
 - ✅ 开发新组件前先检索项目已有组件（Grep 搜索 `TablerIconPicker`、`bootstrap.Modal` 等），复用优先于自建
@@ -1042,6 +1080,8 @@ hiddenInput.value = editor.getHtml();
 | 侧边栏功能 | `post_ref_thread_after.htm` | 引用帖子卡片下方 |
 | 数据准备 | `post_start_init.htm` | PHP 代码块中，不能用 `return`/`?>` |
 
+> ⚠️ **发帖/回复场景区分**：以上 4 个 hook 共用 `view/htm/post.htm` 模板，**同时编译进发帖页（`thread-create`）和高级回复页（`post-create`）**。若功能只需发帖场景，hook 必须加 `if ($route == 'thread' && $action == 'create') { ... }` 判断，否则回复页也会加载不需要的模块（已违反 1 次：xnx_hidden 回复页右侧显示隐藏内容卡片）。判断变量 `$route`/`$action` 由 `index.inc.php` 路由解析时设置，`post.htm` 顶部已用此组合区分发帖/回复/编辑三种场景。
+
 ---
 
 ## 交付检查表
@@ -1102,6 +1142,10 @@ hiddenInput.value = editor.getHtml();
 - [ ] **AIEditor 按钮不显示时用 agent-browser eval 检查 `document.querySelectorAll('aie-custom').length` 确认按钮是否被创建，检查 `window.aiEditorInstance.options.toolbarKeys` 是否为 undefined**
 - [ ] **Card 组件加 `x-card` class，禁止裸用 `border` / `border-*` 工具类（包括列表项 border-bottom）；所有 border 尽量不用，分隔改用 `py-*`/`mb-*`/`mt-*`/`gap-*` 等间距工具类**
 - [ ] **插件获取用户信息用于显示时用 `user_find_by_uids()` / `user_read()` / `user_read_cache()` 等核心函数（自动生成 `display_name`），禁止用 `db_find('user', ...)` 绕过核心层后直接取 `username` 字段；模板显示用户名统一取 `display_name` 字段**
+- [ ] **改动 `plugin/<dir>/static/js|css/` 下文件后若 `static_version` 未递增**，必测时提示用户硬刷新（Ctrl+F5 / Cmd+Shift+R），否则浏览器加载 HTTP 缓存的旧 JS 导致修改不生效（07-17 已违反 1 次：shim 修复后不刷新不生效）
+- [ ] **改动 `.htm` 模板后清 `tmp/view_htm_*.htm` 编译缓存**：`_include()` 不比较源文件 mtime，只检查 tmpfile 是否存在，源文件改了不清缓存则修改不生效。批量清理：`rm -f tmp/view_htm_*.htm tmp/admin_view_htm_*.htm`（已违反多次）
+- [ ] **PHP hook 编译到顶层作用域时禁止 `return`，用 `if` 包裹整个逻辑**：hook 编译进 `route/*.php`/`index.inc.php`/`model.inc.php` 顶层作用域时，`return` 会退出整个路由文件，跳过后续积分/通知/`message()`/`exit`。判断方法：Grep 核心文件中 `// hook xxx.php` 标记位置，若不在任何 `function`/`method` 内即为顶层作用域。已违反 3 次
+- [ ] **发帖/回复共用 `post.htm` 的 hook 按场景区分**：`post_ref_thread_after.htm`/`post_ref_thread_after_mobile.htm`/`post_end.htm`/`post_js.htm` 同时编译进发帖页和回复页，只需发帖场景的功能必须加 `if ($route == 'thread' && $action == 'create')` 判断，避免回复页加载不需要的模块
 
 ---
 

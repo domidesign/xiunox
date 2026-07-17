@@ -14,12 +14,16 @@ Disallow: /api/
 
 # 用户相关页面（无 SEO 价值）
 Disallow: /user-login*
+Disallow: /user-logout*
 Disallow: /user-create*
 Disallow: /user-resetpw*
 Disallow: /my-*
 
 # 功能页面（无 SEO 价值）
 Disallow: /search-*
+Disallow: /post-create*
+Disallow: /banned*
+Disallow: /thread-create*
 
 # 附件临时目录
 Disallow: /upload/tmp/
@@ -94,5 +98,5 @@ Allow: /
 User-agent: YisouSpider
 Allow: /
 
-# Sitemap
-Sitemap: /sitemap
+# Sitemap（动态生成，URL 根据实际站点地址访问 /sitemap.xml 或 ?sitemap.xml）
+Sitemap: /sitemap.xml

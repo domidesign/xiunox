@@ -283,10 +283,15 @@ function post_list_cache_bump_version($tid) {
 	$tid = intval($tid);
 	if($tid <= 0) return;
 	$_pl_v_key = 'thread_pl_v_' . $tid;
-	$_old_v = class_exists('CacheHelper', false) ? CacheHelper::get(CacheHelper::pluginKey($_pl_v_key)) : NULL;
-	$_new_v = ($_old_v === NULL || $_old_v === FALSE) ? 1 : intval($_old_v) + 1;
+	// ponytail: 必须用 __v 哨兵格式读写，与 CacheHelper::remember() 内部一致
+	// remember() 读取时检查 is_array($cached) && array_key_exists('__v', $cached)
+	// 裸值会被判定为 MISS 并被回调返回值覆盖，导致版本号 bump 无效
 	if(class_exists('CacheHelper', false)) {
-		CacheHelper::set(CacheHelper::pluginKey($_pl_v_key), $_new_v, 86400);
+		$_full_key = CacheHelper::pluginKey($_pl_v_key);
+		$_cached = CacheHelper::get($_full_key);
+		$_old_v = (is_array($_cached) && array_key_exists('__v', $_cached)) ? intval($_cached['__v']) : 0;
+		$_new_v = $_old_v + 1;
+		CacheHelper::set($_full_key, array('__v' => $_new_v), 86400);
 	}
 }
 

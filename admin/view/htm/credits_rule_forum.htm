@@ -170,7 +170,7 @@
 				showToast(message, 'error');
 				setBtnLoading(jforumSubmit, false);
 			} else {
-				jforumForm.find('[name="' + code + '"]').alert(message).focus();
+				jforumForm.find('[name="' + code + '"]').fieldError(message).focus();
 				setBtnLoading(jforumSubmit, false);
 			}
 		});

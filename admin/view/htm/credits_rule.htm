@@ -190,7 +190,7 @@ jglobalForm.on('submit', function() {
 			showToast(message, 'error');
 			setBtnLoading(jglobalSubmit, false);
 		} else {
-			jglobalForm.find('[name="'+code+'"]').alert(message).focus();
+			jglobalForm.find('[name="'+code+'"]').fieldError(message).focus();
 			setBtnLoading(jglobalSubmit, false);
 		}
 	});

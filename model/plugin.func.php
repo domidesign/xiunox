@@ -300,11 +300,21 @@ function plugin_enable($dir) {
 	return TRUE;
 }
 
-// 清空插件的临时目录
+// 清空插件生命周期相关缓存：tmp/ 编译缓存 + 整站数据缓存
+// 调用位置：install/enable/disable/uninstall 后，确保新启停的插件状态在所有缓存层即时生效
 function plugin_clear_tmp_dir() {
 	global $conf;
 	rmdir_recusive($conf['tmp_path'], TRUE);
 	xn_unlink($conf['tmp_path'].'model.min.php');
+	// 整站数据缓存清理（Redis/Memcached 驱动下尤其必要；file 驱动下 tmp/cache 已被上面 rmdir_recusive 删除）
+	// ponytail: 全站清理粒度较粗，但插件启停属于低频管理操作，性能可接受；类未加载时静默跳过避免独立入口致命错误
+	if(class_exists('CacheService', false)) {
+		try {
+			CacheService::clearByType(array('data'));
+		} catch(\Throwable $e) {
+			error_log('plugin lifecycle clearByType(data) failed: '.$e->getMessage());
+		}
+	}
 }
 
 function plugin_disable($dir) {

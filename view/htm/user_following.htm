@@ -49,8 +49,11 @@
 				<?php } ?>
 			</div>
 			<?php } } else { ?>
-			<div class="text-center text-secondary py-8"><?php echo lang('no_following');?></div>
-			<?php } ?>
+		<div class="text-center text-secondary py-12">
+			<i class="ti ti-user-plus fs-1 d-block mb-2 text-body-secondary"></i>
+			<p class="mb-0"><?php echo lang('no_following');?></p>
+		</div>
+		<?php } ?>
 		</div>
 		<?php if($pagination) { ?>
 		<nav><ul class="pagination pagination-boxed my-4 justify-content-center flex-wrap"><?php echo $pagination; ?></ul></nav>

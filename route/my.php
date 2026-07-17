@@ -38,6 +38,10 @@ is_numeric($action) AND $action = '';
 
 $active = $action;
 
+// SEO: 个人中心所有页面禁止索引（含 my-thread/my-favorite/my-like/follow 等）
+// ponytail: 个人中心内容因用户而异，索引会制造大量低质量重复页面
+$header['noindex'] = TRUE;
+
 // DDL 检查：仅首次执行，成功后写入标记文件，后续跳过
 $_schema_marker = APP_PATH . 'tmp/my_schema_initialized.php';
 if(!is_file($_schema_marker)) {

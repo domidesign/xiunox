@@ -96,7 +96,7 @@ if(empty($action) || $action == 'list') {
 	$r = IpBlacklistService::add_blacklist_entry($final_ip, $reason, $expire_time, $admin_uid);
 	$r === false AND message(-1, lang('admin_banned_ip_add_failed'));
 
-	admin_log_create('admin_op_banned_ip_create', 'banned_ip', $final_ip, '添加IP黑名单：'.$final_ip);
+	admin_log_create('banned_ip_create', 'banned_ip', $final_ip, '添加IP黑名单：'.$final_ip);
 
 	// hook admin_banned_ip_create_post_end.php
 
@@ -119,7 +119,7 @@ if(empty($action) || $action == 'list') {
 	$r = IpBlacklistService::remove_from_blacklist($ip);
 	$r === false AND message(-1, lang('admin_banned_ip_not_exists'));
 
-	admin_log_create('admin_op_banned_ip_delete', 'banned_ip', $ip, '删除IP黑名单：'.$ip);
+	admin_log_create('banned_ip_delete', 'banned_ip', $ip, '删除IP黑名单：'.$ip);
 
 	// hook admin_banned_ip_delete_post_end.php
 

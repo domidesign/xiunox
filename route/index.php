@@ -82,7 +82,11 @@ if($thread_list_from_default) {
 	// 首页普通帖子总数（排除置顶帖 top=0 + 已删除 is_deleted=0）：60s 短缓存
 	// 必须与 threadlist 的 cond 保持一致，否则 count 虚高导致分页错乱
 	// （thread__find 会自动加 is_deleted=0，但 thread_count 不会，需显式传入）
-	$_count_cache_key = 'index_thread_count_' . md5(implode(',', $fids)) . '_' . $gid;
+	// 缓存键含版本号 _v{N}：index_list_cache_delete() 递增版本号使旧缓存自然失效
+	// （不依赖 deleteByPrefix，因 >32 字符键会被 md5 哈希导致前缀匹配失效）
+	$_index_v = (function_exists('cache_get') && !empty($_SERVER['cache'])) ? cache_get('core_index_v') : 0;
+	$_index_v = ($_index_v === NULL || $_index_v === FALSE) ? 0 : intval($_index_v);
+	$_count_cache_key = 'index_thread_count_' . md5(implode(',', $fids)) . '_' . $gid . '_v' . $_index_v;
 	$totalnum = CacheHelper::remember($_count_cache_key, 60, function() use ($fids, $gid) {
 		if($gid == 0 || $gid > 2) {
 			return thread_count(array('fid' => $fids, 'is_deleted' => 0, 'top' => 0, 'audit_status' => 1));
@@ -107,8 +111,9 @@ if($thread_list_from_default) {
 
 	// 首页帖子列表 60s 短缓存，避免高并发下频繁查库
 	// 使用 CacheHelper::remember 简化缓存读写，核心代码前缀 'core'
-	// 缓存键包含 order/page/gid/fids，确保不同用户组/排序/页码独立缓存
-	$_list_cache_key = 'index_tl_' . $_list_order . '_' . $page . '_' . $gid . '_' . md5(implode(',', $fids));
+	// 缓存键包含 order/page/gid/fids + 版本号，确保不同用户组/排序/页码独立缓存
+	// 版本号由 index_list_cache_delete() 递增，确保发帖/删帖后首页 60s 内刷新
+	$_list_cache_key = 'index_tl_' . $_list_order . '_' . $page . '_' . $gid . '_' . md5(implode(',', $fids)) . '_v' . $_index_v;
 	$threadlist = CacheHelper::remember($_list_cache_key, 60, function() use ($fids, $page, $pagesize, $_list_order) {
 		return thread_find_by_fids($fids, $page, $pagesize, $_list_order, FALSE);
 	});
@@ -122,10 +127,8 @@ thread_list_access_filter($toplist, $gid);
 // 过滤没有权限访问的主题 / filter no permission thread
 thread_list_access_filter($threadlist, $gid);
 
-// SEO
-$header['title'] = $conf['sitename']; 				// site title
-$header['keywords'] = ''; 					// site keyword
-$header['description'] = $conf['sitebrief']; 			// site description
+// SEO: 首页 title/description/canonical/OG/JSON-LD 已在 index.inc.php 设置
+// 此处不再覆盖，保留 index.inc.php 的副标题、空格清理、80字截断等 SEO 优化
 $_SESSION['fid'] = 0;
 
 // hook index_end.php

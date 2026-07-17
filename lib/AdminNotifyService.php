@@ -1,6 +1,6 @@
 <?php
 
-!defined('DEBUG') AND exit('Access Denied.');
+!defined('DEBUG') AND exit('Access Denied');
 
 /**
  * 管理员审核通知服务
@@ -11,7 +11,7 @@
  * 防抖策略：同一插件同一 audit_type 在 24 小时内只发一次（cache key 标记），
  * 插件在审核完毕（待办清零）时调用 clearDebounce() 清除标记，下次新待办可再次发送。
  *
- * SMTP 配置入口统一走 xn_smtp_get()，读取 conf/smtp.conf.php，不走 setting_get('smtp_config')。
+ * SMTP 配置读取 conf/smtp.conf.php（内联于 getSmtpConfig()，不依赖 xn_smtp_get()），不走 setting_get('smtp_config')。
  * 通知类型用已有的系统类型 audit_pending（允许自己通知自己）。
  */
 class AdminNotifyService {
@@ -98,8 +98,8 @@ class AdminNotifyService {
         $skip_notify = !empty($options['skip_notify']);
         $skip_mail = !empty($options['skip_mail']);
 
-        // 4. SMTP 检测
-        $smtp = xn_smtp_get();
+        // 4. SMTP 检测（内联 getSmtpConfig，不依赖 xn_smtp_get()）
+        $smtp = self::getSmtpConfig();
         $smtp_ok = ($smtp !== FALSE);
         $result['smtp_ok'] = $smtp_ok;
 
@@ -121,7 +121,13 @@ class AdminNotifyService {
         }
 
         // 6. 发送邮件（仅当 SMTP 已配置）
+        // ponytail: xn_send_mail() 定义在 xiunophp/xn_send_mail.func.php，audit() 的 7 个调用方
+        // （插件路由 verify.php/medal.php/appcenter.php/ad.php 及 ReportService）均不加载该文件，
+        // 故此处按需 include。此处不会与 user.php 等路由重复声明：audit() 不从那些路由调用。
         if (!$skip_mail && $smtp_ok) {
+            if (!function_exists('xn_send_mail')) {
+                include _include(XIUNOPHP_PATH . 'xn_send_mail.func.php');
+            }
             $from_name = isset($conf['sitename']) ? $conf['sitename'] : 'BBS';
             $content_html = '<!DOCTYPE html><html><body><div>'
                 . $content
@@ -165,11 +171,38 @@ class AdminNotifyService {
     }
 
     /**
+     * 获取 SMTP 配置（内联 xn_smtp_get() 逻辑，避免依赖 xiunophp/xn_send_mail.func.php）
+     *
+     * 原因：xn_smtp_get() 定义在 xiunophp/xn_send_mail.func.php，该文件仅由
+     * route/user.php、route/my.php、admin/route/setting.php 按需 include _include() 加载。
+     * 本类的 isSmtpConfigured() 在插件设置页（admin/route/plugin.php 流程）调用，
+     * audit() 在插件路由（verify.php、medal.php 等）调用，这些入口均不加载该文件。
+     * 在类顶部兜底 include 会与 user.php 等路由的 include 重复声明 xn_send_mail()，
+     * 故内联此逻辑（与 xn_smtp_get() 等价）。
+     *
+     * @return array|FALSE
+     */
+    private static function getSmtpConfig() {
+        $confile = APP_PATH . 'conf/smtp.conf.php';
+        if (!is_file($confile)) return FALSE;
+        $smtplist = include $confile;
+        if (!is_array($smtplist) || empty($smtplist)) return FALSE;
+        $valid = array();
+        foreach ($smtplist as $smtp) {
+            if (!empty($smtp['host']) && !empty($smtp['user'])) {
+                $valid[] = $smtp;
+            }
+        }
+        if (empty($valid)) return FALSE;
+        return $valid[array_rand($valid)];
+    }
+
+    /**
      * 检测 SMTP 是否已配置（供插件设置页调用显示状态）
      * @return bool
      */
     public static function isSmtpConfigured() {
-        return xn_smtp_get() !== FALSE;
+        return self::getSmtpConfig() !== FALSE;
     }
 
     /**

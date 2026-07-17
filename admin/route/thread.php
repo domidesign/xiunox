@@ -27,7 +27,10 @@ function admin_thread_orderby_to_sql($key) {
 // 构造搜索条件（list/found 共用）
 function admin_thread_build_cond() {
 	$_uid = param('uid');
-	if(!is_numeric($_uid)) {
+	// 空字符串视为未输入，避免匹配 username='' 的脏数据用户
+	if($_uid === '' || $_uid === null) {
+		$_uid = 0;
+	} elseif(!is_numeric($_uid)) {
 		$_user = user_read_by_username($_uid);
 		$_uid = !empty($_user['uid']) ? $_user['uid'] : 0;
 	} else {

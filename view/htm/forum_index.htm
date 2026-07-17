@@ -150,7 +150,8 @@
 <?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-(function(){
+// anime.js 加 defer 后，需等 DOMContentLoaded 触发（此时 anime 已加载完成）
+document.addEventListener('DOMContentLoaded', function(){
     if(typeof anime === 'undefined') return;
     var animate = anime.animate;
     var stagger = anime.stagger;
@@ -170,7 +171,7 @@
         delay: stagger(60),
         ease: 'outQuad'
     });
-})();
+});
 </script>
 
 <!--{hook forum_index_js.htm}-->

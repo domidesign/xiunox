@@ -265,11 +265,22 @@ $header['title'] = $forum['seo_title'] ? $forum['seo_title'] : $forum['name'].'-
 $header['mobile_title'] = $forum['name'];
 $header['mobile_link'] = forum_url($fid);
 $header['keywords'] = '';
-$header['description'] = $forum['brief'];
-// SEO: canonical / Open Graph
+// SEO: description 清理 HTML/多余空格，截断到 80 字（SERP 显示优化）
+$_forum_desc = trim(preg_replace('/\s+/', ' ', strip_tags($forum['brief'])));
+$header['description'] = $_forum_desc !== '' ? mb_substr($_forum_desc, 0, 80, 'UTF-8') : $forum['name'];
+// SEO: canonical 指向第一页（避免分页重复内容）
+// ponytail: 分页页面 forum-1-2.htm 的 canonical 指向 forum-1.htm，权重集中到第一页
 $header['canonical'] = absolute_url(forum_url($fid));
 $header['og_type'] = 'website';
 $header['og_image'] = '';
+// SEO: rel=prev/next 分页标记（百度仍支持，Google 已弃用但不报错）
+$_total_pages = isset($total) ? max(1, ceil($total / $pagesize)) : 1;
+if($page > 1) {
+	$header['prev_url'] = absolute_url($page == 2 ? forum_url($fid) : forum_page_url($fid, $page - 1));
+}
+if($page < $_total_pages) {
+	$header['next_url'] = absolute_url(forum_page_url($fid, $page + 1));
+}
 // SEO: JSON-LD BreadcrumbList（首页 > 版块）
 $header['json_ld'] = array(
 	'@context' => 'https://schema.org',

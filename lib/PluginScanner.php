@@ -266,6 +266,44 @@ class PluginScanner {
                 }
             }
 
+            // 07-17 起 6 个旧 JS 文件已从 footer.inc.htm 删除引用，xiuno-modern.js 内置 jQuery 兼容 shim
+            // 插件禁止 <script src> 引用这些文件（会导致 jQuery 重复加载、shim 失效、symbol 冲突）
+            // 扫描 .htm/.html/.php 模板中的 <script src> 标签，按文件名匹配（路径可变）
+            if ($ext === 'htm' || $ext === 'html' || $ext === 'php') {
+                $deprecatedJsFiles = ['jquery-3.7.1.min.js', 'xiuno.js', 'bootstrap-plugin.js', 'form.js', 'async.js', 'upload.js'];
+                // 匹配 <script src="..."> 中的 src 值，捕获完整 src 字符串用于报告
+                if (preg_match_all('/<script[^>]+src\s*=\s*["\']([^"\']+)["\'][^>]*>/i', $content, $matches, PREG_OFFSET_CAPTURE)) {
+                    foreach ($matches[1] as $idx => $srcMatch) {
+                        $srcValue = $srcMatch[0];
+                        $srcOffset = $srcMatch[1];
+                        $srcBasename = basename($srcValue);
+                        // 查询参数分离（如 xxx.js?v=1.0 → xxx.js）
+                        $srcBasenameNoQuery = preg_replace('/\?.*$/', '', $srcBasename);
+                        if (in_array($srcBasenameNoQuery, $deprecatedJsFiles, true)) {
+                            $lineNumber = substr_count(substr($content, 0, $srcOffset), "\n") + 1;
+                            $rules = PluginScannerRules::getRules();
+                            $suggestion = $rules['deprecated_js_ref'][$srcBasenameNoQuery] ?? $rules['deprecated_js_ref']['view/js/' . $srcBasenameNoQuery] ?? '07-17 起已删除该 JS 引用，禁止 <script src> 重新引入';
+                            $fullTag = $matches[0][$idx][0] ?? $srcValue;
+                            $issues[] = $this->buildIssue($shortPath, $lineNumber, 'deprecated_js_ref', '<script src="' . $srcValue . '">', $suggestion, $fullTag);
+                        }
+                    }
+                }
+            }
+
+            // 07-17 起插件 JS 必须放 plugin/<dir>/static/js/，CSS 放 static/css/
+            // 放 view/htm/ 会被 _include() 当模板编译导致 fatal
+            // 按文件路径检测（不依赖文件内容）
+            if ($ext === 'js' || $ext === 'css') {
+                // 标准化路径分隔符，匹配 plugin/<dir>/view/htm/ 模式
+                $normalizedPath = str_replace('\\', '/', $shortPath);
+                if (strpos($normalizedPath, '/view/htm/') !== false && strpos($normalizedPath, 'plugin/') !== false) {
+                    $rules = PluginScannerRules::getRules();
+                    $patternKey = 'view/htm/*.' . $ext;
+                    $suggestion = $rules['js_resource_location'][$patternKey] ?? 'JS/CSS 文件禁止放在 view/htm/ 目录（会被 _include() 当模板编译导致 fatal），必须放在 plugin/<dir>/static/js|css/';
+                    $issues[] = $this->buildIssue($shortPath, 0, 'js_resource_location', $patternKey, $suggestion, $normalizedPath);
+                }
+            }
+
             // install.php 非幂等建表检测
             if (basename($file) === 'install.php') {
                 if (preg_match('/CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS)/i', $content, $m, PREG_OFFSET_CAPTURE)) {
@@ -452,7 +490,8 @@ class PluginScanner {
         $isJsContext = ($contextExt === 'js');
 
         foreach ($this->rules as $category => $patterns) {
-            if ($category === 'missing_csrf') continue;
+            // missing_csrf / deprecated_js_ref / js_resource_location 在主循环中特殊处理，不按行扫描
+            if ($category === 'missing_csrf' || $category === 'deprecated_js_ref' || $category === 'js_resource_location') continue;
 
             // JS/CSS 内容跳过 PHP-only 和 HTML-only 规则
             // HTML-only 规则（bs4_classes/bs4_data_attrs/icon_libraries 等）只扫描 HTML 上下文

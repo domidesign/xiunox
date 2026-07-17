@@ -138,7 +138,7 @@ jform.on('submit', function() {
 			showToast(message, 'error');
 			setBtnLoading(jsubmit, false);
 		} else {
-			jform.find('[name="'+code+'"]').alert(message).focus();
+			jform.find('[name="'+code+'"]').fieldError(message).focus();
 			setBtnLoading(jsubmit, false);
 		}
 	});
