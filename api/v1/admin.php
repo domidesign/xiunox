@@ -478,7 +478,7 @@ if ($seg1 === 'security') {
             if ($r['code'] !== 0) {
                 ApiResponse::error(400, isset($r['message']) ? $r['message'] : '封禁失败');
             }
-            admin_log_create('admin_op_user_ban', 'user', strval($uid), 'API 封禁用户 uid:' . $uid . ' type:' . $banType . ' duration:' . $duration);
+            admin_log_create('user_ban', 'user', strval($uid), 'API 封禁用户 uid:' . $uid . ' type:' . $banType . ' duration:' . $duration);
             ApiResponse::success(null, '用户已封禁');
 
         } elseif ($method === 'DELETE') {
@@ -487,7 +487,7 @@ if ($seg1 === 'security') {
             if ($r['code'] !== 0) {
                 ApiResponse::error(400, isset($r['message']) ? $r['message'] : '解封失败');
             }
-            admin_log_create('admin_op_user_unban', 'user', strval($uid), 'API 解封用户 uid:' . $uid);
+            admin_log_create('user_unban', 'user', strval($uid), 'API 解封用户 uid:' . $uid);
             ApiResponse::success(null, '用户已解封');
 
         } else {
@@ -562,8 +562,8 @@ if ($seg1 === 'security') {
             $r = user_delete($uid);
             if ($r === FALSE) ApiResponse::error(500, '删除失败');
 
-            admin_log_create('user_delete', 'user', strval($uid), 'API 删除用户：' . $_user['username']);
-            ApiResponse::success(null, '用户已删除');
+            admin_log_create('user_anonymize', 'user', strval($uid), 'API 注销用户（匿名化）：' . $_user['username']);
+            ApiResponse::success(null, '用户已注销（帖子已保留）');
 
         } else {
             ApiResponse::error(405, 'Method not allowed');
@@ -840,7 +840,7 @@ if ($seg1 === 'security') {
             $r = IpBlacklistService::add_blacklist_entry($ip, $reason, $expire_time, $operatorUid);
             if ($r === false) ApiResponse::error(400, '添加失败（IP 格式无效或已存在）');
 
-            admin_log_create('admin_op_banned_ip_create', 'banned_ip', $ip, 'API 添加IP黑名单：' . $ip);
+            admin_log_create('banned_ip_create', 'banned_ip', $ip, 'API 添加IP黑名单：' . $ip);
             ApiResponse::success(null, '已添加到黑名单');
 
         } else {
@@ -855,7 +855,7 @@ if ($seg1 === 'security') {
         $r = IpBlacklistService::remove_from_blacklist($ip);
         if ($r === false) ApiResponse::error(404, '黑名单中不存在该 IP');
 
-        admin_log_create('admin_op_banned_ip_delete', 'banned_ip', $ip, 'API 删除IP黑名单：' . $ip);
+        admin_log_create('banned_ip_delete', 'banned_ip', $ip, 'API 删除IP黑名单：' . $ip);
         ApiResponse::success(null, '已从黑名单移除');
 
     } else {
@@ -902,7 +902,7 @@ if ($seg1 === 'security') {
             $r = UserBanService::ban($uid, $banType, $duration, $reason, $operatorUid);
             if ($r['code'] !== 0) ApiResponse::error(400, isset($r['message']) ? $r['message'] : '封禁失败');
 
-            admin_log_create('admin_op_user_ban', 'user', strval($uid), 'API 封禁用户 uid:' . $uid);
+            admin_log_create('user_ban', 'user', strval($uid), 'API 封禁用户 uid:' . $uid);
             ApiResponse::success(null, '用户已封禁');
 
         } else {
@@ -918,7 +918,7 @@ if ($seg1 === 'security') {
         $r = UserBanService::unban($uid, $operatorUid, $reason);
         if ($r['code'] !== 0) ApiResponse::error(400, isset($r['message']) ? $r['message'] : '解封失败');
 
-        admin_log_create('admin_op_user_unban', 'user', strval($uid), 'API 解封用户 uid:' . $uid);
+        admin_log_create('user_unban', 'user', strval($uid), 'API 解封用户 uid:' . $uid);
         ApiResponse::success(null, '用户已解封');
 
     } else {

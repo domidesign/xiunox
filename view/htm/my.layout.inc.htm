@@ -96,6 +96,7 @@
 		<li class="nav-item" role="presentation">
 			<a href="<?php echo my_profile_url();?>" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'profile') echo ' active'; ?>"><?php echo lang('my_basic_profile');?></a>
 		</li>
+		<!--{hook my_sidebar_nav_security_before_mobile.htm}-->
 		<li class="nav-item" role="presentation">
 			<a href="<?php echo my_security_url();?>" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'security') echo ' active'; ?>"><?php echo lang('security_setting');?></a>
 		</li>
@@ -105,7 +106,8 @@
 		<li class="nav-item" role="presentation">
 			<a href="<?php echo my_ai_url();?>" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'ai') echo ' active'; ?>"><?php echo lang('ai_setting');?></a>
 		</li>
-		<li class="nav-item" role="presentation">
+		<!--{hook my_sidebar_nav_credits_before_mobile.htm}-->
+	<li class="nav-item" role="presentation">
 		<a href="<?php echo my_credits_url();?>" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'credits') echo ' active'; ?>"><?php echo lang('user_credits_log');?></a>
 	</li>
 	<li class="nav-item" role="presentation">
@@ -114,7 +116,7 @@
 	<li class="nav-item" role="presentation">
                 <a href="<?php echo my_notify_url();?>" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'notice') echo ' active'; ?>"><?php echo lang('notice');?></a>
         </li>
-        <!--{hook my_sidebar_nav_threads_before.htm}-->
+        <!--{hook my_sidebar_nav_threads_before_mobile.htm}-->
         <li class="nav-item" role="presentation">
                 <a href="<?php echo my_level_url();?>" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'level') echo ' active'; ?>"><?php echo lang('my_level');?></a>
         </li>

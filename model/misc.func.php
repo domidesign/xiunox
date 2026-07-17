@@ -343,8 +343,8 @@ function message($code, $message, $extra = array()) {
 		$redirect_url = '';
 		if($msg && preg_match('/window\.location=[\'"]([^\'"]+)[\'"]/', $msg, $m)) {
 			$redirect_url = $m[1];
-			// 提取纯文本消息（去掉 HTML 标签）
-			$msg = strip_tags($msg);
+			// 提取纯文本消息（先剥 <script> 内容再 strip_tags，防止 JS 代码文本残留）
+			$msg = strip_tags(preg_replace('#<script[^>]*>.*?</script>#is', '', $msg));
 		}
 		if($redirect_url) {
 			// 有跳转 → 走 htmxSuccessRedirect 逻辑
@@ -397,7 +397,8 @@ function message($code, $message, $extra = array()) {
 				$msg_str = is_string($message) ? $message : '';
 				$has_jump = $msg_str && preg_match('/window\.location=[\'"]([^\'"]+)[\'"]/', $msg_str);
 				$has_redirect = !empty($arr['redirect_url']);
-				$clean_msg = strip_tags($msg_str ?: lang('operate_successfully'));
+				// 剥离 <script> 内容后再 strip_tags，防止 jump() 等返回的 JS 代码文本残留进 flash cookie
+				$clean_msg = strip_tags(preg_replace('#<script[^>]*>.*?</script>#is', '', $msg_str ?: lang('operate_successfully')));
 				// 从 jump() 中提取跳转 URL
 				$jump_url = '';
 				if($has_jump && preg_match('/window\.location=[\'"]([^\'"]+)[\'"]/', $msg_str, $m)) {

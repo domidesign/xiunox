@@ -18,6 +18,21 @@
 		</li>
 	</ul>
 
+	<?php
+	// 各 tab 空状态文案映射（避免所有 tab 都显示「暂无帖子」）
+	$_empty_tip_key = array(
+		'thread' => 'no_my_thread',
+		'post' => 'no_my_post',
+		'like' => 'no_my_like',
+		'favorite' => 'no_my_favorite',
+	);
+	$_empty_tip_icon = array(
+		'thread' => 'ti-message-2',
+		'post' => 'ti-message-dots',
+		'like' => 'ti-heart',
+		'favorite' => 'ti-bookmark',
+	);
+	?>
 	<?php if($subtab == 'post') { ?>
 	<!-- 我的回复 -->
 	<div class="x-card card">
@@ -27,7 +42,10 @@
 				<?php include _include(APP_PATH.'view/htm/post_list.inc.htm');?>
 			</ul>
 			<?php } else { ?>
-			<div class="text-center text-secondary py-8"><?php echo lang('no_thread_tip');?></div>
+			<div class="text-center text-secondary py-12">
+				<i class="ti <?php echo $_empty_tip_icon[$subtab];?> fs-1 d-block mb-2 text-body-secondary"></i>
+				<p class="mb-0"><?php echo lang($_empty_tip_key[$subtab]);?></p>
+			</div>
 			<?php } ?>
 
 			<?php if($pagination) { ?>
@@ -39,9 +57,16 @@
 	<!-- 我的主题 / 点赞 / 收藏 -->
 	<div class="x-card card">
 		<div class="card-body">
+			<?php if(!empty($threadlist)) { ?>
 			<ul class="list-unstyled threadlist mb-0">
 				<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm');?>
 			</ul>
+			<?php } else { ?>
+			<div class="text-center text-secondary py-12">
+				<i class="ti <?php echo $_empty_tip_icon[$subtab];?> fs-1 d-block mb-2 text-body-secondary"></i>
+				<p class="mb-0"><?php echo lang($_empty_tip_key[$subtab]);?></p>
+			</div>
+			<?php } ?>
 
 			<?php if($pagination) { ?>
 			<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap mt-3"><?php echo $pagination;?></ul></nav>

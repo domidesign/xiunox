@@ -153,13 +153,26 @@
 	<div class="modal-dialog modal-dialog-centered">
 		<div class="modal-content border-0 rounded-1">
 			<div class="modal-header border-0">
-				<h5 class="modal-title"><?php echo lang('confirm_delete_title');?></h5>
+				<h5 class="modal-title"><i class="ti ti-user-minus"></i> <?php echo lang('user_delete_modal_title');?></h5>
 				<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
 			</div>
-			<div class="modal-body"><?php echo lang('confirm_delete_user_msg');?></div>
+			<div class="modal-body">
+				<p class="mb-3"><?php echo lang('user_delete_modal_intro');?></p>
+				<div class="d-flex flex-column gap-2">
+					<button type="button" class="btn btn-outline-warning text-start px-3 py-2" id="confirmAnonymizeBtn">
+						<i class="ti ti-user-off me-2"></i>
+						<strong><?php echo lang('user_anonymize_btn');?></strong>
+						<div class="small text-secondary"><?php echo lang('user_anonymize_desc');?></div>
+					</button>
+					<button type="button" class="btn btn-outline-danger text-start px-3 py-2" id="confirmPurgeBtn">
+						<i class="ti ti-trash me-2"></i>
+						<strong><?php echo lang('user_purge_btn');?></strong>
+						<div class="small text-secondary"><?php echo lang('user_purge_desc');?></div>
+					</button>
+				</div>
+			</div>
 			<div class="modal-footer border-0">
 				<button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?php echo lang('cancel');?></button>
-				<button type="button" class="btn btn-danger" id="confirmDeleteBtn"><?php echo lang('confirm_delete_btn');?></button>
 			</div>
 		</div>
 	</div>
@@ -223,26 +236,38 @@ jconfirm.on('click', function(){
 	}
 });
 
-function executeDelete(jchecked) {
+function executeDelete(jchecked, action) {
+	// action: 'delete'（匿名化）或 'purge'（彻底删除）
+	action = action || 'delete';
 	var successCount = 0, failCount = 0, total = jchecked.length;
 	jchecked.each(function() {
 		jtr = $(this).closest('tr');
 		var uid = jtr.attr('uid');
 		if(uid == 1) { failCount++; showToast('<?php echo lang('user_admin_cant_be_deleted');?>', 'error'); return; }
-		$.xpost(xn.url('user-delete'), {uid:uid, csrf_token: csrfToken}, function(code, message) {
+		$.xpost(xn.url('user-' + action), {uid:uid, csrf_token: csrfToken}, function(code, message) {
 			if(code == 0) { successCount++; jtr.remove(); } else { failCount++; showToast(message, 'error'); }
 			if(successCount + failCount >= total) {
-				showToast('<?php echo lang('admin_user_batch_delete_done');?>' + successCount + '/' + total, successCount > 0 ? 'success' : 'error');
+				var msg = action === 'purge' ? '<?php echo lang('admin_user_batch_purge_done');?>' : '<?php echo lang('admin_user_batch_anonymize_done');?>';
+				showToast(msg + successCount + '/' + total, successCount > 0 ? 'success' : 'error');
 				if(successCount > 0) setTimeout(function(){ window.location.reload(); }, 1000);
 			}
 		});
 	});
 }
 
-if(document.getElementById('confirmDeleteBtn')) {
-	document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+if(document.getElementById('confirmAnonymizeBtn')) {
+	document.getElementById('confirmAnonymizeBtn').addEventListener('click', function() {
 		if(pendingDeleteChecked) {
-			executeDelete(pendingDeleteChecked);
+			executeDelete(pendingDeleteChecked, 'delete');
+			pendingDeleteChecked = null;
+		}
+		if(deleteModal) deleteModal.hide();
+	});
+}
+if(document.getElementById('confirmPurgeBtn')) {
+	document.getElementById('confirmPurgeBtn').addEventListener('click', function() {
+		if(pendingDeleteChecked) {
+			executeDelete(pendingDeleteChecked, 'purge');
 			pendingDeleteChecked = null;
 		}
 		if(deleteModal) deleteModal.hide();

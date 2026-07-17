@@ -381,6 +381,7 @@ if(empty($action) || $action == 'create') {
     empty($attach) AND message(-1, lang('attach_not_exists'));
     $tid = $attach['tid'];
     $thread = thread_read($tid);
+    empty($thread) AND message(-1, lang('thread_not_exists'));
     $fid = $thread['fid'];
     $allowdown = forum_access_user($fid, $gid, 'allowdown');
     empty($allowdown) AND message(-1, lang('insufficient_privilege_to_download'));
@@ -463,6 +464,7 @@ if(empty($action) || $action == 'create') {
     // 权限校验
     $tid = $attach['tid'];
     $thread = thread_read($tid);
+    empty($thread) AND message(-1, lang('thread_not_exists'));
     $fid = $thread['fid'];
     $allowdown = forum_access_user($fid, $gid, 'allowdown');
     empty($allowdown) AND message(-1, lang('insufficient_privilege_to_download'));

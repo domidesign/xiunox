@@ -384,9 +384,14 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 	}
 
 } elseif($action == 'setting') {
-	
+
 	$dir = param_word(2);
 	plugin_check_exists($dir);
+	// 检查插件是否已启用且已安装：未启用插件的 Service 类未合并到 model.min.php，
+	// 直接加载 setting.php 会触发 "Class XXXService not found" fatal error
+	if (empty($plugins[$dir]['installed']) || empty($plugins[$dir]['enable'])) {
+		message(-1, lang('plugin_not_enabled_or_installed'));
+	}
 	$name = $plugins[$dir]['name'];
 	
 	// 对插件设置的 POST 数据进行 XSS 过滤

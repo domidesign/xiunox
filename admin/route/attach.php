@@ -127,7 +127,7 @@ if($action == 'list') {
         // 删除孤儿附件
         $filename = $attach['orgfilename'];
         attach_delete($aid);
-        attach_admin_log('attach_delete', 'attach', strval($aid), '删除孤儿附件：' . $filename);
+        attach_admin_log('attach_delete', 'attach', strval($aid), $filename);
     }
 
     message(0, lang('admin_attach_delete_success'));

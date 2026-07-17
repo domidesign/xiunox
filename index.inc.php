@@ -108,14 +108,33 @@ $forumlist = function_exists('forum_list_cache') ? forum_list_cache() : array();
 $forumlist_show = function_exists('forum_list_access_filter') ? forum_list_access_filter($forumlist, $gid) : $forumlist;
 $forumarr = arrlist_key_values($forumlist_show, 'fid', 'name');
 
-// 头部 header.inc.htm 
+// 头部 header.inc.htm
+// SEO: 首页 title/description 留给后台 sitename/sitebrief 配置，专门的 SEO 插件可后续扩展
 $header = array(
 	'title'=>$conf['sitename'],
 	'mobile_title'=>'',
 	'mobile_link'=>'./',
 	'keywords'=>'', // 搜索引擎自行分析 keywords, 自己指定没用 / Search engine automatic analysis of key words, so keep it empty.
-	'description'=>strip_tags($conf['sitebrief']),
+	'description'=>trim(preg_replace('/\s+/', ' ', strip_tags($conf['sitebrief']))),
 	'navs'=>array(),
+);
+// SEO: 首页 canonical / Open Graph / JSON-LD WebSite schema（含 SearchAction 站内搜索）
+$header['canonical'] = http_url_path();
+$header['og_type'] = 'website';
+$header['json_ld'] = array(
+	'@context' => 'https://schema.org',
+	'@type' => 'WebSite',
+	'name' => $conf['sitename'],
+	'url' => $header['canonical'],
+	'description' => $header['description'],
+	'potentialAction' => array(
+		'@type' => 'SearchAction',
+		'target' => array(
+			'@type' => 'EntryPoint',
+			'urlTemplate' => http_url_path() . 'search-{search_term}.htm',
+		),
+		'query-input' => 'required name=search_term',
+	),
 );
 
 $header['csrf_token'] = CsrfService::generate();

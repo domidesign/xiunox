@@ -55,6 +55,9 @@ if($action == 'create') {
 		$header['title'] = lang('post_create');
 		$header['mobile_title'] = lang('post_create');
 		$header['mobile_link'] = thread_url($tid);
+		// SEO: 回复创建页禁止索引
+		$header['noindex'] = TRUE;
+		$header['canonical'] = absolute_url(thread_url($tid));
 
 		include _include(APP_PATH.'view/htm/post.htm');
 		

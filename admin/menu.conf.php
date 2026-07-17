@@ -77,10 +77,11 @@ return array(
 		'icon'=>'ti-file-text',
 		'tab'=> array (
 			'credits'=>array('url'=>url('log-credits'), 'text'=>lang('admin_credits_log')),
-			'login'=>array('url'=>url('log-login'), 'text'=>lang('admin_login_log')),
-			'operation'=>array('url'=>url('log-operation'), 'text'=>lang('admin_log_operation')),
-			'audit'=>array('url'=>url('log-audit'), 'text'=>lang('admin_log_audit')),
-		)
+		'login'=>array('url'=>url('log-login'), 'text'=>lang('admin_login_log')),
+		'operation'=>array('url'=>url('log-operation'), 'text'=>lang('admin_log_operation')),
+		'audit'=>array('url'=>url('log-audit'), 'text'=>lang('admin_log_audit')),
+		'attach'=>array('url'=>url('log-attach'), 'text'=>lang('admin_log_attach')),
+	)
 	),
 	'health' => array(
 		'url'=>url('health'),

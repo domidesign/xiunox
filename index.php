@@ -134,6 +134,14 @@ include APP_PATH.'model/plugin.func.php';
 include _include(APP_PATH.'model.inc.php');
 // ErrorHandler 已在 xiunophp.php 启动时注册（lib/ErrorHandler.php），此处不再重复
 require_once APP_PATH.'lib/avatar_component.php';
+
+// SEO: /sitemap.xml 早期拦截（所有 url_rewrite_on 模式通用，不依赖路由分发）
+// ponytail: 在 index.inc.php 之前拦截，跳过 session/路由开销，直接输出 XML
+if(isset($_SERVER['REQUEST_URI']) && preg_match('#/sitemap\.xml($|\?)#', $_SERVER['REQUEST_URI'])) {
+	include APP_PATH.'route/sitemap.php';
+	exit;
+}
+
 include _include(APP_PATH.'index.inc.php');
 
 //file_put_contents((ini_get('xhprof.output_dir') ? : '/tmp') . '/' . uniqid() . '.xhprof.xhprof', serialize(xhprof_disable()));

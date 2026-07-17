@@ -38,6 +38,10 @@ is_numeric($action) AND $action = '';
 
 $active = $action;
 
+// SEO: 个人中心所有页面禁止索引（含 my-thread/my-favorite/my-like/follow 等）
+// ponytail: 个人中心内容因用户而异，索引会制造大量低质量重复页面
+$header['noindex'] = TRUE;
+
 // DDL 检查：仅首次执行，成功后写入标记文件，后续跳过
 $_schema_marker = APP_PATH . 'tmp/my_schema_initialized.php';
 if(!is_file($_schema_marker)) {
@@ -399,8 +403,10 @@ if(empty($action)) {
 
 		$r = xn_send_mail($smtp, $conf['sitename'], $email, $subject, $message, array('is_html'=>TRUE));
 
-		if($r === FALSE) {
-			message(-1, '邮件发送失败，请检查邮箱配置');
+		if($r !== TRUE) {
+			// xn_send_mail 失败时返回错误字符串（非 FALSE），需用 !== TRUE 判断
+			$err_detail = is_string($r) ? $r : '邮件发送失败，请检查邮箱配置';
+			message(-1, '邮件发送失败：' . $err_detail);
 		}
 
 		xn_email_rate_record($email, $longip);

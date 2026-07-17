@@ -49,6 +49,20 @@ class CacheHelper {
     private static $persistedKeysKey = 'core_cache_registered_keys';
     private static $persistedKeysTTL = 0;
 
+    // 核心缓存键清单（后台 TTL 配置页展示用，支持通配符 * 匹配动态键）
+    // 只包含走 CacheHelper::remember 的核心缓存键，model 层直接 cache_set 的不列入
+    private static $coreTtlKeys = array(
+        'core_forum_tree'           => array(300,   '版块树'),
+        'core_index_thread_count_*' => array(60,    '首页帖子总数'),
+        'core_index_tl_*'           => array(60,    '首页帖子列表'),
+        'core_forum_tc_*'           => array(60,    '版块帖子总数'),
+        'core_forum_tl_*'           => array(60,    '版块帖子列表'),
+        'core_thread_pl_*'          => array(60,    '帖子回复列表'),
+        'core_thread_pl_replies_*'  => array(60,    '帖子评论列表'),
+        'core_thread_pl_count_*'    => array(300,   '帖子主楼统计'),
+        'core_thread_pl_version_*'  => array(86400, '帖子列表版本号'),
+    );
+
     /**
      * 读取缓存，未命中则执行 $callback 并写入缓存
      *
@@ -60,18 +74,25 @@ class CacheHelper {
      */
     public static function remember($key, $ttl, $callback, $plugin = '') {
         $fullKey = self::pluginKey($key, $plugin);
+        // 优先用用户在后台配置的自定义 TTL 覆盖默认值
+        $ttl = self::getTtl($fullKey, $ttl, $plugin);
         $cached = self::get($fullKey, $plugin);
 
-        if($cached !== NULL && $cached !== FALSE) {
+        // ponytail: 用哨兵数组 ['__v' => $data] 包装真实值
+        // 原写法 $cached !== NULL && $cached !== FALSE 会把回调返回的 false/NULL
+        // 误判为 MISS（如 db_find_one 无记录返回 false），导致 forum_bind_13 这类
+        // "未绑定"键永远缓存不上，每次访问都重查 DB + cache_set(false) 死循环。
+        // 部署后旧缓存格式（裸值）会被本判断识别为 MISS 重建，无需手动清缓存。
+        if(is_array($cached) && array_key_exists('__v', $cached)) {
             self::recordStat($fullKey, 'hit', $plugin);
-            return $cached;
+            return $cached['__v'];
         }
 
         // 未命中，执行回调获取数据
         self::recordStat($fullKey, 'miss', $plugin);
         $result = call_user_func($callback);
 
-        self::set($fullKey, $result, $ttl, $plugin);
+        self::set($fullKey, array('__v' => $result), $ttl, $plugin);
         return $result;
     }
 
@@ -125,6 +146,85 @@ class CacheHelper {
         // 如果 $key 已有插件前缀则不重复加
         if(strpos($key, $prefix) === 0) return $key;
         return $prefix . $key;
+    }
+
+    /**
+     * 获取实际 TTL（优先用用户后台配置覆盖，否则用代码传入的默认值）
+     * 支持通配符匹配：配置 key 中的 * 匹配任意字符（如 core_index_tl_* 匹配 core_index_tl_new_1_0_xxx）
+     *
+     * @param string $fullKey 完整缓存键（含 core_ 或 p_{plugin}_ 前缀）
+     * @param int $defaultTtl 代码中传入的默认 TTL
+     * @param string $plugin 插件名
+     * @return int 实际 TTL（秒），0 表示永久
+     */
+    public static function getTtl($fullKey, $defaultTtl, $plugin = '') {
+        static $ttlConfig = NULL;
+        if($ttlConfig === NULL) {
+            $ttlConfig = self::getTtlConfig();
+        }
+        if(empty($ttlConfig)) return $defaultTtl;
+
+        // 先精确匹配
+        if(isset($ttlConfig[$fullKey])) {
+            $val = intval($ttlConfig[$fullKey]);
+            return $val >= 0 ? $val : $defaultTtl;
+        }
+
+        // 再通配符匹配（如 core_index_tl_* 匹配 core_index_tl_new_1_0_xxx）
+        foreach($ttlConfig as $pattern => $val) {
+            if(strpos($pattern, '*') === false) continue;
+            $regex = '/^' . str_replace('\\*', '.*', preg_quote($pattern, '/')) . '$/';
+            if(preg_match($regex, $fullKey)) {
+                $val = intval($val);
+                return $val >= 0 ? $val : $defaultTtl;
+            }
+        }
+
+        return $defaultTtl;
+    }
+
+    /**
+     * 获取核心缓存键清单（后台 TTL 配置页展示用）
+     * @return array [key => [default_ttl, desc]]
+     */
+    public static function getCoreTtlKeys() {
+        return self::$coreTtlKeys;
+    }
+
+    /**
+     * 读取用户自定义 TTL 配置
+     * 用 setting_get 存数据库（bbs_kv 表），改 cachepre 清缓存后不会丢失
+     * @return array [key_pattern => ttl]
+     */
+    public static function getTtlConfig() {
+        if(!function_exists('setting_get')) {
+            return array();
+        }
+        $config = setting_get('cache_ttl_config');
+        return is_array($config) ? $config : array();
+    }
+
+    /**
+     * 保存用户自定义 TTL 配置
+     * 空值或 -1 表示恢复默认（不保存该键，getTtl 会返回代码默认值）
+     * @param array $config [key_pattern => ttl]
+     * @return bool
+     */
+    public static function saveTtlConfig($config) {
+        if(!function_exists('setting_set')) {
+            return false;
+        }
+        $cleaned = array();
+        foreach($config as $k => $v) {
+            $k = trim($k);
+            if($k === '') continue;
+            // 空值或 -1 表示恢复默认，不保存该键
+            if($v === '' || $v === null) continue;
+            $v = intval($v);
+            if($v < 0) continue;
+            $cleaned[$k] = $v;
+        }
+        return setting_set('cache_ttl_config', $cleaned);
     }
 
     /**
@@ -231,6 +331,12 @@ class CacheHelper {
         if(!isset(self::$registeredKeys[$plugin])) return;
         // 读取已有持久化数据（不走 static 缓存，确保拿到最新）
         $persisted = is_array($persistedRaw = cache_get(self::$persistedKeysKey)) ? $persistedRaw : array();
+        // ponytail: 若内存中注册与持久化完全相同则跳过 cache_set
+        // 根因：每个插件每次请求都调用 registerKeys，不检查是否变化就 cache_set，
+        // 导致每请求产生一次 REPLACE INTO bbs_cache 写入相同 JSON（db_exec.php 日志爆炸 745KB）
+        if (isset($persisted[$plugin]) && $persisted[$plugin] === self::$registeredKeys[$plugin]) {
+            return;
+        }
         $persisted[$plugin] = self::$registeredKeys[$plugin];
         cache_set(self::$persistedKeysKey, $persisted, self::$persistedKeysTTL);
     }

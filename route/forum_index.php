@@ -8,6 +8,9 @@
 $header['title'] = '版块总览' . ' - ' . $conf['sitename'];
 $header['keywords'] = '版块总览';
 $header['description'] = $conf['sitebrief'];
+// SEO: canonical
+$header['canonical'] = absolute_url(url('forum_index'));
+$header['og_type'] = 'website';
 $_SESSION['fid'] = 0;
 
 // 获取版块树形数据

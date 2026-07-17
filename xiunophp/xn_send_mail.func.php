@@ -33,6 +33,7 @@ use PHPMailer\PHPMailer\SMTP as PHPMailerSMTP;
  *                          - alt_body: 纯文本替代正文
  *                          - reply_to: 回复邮箱
  *                          - reply_to_name: 回复人名称
+ *                          - timeout: 超时秒数（控制 TCP 连接/SMTP 命令/SSL 握手），默认 10
  * @return bool|string 成功返回 TRUE，失败返回错误信息字符串
  */
 function xn_send_mail($smtp, $from_name, $to_email, $subject, $body, $options = array()) {
@@ -46,8 +47,17 @@ function xn_send_mail($smtp, $from_name, $to_email, $subject, $body, $options = 
     $alt_body = isset($options['alt_body']) ? $options['alt_body'] : '';
     $reply_to = isset($options['reply_to']) ? $options['reply_to'] : '';
     $reply_to_name = isset($options['reply_to_name']) ? $options['reply_to_name'] : '';
+    $timeout = isset($options['timeout']) ? intval($options['timeout']) : 10;
 
     $mail = new PHPMailer(TRUE);
+
+    // ponytail: 临时降低 default_socket_timeout，影响 stream_socket_enable_crypto 的 SSL 握手超时
+    // PHPMailer 的 Timeout 只控制 fsockopen/stream_set_timeout，不直接控制 SSL 握手（PHP<7.1 用 ini）
+    // 测试邮件失败场景常因 SSL 握手等 60s，临时改 ini 可加速失败返回
+    $orig_dst = ini_get('default_socket_timeout');
+    if ($orig_dst === false || intval($orig_dst) > $timeout) {
+        ini_set('default_socket_timeout', $timeout);
+    }
 
     try {
         // SMTP 配置
@@ -70,8 +80,8 @@ function xn_send_mail($smtp, $from_name, $to_email, $subject, $body, $options = 
             $mail->SMTPSecure = '';
         }
 
-        // 超时设置
-        $mail->Timeout = 10;
+        // 超时设置：控制 fsockopen 连接超时 + stream 读写超时
+        $mail->Timeout = $timeout;
         $mail->SMTPAutoTLS = FALSE;
 
         // 调试级别（生产环境关闭）
@@ -108,6 +118,11 @@ function xn_send_mail($smtp, $from_name, $to_email, $subject, $body, $options = 
         // 记录发送日志
         xn_email_log_write($to_email, $subject, $smtp['host'], 1, '', isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '');
 
+        // 恢复原 ini
+        if ($orig_dst !== false) {
+            ini_set('default_socket_timeout', $orig_dst);
+        }
+
         return TRUE;
 
     } catch (PHPMailerException $e) {
@@ -116,7 +131,15 @@ function xn_send_mail($smtp, $from_name, $to_email, $subject, $body, $options = 
         // 记录失败日志
         xn_email_log_write($to_email, $subject, $smtp['host'], 0, $error_msg, isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '');
 
-        return xn_error(-1, $error_msg);
+        // 恢复原 ini
+        if ($orig_dst !== false) {
+            ini_set('default_socket_timeout', $orig_dst);
+        }
+
+        // ponytail: xn_error() 默认返回 FALSE，需先记录全局 $errno/$errstr 再返回错误字符串
+        // 否则调用方拿不到具体错误信息（如 SMTP connect() failed），与 @return bool|string 文档声明不符
+        xn_error(-1, $error_msg);
+        return $error_msg;
     }
 }
 

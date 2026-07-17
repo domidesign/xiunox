@@ -163,9 +163,9 @@ if($action == '' || $action == 'post_limit') {
                 // 登录/注册/找回密码：开关决定只有游客(0)是否需要验证码
                 $data['gids'][$scene] = $is_on ? [0] : [];
             } else {
-                // 发帖/回帖：开关打开，或用户组有勾选，都保存用户组配置
-                $scene_gids = isset($captcha_gids_input[$scene]) ? $captcha_gids_input[$scene] : array();
-                if ($is_on || !empty($scene_gids)) {
+                // 发帖/回帖：主开关 ON 时保存勾选的用户组，OFF 时清空（前端已联动清空勾选，此处兜底）
+                if ($is_on) {
+                    $scene_gids = isset($captcha_gids_input[$scene]) ? $captcha_gids_input[$scene] : array();
                     $data['gids'][$scene] = array_map('intval', (array)$scene_gids);
                 } else {
                     $data['gids'][$scene] = [];

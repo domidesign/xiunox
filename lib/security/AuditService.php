@@ -409,6 +409,17 @@ class AuditService {
             index_list_cache_delete();
         }
 
+        // 统一变量供 audit_approve_end hook 使用（thread/post 两分支变量补齐）
+        $pid = isset($pid) ? $pid : ($target_type === 'post' ? intval($target_id) : 0);
+        $thread_uid = isset($thread_uid) ? $thread_uid : (isset($thread['uid']) ? intval($thread['uid']) : 0);
+        $post_uid = isset($post_uid) ? $post_uid : (isset($post['uid']) ? intval($post['uid']) : 0);
+
+        // 运行时触发 audit_approve_end hook（lib/ 不走 _include 编译期注入，用 plugin_hook 运行时分发）
+        // ponytail: 审核通过后补写 feed 等延迟通知，hook 在调用方作用域执行可访问 $target_type/$target_id/$tid 等
+        if (function_exists('plugin_hook')) {
+            plugin_hook('audit_approve_end.php');
+        }
+
         return true;
     }
 
@@ -450,6 +461,16 @@ class AuditService {
         }
         
         self::log_audit($operator_uid, $target_type, $target_id, 'reject', $reason);
+
+        // 清除受影响版块/首页列表缓存（与 batch_reject 对齐：驳回后帖子状态变化影响列表过滤）
+        // ponytail: thread 分支 $thread 在 431 行读取；post 分支 $thread 在 456 行读取，此处统一可用
+        $fid = !empty($thread) ? intval($thread['fid']) : 0;
+        if ($fid > 0 && function_exists('thread_forum_list_cache_delete')) {
+            thread_forum_list_cache_delete($fid);
+        }
+        if (function_exists('index_list_cache_delete')) {
+            index_list_cache_delete();
+        }
         return true;
     }
 

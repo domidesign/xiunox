@@ -162,6 +162,9 @@ class UpgradeService {
             ['thread', 'announcement_order', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `announcement_order` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '公告排序' AFTER `is_announcement`"],
             // bbs_plugin 表 version 字段（插件版本升级机制依赖）
             ['plugin', 'version', "ALTER TABLE `{$tablepre}plugin` ADD COLUMN `version` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '已安装版本号（来自 conf.json）' AFTER `enable`"],
+            // 精华主题计数字段（thread_digest 批量路径依赖，存量库未建字段会触发 Unknown column 'digests'）
+            ['user', 'digests', "ALTER TABLE `{$tablepre}user` ADD COLUMN `digests` INT NOT NULL DEFAULT 0 COMMENT '精华主题数' AFTER `posts`"],
+            ['forum', 'digests', "ALTER TABLE `{$tablepre}forum` ADD COLUMN `digests` MEDIUMINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '精华主题数' AFTER `threads`"],
         ];
 
         foreach ($columns as $col) {

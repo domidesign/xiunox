@@ -67,6 +67,11 @@ elseif($action == 'cache_setting') {
 		$status = CacheService::getStatus();
 		$drivers = CacheService::getAvailableDrivers();
 		$opcacheStatus = CacheService::getOpcacheStatus();
+		// 核心缓存键清单和用户自定义 TTL 配置（后台 TTL 配置区块用）
+		$coreTtlKeys = class_exists('CacheHelper', false) ? CacheHelper::getCoreTtlKeys() : array();
+		$ttlConfig = class_exists('CacheHelper', false) ? CacheHelper::getTtlConfig() : array();
+		// 当前缓存前缀（从当前驱动配置读取）
+		$currentCachepre = isset($config[$config['type']]['cachepre']) ? $config[$config['type']]['cachepre'] : 'bbs_';
 		include _include(ADMIN_PATH.'view/htm/other_cache_setting.htm');
 
 	} else {
@@ -98,11 +103,25 @@ elseif($action == 'cache_setting') {
 		$config['type'] = param('type');
 		$config['default_ttl'] = max(60, intval(param('default_ttl', 3600)));
 
-		// 驱动配置
-		$config['file'] = array('cachepre' => 'bbs_', 'cache_dir' => '');
-		
+		// 缓存前缀：只允许字母、数字、下划线、短横线，1-32 字符
+		// 用于和其他系统共享 Redis/Memcached 时区分键名空间
+		$cachepre = trim(param('cachepre', 'bbs_', FALSE));
+		if($cachepre === '' || !preg_match('/^[a-zA-Z0-9_\-]{1,32}$/', $cachepre)) {
+			message(-1, lang('admin_cache_prefix_invalid'));
+		}
+
 		// 读取旧配置，密码留空时保留旧密码
 		$oldConfig = CacheService::getConfig();
+		$oldCachepre = isset($oldConfig[$config['type']]['cachepre']) ? $oldConfig[$config['type']]['cachepre'] : 'bbs_';
+
+		// cachepre 变化时，先用旧前缀清空数据缓存，避免旧键成为孤儿（新前缀删不掉）
+		if($cachepre !== $oldCachepre && function_exists('cache_delete_prefix') && !empty($_SERVER['cache'])) {
+			cache_delete_prefix('');
+		}
+
+		// 驱动配置（统一用用户输入的 cachepre）
+		$config['file'] = array('cachepre' => $cachepre, 'cache_dir' => '');
+
 		$newPassword = param('redis_password', '', FALSE);
 		$config['redis'] = array(
 			'host' => param('redis_host', '127.0.0.1'),
@@ -111,14 +130,14 @@ elseif($action == 'cache_setting') {
 			// 密码留空表示不修改，保留旧密码
 			'password' => $newPassword !== '' ? $newPassword : (isset($oldConfig['redis']['password']) ? $oldConfig['redis']['password'] : ''),
 			'database' => intval(param('redis_database', 0)),
-			'cachepre' => 'bbs_',
+			'cachepre' => $cachepre,
 		);
 		$config['memcached'] = array(
 			'host' => param('memcached_host', '127.0.0.1'),
 			'port' => intval(param('memcached_port', 11211)),
-			'cachepre' => 'bbs_',
+			'cachepre' => $cachepre,
 		);
-		$config['mysql'] = array('cachepre' => 'bbs_');
+		$config['mysql'] = array('cachepre' => $cachepre);
 
 		// 保存前验证连接：缓存启用时必须验证驱动连接可用，避免错误密码/地址保存后网站白屏
 		if(!empty($config['enable']) && in_array($config['type'], array('redis', 'memcached'))) {
@@ -130,6 +149,12 @@ elseif($action == 'cache_setting') {
 		}
 
 		CacheService::saveConfig($config);
+
+		// 保存核心缓存键的自定义 TTL 配置
+		$ttlConfig = param('ttl_config', array());
+		if(is_array($ttlConfig) && class_exists('CacheHelper', false)) {
+			CacheHelper::saveTtlConfig($ttlConfig);
+		}
 
 		// 保存缓存配置后，必须清除 setting 缓存（bbs_cache 表中的 bbs_setting 记录）
 		// 否则下次请求 setting_get('cache_config') 会读到旧的缓存值（type=file），

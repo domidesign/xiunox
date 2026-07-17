@@ -26,6 +26,22 @@ if(empty($action)) {
 
         $header['title'] = $_user['display_name'] ?? $_user['username'];
         $header['mobile_title'] = $_user['display_name'] ?? $_user['username'];
+	// SEO: 用户主页 canonical / OG / ProfilePage schema
+	$_user_url = absolute_url(user_url($_uid));
+	$header['canonical'] = $_user_url;
+	$header['og_type'] = 'profile';
+	$header['keywords'] = '';
+	// SEO: description = 用户名 + 个性签名（清理 HTML/空格，截断 80 字）
+	$_user_desc = trim(preg_replace('/\s+/', ' ', strip_tags($_user['signature'] ?? '')));
+	$header['description'] = $_user_desc !== '' ? mb_substr($_user['display_name'] . ' - ' . $_user_desc, 0, 80, 'UTF-8') : ($_user['display_name'] . ' - ' . $conf['sitename']);
+	// SEO: ProfilePage schema（含 name/url/description，便于 AI 关联用户主页）
+	$header['json_ld'] = array(
+		'@context' => 'https://schema.org',
+		'@type' => 'ProfilePage',
+		'name' => $_user['display_name'] ?? $_user['username'],
+		'url' => $_user_url,
+		'description' => $header['description'],
+	);
 
 	$page = param(2, 1);
 	$pagesize = 10;
@@ -176,7 +192,10 @@ if(empty($action)) {
 		<?php } ?>
 	</div>
 	<?php }} else { ?>
-	<div class="text-center text-body-secondary py-5"><?php echo lang('no_following');?></div>
+	<div class="text-center text-secondary py-12">
+		<i class="ti ti-user-plus fs-1 d-block mb-2 text-body-secondary"></i>
+		<p class="mb-0"><?php echo lang('no_following');?></p>
+	</div>
 	<?php }
 	exit;
 
@@ -235,7 +254,10 @@ if(empty($action)) {
 		<?php } ?>
 	</div>
 	<?php }} else { ?>
-	<div class="text-center text-body-secondary py-5"><?php echo lang('no_followers');?></div>
+	<div class="text-center text-secondary py-12">
+		<i class="ti ti-users fs-1 d-block mb-2 text-body-secondary"></i>
+		<p class="mb-0"><?php echo lang('no_followers');?></p>
+	</div>
 	<?php }
 	exit;
 
@@ -261,7 +283,7 @@ if(empty($action)) {
 		$threadlist = $fav_threadlist;
 		include _include(APP_PATH.'view/htm/thread_list.inc.htm');
 	} else {
-		echo '<div class="text-center text-body-secondary py-5">' . lang('no_favorite') . '</div>';
+		echo '<div class="text-center text-secondary py-12"><i class="ti ti-bookmark fs-1 d-block mb-2 text-body-secondary"></i><p class="mb-0">' . lang('no_favorite') . '</p></div>';
 	}
 	exit;
 
@@ -288,7 +310,7 @@ if(empty($action)) {
 		$threadlist = $like_threadlist;
 		include _include(APP_PATH.'view/htm/thread_list.inc.htm');
 	} else {
-		echo '<div class="text-center text-body-secondary py-5">' . lang('no_like') . '</div>';
+		echo '<div class="text-center text-secondary py-12"><i class="ti ti-heart fs-1 d-block mb-2 text-body-secondary"></i><p class="mb-0">' . lang('no_like') . '</p></div>';
 	}
 	exit;
 
@@ -870,8 +892,10 @@ if(empty($action)) {
 		$interval = class_exists('SecurityConfigService') ? intval(SecurityConfigService::get('security_email_code_interval', 60)) : 60;
 		message(0, lang('send_successfully'), array('wait' => $interval));
 	} else {
-		xn_log($errstr, 'send_mail_error');
-		message(-1, $errstr);
+		// xn_send_mail 失败时返回错误字符串，$r 与全局 $errstr 内容一致
+		$err_detail = is_string($r) ? $r : (isset($errstr) ? $errstr : '邮件发送失败');
+		xn_log($err_detail, 'send_mail_error');
+		message(-1, $err_detail);
 	}
 
 // 简单的同步登陆实现：| sync login implement simply
@@ -1010,13 +1034,16 @@ if(empty($action)) {
 			<?php } ?>
 		</div>
 		<?php }} else { ?>
-		<div class="text-center text-body-secondary py-5"><?php echo lang('no_following');?></div>
-		<?php }
-		if($pagination) { ?>
-		<nav><ul class="pagination my-4 justify-content-center flex-wrap"><?php echo $pagination; ?></ul></nav>
-		<?php }
-		return;
-	}
+	<div class="text-center text-secondary py-12">
+		<i class="ti ti-user-plus fs-1 d-block mb-2 text-body-secondary"></i>
+		<p class="mb-0"><?php echo lang('no_following');?></p>
+	</div>
+	<?php }
+	if($pagination) { ?>
+	<nav><ul class="pagination my-4 justify-content-center flex-wrap"><?php echo $pagination; ?></ul></nav>
+	<?php }
+	return;
+}
 
 	include _include(APP_PATH.'view/htm/user_following.htm');
 
@@ -1068,13 +1095,16 @@ if(empty($action)) {
 			<?php } ?>
 		</div>
 		<?php }} else { ?>
-		<div class="text-center text-body-secondary py-5"><?php echo lang('no_followers');?></div>
-		<?php }
-		if($pagination) { ?>
-		<nav><ul class="pagination my-4 justify-content-center flex-wrap"><?php echo $pagination; ?></ul></nav>
-		<?php }
-		return;
-	}
+	<div class="text-center text-secondary py-12">
+		<i class="ti ti-users fs-1 d-block mb-2 text-body-secondary"></i>
+		<p class="mb-0"><?php echo lang('no_followers');?></p>
+	</div>
+	<?php }
+	if($pagination) { ?>
+	<nav><ul class="pagination my-4 justify-content-center flex-wrap"><?php echo $pagination; ?></ul></nav>
+	<?php }
+	return;
+}
 
 	include _include(APP_PATH.'view/htm/user_followers.htm');
 

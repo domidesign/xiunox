@@ -379,7 +379,7 @@ document.querySelectorAll('.log-filter-btn').forEach(function(btn) {
 var jsmtpForm = $('#smtpForm');
 var jsmtpSubmit = jsmtpForm.find('button[type="submit"]');
 jsmtpForm.on('submit', function() {
-    jsmtpSubmit.button('loading');
+    setBtnLoading(jsmtpSubmit, true);
     var postdata = jsmtpForm.serialize();
     $.xpost(jsmtpForm.attr('action'), postdata, function(code, message) {
         if(code == 0) {
@@ -387,10 +387,10 @@ jsmtpForm.on('submit', function() {
             setTimeout(function(){ window.location.reload(); }, 1000);
         } else if(xn.is_number(code)) {
             showToast(message, 'error');
-            jsmtpSubmit.button('reset');
+            setBtnLoading(jsmtpSubmit, false);
         } else {
-            jsmtpForm.find('[name="'+code+'"]').alert(message).focus();
-            jsmtpSubmit.button('reset');
+            jsmtpForm.find('[name="'+code+'"]').fieldError(message).focus();
+            setBtnLoading(jsmtpSubmit, false);
         }
     });
     return false;
@@ -400,7 +400,7 @@ jsmtpForm.on('submit', function() {
 var jtplForm = $('#templateForm');
 var jtplSubmit = jtplForm.find('button[type="submit"]');
 jtplForm.on('submit', function() {
-    jtplSubmit.button('loading');
+    setBtnLoading(jtplSubmit, true);
     var postdata = jtplForm.serialize();
     $.xpost(jtplForm.attr('action'), postdata, function(code, message) {
         if(code == 0) {
@@ -408,7 +408,7 @@ jtplForm.on('submit', function() {
             setTimeout(function(){ window.location.reload(); }, 1000);
         } else {
             showToast(message, 'error');
-            jtplSubmit.button('reset');
+            setBtnLoading(jtplSubmit, false);
         }
     });
     return false;

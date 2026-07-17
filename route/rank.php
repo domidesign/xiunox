@@ -8,6 +8,9 @@
 $header['title'] = '排行榜' . ' - ' . $conf['sitename'];
 $header['keywords'] = '排行榜,热门帖子,活跃用户';
 $header['description'] = $conf['sitebrief'];
+// SEO: canonical
+$header['canonical'] = absolute_url(url('rank'));
+$header['og_type'] = 'website';
 $_SESSION['fid'] = 0;
 
 // 获取排行榜数据

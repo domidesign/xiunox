@@ -195,6 +195,35 @@ $.ajax_modal = function(url, title, size, callback, arg) {
 	return jmodal;
 }
 
+/**
+ * 替代 Bootstrap 5 已移除的 jQuery button('loading'/'reset') API
+ * loading：禁用按钮并在内容前插入 spinner；reset：恢复原状
+ * 兼容传入 DOM 元素或 jQuery 对象
+ * ponytail: 历史调用点 ~50 处统一走此函数，避免每页就地实现
+ */
+function setBtnLoading(btn, isLoading) {
+	var el = btn && btn.jquery ? btn[0] : btn;
+	if (!el || !el.tagName) return;
+	if (isLoading) {
+		if (el.getAttribute('data-btn-loading') === '1') return;
+		el.setAttribute('data-btn-loading', '1');
+		el.disabled = true;
+		var spinner = document.createElement('span');
+		spinner.className = 'spinner-border spinner-border-sm me-1';
+		spinner.setAttribute('role', 'status');
+		spinner.setAttribute('aria-hidden', 'true');
+		spinner.setAttribute('data-btn-loading-spinner', '');
+		el.insertBefore(spinner, el.firstChild);
+	} else {
+		if (el.getAttribute('data-btn-loading') === '1') {
+			var s = el.querySelector('[data-btn-loading-spinner]');
+			if (s) s.remove();
+			el.disabled = false;
+			el.removeAttribute('data-btn-loading');
+		}
+	}
+}
+
 $(function() {
 	$('[data-modal-title]').each(function() {
 		var jthis = $(this);

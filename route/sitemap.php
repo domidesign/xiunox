@@ -1,71 +1,99 @@
 <?php
 
-/*
- * SEO Sitemap 动态生成
- * 访问 /sitemap 触发，输出 application/xml
- * 列出首页、所有版块、最近 5000 条帖子
- */
+// SEO: 动态生成 sitemap.xml，包含首页 + 所有公开版块 + 最近 N 条帖子
+// ponytail: 单文件 sitemap，URL 数上限 50000（Google 规范），实际一般 < 5000 够用
+// 若帖子数超大需分片（sitemap-index + sitemap-thread-1.xml），目前站点规模未达到
 
-!defined('DEBUG') AND exit('Access Denied.');
+// hook sitemap_start.php
 
-// 1 小时浏览器/CDN 缓存，减轻数据库压力
-$ttl = 3600;
-$_now = time();
-header('Content-Type: application/xml; charset=utf-8');
-header('Cache-Control: public, max-age=' . $ttl);
-header('Expires: ' . gmdate('D, d M Y H:i:s', $_now + $ttl) . ' GMT');
-header('Pragma: cache');
+// 1. 缓存 1 小时，避免每次请求查 DB
+$_sitemap_cache_key = 'seo_sitemap_xml_v1';
+$_sitemap_xml = CacheHelper::remember($_sitemap_cache_key, 3600, function() {
+	global $conf, $db;
 
-// 站点根 URL（带尾斜杠）
-$base = http_url_path();
+	// 基础 URL（站点根，含协议+域名+base_path）
+	$_base = http_url_path();
+	// XML 转义辅助
+	$_esc = function($s) {
+		return htmlspecialchars($s, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+	};
 
-// XML 转义辅助
-function _sitemap_esc($s) {
-	return htmlspecialchars(strval($s), ENT_XML1 | ENT_QUOTES, 'UTF-8');
-}
+	$_urls = array();
 
-// 输出 url 节点辅助
-function _sitemap_url($loc, $lastmod = 0, $changefreq = '', $priority = '') {
-	$out = "  <url>\n    <loc>" . _sitemap_esc($loc) . "</loc>\n";
-	if($lastmod > 0) $out .= "    <lastmod>" . gmdate('Y-m-d\TH:i:s\Z', $lastmod) . "</lastmod>\n";
-	if($changefreq) $out .= "    <changefreq>" . $changefreq . "</changefreq>\n";
-	if($priority) $out .= "    <priority>" . $priority . "</priority>\n";
-	$out .= "  </url>\n";
-	return $out;
-}
+	// 1) 首页（daily，priority 1.0）
+	$_urls[] = array(
+		'loc' => $_base,
+		'lastmod' => date('Y-m-d'),
+		'changefreq' => 'daily',
+		'priority' => '1.0',
+	);
 
-$out = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-$out .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+	// 2) 所有公开版块（daily，priority 0.9）
+	$_forumlist = function_exists('forum_list_cache') ? forum_list_cache() : array();
+	if(!empty($_forumlist)) {
+		foreach($_forumlist as $_f) {
+			// 跳过分区（fup=0 的是分区，本身不存帖子，无需进 sitemap）
+			// ponytail: forum 表无 access_cid 字段，分区判断用 fup=0
+			if(empty($_f['fup'])) continue;
+			$_urls[] = array(
+				'loc' => absolute_url(forum_url($_f['fid'])),
+				'lastmod' => !empty($_f['last_date']) ? date('Y-m-d', $_f['last_date']) : date('Y-m-d'),
+				'changefreq' => 'daily',
+				'priority' => '0.9',
+			);
+		}
+	}
 
-// 1. 首页
-$out .= _sitemap_url($base, $_now, 'always', '1.0');
+	// 3) 最近 1000 条帖子（按 last_date 倒序，hourly，priority 0.8）
+	// ponytail: 1000 条上限兼顾抓取效率与覆盖度，站点日均新帖 < 100 时足够
+	$_recent_threads = db_find('thread', array('is_deleted' => 0), array('last_date' => -1), 1, 1000, 'tid');
+	if(!empty($_recent_threads)) {
+		foreach($_recent_threads as $_t) {
+			$_urls[] = array(
+				'loc' => absolute_url(thread_url($_t['tid'])),
+				'lastmod' => date('Y-m-d', $_t['last_date']),
+				'changefreq' => 'hourly',
+				'priority' => '0.8',
+			);
+		}
+	}
 
-// 2. 所有版块（forum_list_cache 已按 rank 排序）
-$forumlist = forum_list_cache();
-foreach($forumlist as $f) {
-	if(empty($f['fid']) || empty($f['name'])) continue;
-	$forum_url = absolute_url(forum_url($f['fid']));
-	$lastmod = !empty($f['last_date']) ? intval($f['last_date']) : 0;
-	$out .= _sitemap_url($forum_url, $lastmod, 'hourly', '0.8');
-}
+	// 4) 版块总览 + 排行榜（weekly，priority 0.6）
+	$_urls[] = array(
+		'loc' => absolute_url(url('forum_index')),
+		'lastmod' => date('Y-m-d'),
+		'changefreq' => 'weekly',
+		'priority' => '0.6',
+	);
+	$_urls[] = array(
+		'loc' => absolute_url(url('rank')),
+		'lastmod' => date('Y-m-d'),
+		'changefreq' => 'weekly',
+		'priority' => '0.6',
+	);
 
-// 3. 最近 5000 条已审核帖子（按 tid 倒序）
-$_sitemap_threads = db_find('thread', 
-	array('is_deleted' => 0, 'audit_status' => 1),
-	array('tid' => -1), 
-	1, 5000, 'tid', 
-	array('tid', 'last_date')
-);
-foreach($_sitemap_threads as $t) {
-	$thread_url = absolute_url(thread_url($t['tid']));
-	$lastmod = !empty($t['last_date']) ? intval($t['last_date']) : 0;
-	$out .= _sitemap_url($thread_url, $lastmod, 'daily', '0.6');
-}
+	// 组装 XML
+	$_xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+	$_xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+	foreach($_urls as $_u) {
+		$_xml .= "\t<url>\n";
+		$_xml .= "\t\t<loc>" . $_esc($_u['loc']) . "</loc>\n";
+		$_xml .= "\t\t<lastmod>" . $_u['lastmod'] . "</lastmod>\n";
+		$_xml .= "\t\t<changefreq>" . $_u['changefreq'] . "</changefreq>\n";
+		$_xml .= "\t\t<priority>" . $_u['priority'] . "</priority>\n";
+		$_xml .= "\t</url>\n";
+	}
+	$_xml .= '</urlset>' . "\n";
 
-$out .= '</urlset>' . "\n";
+	return $_xml;
+});
 
 // hook sitemap_end.php
 
-echo $out;
+// 输出 XML（不渲染 header/footer 模板）
+header('Content-Type: application/xml; charset=utf-8');
+header('Cache-Control: public, max-age=3600');
+echo $_sitemap_xml;
+exit;
 
 ?>

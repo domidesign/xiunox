@@ -27,6 +27,7 @@ CREATE TABLE `bbs_user` (
   qq char(15) NOT NULL DEFAULT '' COMMENT 'QQ',			# 预留，供二次开发扩展，可以弹出QQ直接聊天
   threads int(11) NOT NULL DEFAULT '0' COMMENT '发帖数',		#
   posts int(11) NOT NULL DEFAULT '0' COMMENT '回帖数',		#
+  digests int(11) NOT NULL DEFAULT '0' COMMENT '精华主题数',	#
   credits int(11) NOT NULL DEFAULT '0' COMMENT '积分',		# 预留，供二次开发扩展
   golds int(11) NOT NULL DEFAULT '0' COMMENT '金币',		# 预留，虚拟币
   rmbs int(11) NOT NULL DEFAULT '0' COMMENT '人民币',		# 预留，人民币
@@ -102,6 +103,7 @@ CREATE TABLE bbs_forum (
   fup int(11) unsigned NOT NULL DEFAULT '0',		# 上级分区 fid，0 表示分区或未归类版块
   type tinyint(1) NOT NULL DEFAULT '0',			# 0=版块 1=分区
   threads mediumint(8) unsigned NOT NULL default '0',	# 主题数
+  digests mediumint(8) unsigned NOT NULL DEFAULT '0' COMMENT '精华主题数',
   todayposts mediumint(8) unsigned NOT NULL default '0',# 今日发帖，计划任务每日凌晨０点清空为０，
   todaythreads mediumint(8) unsigned NOT NULL default '0',# 今日发主题，计划任务每日凌晨０点清空为０
   follows int(11) unsigned NOT NULL default '0',		# 关注数

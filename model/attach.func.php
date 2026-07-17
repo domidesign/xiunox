@@ -844,7 +844,7 @@ function attach_admin_delete_orphans() {
 
     // 记录日志
     if($deleted > 0) {
-        attach_admin_log('attach_batch_delete', 'attach', implode(',', $ids), '批量删除孤儿附件 ' . $deleted . ' 个：' . implode(', ', array_slice($deleted_filenames, 0, 20)));
+        attach_admin_log('attach_batch_delete', 'attach', implode(',', $ids), implode(', ', array_slice($deleted_filenames, 0, 20)));
     }
 
     return $deleted;
@@ -866,7 +866,7 @@ function attach_admin_force_delete($aid) {
     attach_delete($aid);
 
     // 记录日志
-    attach_admin_log('attach_force_delete', 'attach', strval($aid), '强制删除附件：' . $filename);
+    attach_admin_log('attach_force_delete', 'attach', strval($aid), $filename);
 
     return TRUE;
 }

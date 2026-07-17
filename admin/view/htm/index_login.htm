@@ -8,6 +8,7 @@
 			<h4 class="card-title justify-content-center"><i class="ti ti-lock"></i> <?php echo lang('admin_login');?></h4>
 			<form action="<?php echo url('index-login');?>" method="post" id="form">
 				<?php echo CsrfService::input(); ?>
+				<input type="hidden" name="next" value="<?php echo htmlspecialchars($return_url);?>">
 				<div class="mb-3 fs-6"><?php echo lang('for_safe_input_password_again');?>：</div>
 				<div class="mb-3">
 				<div class="input-group">
@@ -78,7 +79,6 @@ function startCountdown(seconds) {
 }
 
 jform.on('submit', function() {
-	jform.reset();
 	jsubmit.prop('disabled', true).html('<?php echo lang('submiting');?>...');
 	var postdata = jform.serializeObject();
 	// 用 $.ajax 代替 $.xpost，获取完整响应（含 wait 字段用于倒计时）
@@ -95,7 +95,8 @@ jform.on('submit', function() {
 			var message = s.message;
 			if(code == 0) {
 				showToast(message, 'success');
-				setTimeout(function() { window.location.assign('./'); }, 1000);
+				var redirect = (s.redirect_url && s.redirect_url != '') ? s.redirect_url : './';
+				setTimeout(function() { window.location.assign(redirect); }, 1000);
 			} else if(code == -1003) {
 				// 账号锁定，启动倒计时
 				showToast(message, 'error');

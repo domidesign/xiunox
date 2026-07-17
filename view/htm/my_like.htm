@@ -5,9 +5,16 @@
 	<!-- 我的点赞 -->
 	<div class="x-card card">
 		<div class="card-body">
+			<?php if(!empty($threadlist)) { ?>
 			<ul class="list-unstyled threadlist mb-0">
 				<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm');?>
 			</ul>
+			<?php } else { ?>
+			<div class="text-center text-secondary py-12">
+				<i class="ti ti-heart fs-1 d-block mb-2 text-body-secondary"></i>
+				<p class="mb-0"><?php echo lang('no_my_like');?></p>
+			</div>
+			<?php } ?>
 
 			<?php if($pagination) { ?>
 			<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap mt-3"><?php echo $pagination;?></ul></nav>

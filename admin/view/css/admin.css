@@ -85,6 +85,38 @@ a {
 
  
 
+/* ===== Pagination ===== */
+.pagination .page-link {
+    border-radius: var(--bs-border-radius);
+}
+
+/* pagination-boxed: ç‹¬ç«‹æ–¹å—æŒ‰é’®ï¼Œæ— è¿žæŽ¥è¾¹æ¡† */
+.pagination-boxed {
+    gap: 4px;
+}
+ 
+.pagination-boxed .page-link { 
+    border-radius: var(--bs-border-radius);
+    min-width: 2.25rem;
+    text-align: center;
+    padding: .375rem .65rem;
+    line-height: 1;
+    border: none;
+    transition: background-color .15s ease-in-out, color .15s ease-in-out, border-color .15s ease-in-out;
+}
+.pagination-boxed .page-item + .page-item {
+    margin-left: 0;
+}
+.active>.page-link, .page-link.active {
+    background: var(--bs-primary);
+    border-color: var(--bs-primary);
+    color: #fff;
+}
+.page-link:hover {
+    background: var(--bs-primary);
+    border-color: var(--bs-primary);
+    color: #fff;
+}
 .admin-content {
     flex: 1;
     padding: 0.8rem;

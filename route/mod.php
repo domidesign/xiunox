@@ -267,9 +267,11 @@ if($action == 'top') {
 			thread_forum_list_cache_delete($_fid);
 		}
 		thread_forum_list_cache_delete($newfid);
-		thread_top_cache_delete();
+	thread_top_cache_delete();
+	// 清除首页聚合列表缓存（首页含多版块，移动后需刷新）
+	index_list_cache_delete();
 
-		// hook mod_move_end.php
+	// hook mod_move_end.php
 		
 		header('Content-Type: application/json; charset=utf-8');
 		echo json_encode(array('code' => 0, 'message' => lang('move_completely'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
@@ -298,7 +300,7 @@ if($action == 'top') {
 	$r === FALSE AND message(-1, lang('delete_failed'));
 
 	// hook mod_delete_user_end.php
-	
+
 	header('Content-Type: application/json; charset=utf-8');
 	echo json_encode(array('code' => 0, 'message' => lang('delete_successfully'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
 	exit;

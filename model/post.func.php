@@ -181,8 +181,8 @@ function post_delete($pid) {
 		// 待审评论创建时未计入 posts，删除时也不应减少
 		$audit_status = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
 		if($audit_status == 1) {
-			thread__update($tid, array('posts-'=>1));
-			$uid AND user__update($uid, array('posts-'=>1));
+			thread_dec($tid, 'posts', 1);
+			$uid AND user_dec($uid, 'posts', 1);
 			runtime_set('posts-', 1);
 		}
 	} else {
@@ -224,8 +224,8 @@ function post_soft_delete($pid, $deleted_by) {
 	if(!$isfirst) {
 		$audit_status = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
 		if($audit_status == 1) {
-			thread__update($tid, array('posts-'=>1));
-			$uid AND user__update($uid, array('posts-'=>1));
+			thread_dec($tid, 'posts', 1);
+			$uid AND user_dec($uid, 'posts', 1);
 			runtime_set('posts-', 1);
 		}
 	}
@@ -283,10 +283,15 @@ function post_list_cache_bump_version($tid) {
 	$tid = intval($tid);
 	if($tid <= 0) return;
 	$_pl_v_key = 'thread_pl_v_' . $tid;
-	$_old_v = class_exists('CacheHelper', false) ? CacheHelper::get(CacheHelper::pluginKey($_pl_v_key)) : NULL;
-	$_new_v = ($_old_v === NULL || $_old_v === FALSE) ? 1 : intval($_old_v) + 1;
+	// ponytail: 必须用 __v 哨兵格式读写，与 CacheHelper::remember() 内部一致
+	// remember() 读取时检查 is_array($cached) && array_key_exists('__v', $cached)
+	// 裸值会被判定为 MISS 并被回调返回值覆盖，导致版本号 bump 无效
 	if(class_exists('CacheHelper', false)) {
-		CacheHelper::set(CacheHelper::pluginKey($_pl_v_key), $_new_v, 86400);
+		$_full_key = CacheHelper::pluginKey($_pl_v_key);
+		$_cached = CacheHelper::get($_full_key);
+		$_old_v = (is_array($_cached) && array_key_exists('__v', $_cached)) ? intval($_cached['__v']) : 0;
+		$_new_v = $_old_v + 1;
+		CacheHelper::set($_full_key, array('__v' => $_new_v), 86400);
 	}
 }
 
@@ -340,7 +345,7 @@ function post_delete_by_tid($tid) {
 		}
 	}
 	foreach($user_post_count as $_uid => $cnt) {
-		user__update($_uid, array('posts-'=>$cnt));
+		user_dec($_uid, 'posts', $cnt);
 	}
 
 	// 更新全站统计
@@ -408,7 +413,7 @@ function post_delete_by_tids_batch($tids) {
 		}
 	}
 	foreach($user_post_count as $_uid => $cnt) {
-		user__update($_uid, array('posts-'=>$cnt));
+		user_dec($_uid, 'posts', $cnt);
 	}
 
 	// 更新全站统计
@@ -419,9 +424,36 @@ function post_delete_by_tids_batch($tids) {
 }
 
 // 此处有可能会超时，并且导致统计不准确，需要重建统计数
+// ponytail: 原实现仅 db_delete 不维护 user.posts / runtime.posts 统计，
+// 被 UserBanService::clearUserContent 和 user_delete() 调用，导致 runtime.posts 永久偏高、user.posts 与实际脱节
+// 现在删除前先汇总该用户「审核通过且未软删的非首帖」数量，删除后用 user_dec / runtime_set 递减
 function post_delete_by_uid($uid) {
 	// hook model_post_delete_by_uid_start.php
+	$uid = intval($uid);
+	if($uid <= 0) return 0;
+
+	// 先统计待删除的审核通过且未软删的非首帖数（首帖不计入 posts；待审/已软删不计入）
+	$non_first_count = 0;
+	$postlist = post__find(array('uid'=>$uid), array(), 1, 1000000);
+	if($postlist) {
+		foreach($postlist as $post) {
+			if($post['isfirst']) continue;
+			$_audit = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
+			if($_audit != 1) continue;
+			$_is_deleted = isset($post['is_deleted']) ? intval($post['is_deleted']) : 0;
+			if($_is_deleted) continue;
+			$non_first_count++;
+		}
+	}
+
 	$r = db_delete('post', array('uid'=>$uid));
+
+	// 递减统计（GREATEST 下限保护 + runtime_set max 保护）
+	if($non_first_count > 0) {
+		user_dec($uid, 'posts', $non_first_count);
+		runtime_set('posts-', $non_first_count);
+	}
+
 	// hook model_post_delete_by_uid_end.php
 	return $r;
 }
@@ -675,8 +707,8 @@ function post_hard_delete($pid) {
 		if(!$post['isfirst']) {
 			$audit_status = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
 			if($audit_status == 1) {
-				thread__update($tid, array('posts-'=>1));
-				$uid AND user__update($uid, array('posts-'=>1));
+				thread_dec($tid, 'posts', 1);
+				$uid AND user_dec($uid, 'posts', 1);
 				runtime_set('posts-', 1);
 			}
 		}

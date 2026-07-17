@@ -84,6 +84,19 @@ function user__update($uid, $update) {
 	return $r;
 }
 
+// 带下限保护的计数器递减：GREATEST(field-N, 0)，防止负数
+// ponytail: user__update(array('threads-'=>N)) 走 db_array_to_update_sqladd 生成 threads=threads-N 无保护，
+// 并发/历史脏数据/重复删除场景会变负数，统一改用本函数。已知天花板：调用方需自行 cache_delete('user-$uid')（与 user__update 一致）
+function user_dec($uid, $field, $n = 1) {
+	$uid = intval($uid);
+	$n = intval($n);
+	if($uid <= 0 || $n <= 0) return FALSE;
+	if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $field)) return FALSE; // 字段名白名单
+	global $db;
+	$tablepre = $db->tablepre;
+	return db_exec("UPDATE `{$tablepre}user` SET `$field` = GREATEST(`$field` - $n, 0) WHERE uid = '$uid'");
+}
+
 function user__read($uid) {
 	// hook model_user__read_start.php
 	$user = db_find_one('user', array('uid'=>$uid));
@@ -200,6 +213,66 @@ function user_delete($uid) {
 	$user = user_read($uid);
 	if(empty($user)) return NULL;
 
+	// 匿名化：清空身份信息（password/email/avatar/IP 等），保留 uid 和帖子
+	// ponytail: 不调 user_update() 因 password/salt/gid 是受保护字段，直接走 user__update
+	// 审计日志由调用方记录（admin_log_create），保留原 username 痕迹
+	// ⚠️ bbs_user 的 username/nickname/email 均为 UNIQUE 索引，多个用户匿名化时
+	// 必须保证字段值唯一。nickname 不能用统一文案（如「已注销用户」），否则触发
+	// 1062 Duplicate entry 错误。存储用 deleted_{uid}，user_format() 显示时统一覆盖为「已注销用户」
+	$anonymize_update = array(
+		'username'      => 'deleted_' . $uid,
+		'nickname'      => 'deleted_' . $uid,
+		'email'         => 'deleted_' . $uid . '@anon.invalid',
+		'password'      => '',
+		'password_sms'  => '',
+		'salt'          => '',
+		'password_hash' => '',
+		'realname'      => '',
+		'idnumber'      => '',
+		'mobile'        => '',
+		'qq'            => '',
+		'signature'     => '',
+		'create_ip'     => 0,
+		'login_ip'      => 0,
+		'last_login_ip' => 0,
+		'login_attempts'=> 0,
+		'banned_until'  => 0,
+		'ban_reason'    => '',
+		'ban_admin_uid' => 0,
+		'ban_time'      => 0,
+		// ban_type 保留，用于审计识别已注销用户
+		'avatar'        => 0, // 0 = 默认头像
+	);
+
+	$r = user__update($uid, $anonymize_update);
+	if($r === FALSE) return FALSE;
+
+	// 删除头像文件
+	$user['avatar_path'] AND xn_unlink($user['avatar_path']);
+
+	// 清理用户缓存
+	!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
+	if(isset($g_static_users[$uid])) unset($g_static_users[$uid]);
+
+	// 全站统计：注销用户计入 users- 统计
+	runtime_set('users-', 1);
+
+	// hook model_user_delete_end.php
+	return $r;
+}
+
+/**
+ * 彻底物理删除用户及其所有内容（帖子/回帖/附件/关注等）
+ * 用于管理员明确要求完全清除用户数据的场景
+ * 默认 user_delete() 是匿名化保留帖子，本方法是不可恢复的物理删除
+ */
+function user_purge($uid) {
+	global $conf, $g_static_users;
+	// hook model_user_purge_start.php
+
+	$user = user_read($uid);
+	if(empty($user)) return NULL;
+
 	// 分批清理主题帖，避免一次查询过多数据
 	$batch_size = 1000;
 	$page = 1;
@@ -213,26 +286,49 @@ function user_delete($uid) {
 		$page++;
 	}
 
+	// 兜底：mythread 表可能不完整（历史数据/并发异常/迁移漏数据），
+	// 再按 uid 直接查 thread 表清理漏删的主题帖。必须在 post_delete_by_uid 之前执行，
+	// 否则 post_delete_by_uid 会删掉漏删 thread 的 first post，产生孤儿 thread（thread 在但 first post 不存在）
+	$orphan_page = 1;
+	while(true) {
+		$orphan_threads = db_find('thread', array('uid'=>$uid, 'is_deleted'=>0), array(), $orphan_page, $batch_size);
+		if(empty($orphan_threads)) break;
+		foreach($orphan_threads as $orphan_thread) {
+			thread_delete($orphan_thread['tid']);
+		}
+		if(count($orphan_threads) < $batch_size) break;
+		$orphan_page++;
+	}
+
 	// 清理回帖
 	post_delete_by_uid($uid);
-	
+
 	// 清理附件
 	attach_delete_by_uid($uid);
 
 	user_follow_delete_by_uid($uid);
 
 	$user['avatar_path'] AND xn_unlink($user['avatar_path']);
-	
+
 	$r = user__delete($uid);
-	
+
 	!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
 	if(isset($g_static_users[$uid])) unset($g_static_users[$uid]);
-	
+
 	// 全站统计
 	runtime_set('users-', 1);
-	
-	// hook model_user_delete_end.php
+
+	// hook model_user_purge_end.php
 	return $r;
+}
+
+/**
+ * 判断用户是否为已注销（匿名化）用户
+ * 匿名化后 username 形如 'deleted_{uid}'，email 形如 'deleted_{uid}@anon.invalid'
+ */
+function user_is_anonymized($user) {
+	if(empty($user) || empty($user['username'])) return FALSE;
+	return preg_match('/^deleted_\d+$/', $user['username']) === 1;
 }
 
 function user_find($cond = array(), $orderby = array(), $page = 1, $pagesize = 20) {
@@ -338,8 +434,18 @@ function user_format(&$user) {
 
 	// hook model_user_format_start.php
 
-	// 昵称显示名：nickname 优先，为空时 fallback 到 username
-	$user['display_name'] = !empty($user['nickname']) ? $user['nickname'] : $user['username'];
+	// 已注销（匿名化）用户：display_name 统一显示「已注销用户」，防止泄露原 username 规律
+	if(user_is_anonymized($user)) {
+		$label = lang('deleted_user_label');
+		// 兜底：语言包缺失时 lang() 返回字面量
+		if($label === 'deleted_user_label') $label = '已注销用户';
+		$user['display_name'] = $label;
+		$user['username'] = $label;
+		$user['nickname'] = $label;
+	} else {
+		// 昵称显示名：nickname 优先，为空时 fallback 到 username
+		$user['display_name'] = !empty($user['nickname']) ? $user['nickname'] : $user['username'];
+	}
 
 	$user['create_ip_fmt']   = long2ip(intval($user['create_ip']));
 	$user['create_date_fmt'] = empty($user['create_date']) ? '0000-00-00' : date('Y-m-d', $user['create_date']);
@@ -456,6 +562,7 @@ function user_update_group($uid) {
 				global $g_static_users;
 				!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
 				isset($g_static_users[$uid]) AND $g_static_users[$uid]['gid'] = $group['gid'];
+				// hook model_user_update_group_success.php
 				return TRUE;
 			}
 		}

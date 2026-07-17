@@ -10,12 +10,15 @@ class EditorService {
 
     public function getEditorAssets(): array {
         $viewUrl = isset($GLOBALS['conf']['view_url']) ? $GLOBALS['conf']['view_url'] : '/view/';
+        // upload-service.js 用 filemtime 版本号，避免修改后浏览器缓存旧版本
+        $_uploadServicePath = APP_PATH . 'view/js/upload-service.js';
+        $_uploadServiceV = is_file($_uploadServicePath) ? '?v=' . substr(md5((string)filemtime($_uploadServicePath)), 0, 8) : ($GLOBALS['conf']['static_version'] ?? '?1.0');
         $assets = [
             'css' => [
                 $viewUrl . 'js/aieditor/style.css',
             ],
             'js' => [
-                $viewUrl . 'js/upload-service.js',
+                $viewUrl . 'js/upload-service.js' . $_uploadServiceV,
                 $viewUrl . 'js/aieditor/index.umd.js',
             ],
         ];

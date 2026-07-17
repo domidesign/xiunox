@@ -351,7 +351,7 @@ if($action == 'create') {
 	} else {
 		
 		CsrfService::check();
-		
+
 		// hook thread_create_thread_start.php
 
 		// ===== 发帖验证码检查 =====
@@ -494,7 +494,7 @@ if($action == 'create') {
 		// 检查用户组审核权限
 		if(!class_exists('AuditService')) include_once APP_PATH . 'lib/security/AuditService.php';
 		$need_audit = AuditService::need_audit($fid, $gid, $subject, $message);
-		// 插件可能通过 SESSION 标记需要审核（如新用户审核、内容审核服务等）
+		// 插件可能通过 SESSION 标记需要审核（如新用户审核、内容审核服务）
 		if(!empty($_SESSION['security_thread_needs_audit'])) {
 			$need_audit = true;
 			unset($_SESSION['security_thread_needs_audit']);
@@ -657,11 +657,11 @@ if($action == 'create') {
 			$change_desc = $threadCreditsResult['message'] . '，本次发帖不发放/扣除积分';
 		}
 
-		if($need_audit) {
-			message(0, '帖子已提交，等待审核', array('redirect_url' => forum_url($fid), 'change_desc' => $change_desc));
-		} else {
-			message(0, lang('create_thread_sucessfully'), array('redirect_url' => thread_url($tid), 'change_desc' => $change_desc));
-		}
+	if($need_audit) {
+		message(0, lang('create_thread_pending_audit'), array('redirect_url' => thread_url($tid), 'change_desc' => $change_desc));
+	} else {
+		message(0, lang('create_thread_sucessfully'), array('redirect_url' => thread_url($tid), 'change_desc' => $change_desc));
+	}
 	}
 	
 // 帖子详情 | post detail
@@ -926,10 +926,13 @@ $header['mobile_title'] = $forum['name'];
 $header['mobile_link'] = forum_url($fid);
 $header['keywords'] = '';
 // SEO: description 优先用正文前 120 字摘要，正文为空时回退到标题
+// ponytail: strip_tags 后需 html_entity_decode 解码 &nbsp;/&amp; 等，否则 SERP 显示实体字面量
 $_seo_desc = isset($first['message']) ? strip_tags($first['message']) : '';
+$_seo_desc = html_entity_decode($_seo_desc, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 $_seo_desc = trim(preg_replace('/\s+/', ' ', $_seo_desc));
 $header['description'] = $_seo_desc !== '' ? mb_substr($_seo_desc, 0, 120, 'UTF-8') : $thread['subject'];
 // SEO: canonical / Open Graph / Twitter Card
+// ponytail: canonical 用 thread_url($tid) 不含 page，分页页面权重集中到第一页
 $header['canonical'] = $thread_url;
 $header['og_type'] = 'article';
 // SEO: og:image 取正文第一张图片
@@ -940,6 +943,16 @@ if(!empty($first['message']) && preg_match('/<img[^>]+src=["\']([^"\']+)["\']/i'
 		$_img = absolute_url($_img);
 	}
 	$header['og_image'] = $_img;
+}
+// SEO: rel=prev/next 分页标记（百度仍支持，Google 已弃用但不报错）
+if(isset($_main_count) && $pagesize > 0) {
+	$_thread_total_pages = max(1, ceil($_main_count / $pagesize));
+	if($page > 1) {
+		$header['prev_url'] = absolute_url($page == 2 ? thread_url($tid) : thread_page_url($tid, $page - 1));
+	}
+	if($page < $_thread_total_pages) {
+		$header['next_url'] = absolute_url(thread_page_url($tid, $page + 1));
+	}
 }
 	$_SESSION['fid'] = $fid;
 	
@@ -1010,6 +1023,10 @@ if(!empty($first['message']) && preg_match('/<img[^>]+src=["\']([^"\']+)["\']/i'
 			'@type' => 'QAPage',
 			'mainEntity' => $_qa_main,
 		);
+		// SEO: QAPage 加 image（Google 富媒体摘要推荐）
+		if(!empty($header['og_image'])) {
+			$header['json_ld']['image'] = $header['og_image'];
+		}
 	} else {
 		// DiscussionForumPosting：讨论型
 		$header['json_ld'] = array(
@@ -1022,6 +1039,10 @@ if(!empty($first['message']) && preg_match('/<img[^>]+src=["\']([^"\']+)["\']/i'
 			'author' => $_author_jsonld,
 			'description' => $header['description'],
 		);
+		// SEO: DiscussionForumPosting 加 image（Google 富媒体摘要推荐）
+		if(!empty($header['og_image'])) {
+			$header['json_ld']['image'] = $header['og_image'];
+		}
 	}
 
 	// 作者关注状态 — 直接查询

@@ -41,9 +41,11 @@ function runtime_set($k, $v) {
 	if($op == '+' || $op == '-') {
 		$k = substr($k, 0, -1);
 		!isset($runtime[$k]) AND $runtime[$k] = 0;
-		$v = $op == '+' ? ($runtime[$k] + $v) : ($runtime[$k] - $v);
+		// ponytail: 减法加 max(0, ...) 下限保护，防止并发/脏数据导致 runtime.posts/threads/digests/users 变负数
+		// 已知天花板：runtime 仅作缓存显示，理论上不应出现减法超过当前值的情况，出现即说明上游统计已不一致
+		$v = $op == '+' ? ($runtime[$k] + $v) : max(0, $runtime[$k] - $v);
 	}
-	
+
 	$runtime[$k] = $v;
 	return TRUE;
 	// hook model_runtime_set_end.php

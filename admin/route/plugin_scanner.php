@@ -71,7 +71,7 @@ if($action == 'do') {
 	$dir = param_word(3);
 	if(empty($dir)) message(-1, 'Plugin dir required');
 
-	message(0, jump('详情功能暂不可用', admin_plugin_scanner_url(), 2));
+	message(0, '详情功能暂不可用', array('redirect_url' => admin_plugin_scanner_url()));
 
 } elseif($action == 'export') {
 

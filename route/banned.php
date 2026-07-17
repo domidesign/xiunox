@@ -69,6 +69,9 @@ XnEvent::trigger('UserBanService.bannedListDisplay', $hook_data);
 $header['title'] = lang('user_ban_public_list_title');
 $header['keywords'] = '';
 $header['description'] = lang('user_ban_public_list_title');
+// SEO: 封禁列表页 canonical + noindex（动态内容，价值低，禁止索引）
+$header['canonical'] = absolute_url(url('banned'));
+$header['noindex'] = TRUE;
 $_SESSION['fid'] = 0;
 
 // hook banned_end.php

@@ -3,11 +3,16 @@
 !defined('DEBUG') AND exit('Forbidden');
 
 function thread_digest_delete($tid, $uid, $fid) {
+	global $conf;
 	$r = db_delete('thread_digest', array('tid'=>$tid));
 	if($r !== FALSE) {
-		user_update($uid, array('digests-'=>1));
-		forum_update($fid, array('digests-'=>1));
+		// 用 GREATEST 下限保护，与 thread_digest_change_batch 批量路径保持一致
+		user_dec($uid, 'digests', 1);
+		forum_dec($fid, 'digests', 1);
 		runtime_set('digests-', 1);
+		// user_dec/forum_dec 不清缓存，手动补上（保持与原 user_update/forum_update 行为一致）
+		!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
+		forum_list_cache_delete();
 	}
 	return $r;
 }

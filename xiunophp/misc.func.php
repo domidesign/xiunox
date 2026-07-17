@@ -1293,12 +1293,13 @@ function xn_mkdir($dir, $mod = 0777, $recusive = TRUE) {
 }
 
 function xn_rmdir($dir) {
-	$r = is_dir($dir) ? rmdir($dir) : FALSE;
+	// ponytail: 并发场景下 is_dir stat 缓存可能失效导致 TOCTOU 竞态，加 @ 抑制 unlink/rmdir 已被另一请求删除时的 Warning
+	$r = is_dir($dir) ? @rmdir($dir) : FALSE;
 	return $r;
 }
 
 function xn_unlink($file) {
-	$r = is_file($file) ? unlink($file) : FALSE;
+	$r = is_file($file) ? @unlink($file) : FALSE;
 	return $r;
 }
 

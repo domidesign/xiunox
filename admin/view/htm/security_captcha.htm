@@ -59,6 +59,11 @@
             <!-- 区块2：发帖/回帖用户组设置 -->
             <h6 class="fw-semibold mb-3"><i class="ti ti-users me-1"></i><?php echo lang('admin_captcha_group_section');?></h6>
             <div class="text-body-secondary small mb-3"><?php echo lang('admin_captcha_group_section_tip');?></div>
+            <!-- 动态状态条：根据 post/reply 主开关显示当前状态 -->
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <span id="postStatus" class="badge bg-secondary small fw-normal"><i class="ti ti-minus-circle me-1"></i><?php echo lang('admin_captcha_post');?>：—</span>
+                <span id="replyStatus" class="badge bg-secondary small fw-normal"><i class="ti ti-minus-circle me-1"></i><?php echo lang('admin_captcha_reply');?>：—</span>
+            </div>
             <div class="overflow-x-auto">
                 <table class="table table-hover align-middle mb-0" style="max-width:400px;">
                     <thead>
@@ -83,7 +88,7 @@
                                 $checked = in_array($gid, $captcha_gids[$scene] ?? []);
                             ?>
                             <td class="text-center">
-                                <input type="checkbox" class="form-check-input" name="captcha_gids[<?php echo $scene;?>][]" value="<?php echo $gid;?>" <?php echo $checked ? 'checked' : '';?>>
+                                <input type="checkbox" class="form-check-input group-cb" data-group-scene="<?php echo $scene;?>" name="captcha_gids[<?php echo $scene;?>][]" value="<?php echo $gid;?>" <?php echo $checked ? 'checked' : '';?>>
                             </td>
                             <?php endforeach; ?>
                         </tr>
@@ -102,12 +107,67 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-// 表单提交
+// post/reply 主开关联动子勾选 + 动态状态提示
+function updateSceneStatus(scene) {
+    var masterSwitch = document.querySelector('.scene-switch[data-scene="' + scene + '"]');
+    if (!masterSwitch) return;
+    var isOn = masterSwitch.checked;
+    var checkboxes = document.querySelectorAll('input.group-cb[data-group-scene="' + scene + '"]');
+    var checkedCount = 0;
+    checkboxes.forEach(function(cb) {
+        cb.disabled = !isOn;
+        if (!isOn) cb.checked = false;
+        if (cb.checked) checkedCount++;
+    });
+    var statusEl = document.getElementById(scene + 'Status');
+    if (statusEl) {
+        if (isOn) {
+            statusEl.className = 'badge bg-success small fw-normal';
+            statusEl.innerHTML = '<i class="ti ti-check me-1"></i>' + escapeHtml(scene === 'post' ? '<?php echo lang('admin_captcha_post');?>' : '<?php echo lang('admin_captcha_reply');?>') + '：<?php echo lang('admin_captcha_master_on_tip');?>（' + checkedCount + '）';
+        } else {
+            statusEl.className = 'badge bg-secondary small fw-normal';
+            statusEl.innerHTML = '<i class="ti ti-minus-circle me-1"></i>' + escapeHtml(scene === 'post' ? '<?php echo lang('admin_captcha_post');?>' : '<?php echo lang('admin_captcha_reply');?>') + '：<?php echo lang('admin_captcha_master_off_tip');?>';
+        }
+    }
+}
+function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+// 监听 post/reply 主开关变化
+document.querySelectorAll('.scene-switch[data-scene="post"], .scene-switch[data-scene="reply"]').forEach(function(sw) {
+    sw.addEventListener('change', function() {
+        updateSceneStatus(this.dataset.scene);
+    });
+});
+
+// 页面加载初始化
+updateSceneStatus('post');
+updateSceneStatus('reply');
+
+// 表单提交（含主开关 ON 时至少一个勾选的校验）
 document.getElementById('form').addEventListener('submit', function(e) {
     e.preventDefault();
     var form = this;
-    var formData = new FormData(form);
     var btn = document.getElementById('submit');
+
+    // 校验：post/reply 主开关 ON 时至少一个勾选
+    var scenes = ['post', 'reply'];
+    for (var i = 0; i < scenes.length; i++) {
+        var scene = scenes[i];
+        var sw = document.querySelector('.scene-switch[data-scene="' + scene + '"]');
+        if (sw && sw.checked) {
+            var checked = document.querySelectorAll('input.group-cb[data-group-scene="' + scene + '"]:checked');
+            if (checked.length === 0) {
+                XN.toast('<?php echo lang('admin_captcha_need_at_least_one');?>', 'danger');
+                return;
+            }
+        }
+    }
+
+    var formData = new FormData(form);
     btn.disabled = true;
     btn.textContent = '<?php echo lang('admin_submitting');?>...';
 

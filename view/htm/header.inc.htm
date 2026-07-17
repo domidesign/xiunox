@@ -5,6 +5,30 @@
 $header['title'] = esc_html($header['title'] ?? '');
 $header['keywords'] = esc_attr($header['keywords'] ?? '');
 $header['description'] = esc_attr($header['description'] ?? '');
+// SEO: BCP 47 语言标签规范，地区子标签大写（zh-cn → zh-CN, en-us → en-US）
+$_lang_bcp47 = $conf['lang'];
+if(strpos($_lang_bcp47, '-') !== false) {
+	$_lang_parts = explode('-', $_lang_bcp47, 2);
+	if(strlen($_lang_parts[1]) === 2) {
+		$_lang_bcp47 = $_lang_parts[0] . '-' . strtoupper($_lang_parts[1]);
+	}
+}
+// SEO: OG 兜底，无 og_type 时默认 website，保证所有页面都有社交分享卡片
+if(empty($header['og_type'])) $header['og_type'] = 'website';
+// SEO: 主题色映射（与 css/theme.css 的 brand 色对齐，供 meta theme-color 使用）
+$_theme_colors = array(
+	'blue'   => '#0d6efd',
+	'green'  => '#198754',
+	'red'    => '#dc3545',
+	'orange' => '#fd7e14',
+	'purple' => '#6f42c1',
+	'pink'   => '#d63384',
+	'teal'   => '#20c997',
+	'indigo' => '#4f46e5',
+	'cyan'   => '#0891b2',
+	'lime'   => '#65a30d',
+);
+$_meta_theme_color = $_theme_colors[$conf['theme_brand'] ?? 'blue'] ?? '#0d6efd';
 ?>
 <?php $user = G('user', array());?>
 <?php $uid = G('uid');?>
@@ -17,28 +41,41 @@ $header['description'] = esc_attr($header['description'] ?? '');
 <?php $static_version = $conf['static_version'];?>
 <!--{hook header_start.htm}-->
 <!DOCTYPE html>
-<html lang="<?php echo $conf['lang'];?>">
+<html lang="<?php echo $_lang_bcp47;?>">
 <head>
-	
+
 	<?php echo defined('BASE_HREF') ? '<base href="'.BASE_HREF.'" />' : '' ;?>
-	
+
 	<!--{hook header_meta_before.htm}-->
-	
+
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-	
+
 	<?php if(!empty($header['keywords'])) { ?>
 <meta name="keywords" content="<?php echo $header['keywords'];?>" />
 <?php } ?>
 
 <meta name="description" content="<?php echo $header['description'];?>" />
+<?php
+// SEO: robots meta 支持 noindex（个人中心/搜索/回复等页面禁止索引）
+$_robots_content = !empty($header['noindex']) ? 'noindex, follow' : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+?>
+<meta name="robots" content="<?php echo $_robots_content;?>" />
 <meta name="renderer" content="webkit">
 <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1" >
 <meta http-equiv="Cache-Control" content="no-transform"/>
 <meta http-equiv="Cache-Control" content="no-siteapp"/>
+<meta name="theme-color" content="<?php echo esc_attr($_meta_theme_color);?>">
+<meta name="format-detection" content="telephone=no, email=no, address=no">
 
 <?php if(!empty($header['canonical'])) { ?>
 <link rel="canonical" href="<?php echo esc_attr($header['canonical']);?>" />
+<?php } ?>
+<?php if(!empty($header['prev_url'])) { ?>
+<link rel="prev" href="<?php echo esc_attr($header['prev_url']);?>" />
+<?php } ?>
+<?php if(!empty($header['next_url'])) { ?>
+<link rel="next" href="<?php echo esc_attr($header['next_url']);?>" />
 <?php } ?>
 
 <?php if(!empty($header['og_type'])) { ?>
@@ -63,47 +100,58 @@ $header['description'] = esc_attr($header['description'] ?? '');
 <?php if(!empty($header['json_ld'])) { ?>
 <script type="application/ld+json"><?php echo json_encode($header['json_ld'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);?></script>
 <?php } ?>
-	
+
+	<!--{hook header_seo_end.htm}-->
+
 	<meta name="csrf-token" content="<?php echo isset($header['csrf_token']) ? esc_attr($header['csrf_token']) : '';?>">
 	<meta name="api-app-id" content="<?php echo esc_attr($conf['api_default_appid'] ?? ''); ?>">
 
 	<title><?php echo $header['title'];?></title>
-	
+
 	<!--{hook header_link_before.htm}-->
-	
+
 	<link rel="shortcut icon" href="<?php echo $conf['view_url'];?>img/favicon.ico" />
 	<link rel="icon" sizes="32x32" href="<?php echo $conf['view_url'];?>img/favicon.ico">
 	<link rel="Bookmark" href="<?php echo $conf['view_url'];?>img/favicon.ico" />
-	
+	<link rel="apple-touch-icon" href="<?php echo $conf['view_url'];?>img/favicon.png">
+	<!-- ponytail: apple-touch-icon 推荐 180x180 png，当前用 favicon.png 兜底避免 404，后续可补 apple-touch-icon.png 标准资源 -->
+	<!-- mask-icon 已移除：safari-pinned-tab.svg 资源不存在，Safari 固定标签页颜色由 meta theme-color 替代 -->
+
 	<!--{hook header_bootstrap_before.htm}-->
 	<link href="<?php echo $conf['view_url'];?>vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
 	<link rel="stylesheet" href="<?php echo $conf['view_url'];?>css/bootstrap-bbs.css<?php echo $static_version;?>">
-		<link rel="stylesheet" href="<?php echo $conf['view_url'];?>css/theme.css<?php echo $static_version;?>">
+	<link rel="stylesheet" href="<?php echo $conf['view_url'];?>css/theme.css<?php echo $static_version;?>">
 <!--{hook header_bootstrap_after.htm}-->
-	
+
 	<!--{hook header_bootstrap_bbs_before.htm}-->
 	<!--{hook header_bootstrap_bbs_after.htm}-->
-	
+
 	<link rel="stylesheet" href="<?php echo $conf['view_url'];?>vendor/tabler-icons/tabler-icons.min.css">
 
 	<!--{hook header_link_after.htm}-->
-	
-	<script src="<?php echo $conf['view_url'];?>vendor/htmx/htmx.min.js"></script>
-	<script src="<?php echo $conf['view_url'];?>vendor/htmx/ext/hx-live.min.js"></script>
-	<script src="<?php echo $conf['view_url'];?>vendor/htmx/ext/hx-optimistic.min.js"></script>
-	<script src="<?php echo $conf['view_url'];?>vendor/animejs/anime.umd.min.js"></script>
+
+	<script src="<?php echo $conf['view_url'];?>vendor/htmx/htmx.min.js" defer></script>
+	<script src="<?php echo $conf['view_url'];?>vendor/htmx/ext/hx-live.min.js" defer></script>
+	<script src="<?php echo $conf['view_url'];?>vendor/htmx/ext/hx-optimistic.min.js" defer></script>
+	<script src="<?php echo $conf['view_url'];?>vendor/animejs/anime.umd.min.js" defer></script>
 	<script>
-	// 允许 HTMX 在 4xx/5xx 响应时也执行 swap，确保错误页面能正确显示
-	document.addEventListener('htmx:before:swap', function(evt) {
-		var response = evt.detail.ctx && evt.detail.ctx.response;
-		if(response && response.status >= 400) {
-			evt.detail.shouldSwap = true;
-		}
-	});
-	// 积分预检查 API 地址（全局可用）
+	// 积分预检查 API 地址（全局可用，PHP 直出，不依赖任何 JS 库，立即赋值）
 	var creditsCheckUrl = <?php echo json_encode(my_credits_check_url());?>;
+	// htmx 加 defer 后，监听器需在 DOMContentLoaded 注册（此时 htmx 已加载完成）
+	// ponytail: htmx 在 defer 模式下保证 DOMContentLoaded 前执行，监听器立即注册即可生效
+	document.addEventListener('DOMContentLoaded', function() {
+		// 允许 HTMX 在 4xx/5xx 响应时也执行 swap，确保错误页面能正确显示
+		document.addEventListener('htmx:before:swap', function(evt) {
+			var response = evt.detail.ctx && evt.detail.ctx.response;
+			if(response && response.status >= 400) {
+				evt.detail.shouldSwap = true;
+			}
+		});
+	});
 	</script>
 	<script>
+	// 主题切换脚本必须内联同步执行，防止 FOUC（闪烁）
+	// ponytail: 此脚本无法加 defer，否则首屏会出现暗→亮→暗的闪烁
 	(function(){
 		// 后台设置的默认主题和主题色
 		var defaultTheme = <?php echo json_encode($conf['default_theme'] ?? 'light');?>;

@@ -42,6 +42,10 @@ if($action == 'login') {
 
 		$header['title'] = lang('admin_login');
 
+		// 登录后返回原页面：return_url 来自 admin_token_check 注入或 token 失效 303 跳转的 query
+		// param 默认 htmlsafe 会破坏 URL 中的 &，关闭 htmlspecialchars 保留原始 URL
+		$return_url = param('return_url', '', FALSE);
+
 		// 生成验证码图片（base64），传给模板
 		$captcha_image = '';
 		if($admin_show_captcha) {
@@ -91,7 +95,7 @@ if($action == 'login') {
 		LoginSecurityService::checkIpBan($longip);
 		LoginSecurityService::checkBan($user['uid']);
 
-		$password = param('password');
+		$password = param('password', '', FALSE);
 
 		if(!user_login_verify($password, $user)) {
 			xn_log('password error. uid:'.$user['uid'], 'admin_login_error');
@@ -105,13 +109,20 @@ if($action == 'login') {
 		// 防止 Session 固定攻击
 		session_regenerate_id(true);
 
+		// 写入 session uid（与前台 route/user.php:458 对齐）
+		// 缺失此行会导致登录成功后跳转到 admin/ 时 index.inc.php 读不到 session uid，
+		// $gid=0 触发 admin/index.inc.php:14 的管理员组检查失败，跳转到前台 user-login
+		$_SESSION['uid'] = $user['uid'];
+
 		admin_token_set();
 
 		xn_log('login successed. uid:'.$user['uid'], 'admin_login');
 
 		// hook admin_index_login_post_end.php
 
-		message(0, jump(lang('login_successfully'), '.'));
+		// 登录成功：返回原页面，无 return_url 兜底仪表盘
+		$referer = admin_http_referer();
+		message(0, lang('login_successfully'), array('redirect_url' => $referer ?: './'));
 
 	}
 
@@ -128,7 +139,7 @@ if($action == 'login') {
 	
 	user_token_clear();
 	
-	message(0, jump(lang('logout_successfully'), './'));
+	message(0, lang('logout_successfully'), array('redirect_url' => './'));
 
 } elseif ($action == 'phpinfo') {
 

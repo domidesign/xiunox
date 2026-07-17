@@ -62,9 +62,9 @@ if($action == 'success') {
 }
 
 // 安装初始化检测,放这里
-is_file(APP_PATH.'conf/conf.php') AND message(0, jump(lang('installed_tips'), '../'));
+is_file(APP_PATH.'conf/conf.php') AND message(0, lang('installed_tips'), array('redirect_url' => '../'));
 // 安装锁检测：锁文件存在则拒绝运行安装程序
-is_file(INSTALL_PATH.'install.lock') AND message(0, jump(lang('installed_tips'), '../'));
+is_file(INSTALL_PATH.'install.lock') AND message(0, lang('installed_tips'), array('redirect_url' => '../'));
 
 // 第一步，阅读
 if(empty($action)) {

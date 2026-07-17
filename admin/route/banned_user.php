@@ -103,7 +103,7 @@ if(empty($action) || $action == 'list') {
 
 	$_u = user_read($uid);
 	$_username = isset($_u['username']) ? $_u['username'] : '';
-	admin_log_create('admin_op_user_unban', 'user', strval($uid), lang('admin_banned_user_unban_log').$_username);
+	admin_log_create('user_unban', 'user', strval($uid), lang('admin_banned_user_unban_log').$_username);
 
 	// hook admin_banned_user_unban_post_end.php
 

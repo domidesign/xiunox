@@ -18,6 +18,19 @@ function forum__update($fid, $arr) {
 	return $r;
 }
 
+// 带下限保护的计数器递减：GREATEST(field-N, 0)，防止负数
+// ponytail: forum__update(array('threads-'=>N)) 走 db_array_to_update_sqladd 无保护，统一改用本函数
+// 已知天花板：调用方需自行 forum_list_cache_delete()（与 forum__update 一致）
+function forum_dec($fid, $field, $n = 1) {
+	$fid = intval($fid);
+	$n = intval($n);
+	if($fid <= 0 || $n <= 0) return FALSE;
+	if(!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $field)) return FALSE;
+	global $db;
+	$tablepre = $db->tablepre;
+	return db_exec("UPDATE `{$tablepre}forum` SET `$field` = GREATEST(`$field` - $n, 0) WHERE fid = '$fid'");
+}
+
 function forum__read($fid) {
 	// hook model_forum__read_start.php
 	$forum = db_find_one('forum', array('fid'=>$fid));

@@ -15,9 +15,16 @@
 	</slot>
 
 	<slot name="user_body">
+		<?php if(!empty($threadlist)) { ?>
 		<ul class="list-unstyled threadlist">
 			<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm'); ?>
 		</ul>
+		<?php } else { ?>
+		<div class="text-center text-secondary py-12">
+			<i class="ti ti-bookmark fs-1 d-block mb-2 text-body-secondary"></i>
+			<p class="mb-0"><?php echo lang('no_favorite');?></p>
+		</div>
+		<?php } ?>
 
 		<?php if($pagination) { ?>
 		<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap"><?php echo $pagination; ?></ul></nav>

@@ -410,8 +410,11 @@ class UserBanService {
 		if(!function_exists('post_delete_by_uid')) {
 			include_once APP_PATH . 'model/post.func.php';
 		}
-		if(!function_exists('mythread_delete_by_uid')) {
+		if(!function_exists('mythread_find_by_uid')) {
 			include_once APP_PATH . 'model/mythread.func.php';
+		}
+		if(!function_exists('thread_delete')) {
+			include_once APP_PATH . 'model/thread.func.php';
 		}
 		if(!function_exists('attach_delete_by_uid')) {
 			include_once APP_PATH . 'model/attach.func.php';
@@ -420,16 +423,41 @@ class UserBanService {
 			include_once APP_PATH . 'model/notify.func.php';
 		}
 
-		// 3. 删除所有回帖
+		// 3. 删除用户的所有主题帖（bbs_thread + mythread 索引 + 关联回帖/附件）
+		// 修复：原逻辑只调 mythread_delete_by_uid 删索引，会留下 bbs_thread 孤儿数据
+		// 改用 thread_delete 完整删除主题（含 mythread/post/attach 级联清理 + 缓存清理 + 统计回退）
+		// 顺序要求：thread_delete 必须在 post_delete_by_uid 之前执行，
+		// 否则 post_delete_by_uid 会先删该用户自己主题的 first post，产生 thread 在但 first post 不存在的孤儿
+		if(function_exists('mythread_find_by_uid') && function_exists('thread_delete')) {
+			$batch_size = 1000;
+			$page = 1;
+			while(true) {
+				$threadlist = mythread_find_by_uid($uid, $page, $batch_size);
+				if(empty($threadlist)) break;
+				foreach($threadlist as $thread) {
+					thread_delete($thread['tid']);
+				}
+				if(count($threadlist) < $batch_size) break;
+				$page++;
+			}
+			// 兜底：mythread 表可能不完整（历史脏数据），再扫一遍 thread 表
+			$orphan_page = 1;
+			while(true) {
+				$orphan_threads = db_find('thread', array('uid'=>$uid, 'is_deleted'=>0), array(), $orphan_page, $batch_size);
+				if(empty($orphan_threads)) break;
+				foreach($orphan_threads as $orphan_thread) {
+					thread_delete($orphan_thread['tid']);
+				}
+				if(count($orphan_threads) < $batch_size) break;
+				$orphan_page++;
+			}
+		} elseif(function_exists('mythread_delete_by_uid')) {
+			// 降级：thread_delete 不可用时仅删索引（保留原行为，防止 fatal）
+			mythread_delete_by_uid($uid);
+		}
+		// 4. 删除所有回帖（含该用户在其他主题下的回帖；thread_delete 已删过该用户自己主题下的回帖，这里幂等清理）
 		if(function_exists('post_delete_by_uid')) {
 			post_delete_by_uid($uid);
-		}
-		// 4. 删除主题索引
-		// ponytail: mythread_delete_by_uid 仅删除 mythread 索引表，不会删除 bbs_thread 主题记录
-		// 已知天花板：用户的主题帖（bbs_thread）会变成孤儿数据，仍可在版块中可见
-		// 升级路径：如需彻底删除主题，应按 user_delete() 模式分批 mythread_find_by_uid + thread_delete
-		if(function_exists('mythread_delete_by_uid')) {
-			mythread_delete_by_uid($uid);
 		}
 		// 5. 删除附件
 		if(function_exists('attach_delete_by_uid')) {

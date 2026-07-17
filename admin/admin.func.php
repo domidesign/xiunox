@@ -5,6 +5,43 @@
 // 有部分用户
 define('XN_ADMIN_BIND_IP', array_value($conf, 'admin_bind_ip'));
 
+// 获取当前 admin 请求的相对 URL（?xxx.htm 格式），用于登录后返回原页面
+// 排除登录/登出页本身，避免循环跳转
+function admin_current_url() {
+	$qs = isset($_SERVER['QUERY_STRING']) ? $_SERVER['QUERY_STRING'] : '';
+	if($qs === '' || strpos($qs, 'index-login') !== FALSE || strpos($qs, 'index-logout') !== FALSE) {
+		return '';
+	}
+	return '?' . $qs;
+}
+
+// 获取后台登录返回 URL（登录成功后跳转目标）
+// 三层 fallback：param('return_url') → param('next') → 空（调用方兜底仪表盘）
+// 安全校验：仅允许 admin 站内相对路径（?xxx 或 ./?xxx），禁止任何绝对 URL 防开放重定向
+function admin_http_referer() {
+	// hook admin_http_referer_start.php
+	$referer = param('return_url', '', FALSE);
+	empty($referer) AND $referer = param('next', '', FALSE);
+
+	if(empty($referer)) return '';
+
+	// 过滤特殊字符 strip special chars
+	$referer = str_replace(array('\"', '"', '<', '>', ' ', '*', "\t", "\r", "\n"), '', $referer);
+
+	// 防循环：排除登录/登出页
+	if(strpos($referer, 'index-login') !== FALSE || strpos($referer, 'index-logout') !== FALSE) {
+		return '';
+	}
+
+	// 防开放重定向：admin 均为站内相对路径，仅允许 ?xxx 或 ./?xxx 格式
+	if(!preg_match('#^(\.\/)?\?#', $referer)) {
+		return '';
+	}
+
+	// hook admin_http_referer_end.php
+	return $referer;
+}
+
 // 令牌失效：flash cookie 传递 toast + 跳转登录页（替代整页 message.htm）
 function admin_token_expiry_redirect() {
 	$msg = lang('admin_token_expiry');
@@ -13,6 +50,11 @@ function admin_token_expiry_redirect() {
 	setcookie('flash_msg', $msg, time() + 10, '/');
 	setcookie('flash_type', 'danger', time() + 10, '/');
 	$login_url = url('index-login');
+	// 附加 return_url 供登录后返回原页面
+	$return_url = admin_current_url();
+	if($return_url) {
+		$login_url .= (strpos($login_url, '?') !== FALSE ? '&' : '?') . 'return_url=' . rawurlencode($return_url);
+	}
 	// HTMX 请求：HX-Redirect 头让 htmx 执行整页跳转
 	if(function_exists('is_htmx_request') && is_htmx_request()) {
 		header('HX-Redirect: ' . $login_url);
@@ -37,6 +79,11 @@ function admin_token_check() {
 
 	$admin_token = param('bbs_admin_token');
 	if(empty($admin_token)) {
+		// 改写路由到登录页前，记录原始 URL 供登录后返回（QUERY_STRING 此时仍是原始请求的）
+		$return_url = admin_current_url();
+		if($return_url) {
+			$_REQUEST['return_url'] = $return_url;
+		}
 		$_REQUEST[0] = 'index';
 		$_REQUEST[1] = 'login';
 	} else {

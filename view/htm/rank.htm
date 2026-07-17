@@ -175,10 +175,12 @@
 
 <?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
 
-<script src="<?php echo $conf['view_url'];?>vendor/animejs/anime.umd.min.js"></script>
 <script>
-(function() {
-	var { animate, stagger } = anime;
+// anime.js 已在 header.inc.htm 中通过 defer 加载，DOMContentLoaded 时已就绪
+document.addEventListener('DOMContentLoaded', function() {
+	if (typeof anime === 'undefined') return;
+	var animate = anime.animate;
+	var stagger = anime.stagger;
 	// 排行列表项淡入动画
 	var items = document.querySelectorAll('#rank-content .thread-list-item');
 	if (items.length) {
@@ -201,9 +203,9 @@
 				translateY: [20, 0],
 				delay: stagger(50),
 				duration: 300,
-				ease: 'outQuad'
-			});
-		}
-	});
-})();
+			ease: 'outQuad'
+		});
+	}
+});
+});
 </script>
