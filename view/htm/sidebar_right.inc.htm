@@ -65,13 +65,13 @@ if($_is_mobile) return;
 					</b>
 				</div>
 				<div>
-				<span class="text-secondary">
-					<?php echo !empty($conf['golds_name']) ? $conf['golds_name'] : lang('golds_label');?>
-				</span><br>
-				<b class="stat-count" data-count="<?php echo $user['golds'];?>">
-					<?php echo $user['golds'];?>
-				</b>
-			</div>
+			<span class="text-secondary">
+				<?php echo !empty($conf['golds_name']) ? $conf['golds_name'] : lang('golds_label');?>
+			</span><br>
+			<b class="stat-count" data-count="<?php echo $user['golds'];?>" data-credit-type="golds">
+				<?php echo $user['golds'];?>
+			</b>
+		</div>
 				<div>
 					<span class="text-secondary">
 						<?php echo lang('following_label');?>

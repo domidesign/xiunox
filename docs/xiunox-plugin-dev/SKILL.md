@@ -11,6 +11,11 @@ description: >
 
 # XIUNOX 插件开发 Skill
 
+> **配套完整手册**：`plugindev/` 目录有 8 个分册的完整开发手册（架构/结构/hooks/API/前端/AI 协作/运行时安全/登录安全），本 Skill 是精简版，**深入细节查 plugindev**，**写代码对照本文件**。
+>
+> **完整手册下载地址**：https://github.com/domidesign/xiunox/tree/main/docs/plugindev
+> （本项目不自带 `plugindev/` 目录时，从该 GitHub 仓库下载后放到 `docs/plugindev/` 即可使用本 Skill 的全部交叉引用）
+
 ## 核心架构（必须先理解）
 
 **插件是编译时合并，不是运行时分发。** 把 hook 文件放到 `plugin/<dir>/hook/<hook名>` 就等于注册了 hook，没有 `add_hook()` 函数。`_include()` 编译时把 hook 内容物理拼进源文件，缓存到 `tmp/`。
@@ -78,7 +83,15 @@ description: >
 - ❌ **新增入口级安全检查（IP 黑名单/封禁检查）只补主入口** → 必须用 Grep 全局搜索所有「用户可发表内容/可登录」入口（login/create/resetpw 发帖回帖改密找密）逐个补齐。Spec checklist 验证阶段比单元测试更能发现这类遗漏 ⚠️ 已违反 1 次（route/thread.php create 缺 IP 黑名单检查）
 - ❌ **用户未指定插件前缀时使用 `xn_` 或 `xnx_` 前缀** → 这两个是官方预留前缀（如 `xn_url`、`xnx_checkin` 等核心/官方插件已占用），第三方插件禁止使用。应改用插件目录名或其缩写作为前缀（如插件目录 `my_plugin` 则用 `my_` 前缀）。即使用户指定了目录名，若该目录名以 `xn_` 或 `xnx_` 开头，也应提醒用户更换为其他前缀
 - ❌ **插件层用 `db_find('user', ...)` 获取用户信息后直接取 `username` 字段显示** → `db_find('user')` 绕过核心层，返回的数据**不含 `display_name` 字段**（`display_name` 由核心层 `model/user.func.php` 的 `user_format()` 生成：`nickname` 优先，为空 fallback 到 `username`）。直接取 `username` 会显示登录用户名而非用户可修改的昵称。必须改用 `user_find_by_uids(implode(',', $uids))` / `user_read($uid)` / `user_read_cache($uid)` 等核心函数（自动调用 `user_format()`），模板显示时取 `$user['display_name']`。⚠️ 已违反 1 次，影响 5 个插件（xnx_duel / xnx_dice / xnx_invite / xnx_attach_access / xnx_landing），根因是 `$u['display_name'] ?? $u['username']` 这种 fallback 写法在 `db_find` 结果上无效（`display_name` 键根本不存在，始终 fallback 到 `username`）
-- ❌ **PHP hook 在顶层作用域用 `return` 提前退出** → hook 编译进 `route/*.php`、`index.inc.php`、`model.inc.php` 等文件的**顶层作用域**（非函数/方法内部）时，`return` 会终止**整个路由文件**执行，跳过 hook 标记后的所有代码（积分扣减、通知、`message()` 跳转、`exit` 等），导致白屏/无提示/无跳转/htmx 响应被污染。必须用 `if (条件) { ...全部逻辑... }` 包裹整个 hook 内容。典型违规写法：`if (!class_exists('XxxService', false)) return;`、`if (empty($list)) return;`、`if ($audit_status != 1) return;`。判断 hook 是否在顶层作用域：看核心文件中 `// hook xxx.php` 标记所在位置是否在任何 `function`/`method` 外。`.htm` 模板 hook 同理（编译进模板顶层）。⚠️ 已违反 3 次（xnx_feeds thread_create_thread_end 审核场景无提示无跳转 / xnx_feeds user_create_post_end 注册后无提示 / xnx_hidden post_create_htmx_reply_end 回复后 htmx 响应污染）
+- ❌ **所有 hook 文件（路由层 + model 层 + view 层）禁止使用 `return;`**：hook 是编译期内联到宿主函数/路由文件/模板中的，hook 内的 `return;` 会从被内联的整个宿主返回（不是从 hook 返回），导致宿主后续逻辑被跳过。**已违反 4 次，影响范围逐次扩大**：
+  - 路由层：xnx_feeds `thread_create_thread_end`（审核场景无提示无跳转）/ xnx_feeds `user_create_post_end`（注册后无提示）/ xnx_hidden `post_create_htmx_reply_end`（回复后 htmx 响应污染）
+  - **model 层**：xnx_feeds 6 个 model_*_end hook（待审回帖 pid 丢失事故，`post__create` 返回 int(754) 但 `post_create()` 因 hook return 提前退出，返回 NULL）/ xnx_hidden `model_post_create_end`（同上）
+  - **model 层严重 bug**：xnx_maintenance `model_check_runlevel_start.php` 中 5 个 return 会跳过原 `check_runlevel()` 函数的 runlevel 1/2/3/4 拦截逻辑，导致插件启用后即使维护模式关闭，站点关闭/限访功能也全部失效
+  - 违规写法：`if (!class_exists('XxxService', false)) return;` / `if (empty($list)) return;` / `if ($audit_status != 1) return;`
+  - 正确写法：用 `if (条件) { ...全部逻辑... }` 包裹整个 hook 内容
+  - **例外（允许 `exit;`）**：终止性操作（API 503 响应、页面渲染、302 重定向、维护页输出）后必须 `exit;` 终止请求，但必须用 if 包裹整个拦截逻辑且加 `// ponytail:` 注释说明 exit 的正当性
+  - **闭包回调内部的 `return` 只作用于闭包本身**，合法（如 `array_filter` 的 lambda）
+  - 判断 hook 是否在顶层作用域：Grep 核心文件中 `// hook xxx.php` 标记所在位置是否在任何 `function`/`method` 外
   - ✅ 正确范式（参考 `xnx_fields/hook/thread_create_thread_end.php`）：
     ```php
     <?php exit;
@@ -170,19 +183,46 @@ description: >
 
 ### Step 1: conf.json
 
+> 完整字段表与 zip 打包规范见 [plugindev/02-plugin-structure.md](../../plugindev/02-plugin-structure.md)。本节只列核心字段与高频错误。
+
 ```json
 {
     "name": "插件名称",
     "brief": "插件简介，支持 HTML",
-    "version": "1.0",
-    "bbs_version": "1.1",
+    "version": "1.0.0",
+    "bbs_version": "1.0",
     "installed": 0,
     "enable": 0,
-    "hooks_rank": {},
-    "overwrites_rank": [],
-    "dependencies": []
+    "hooks_rank": {
+        "model_inc_file.php": 10,
+        "thread_subject_after.htm": 10
+    },
+    "overwrites_rank": {
+        "view/htm/header.inc.htm": 10
+    },
+    "dependencies": {
+        "xn_search": "1.0"
+    },
+    "capabilities": [],
+    "type": "plugin",
+    "author": "作者",
+    "id": "my_plugin"
 }
 ```
+
+**字段类型陷阱（高频写错）：**
+
+| 字段 | 类型 | 错误写法 | 正确写法 |
+|---|---|---|---|
+| `version` | string | `"1.0"` | `"1.0.0"`（三位制 X.Y.Z） |
+| `bbs_version` | string | `"1.0.0"` | `"1.0"`（两位制 X.Y，不能高于当前核心主次版本） |
+| `hooks_rank` | object | `[]` / `{}` 空对象不展示用法 | `{"hook_name.php": 10}`（值大先执行，默认 0） |
+| `overwrites_rank` | object | `[]` **（常见错误：写成数组）** | `{"view/htm/header.inc.htm": 10}`（值最大的覆盖文件生效，赢家通吃） |
+| `dependencies` | object | `[]` **（常见错误：写成数组）** | `{"xn_search": "1.0"}`（key=依赖插件目录名，value=最低版本约束，支持 npm 风格 `>=`/`^`/`~`/`*`） |
+| `capabilities` | array | `"lowercase.dots"` 字符串 | `["lowercase.dots"]`（权限沙箱声明，扫描器强制校验 `lowercase.dots` 格式） |
+
+**必需字段：** `name` / `brief` / `version` / `bbs_version` / `installed` / `enable`（后两个系统维护，勿手填）
+**可选字段：** `hooks_rank` / `overwrites_rank` / `dependencies` / `capabilities` / `type`（默认 `"plugin"`）/ `author` / `id`
 
 ### Step 2: install.php（建表 + 默认设置）
 
@@ -555,30 +595,9 @@ $pagination = pagination(url("thread-$tid-{page}$keywordurl"), $total, $page, $p
 
 ## 快速 API 参考
 
-### DB 操作
+> 基础 API（DB CRUD / 输入输出 / 安全 / 缓存设置 / 全局变量）见 [references/api-cheatsheet.md](references/api-cheatsheet.md)。本节只列**项目特有的进阶用法**。
 
-```php
-db_insert($table, $arr)                    // INSERT，返回 lastInsertId
-db_update($table, $cond, $update)           // UPDATE，支持 'field+' => 1 增量
-db_delete($table, $cond)                    // DELETE
-db_find($table, $cond, $orderby, $page, $pagesize, $key)  // 分页查询
-db_find_one($table, $cond, $orderby)        // 单条查询
-db_count($table, $cond)                    // 计数
-db_exec($sql)                               // 原始 SQL（非 SELECT 语句）
-
-// === 聚合查询（GROUP BY + HAVING + COUNT/SUM/MAX） ===
-db_find_group($table, $cond, $groupby, $having, $orderby, $page, $pagesize, $key, $col)
-db_find_one_group($table, $cond, $groupby, $having, $orderby, $col)
-
-// 条件数组
-['id' => 123]                               // id = 123
-['uid' => [1, 2, 3]]                        // uid IN (1,2,3)
-['id' => ['>' => 100]]                       // id > 100
-['name' => ['LIKE' => 'kw']]                 // name LIKE '%kw%'
-// 排序：['tid' => -1] DESC, ['created' => 1] ASC
-```
-
-**DB API 优先级（防 SQL 注入）：**
+### DB API 优先级（防 SQL 注入）
 
 | 场景 | 首选 API | 备选（需加保留注释） |
 |---|---|---|
@@ -590,7 +609,7 @@ db_find_one_group($table, $cond, $groupby, $having, $orderby, $col)
 | 系统表（INFORMATION_SCHEMA） | - | `db_sql_find_one()` + 保留注释 |
 | 复杂 DML（GREATEST/子查询/INSERT IGNORE SELECT） | - | `db_exec()` + 保留注释 |
 
-**聚合查询示例（替代 `db_sql_find("SELECT uid, COUNT(*) ... GROUP BY ...")`）：**
+### 聚合查询示例（替代 `db_sql_find("SELECT uid, COUNT(*) ... GROUP BY ...")`）
 
 ```php
 // 单条聚合：每个用户的勋章数
@@ -605,18 +624,11 @@ $row = db_find_one_group(
 
 // 多条聚合：各版块发帖数 Top 10
 $rows = db_find_group(
-    'thread',
-    [],
-    ['fid'],
-    [],
-    ['cnt' => -1],                   // -1 降序，1 升序
-    1, 10,                           // page, pagesize
-    'fid',                           // 返回数组的 key 字段
-    ['fid', 'COUNT(*) as cnt']
+    'thread', [], ['fid'], [], ['cnt' => -1], 1, 10, 'fid', ['fid', 'COUNT(*) as cnt']
 );
 ```
 
-**保留复杂 SQL 的注释规范：**
+### 保留复杂 SQL 的注释规范
 
 无法用 `db_find*` 替代的 JOIN/系统表/复杂 DML，必须在代码中添加包含 `保留 db_sql_find` 或 `保留 db_exec` 关键字的注释，扫描器会自动跳过后续 10 行的 direct_db 报告：
 
@@ -632,93 +644,7 @@ $rows = db_sql_find($sql);  // 此行不会被扫描器报告
 
 > 注释必须放在 `db_*` 调用上方 10 行以内，覆盖多行 SQL 拼接。无保留注释的 `db_sql_find` / `db_exec` 会被扫描器报告为 info 级别问题。
 
-### 输入输出
-
-```php
-param($key, $defval)         // 读 $_REQUEST（$defval 类型决定返回类型）
-param_word($key, $len)       // 仅字母数字下划线
-
-// === URL 生成（三层 API，优先用上层） ===
-thread_url($tid)              // 1. 命名快捷函数（优先用，IDE 可补全）
-forum_url($fid)               //    其他示例：user_url / post_create_url / thread_like_url
-route_url($name, $args, $query) // 2. 通用入口（路由表中无对应命名函数时用）
-url($url, $extra)             // 3. 底层 url()（处理伪静态格式，仅分页占位符/复杂场景用）
-
-message($code, $msg, $extra) // 终止执行返回（0=成功, <0=系统错, >0=业务错）
-lang($key, $arr)             // 语言替换
-esc_html($var)               // XSS 转义
-esc_attr($var)               // 属性转义
-esc_js($var)                 // JS 内字符串转义
-```
-
-### 安全
-
-```php
-CsrfService::input()         // 输出 hidden input
-CsrfService::check()         // 验证（失败 exit）
-user_login_check()           // 未登录跳转
-forum_access_user($fid, $gid, 'allowthread')  // 板块权限
-PermissionService::check('my_perm_key', $uid)  // 自定义权限
-```
-
-### 缓存/设置
-
-```php
-setting_get('my_plugin')     // 读插件设置
-setting_set('my_plugin', $arr)  // 写插件设置
-kv_get($key) / kv_set($key, $val)  // KV 存储
-cache_get($key) / cache_set($key, $val)  // 通用缓存（旧 API，不推荐）
-runtime_set('threads+', 1)   // 运行时统计增量
-```
-
-### 数据缓存（CacheHelper）- 推荐方式
-
-**插件数据缓存必须用 `CacheHelper` 代替裸 `cache_get/cache_set`**，提供命名空间隔离、一键清除、命中率统计等能力。
-
-#### 三步接入法
-
-```php
-// 1. Service 类中注册缓存键（构造函数或静态方法）
-class MyService {
-    private static $cacheKeys = array(
-        'hot_list' => array(300, '热门列表'),
-        'user_data' => array(60, '用户数据'),
-    );
-
-    public function __construct() {
-        if(class_exists('CacheHelper', false)) {
-            CacheHelper::registerKeys('myplugin', self::$cacheKeys);
-        }
-    }
-}
-
-// 2. 用 remember() 读写缓存（一行代替 10 行样板代码）
-$data = CacheHelper::remember('hot_list', 300, function() {
-    return db_find('my_table', array('status'=>1), array('id'=>-1), 1, 15);
-}, 'myplugin');
-
-// 3. 用 pluginDeletePrefix() 一键清除整个插件缓存
-CacheHelper::pluginDeletePrefix('myplugin');
-```
-
-#### 缓存键命名规范
-
-| 来源 | 前缀 | 示例 |
-|---|---|---|
-| 核心代码 | `core_` | `core_forumlist`、`core_index_tl_xxx` |
-| 插件代码 | `p_{plugin}_` | `p_checkin_rank_total`、`p_tag_hot_15` |
-
-- `CacheHelper::pluginKey('hot_list', 'tag')` 自动生成 `p_tag_hot_list`
-- 禁止裸用全局缓存键（如 `xnx_checkin_rank_total`），必须通过 `pluginKey()` 生成
-
-#### 禁止事项
-
-- ❌ 手写 `if(cache_get())...else{compute;cache_set()}` 样板代码 → 用 `CacheHelper::remember()`
-- ❌ 枚举所有 limit 值逐个 `cache_delete()` → 用 `CacheHelper::pluginDeletePrefix()`
-- ❌ 裸用 `cache_get('xnx_plugin_key')` 全局键名 → 用 `CacheHelper::pluginKey()` 加前缀
-- ❌ 插件不注册缓存键 → 后台统计面板无法显示和批量清理
-
-#### 高级用法
+### 缓存版本号机制（列表类缓存推荐）
 
 ```php
 // 版本号机制（适用于列表类缓存，数据变更时递增版本号使旧缓存自动失效）
@@ -731,20 +657,15 @@ $list = CacheHelper::remember('list_' . $id . '_v' . $version, 60, function() us
 CacheHelper::set(CacheHelper::pluginKey('list_v_' . $id), $version + 1, 86400);
 ```
 
-### 分页
+### 保留 url() 的特殊场景
 
-```php
-$total = db_count('my_table', $cond);
-$list = db_find('my_table', $cond, ['created' => -1], $page, 20, 'id');
-// 优先用命名函数（如 myplugin_list_page_url($page)）或 route_url() 通用入口
-// route_url 返回 'myplugin-list-{page}' 模板字符串，pagination() 会替换 {page}
-$pagination = pagination(route_url('myplugin_list_page', []), $total, $page, 20);
-```
+以下场景**保留 `url()` 调用**，不替换为命名函数：
 
-**保留 url() 的特殊场景：**
-- 复杂分页带额外变量：`url("thread-$tid-{page}$keywordurl")`（保留 `url()` + 字符串拼接）
-- 动态路由变量：`url("$route-{page}", ...)`（`$route` 为运行时变量）
-- 后台预览示例 URL：`url('thread-123.htm')`（仅用于显示不参与路由）
+1. **分页模板字符串带额外变量**：`url("thread-$tid-{page}$keywordurl")`（`$keywordurl` 为运行时变量）
+2. **动态路由变量**：`url("$route", ...)`、`url("$route-{page}", ...)`（`$route` 为运行时变量）
+3. **JS 字符串拼接**：`url("post-create") + '?tid=' + tid`（PHP 字符串里的 JS 拼接）
+4. **后台预览示例**：`url('thread-123.htm')`（仅显示用，不参与路由）
+5. **插件未注册到路由表的自定义路由**：未通过 hook 注册的路由直接调 `url()`
 
 ---
 
@@ -1144,17 +1065,25 @@ hiddenInput.value = editor.getHtml();
 - [ ] **插件获取用户信息用于显示时用 `user_find_by_uids()` / `user_read()` / `user_read_cache()` 等核心函数（自动生成 `display_name`），禁止用 `db_find('user', ...)` 绕过核心层后直接取 `username` 字段；模板显示用户名统一取 `display_name` 字段**
 - [ ] **改动 `plugin/<dir>/static/js|css/` 下文件后若 `static_version` 未递增**，必测时提示用户硬刷新（Ctrl+F5 / Cmd+Shift+R），否则浏览器加载 HTTP 缓存的旧 JS 导致修改不生效（07-17 已违反 1 次：shim 修复后不刷新不生效）
 - [ ] **改动 `.htm` 模板后清 `tmp/view_htm_*.htm` 编译缓存**：`_include()` 不比较源文件 mtime，只检查 tmpfile 是否存在，源文件改了不清缓存则修改不生效。批量清理：`rm -f tmp/view_htm_*.htm tmp/admin_view_htm_*.htm`（已违反多次）
-- [ ] **PHP hook 编译到顶层作用域时禁止 `return`，用 `if` 包裹整个逻辑**：hook 编译进 `route/*.php`/`index.inc.php`/`model.inc.php` 顶层作用域时，`return` 会退出整个路由文件，跳过后续积分/通知/`message()`/`exit`。判断方法：Grep 核心文件中 `// hook xxx.php` 标记位置，若不在任何 `function`/`method` 内即为顶层作用域。已违反 3 次
+- [ ] **所有 hook 文件禁止 `return;`（路由层 + model 层 + view 层全适用）**：hook 编译期内联到宿主，`return` 会从宿主返回，跳过后续逻辑。已违反 4 次（路由层 3 次 + model 层 1 次 pid 丢失 + model 层 runlevel 拦截失效）。例外：终止性操作允许 `exit;` 但必须 if 包裹 + `// ponytail:` 注释说明
 - [ ] **发帖/回复共用 `post.htm` 的 hook 按场景区分**：`post_ref_thread_after.htm`/`post_ref_thread_after_mobile.htm`/`post_end.htm`/`post_js.htm` 同时编译进发帖页和回复页，只需发帖场景的功能必须加 `if ($route == 'thread' && $action == 'create')` 判断，避免回复页加载不需要的模块
 
 ---
 
-## 何时读 References
+## 何时读 References / plugindev
+
+> **`plugindev/` 完整手册下载地址**：https://github.com/domidesign/xiunox/tree/main/docs/plugindev
+> 若本项目 `docs/plugindev/` 目录不存在，从该 GitHub 仓库下载后放到 `docs/plugindev/` 即可使用下表全部交叉引用。未下载时，本目录 [references/](references/) 下 3 个速查文档仍可独立使用，覆盖 80% 日常开发需求。
 
 | 情况 | 读 |
 |---|---|
-| 需要找精确的 hook 注入点 | `references/hooks-catalog.md` |
-| 需要查 API 签名/参数细节 | `references/api-cheatsheet.md` |
-| 不确定某条规则是否正确 | `references/ai-rules.md` |
+| 需要找精确的 hook 注入点 | [references/hooks-catalog.md](references/hooks-catalog.md) 或 [plugindev/03-hooks-catalog.md](../../plugindev/03-hooks-catalog.md)（完整版） |
+| 需要查 API 签名/参数细节 | [references/api-cheatsheet.md](references/api-cheatsheet.md) 或 [plugindev/04-api-cheatsheet.md](../../plugindev/04-api-cheatsheet.md)（完整版） |
+| 不确定某条规则是否正确 | [references/ai-rules.md](references/ai-rules.md)（检查流程）或 [plugindev/06-ai-collaboration.md](../../plugindev/06-ai-collaboration.md)（规则详情） |
 | 查所有已注册的命名快捷函数 | `model/route.func.php` 源码 |
-| 需要完整手册（架构/前端/示例） | 项目 `docs/` 目录（`docs/README.md` 为入口） |
+| 需要理解插件架构原理 | [plugindev/01-architecture.md](../../plugindev/01-architecture.md) |
+| 需要查 conf.json 完整字段表 / zip 打包规范 | [plugindev/02-plugin-structure.md](../../plugindev/02-plugin-structure.md) |
+| 需要查前端 / 安全 / htmx 4 事件名 | [plugindev/05-frontend-security.md](../../plugindev/05-frontend-security.md) |
+| 需要查运行时安全 / 崩溃自动禁用 | [plugindev/07-runtime-safety.md](../../plugindev/07-runtime-safety.md) |
+| 需要查登录安全 / 账号锁定 | [plugindev/08-login-security.md](../../plugindev/08-login-security.md) |
+| 需要完整手册入口 | [plugindev/README.md](../../plugindev/README.md) |

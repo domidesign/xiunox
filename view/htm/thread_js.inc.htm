@@ -877,6 +877,10 @@ document.body.addEventListener('htmx:after:swap', function(e) {
                     if (res.code === 0 && res.data && res.data.image && postbarCaptchaImg) {
                         postbarCaptchaImg.src = res.data.image;
                         postbarCaptchaImg.style.display = '';
+                        // 启动过期定时器
+                        if (typeof XN !== 'undefined' && XN.captchaScheduleExpire) {
+                            XN.captchaScheduleExpire(postbarCaptchaImg, res.data.expires_in || 600, postbarCaptchaRefresh);
+                        }
                     }
                 } catch(e) {}
             })

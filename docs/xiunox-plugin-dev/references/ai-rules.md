@@ -1,76 +1,92 @@
-# AI 规则清单（生成代码时强制对照）
+# AI 代码生成对照流程
 
-> 源自 `AGENTS.md` + `lib/PluginScanner.php` + `lib/PluginScannerRules.php`
+> 规则详情见 [SKILL.md](../SKILL.md) 的「硬规则（不可违反）」与「交付检查表」。本文件只列**生成代码时必须逐项对照的检查流程**，避免与 SKILL.md 重复维护。
 
 ---
 
-## 🔴 绝对禁止（扫描器 Fatal）
+## 使用方式
 
-| 规则 | 错误示例 | 正确做法 |
-|---|---|---|
-| 禁 jQuery | `$('.btn').on('click', ...)` | `hx-on="click: ..."` 或原生 JS |
-| 禁 Alpine.js | `<div x-data="{ open: false }">` | htmx 属性 + DOM 状态 |
-| 禁 idiomorph | `hx-swap="morph:idom"` | `hx-swap="innerMorph"`（htmx 4 内置） |
-| 禁裸 htmlspecialchars | `htmlspecialchars($var)` | `esc_html($var)` |
-| 禁 POST 无 CSRF | `<form method="post">` 无 hidden input | `<?php echo CsrfService::input();?>` |
-| 禁 POST 处理无校验 | POST handler 不调 check | `CsrfService::check();` 在最前 |
+每写完一段插件代码（hook / route / model / 模板 / JS / CSS），按下面 7 个阶段对照检查。每项对应 SKILL.md 中具体规则，点击跳转。
 
-## 🟡 高优先级
+## 1. PHP 入口（hook / route / setting）
 
-| 规则 | 说明 |
-|---|---|
-| `include` → `_include()` | 裸 include 绕过 hook 系统 |
-| 不用 `window.__xxxData` | 状态放 DOM `data-*` / hidden input |
-| 不用 `__` 原始模型层 | 调单 `_` 业务层（`thread_create` 非 `thread__create`） |
-| 不用 `user_update` 改密码 | 必须用 `user_change_password()` |
-| 不用 PDO bindValue | 用条件数组语法 |
-| 后台不用 htmx | admin/ 模板只用原生 JS + Bootstrap |
-| 不跳过 `esc_*` | 每个输出到 HTML 的变量都转义 |
-| 不硬编码 URL 后缀 | 禁止 `/thread-{tid}.htm`、`$site_url.'/xxx.htm'` 等，必须用 `url()` 函数适配伪静态（url_rewrite_on 0~5 六种模式） |
+- [ ] PHP hook 文件以 `<?php exit;` 开头（[SKILL.md §Hook 类型](../SKILL.md#step-5-hook-文件两种类型开头写法不同写错会白屏)）
+- [ ] **hook 中无 `return;`**（[SKILL.md §所有 hook 禁止 return](../SKILL.md#硬规则不可违反)）→ 用 `if (条件) { ... }` 包裹，例外：终止性 `exit;` 必须加 `// ponytail:` 注释
+- [ ] `include` 用 `_include()`，禁止裸 `include`（除非 `include_once APP_PATH.'lib/xxx.php'` 加载 lib 类）
+- [ ] 调用核心 Service 前 `if (!class_exists('X')) { include_once ... }` 守卫，访问静态属性/常量前确保类已加载
+- [ ] 数据库结构变更走 `upgrade.php` 幂等迁移，禁止在 `install.php`/`setting.php` 加字段自愈代码
+- [ ] `install.php` 末尾清 `tmp/model.min.php`（防 Service 类未加载白屏）
+- [ ] 卸载脚本文件名用 `uninstall.php`（不是 `unstall.php`）
 
-## 🟢 必须做
+## 2. 表单 / 安全
 
-| 规则 | 做法 |
-|---|---|
-| CSS 注入 | `header_link_after.htm`（全局）或模板内（局部） |
-| JS 注入 | `footer_js_after.htm`（全局）或模板内（局部） |
-| JS API | `XN.toast()` / `XN.ajax()` / `XN.confirm()` / `XN.alert()` |
-| 图标 | Tabler Icons `<i class="ti ti-xxx"></i>` |
-| 链接 | `url("route-action-param")`（禁止硬编码 `.htm`/`.html` 后缀） |
-| 缓存刷新/跳转 URL | `$site_url . url("xxx")`（禁止 `$site_url . '/xxx.htm'`） |
-| PHP hook | `<?php exit;` 开头 |
-| hook 文件名 | 含扩展名，和源标记一模一样 |
-| 建表 | `CREATE TABLE IF NOT EXISTS {$db->tablepre}xxx` |
-| 卸载 | `DROP TABLE IF EXISTS` + `kv_delete()` |
-| setting | `setting_get('my_plugin')` / `setting_set()` |
-| 语言键 | `$lang['my_plugin_xxx']` |
-| JS 全局 | `var __myPluginXxx = ...` |
-| CSS class | `.my-plugin-xxx` |
-| 删帖级联 | `model_thread_delete_end.php` 清理关联数据 |
-| 列表全覆盖 | inc + masonry + timeline + card（`_subject_after`） |
+- [ ] 所有 POST 表单含 `CsrfService::input()` + handler 首行 `CsrfService::check()`
+- [ ] 后台 `setting.php` 开头有 `$gid != 1 && $gid != 2 AND message(-1, '无权限');`
+- [ ] 密码/Token/Secret 用 `param($name, $default, FALSE)` 关闭 htmlspecialchars
+- [ ] 所有 HTML 输出 `esc_html()` / `esc_attr()`，JS 字符串 `esc_js()`
+- [ ] SQL 用户输入 `intval()` 转义，优先 `db_find*` 而非 `db_sql_find*`
+- [ ] 保留复杂 SQL（JOIN/系统表）加 `// 保留 db_sql_find` 或 `// 保留 db_exec` 注释（扫描器据此跳过）
 
-## 📋 检查流程
+## 3. 模型 / 用户显示
 
-生成代码后逐项自检：
+- [ ] 调用单下划线业务层（`thread_create` 非 `thread__create`）
+- [ ] 改密码用 `user_change_password()`（不是 `user_update`）
+- [ ] 改用户组用 `user_change_group()`
+- [ ] 获取用户显示名用 `user_find_by_uids()` / `user_read()` / `user_read_cache()`，禁止 `db_find('user')` 后直接取 `username`
+- [ ] 模板显示用户名统一取 `$user['display_name']`
+- [ ] 写操作后清缓存：`CacheHelper::pluginDeletePrefix($plugin)` 或自定义 `clearCache()`
 
+## 4. URL / 路由
+
+- [ ] URL 用命名快捷函数（`thread_url($tid)`）或 `route_url()` 通用入口，禁止 `url("thread-$tid")` 字符串拼接
+- [ ] 插件自定义路由通过 `hook/model_route_table_end.php` 注册到 `$routes` 数组
+- [ ] 分页用 `route_url('xxx_page', [])`（保留 `{page}` 占位符给 `pagination()` 函数）
+- [ ] 缓存刷新/跳转 URL 用 `$site_url . url("xxx")`，禁止 `$site_url . '/xxx.htm'`
+- [ ] 修改核心路由格式后同步更新 `.htaccess` / nginx 伪静态规则
+
+## 5. 缓存 / 设置
+
+- [ ] 数据缓存用 `CacheHelper::remember()` 代替裸 `cache_get/cache_set`
+- [ ] 清除插件缓存用 `CacheHelper::pluginDeletePrefix()` 而非枚举 limit 值逐个 `cache_delete`
+- [ ] 缓存键通过 `CacheHelper::pluginKey()` 生成（`p_{plugin}_` 前缀）
+- [ ] Service 类构造函数调 `CacheHelper::registerKeys()` 注册缓存键
+- [ ] 列表类缓存用版本号机制（数据变更时递增版本号使旧缓存失效）
+- [ ] `setting_set/get` 直接存取数组，不用 `xn_json_encode/decode` 中转
+- [ ] 跨插件共享配置的保存和读取使用同一个存储键
+
+## 6. 前端（JS / CSS / 模板）
+
+- [ ] 无 jQuery / Alpine.js / idiomorph（用 `XN.toast()` / `XN.ajax()` / `XN.confirm()`）
+- [ ] 命名带插件前缀（变量 `__myPluginXxx` / CSS class `.my-plugin-xxx`）
+- [ ] 静态资源放 `plugin/<dir>/static/js/` 和 `static/css/`（禁止放 `view/htm/`）
+- [ ] `<script src>` / `<link href>` 用 `$conf['view_url']` 而非 `APP_PATH` 或相对路径
+- [ ] 引用插件资源：`$conf['view_url'] . '../plugin/<dir>/static/js/xxx.js'`
+- [ ] 引用核心资源：`$conf['view_url']js/xxx.js`
+- [ ] Card 组件加 `x-card` class，禁止裸用 `border` / `border-*`（包括列表项 border-bottom）
+- [ ] `.htm` hook 文件以 `<?php` 开头（不是 `<?php exit;`，否则白屏）
+- [ ] 发帖/回复共用 `post.htm` 的 hook 按场景区分：`if ($route == 'thread' && $action == 'create')`
+- [ ] AIEditor 工具栏配置用 `toolbarKeys`（不是 `toolbar`），自定义按钮以对象形式进入数组，SVG 用 fill 模式（禁用 stroke 模式）
+
+## 7. 命名 / 跨插件
+
+- [ ] 所有命名带插件前缀（表 / 变量 / 语言键 / JS / CSS / setting）
+- [ ] 第三方插件禁止用 `xn_` 或 `xnx_` 前缀（官方预留）
+- [ ] `conf.json` 的 `hooks_rank` 键名与 hook 文件名（含扩展名）完全一致
+- [ ] 跨插件共享配置的保存和读取使用同一个存储键
+- [ ] 注册表/默认配置中的文本用 `lang()` 多语言键，不硬编码中文
+
+---
+
+## 单行注释陷阱（高频踩坑）
+
+PHP 单行注释 `//` 和 `#` 中**禁止包含 `?>`**：
+
+```php
+// ❌ 错误：会触发 headers already sent，页面直接显示代码
+// 模板中调用：<?php echo thread_url($tid);?>
+
+// ✅ 正确：去掉 <?php 和 ?>
+// 模板中调用示例：echo thread_url($tid);
 ```
-□ 无 $() / .on() / .ajax() / .bind() 等jQuery
-□ 无 x-data / x-show / x-bind / x-model / x-on / x-text / x-if 等Alpine
-□ 无 window.__xxxData
-□ 所有 form[method=post] 有 CsrfService::input()
-□ 所有 POST handler 首行 CsrfService::check()
-□ 所有 HTML 输出用 esc_html() / esc_attr()
-□ 所有 JS 字符串输出用 esc_js()
-□ 所有 include 是 _include()
-□ 模型调用是单下划线（非 __）
-□ hook 文件名含扩展名匹配
-□ PHP hook 有 <?php exit;
-□ 命名全带插件前缀
-□ 建表有 IF NOT EXISTS
-□ 卸载删表+删KV
-□ setting.php 有权限检查+CSRF
-□ 删帖有级联清理
-□ 暗色模式（如需）
-□ 无硬编码 URL 后缀（.htm/.html），所有 URL 用 url() 函数
-□ 缓存刷新/跳转用 $site_url . url("xxx") 而非硬拼接
-```
+
+块注释 `/* */` 中可以包含 `?>`，不受影响。

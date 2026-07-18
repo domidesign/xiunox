@@ -9,7 +9,8 @@ var lang = {
 	'no': 'No',
 	'open': 'Open',
 	'loading': 'Loading...',
-	
+	'captcha_expired': 'Expired, click to refresh',
+
 	// hook lang_en_us_bbs_js.htm
-	
+
 };

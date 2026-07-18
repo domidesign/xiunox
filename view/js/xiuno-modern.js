@@ -692,6 +692,49 @@
 
     // ========== 验证码刷新 ==========
 
+    // 验证码过期定时器：到时图片变灰 + 浮层「已过期，点击刷新」
+    // ponytail: 浮层覆盖 img 父级（input-group 等），点击触发 refreshFn 或 img.click()
+    XN.captchaScheduleExpire = function (imgEl, expires_in, refreshFn) {
+        if (!imgEl || !expires_in) return;
+        // 清理之前的定时器与浮层
+        if (imgEl._captchaExpireTimer) {
+            clearTimeout(imgEl._captchaExpireTimer);
+            imgEl._captchaExpireTimer = null;
+        }
+        var parent = imgEl.parentNode;
+        if (parent) {
+            var existing = parent.querySelector('.captcha-expired-overlay');
+            if (existing) existing.remove();
+        }
+        imgEl.style.filter = '';
+        // 设置新定时器
+        imgEl._captchaExpireTimer = setTimeout(function () {
+            imgEl._captchaExpireTimer = null;
+            imgEl.style.filter = 'grayscale(1) opacity(0.5)';
+            if (!parent) return;
+            if (getComputedStyle(parent).position === 'static') {
+                parent.style.position = 'relative';
+            }
+            var overlay = document.createElement('div');
+            overlay.className = 'captcha-expired-overlay';
+            var txt = (typeof lang !== 'undefined' && lang.captcha_expired) ? lang.captcha_expired : '已过期，点击刷新';
+            overlay.textContent = txt;
+            overlay.title = txt;
+            overlay.style.cssText = 'position:absolute;top:0;right:0;bottom:0;width:120px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);color:#fff;font-size:12px;cursor:pointer;border-radius:0 20px 20px 0;text-align:center;z-index:5';
+            parent.appendChild(overlay);
+            overlay.addEventListener('click', function (e) {
+                e.stopPropagation();
+                overlay.remove();
+                imgEl.style.filter = '';
+                if (typeof refreshFn === 'function') {
+                    refreshFn();
+                } else {
+                    imgEl.click();
+                }
+            });
+        }, expires_in * 1000);
+    };
+
     XN.captchaRefresh = function (scene) {
         var url;
         // 优先使用 PHP url() 函数生成的 URL 模板，兼容所有伪静态格式
@@ -720,6 +763,10 @@
                         if (img) {
                             img.src = res.data.image;
                             img.style.display = '';
+                            // 启动过期定时器
+                            XN.captchaScheduleExpire(img, res.data.expires_in || 600, function () {
+                                XN.captchaRefresh(scene);
+                            });
                         }
                     }
                 } catch (e) {

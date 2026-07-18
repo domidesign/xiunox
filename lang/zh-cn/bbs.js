@@ -9,5 +9,6 @@ var lang = {
 	'no': '否',
 	'open': '打开',
 	'loading': '加载中...',
+	'captcha_expired': '已过期，点击刷新',
 	// hook lang_zh_cn_bbs_js.htm
 };
