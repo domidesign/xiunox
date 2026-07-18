@@ -158,13 +158,6 @@ class UpgradeService {
             ['user', 'nickname', "ALTER TABLE `{$tablepre}user` ADD COLUMN `nickname` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '昵称' AFTER `username`"],
             ['credits_rule_global', 'daily_limit', "ALTER TABLE `{$tablepre}credits_rule_global` ADD COLUMN `daily_limit` INT NOT NULL DEFAULT 0 COMMENT '每日防刷限制次数，0使用全局设置' AFTER `enabled`"],
             ['credits_rule_forum', 'daily_limit', "ALTER TABLE `{$tablepre}credits_rule_forum` ADD COLUMN `daily_limit` INT NOT NULL DEFAULT 0 COMMENT '每日防刷限制次数，0使用全局设置' AFTER `enabled`"],
-            ['thread', 'is_announcement', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `is_announcement` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT '是否公告: 0否/1是' AFTER `audit_status`"],
-            ['thread', 'announcement_order', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `announcement_order` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '公告排序' AFTER `is_announcement`"],
-            // bbs_plugin 表 version 字段（插件版本升级机制依赖）
-            ['plugin', 'version', "ALTER TABLE `{$tablepre}plugin` ADD COLUMN `version` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '已安装版本号（来自 conf.json）' AFTER `enable`"],
-            // 精华主题计数字段（thread_digest 批量路径依赖，存量库未建字段会触发 Unknown column 'digests'）
-            ['user', 'digests', "ALTER TABLE `{$tablepre}user` ADD COLUMN `digests` INT NOT NULL DEFAULT 0 COMMENT '精华主题数' AFTER `posts`"],
-            ['forum', 'digests', "ALTER TABLE `{$tablepre}forum` ADD COLUMN `digests` MEDIUMINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '精华主题数' AFTER `threads`"],
         ];
 
         foreach ($columns as $col) {
@@ -446,95 +439,6 @@ class UpgradeService {
             $results[] = ['name' => 'api_token.uid_type', 'ok' => true, 'message' => '已存在，跳过'];
         }
 
-        // api_log 新增 appid 字段（处理旧库已建表但缺字段的情况，新库在 migrateDatabase 建表时已包含）
-        if ($this->dbTableExists('api_log', $tablepre)) {
-            $r = $this->addColumn('api_log', 'appid', "ALTER TABLE `{$tablepre}api_log` ADD COLUMN `appid` varchar(32) NOT NULL DEFAULT '' COMMENT '应用ID' AFTER `ip`", $tablepre);
-            $results[] = ['name' => 'api_log.appid', 'ok' => $r['ok'], 'message' => $r['message']];
-
-            if (!$this->dbIndexExists('api_log', 'appid', $tablepre)) {
-                $r = $this->execSql("ALTER TABLE `{$tablepre}api_log` ADD INDEX `appid` (`appid`)");
-                $results[] = ['name' => 'api_log.appid_index', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
-            } else {
-                $results[] = ['name' => 'api_log.appid_index', 'ok' => true, 'message' => '已存在，跳过'];
-            }
-        }
-
-        // bbs_api_app 新增场景级能力/IP白名单/权限矩阵字段（与 api_log.appid 补丁同级）
-        if ($this->dbTableExists('api_app', $tablepre)) {
-            $apiAppColumns = [
-                ['api_app', 'capabilities', "ALTER TABLE `{$tablepre}api_app` ADD COLUMN `capabilities` text COMMENT '场景级能力开关JSON' AFTER `rate_limit`"],
-                ['api_app', 'ip_whitelist', "ALTER TABLE `{$tablepre}api_app` ADD COLUMN `ip_whitelist` text COMMENT 'IP白名单JSON数组,空=不限,支持CIDR' AFTER `capabilities`"],
-                ['api_app', 'permissions', "ALTER TABLE `{$tablepre}api_app` ADD COLUMN `permissions` text COMMENT '细粒度权限矩阵JSON' AFTER `ip_whitelist`"],
-            ];
-            foreach ($apiAppColumns as $col) {
-                $r = $this->addColumn($col[0], $col[1], $col[2], $tablepre);
-                $results[] = ['name' => $col[0].'.'.$col[1], 'ok' => $r['ok'], 'message' => $r['message']];
-            }
-
-            // 对存量应用补默认值（permissions 保持 NULL，表示回退到 scope 字段）
-            $r = $this->execSql("UPDATE `{$tablepre}api_app` SET `capabilities` = '{}' WHERE `capabilities` IS NULL");
-            $results[] = ['name' => 'api_app.capabilities_default', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
-            $r = $this->execSql("UPDATE `{$tablepre}api_app` SET `ip_whitelist` = '[]' WHERE `ip_whitelist` IS NULL");
-            $results[] = ['name' => 'api_app.ip_whitelist_default', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
-        }
-
-        // 清理 api_token 历史脏数据（type 为空或非法值），用 kv 标记位确保只执行一次
-        if (!kv_get('api_token_cleanup_done')) {
-            $r = $this->execSql("DELETE FROM `{$tablepre}api_token` WHERE `type` IS NULL OR `type` = '' OR `type` NOT IN ('access', 'refresh')");
-            $results[] = ['name' => 'api_token.cleanup', 'ok' => $r['ok'], 'message' => $r['ok'] ? '脏数据已清理' : $r['message']];
-            kv_set('api_token_cleanup_done', 1);
-        } else {
-            $results[] = ['name' => 'api_token.cleanup', 'ok' => true, 'message' => '已执行过，跳过'];
-        }
-
-        // Task 5.1.3: Token 改为 SHA-256 哈希存储（BREAKING），清空旧明文 token
-        // 旧 token 无法反推哈希比对，所有现有 API 用户需重新登录
-        if (!kv_get('api_token_hash_migrated')) {
-            $r = $this->execSql("TRUNCATE TABLE `{$tablepre}api_token`");
-            $results[] = ['name' => 'api_token.hash_migrate', 'ok' => $r['ok'], 'message' => $r['ok'] ? '已清空明文 token（哈希存储迁移）' : $r['message']];
-            kv_set('api_token_hash_migrated', 1);
-        } else {
-            $results[] = ['name' => 'api_token.hash_migrate', 'ok' => true, 'message' => '已执行过，跳过'];
-        }
-
-        // Task 5.2.3: App Secret 改为 password_hash 存储（BREAKING）
-        // 遍历所有应用，对明文 secret 做 password_hash；默认应用重置新明文并同步 conf.php
-        if (!kv_get('api_secret_hash_migrated')) {
-            if ($this->dbTableExists('api_app', $tablepre)) {
-                // 扩展 secret 字段长度以容纳 password_hash 输出（bcrypt=60，argon2id 可达 96+）
-                $r = $this->execSql("ALTER TABLE `{$tablepre}api_app` MODIFY COLUMN `secret` varchar(255) NOT NULL COMMENT '应用密钥（password_hash 存储）'");
-                $results[] = ['name' => 'api_app.secret_column_expand', 'ok' => $r['ok'], 'message' => $r['ok'] ? 'secret 字段已扩展为 varchar(255)' : $r['message']];
-
-                $apps = $this->db->find('api_app', [], [], 1, 1000, 'id');
-                $defaultAppid = $this->conf['api_default_appid'] ?? '';
-                $migratedCount = 0;
-                $defaultUpdated = false;
-                foreach ($apps as $app) {
-                    if (!empty($defaultAppid) && $app['appid'] === $defaultAppid) {
-                        // 默认应用：生成新明文，哈希后存库，明文同步 conf.php
-                        $newSecret = bin2hex(random_bytes(16));
-                        $newSecretHash = password_hash($newSecret, PASSWORD_DEFAULT);
-                        $this->db->update('api_app', ['id' => $app['id']], ['secret' => $newSecretHash]);
-                        if (function_exists('file_replace_var') && is_writable(APP_PATH . 'conf/conf.php')) {
-                            file_replace_var(APP_PATH . 'conf/conf.php', ['api_default_secret' => $newSecret]);
-                            $defaultUpdated = true;
-                        }
-                    } else {
-                        // 非默认应用：直接对现有明文 secret 做 password_hash
-                        $secretHash = password_hash($app['secret'], PASSWORD_DEFAULT);
-                        $this->db->update('api_app', ['id' => $app['id']], ['secret' => $secretHash]);
-                    }
-                    $migratedCount++;
-                }
-                $results[] = ['name' => 'api_app.secret_hash_migrate', 'ok' => true, 'message' => "已迁移 {$migratedCount} 个应用 secret 为 password_hash" . ($defaultUpdated ? '（默认应用已重置并同步 conf.php）' : '')];
-            } else {
-                $results[] = ['name' => 'api_app.secret_hash_migrate', 'ok' => true, 'message' => 'api_app 表不存在，跳过'];
-            }
-            kv_set('api_secret_hash_migrated', 1);
-        } else {
-            $results[] = ['name' => 'api_app.secret_hash_migrate', 'ok' => true, 'message' => '已执行过，跳过'];
-        }
-
         $tables = [
             ['thread_like', "CREATE TABLE `{$tablepre}thread_like` (
               `id` bigint(16) unsigned NOT NULL AUTO_INCREMENT,
@@ -603,9 +507,6 @@ class UpgradeService {
           `is_enabled` tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
           `uid` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '创建者UID',
           `rate_limit` int(11) unsigned NOT NULL DEFAULT 120 COMMENT '每分钟请求上限(0=不限)',
-          `capabilities` text COMMENT '场景级能力开关JSON: skip_captcha/skip_audit/skip_rate_limit/allowed_resources/denied_endpoints',
-          `ip_whitelist` text COMMENT 'IP白名单JSON数组,空=不限,支持CIDR',
-          `permissions` text COMMENT '细粒度权限矩阵JSON: {\"thread\":\"rw\",\"post\":\"r\",\"admin\":\"-\"}',
           `created_at` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '创建时间',
           PRIMARY KEY (`id`),
           UNIQUE KEY `appid` (`appid`)
@@ -618,8 +519,8 @@ class UpgradeService {
             $secret = bin2hex(random_bytes(16));
             $now = time();
 
-            $insertSql = "INSERT INTO `{$tablepre}api_app` (`appid`, `secret`, `name`, `description`, `scope`, `is_enabled`, `uid`, `rate_limit`, `capabilities`, `ip_whitelist`, `created_at`)
-                VALUES ('{$appid}', '{$secret}', '默认应用', '系统自动创建的默认应用，用于前台页面', 'full', 1, 0, 0, '{}', '[]', {$now})";
+            $insertSql = "INSERT INTO `{$tablepre}api_app` (`appid`, `secret`, `name`, `description`, `scope`, `is_enabled`, `uid`, `rate_limit`, `created_at`)
+                VALUES ('{$appid}', '{$secret}', '默认应用', '系统自动创建的默认应用，用于前台页面', 'full', 1, 0, 0, {$now})";
             $ir = $this->execSql($insertSql);
             $results[] = ['name' => 'api_app.default_app', 'ok' => $ir['ok'], 'message' => $ir['ok'] ? '默认应用已创建' : $ir['message']];
 
@@ -694,14 +595,12 @@ class UpgradeService {
                 `method` varchar(10) NOT NULL DEFAULT '',
                 `uid` int(11) unsigned NOT NULL DEFAULT 0,
                 `ip` int(11) unsigned NOT NULL DEFAULT 0,
-                `appid` varchar(32) NOT NULL DEFAULT '' COMMENT '应用ID',
                 `duration` int(11) unsigned NOT NULL DEFAULT 0,
                 `create_date` int(11) unsigned NOT NULL DEFAULT 0,
                 PRIMARY KEY (`id`),
                 KEY `resource_method` (`resource`, `method`),
                 KEY `uid` (`uid`),
-                KEY `create_date` (`create_date`),
-                KEY `appid` (`appid`)
+                KEY `create_date` (`create_date`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='API日志'"],
         ];
 

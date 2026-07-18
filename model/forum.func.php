@@ -281,6 +281,26 @@ function forum_list_access_filter($forumlist, $gid, $allow = 'allowread') {
 	return $forumlist_filter;
 }
 
+// 发帖页版块过滤（应用 conf.post_forum_ids 白名单）
+// - 管理员组 (gid=1,2) 豁免
+// - 空白名单 = 不过滤 = 显示全部
+// - $current_fid 对应版块始终保留（编辑场景下避免原版块从下拉框消失导致 fid 被误改）
+function forum_list_post_filter($forumlist, $gid, $current_fid = 0) {
+	global $conf;
+	if(empty($forumlist)) return array();
+	if($gid == 1 || $gid == 2) return $forumlist;
+	$post_forum_ids = isset($conf['post_forum_ids']) ? $conf['post_forum_ids'] : array();
+	if(empty($post_forum_ids)) return $forumlist;
+	$current_fid = intval($current_fid);
+	$result = array();
+	foreach($forumlist as $fid => $forum) {
+		if(in_array($fid, $post_forum_ids) || intval($fid) === $current_fid) {
+			$result[$fid] = $forum;
+		}
+	}
+	return $result;
+}
+
 function forum_filter_moduid($moduids) {
 	$moduids = trim($moduids);
 	if(empty($moduids)) return '';

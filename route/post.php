@@ -592,6 +592,8 @@ if($action == 'create') {
 		// hook post_update_get_start.php
 		
 		$forumlist_allowthread = forum_list_access_filter($forumlist, $gid, 'allowthread');
+		// 发帖页版块过滤（编辑场景：当前帖子所在版块 fid 始终保留，避免从下拉框消失导致 fid 被误改）
+		$forumlist_allowthread = forum_list_post_filter($forumlist_allowthread, $gid, $fid);
 		$forumarr = xn_json_encode(arrlist_key_values($forumlist_allowthread, 'fid', 'name'));
 		
 		// 如果为数据库减肥，则 message 可能会被设置为空。

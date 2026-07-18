@@ -71,6 +71,54 @@
 	<?php echo admin_tab_active($menu['ai']['tab'], 'providers');?>
 </div>
 
+<!-- API URL 写法说明（可折叠）-->
+<div class="x-card card mb-3">
+	<div class="card-body py-2">
+		<a href="#apiUrlHelp" class="text-decoration-none d-flex align-items-center" data-bs-toggle="collapse" aria-expanded="false">
+			<i class="ti ti-help-circle me-1 text-primary"></i>
+			<span class="fw-semibold"><?php echo lang('admin_ai_url_help_title');?></span>
+			<i class="ti ti-chevron-down ms-auto"></i>
+		</a>
+		<div class="collapse mt-2" id="apiUrlHelp">
+			<p class="small text-body-secondary mb-2"><?php echo lang('admin_ai_url_help_desc');?></p>
+			<div class="table-responsive">
+				<table class="table table-sm table-bordered align-middle mb-0">
+					<thead>
+						<tr>
+							<th style="width:160px;"><?php echo lang('admin_ai_url_help_provider');?></th>
+							<th style="width:340px;">API URL</th>
+							<th><?php echo lang('admin_ai_url_help_note');?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td>OpenAI</td>
+							<td><code>https://api.openai.com/v1</code></td>
+							<td rowspan="5" class="small text-body-secondary"><?php echo lang('admin_ai_url_help_common_note');?></td>
+						</tr>
+						<tr>
+							<td>DeepSeek</td>
+							<td><code>https://api.deepseek.com/v1</code></td>
+						</tr>
+						<tr>
+							<td><?php echo lang('admin_ai_url_help_doubao');?> (Seedream)</td>
+							<td><code>https://ark.cn-beijing.volces.com/api/v3</code></td>
+						</tr>
+						<tr>
+							<td>Agnes</td>
+							<td><code>https://apihub.agnes-ai.com/v1</code></td>
+						</tr>
+						<tr>
+							<td><?php echo lang('admin_ai_url_help_siliconflow');?></td>
+							<td><code>https://api.siliconflow.cn/v1</code></td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+</div>
+
 <div class="x-card card">
 	<div class="card-body">
 		<form action="<?php echo url('ai-providers');?>" method="post" id="aiProvidersForm">
