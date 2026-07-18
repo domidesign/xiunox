@@ -628,11 +628,6 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 		// 记录原启用状态
 		$wasEnabled = !empty($plugins[$pluginDir]['enable']);
 
-		// 升级前自动禁用，防止 upgrade.php 执行时被运行代码冲突
-		if($wasEnabled) {
-			plugin_disable($pluginDir);
-		}
-
 		// 备份旧版本到 plugin/{dir}.bak/
 		$bakPath = APP_PATH.'plugin/'.$pluginDir.'.bak/';
 		if(is_dir($bakPath)) {
@@ -642,17 +637,24 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 
 		// 移入新版本
 		if(!rmove_dir($srcDir, $pluginPath)) {
-			// 移动失败，回滚
+			// 移动失败，回滚（此时插件仍是 enabled 状态，无需 re-enable）
 			if(is_dir($pluginPath)) rmdir_recusive($pluginPath);
 			rename($bakPath, $pluginPath);
 			if(is_dir($tmpDir)) rmdir_recusive($tmpDir);
-			if($wasEnabled) plugin_enable($pluginDir);
 			plugin_lock_end();
 			message(-1, lang('plugin_upload_move_failed'));
 		}
 
 		// 清理临时目录
 		if(is_dir($tmpDir)) rmdir_recusive($tmpDir);
+
+		// 升级前自动禁用，防止 upgrade.php 执行时被运行代码冲突
+		// ponytail: 必须在 rmove_dir 之后调用——plugin_disable 内部的 plugin_clear_tmp_dir()
+		// 会清空整个 tmp/，若在 rmove_dir 之前调用会把刚解压的 $srcDir 一起删掉，
+		// 导致 rmove_dir 因源目录不存在而失败，触发"文件移动失败"误报（已违反 1 次）
+		if($wasEnabled) {
+			plugin_disable($pluginDir);
+		}
 
 		// 重新初始化插件列表
 		plugin_init();
