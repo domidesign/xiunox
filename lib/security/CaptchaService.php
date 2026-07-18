@@ -75,8 +75,8 @@ class CaptchaService {
         return isset(self::$custom_scenes[$scene]);
     }
 
-    // 验证码有效期（秒）
-    const CAPTCHA_EXPIRE = 300;
+    // 验证码有效期（秒）—— 10 分钟，覆盖长文阅读场景
+    const CAPTCHA_EXPIRE = 600;
 
     // 默认配置
     const DEFAULT_CONFIG = [
@@ -336,6 +336,7 @@ class CaptchaService {
         return [
             'key' => $scene,
             'image' => 'data:image/png;base64,' . $base64,
+            'expires_in' => self::CAPTCHA_EXPIRE,
         ];
     }
 
@@ -384,6 +385,7 @@ class CaptchaService {
         return [
             'key' => $scene,
             'image' => 'data:image/png;base64,' . $base64,
+            'expires_in' => self::CAPTCHA_EXPIRE,
         ];
     }
 }

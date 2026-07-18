@@ -54,10 +54,22 @@ function adminCaptchaRefresh() {
 			var s = xn.json_decode(r);
 			if(s && s.code == 0 && s.image) {
 				img.src = s.image;
+				// 启动过期定时器
+				if (typeof XN !== 'undefined' && XN.captchaScheduleExpire) {
+					XN.captchaScheduleExpire(img, s.expires_in || 600, adminCaptchaRefresh);
+				}
 			}
 		}
 	});
 }
+
+// 初次页面加载（PHP 已输出 captcha_image）时启动过期定时器
+(function() {
+	var img = document.getElementById('captcha-img');
+	if (img && <?php echo intval($captcha_expires_in);?> > 0 && typeof XN !== 'undefined' && XN.captchaScheduleExpire) {
+		XN.captchaScheduleExpire(img, <?php echo intval($captcha_expires_in);?>, adminCaptchaRefresh);
+	}
+})();
 
 // 账号锁定倒计时
 function startCountdown(seconds) {

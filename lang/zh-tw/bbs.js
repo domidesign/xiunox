@@ -9,6 +9,7 @@ var lang = {
 	'no': '否',
 	'open': '打開',
 	'close': '關閉',
-	
+	'captcha_expired': '已過期，點擊刷新',
+
 	// hook lang_zh_tw_bbs_js.htm
 };

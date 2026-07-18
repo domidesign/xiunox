@@ -33,7 +33,7 @@ if($action == 'login') {
 			$result = CaptchaService::generate('login', TRUE);
 			header('Content-Type: application/json; charset=utf-8');
 			if($result) {
-				echo json_encode(array('code'=>0, 'image'=>$result['image']));
+				echo json_encode(array('code'=>0, 'image'=>$result['image'], 'expires_in'=>CaptchaService::CAPTCHA_EXPIRE));
 			} else {
 				echo json_encode(array('code'=>-1, 'message'=>'captcha generate failed'));
 			}
@@ -48,11 +48,13 @@ if($action == 'login') {
 
 		// 生成验证码图片（base64），传给模板
 		$captcha_image = '';
+		$captcha_expires_in = 0;
 		if($admin_show_captcha) {
 			include_once APP_PATH . 'lib/security/CaptchaService.php';
 			$result = CaptchaService::generate('login', TRUE);
 			if($result) {
 				$captcha_image = $result['image'];
+				$captcha_expires_in = CaptchaService::CAPTCHA_EXPIRE;
 			}
 		}
 
