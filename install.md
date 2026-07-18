@@ -845,49 +845,16 @@ rm -rf tmp/*
 3. 抽查一篇帖子确认附件可访问
 4. 检查 `conf/conf.php` 中 `auth_key` 是否与备份一致
 
-### 8.4 跨版本迁移注意事项
+### 8.4 从旧版 Xiuno BBS 升级
 
-从旧版 Xiuno BBS（4.0.x）迁移到 XIUNOX 时，特别注意：
+XIUNOX 不提供自动升级脚本，如需从旧版 Xiuno BBS（4.0.x）升级，请按以下流程操作：
 
-#### 8.4.1 auth_key 必须保留
+1. **自检旧站**：确保旧版网站的访问、登录、注册、发帖等核心功能正常运行，且**不再需要使用任何旧版插件**（包含插件数据）。
+2. **联系官方协助**：前往 XIUNOX 官方网站发帖，说明升级需求，并在帖子中提供以下信息：
+   - 旧站地址
+   - 联系方式
 
-`conf/conf.php` 中的 `auth_key` 用于加密用户密码、Cookie、API Token。**迁移时必须使用旧站的 auth_key**，否则：
-- 所有用户密码失效，无法登录
-- 所有已登录会话失效
-- API Token 全部作废
-
-```php
-// 旧站 conf.php 中的 auth_key 必须原样复制到新站
-'auth_key' => '原旧站的 auth_key 值',
-```
-
-#### 8.4.2 字符集统一
-
-- 数据库、表、连接字符集必须为 `utf8mb4`
-- 旧版若使用 `utf8`（即 `utf8mb3`），需先转换：
-
-```sql
-ALTER DATABASE xiunobbs CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- 转换每张表（可用脚本批量生成）
-ALTER TABLE bbs_thread CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-#### 8.4.3 存储引擎
-
-- 所有表应为 `InnoDB`（支持事务、外键、行锁）
-- 旧版若使用 MyISAM，转换：
-
-```sql
-ALTER TABLE bbs_thread ENGINE=InnoDB;
-```
-
-#### 8.4.4 升级后操作
-
-1. 访问 `/install/` 执行升级程序（会自动补齐新表与字段）
-2. 清理 `tmp/` 缓存
-3. 登录后台检查插件兼容性
-4. 重新生成 API Token（如启用 API）
+   > 为保护隐私，请使用「隐藏内容」功能将站点信息和联系方式设置为管理员可见。
 
 ---
 
