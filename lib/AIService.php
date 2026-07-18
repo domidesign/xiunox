@@ -284,6 +284,283 @@ class AIService {
     }
 
     /**
+     * 图片生成调用（按功能 key 解析配置后调用单个 provider）
+     * 走 OpenAI 兼容的 /images/generations 接口
+     *
+     * @param string $key 功能标识
+     * @param string $prompt 图片生成提示词
+     * @param array $options:
+     *   - uid:             用户ID（user_key/both 模式取用户配置）
+     *   - n:               生成数量，默认 1
+     *   - size:            尺寸档位 '1K'/'2K'/'3K'/'4K' 或精确尺寸 '1024x1024'
+     *   - ratio:           宽高比 '1:1'/'3:4'/'4:3'/'16:9'/'9:16'/'2:3'/'3:2'/'21:9'
+     *   - response_format: 'url' 或 'b64_json'，默认 'url'
+     *   - timeout:         超时秒数，默认 60（图片生成比文本慢）
+     *   - source:          日志来源标识，默认 'core'
+     * @return array ['code'=>0成功/1失败, 'message'=>错误信息, 'data'=>['image_base64'=>string, 'image_url'=>string, 'provider_name'=>string, 'model'=>string, 'time_ms'=>int]]
+     */
+    public function callImage($key, $prompt, array $options = array()) {
+        $uid = isset($options['uid']) ? intval($options['uid']) : null;
+        $config = $this->getEffectiveConfig($key, $uid);
+        $feature = $this->getFeatureConfig($key);
+
+        $logBase = array(
+            'uid'             => $uid ? $uid : 0,
+            'feature'         => $key,
+            'source'          => isset($options['source']) ? $options['source'] : 'core',
+            'provider_name'   => isset($config['provider_name']) ? $config['provider_name'] : '',
+            'model'           => isset($config['model']) ? $config['model'] : '',
+            'mode'            => isset($feature['mode']) ? $feature['mode'] : '',
+            'request_summary' => mb_substr((string)$prompt, 0, 200, 'UTF-8'),
+        );
+
+        return $this->callImageByConfig($config, $prompt, $options, $logBase);
+    }
+
+    /**
+     * 多 provider 图片生成调用（支持 failover/round_robin/random 三种模式）
+     * 同 callWithFailover 的容错机制，但走图片生成 API
+     * ponytail: 不实现 concurrent 模式（图片 API 通常并发受限且耗时较长，顺序 fallback 更稳）
+     *
+     * @param string $key 功能标识
+     * @param string $prompt 图片生成提示词
+     * @param array $options 同 callImage() + mode/retry/providers/recover_threshold
+     * @return array 同 callImage()
+     */
+    public function callImageWithFailover($key, $prompt, array $options = array()) {
+        $uid = isset($options['uid']) ? intval($options['uid']) : null;
+        $feature = $this->getFeatureConfig($key);
+        $mode = isset($options['mode']) ? $options['mode'] : 'failover';
+        $retry = intval(isset($options['retry']) ? $options['retry'] : 0);
+        $recoverThreshold = intval(isset($options['recover_threshold']) ? $options['recover_threshold'] : 600);
+
+        // 解析 provider 名列表（同 callWithFailover 逻辑）
+        $providerNames = isset($options['providers']) ? $options['providers'] : null;
+        if (!is_array($providerNames) || empty($providerNames)) {
+            $providerNames = isset($feature['allowed_providers']) ? $feature['allowed_providers'] : array();
+        }
+        if (empty($providerNames)) {
+            $dp = isset($feature['default_provider']) ? $feature['default_provider'] : '';
+            if (!empty($dp)) $providerNames = array($dp);
+        }
+        if (empty($providerNames)) {
+            return array('code' => 1, 'message' => '无可用 provider', 'data' => null);
+        }
+
+        // 构建 config 列表（同 callWithFailover 逻辑）
+        $configs = array();
+        foreach ($providerNames as $name) {
+            if (!$this->isProviderHealthy($name, $recoverThreshold)) continue;
+            $provider = $this->findProviderByName($name);
+            if (empty($provider) || empty($provider['api_key'])) continue;
+            $model = isset($feature['default_model']) ? $feature['default_model'] : '';
+            if (empty($model)) $model = $this->getFirstModel($provider);
+            if (empty($model)) continue;
+            $configs[] = array(
+                'apiKey'        => $provider['api_key'],
+                'model'         => $model,
+                'url'           => isset($provider['url']) ? $provider['url'] : '',
+                'provider_name' => isset($provider['name']) ? $provider['name'] : $name,
+            );
+        }
+        if (empty($configs)) {
+            return array('code' => 1, 'message' => '无可用 provider 配置（可能全部离线或配置不完整）', 'data' => null);
+        }
+
+        $logBase = array(
+            'uid'             => $uid ? $uid : 0,
+            'feature'         => $key,
+            'source'          => isset($options['source']) ? $options['source'] : 'core',
+            'provider_name'   => '',
+            'model'           => '',
+            'mode'            => isset($feature['mode']) ? $feature['mode'] : '',
+            'request_summary' => mb_substr((string)$prompt, 0, 200, 'UTF-8'),
+        );
+
+        // 顺序 fallback：按 mode 选择遍历顺序
+        if ($mode === 'random') {
+            $order = range(0, count($configs) - 1);
+            shuffle($order);
+            foreach ($order as $idx) {
+                $cfg = $configs[$idx];
+                for ($r = 0; $r <= $retry; $r++) {
+                    $result = $this->callImageByConfig($cfg, $prompt, $options, $logBase);
+                    if ($result['code'] === 0) {
+                        $this->markProviderOnline($cfg['provider_name']);
+                        return $result;
+                    }
+                }
+                $this->markProviderOffline($cfg['provider_name']);
+            }
+        } elseif ($mode === 'round_robin') {
+            $count = count($configs);
+            $lastName = function_exists('kv_get') ? kv_get('ai_roundrobin_last_' . $key) : '';
+            $startIdx = 0;
+            for ($i = 0; $i < $count; $i++) {
+                if ($configs[$i]['provider_name'] === $lastName) {
+                    $startIdx = ($i + 1) % $count;
+                    break;
+                }
+            }
+            for ($i = 0; $i < $count; $i++) {
+                $idx = ($startIdx + $i) % $count;
+                $cfg = $configs[$idx];
+                for ($r = 0; $r <= $retry; $r++) {
+                    $result = $this->callImageByConfig($cfg, $prompt, $options, $logBase);
+                    if ($result['code'] === 0) {
+                        $this->markProviderOnline($cfg['provider_name']);
+                        if (function_exists('kv_set')) {
+                            kv_set('ai_roundrobin_last_' . $key, $cfg['provider_name']);
+                        }
+                        return $result;
+                    }
+                }
+                $this->markProviderOffline($cfg['provider_name']);
+            }
+        } else {
+            // failover（默认）
+            foreach ($configs as $cfg) {
+                for ($r = 0; $r <= $retry; $r++) {
+                    $result = $this->callImageByConfig($cfg, $prompt, $options, $logBase);
+                    if ($result['code'] === 0) {
+                        $this->markProviderOnline($cfg['provider_name']);
+                        return $result;
+                    }
+                }
+                $this->markProviderOffline($cfg['provider_name']);
+            }
+        }
+        return array('code' => 1, 'message' => '所有 provider 均调用失败', 'data' => null);
+    }
+
+    /**
+     * 图片生成底层单次调用（按已解析的 config 执行 curl）
+     * 走 OpenAI 兼容的 /images/generations 接口
+     *
+     * @param array $config 含 apiKey/model/url/provider_name
+     * @param string $prompt 图片生成提示词
+     * @param array $options n/size/ratio/response_format/timeout
+     * @param array $logBase 日志公共字段，空则不写日志
+     * @return array ['code'=>0/1, 'message'=>..., 'data'=>['image_base64', 'image_url', 'provider_name', 'model', 'time_ms']]
+     */
+    private function callImageByConfig(array $config, $prompt, array $options = array(), array $logBase = array()) {
+        $startTime = microtime(true);
+
+        if (empty($config) || empty($config['apiKey']) || empty($config['url']) || empty($config['model'])) {
+            if (!empty($logBase)) {
+                $this->writeLog($logBase, 0, 0, 'AI 配置不完整', 0, $startTime);
+            }
+            return array('code' => 1, 'message' => 'AI 配置不完整', 'data' => null);
+        }
+
+        $url = rtrim($config['url'], '/') . '/images/generations';
+        $body = array(
+            'model'  => $config['model'],
+            'prompt' => (string)$prompt,
+            'n'      => intval(isset($options['n']) ? $options['n'] : 1),
+        );
+        // OpenAI 标准 size 参数（'1024x1024'）和 Agnes 等兼容 API 的档位参数（'1K'）都支持
+        if (isset($options['size'])) $body['size'] = $options['size'];
+        if (isset($options['ratio'])) $body['ratio'] = $options['ratio'];
+        // response_format: 'url' 或 'b64_json'，默认 'url'
+        $responseFormat = isset($options['response_format']) ? $options['response_format'] : 'url';
+        $body['response_format'] = $responseFormat;
+        // Agnes 等兼容 API 需要 extra_body.response_format（ ponytail: 兼容字段，多余但无害）
+        $body['extra_body'] = array('response_format' => $responseFormat);
+
+        $payload = xn_json_encode($body);
+        if ($payload === false) {
+            if (!empty($logBase)) {
+                $this->writeLog($logBase, 0, 0, '请求体编码失败', 0, $startTime);
+            }
+            return array('code' => 1, 'message' => '请求体编码失败', 'data' => null);
+        }
+
+        // 图片生成比文本慢，默认 60s
+        $timeout = isset($options['timeout']) ? intval($options['timeout']) : 60;
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Authorization: Bearer ' . $config['apiKey'],
+            'Content-Type: application/json',
+            'Accept: application/json',
+        ));
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_err = curl_error($ch);
+        // PHP 8.0+ curl 句柄自动释放
+        if (PHP_VERSION_ID < 80000) {
+            curl_close($ch);
+        }
+
+        if ($response === false || $curl_err) {
+            if (!empty($logBase)) {
+                $this->writeLog($logBase, 0, 0, 'curl error: ' . $curl_err, 0, $startTime);
+            }
+            return array('code' => 1, 'message' => 'curl error: ' . $curl_err, 'data' => null);
+        }
+        if ($http_code != 200) {
+            $snippet = mb_substr((string)$response, 0, 300);
+            if (!empty($logBase)) {
+                $this->writeLog($logBase, 0, 0, 'HTTP ' . $http_code . ': ' . $snippet, 0, $startTime);
+            }
+            return array('code' => 1, 'message' => 'HTTP ' . $http_code . ': ' . $snippet, 'data' => null);
+        }
+
+        $data = json_decode($response, true);
+        if (!is_array($data)) {
+            if (!empty($logBase)) {
+                $this->writeLog($logBase, 0, 0, 'Invalid JSON response', 0, $startTime);
+            }
+            return array('code' => 1, 'message' => 'Invalid JSON response', 'data' => null);
+        }
+
+        // 响应解析：data[0].url 或 data[0].b64_json
+        $imageUrl = '';
+        $imageBase64 = '';
+        if (isset($data['data'][0]['url'])) {
+            $imageUrl = (string)$data['data'][0]['url'];
+        } elseif (isset($data['data'][0]['b64_json'])) {
+            $imageBase64 = (string)$data['data'][0]['b64_json'];
+        } else {
+            $err_msg = isset($data['error']['message']) ? $data['error']['message'] : 'empty image data';
+            if (!empty($logBase)) {
+                $this->writeLog($logBase, 0, 0, $err_msg, 0, $startTime);
+            }
+            return array('code' => 1, 'message' => $err_msg, 'data' => null);
+        }
+
+        $timeMs = intval((microtime(true) - $startTime) * 1000);
+        $providerName = isset($config['provider_name']) ? $config['provider_name'] : '';
+
+        // 成功日志（response_summary 截取 url 或 b64 前 100 字符避免日志膨胀）
+        if (!empty($logBase)) {
+            $logBase['provider_name'] = $providerName;
+            $logBase['model'] = $config['model'];
+            $summary = $imageUrl ? 'url:' . $imageUrl : 'b64:' . mb_substr($imageBase64, 0, 100, 'UTF-8');
+            $this->writeLog($logBase, 0, 0, '', 0, $startTime, 1, $summary);
+        }
+
+        return array(
+            'code'    => 0,
+            'message' => '',
+            'data'    => array(
+                'image_base64'  => $imageBase64,
+                'image_url'     => $imageUrl,
+                'provider_name' => $providerName,
+                'model'         => $config['model'],
+                'time_ms'       => $timeMs,
+            ),
+        );
+    }
+
+    /**
      * 底层单次调用（按已解析的 config 执行 curl）
      * call() 和 callWithFailover() 的四种模式方法的共用底层
      *
