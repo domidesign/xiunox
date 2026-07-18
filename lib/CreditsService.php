@@ -26,13 +26,19 @@ class CreditsService {
      * @param int $amount 增加金额（必须>0）
      * @param string $reason 变动原因
      * @param int $dailyLimit 规则级每日限制次数，0使用全局设置
+     * @param bool $reasonIsRaw true 表示 reason 是管理员/外部手动输入的自由文本，写入时加 raw: 前缀，显示时原样返回不翻译
      * @return array ['ok'=>bool, 'message'=>string, 'balance'=>int]
      */
-    public function add(int $uid, string $type, int $amount, string $reason = '', int $dailyLimit = 0): array {
+    public function add(int $uid, string $type, int $amount, string $reason = '', int $dailyLimit = 0, bool $reasonIsRaw = false): array {
         // 1. 参数校验
         if ($uid <= 0) return ['ok' => false, 'message' => '无效的用户ID'];
         if ($amount <= 0) return ['ok' => false, 'message' => '增加金额必须大于0'];
         if (!$this->isValidType($type)) return ['ok' => false, 'message' => '无效的积分类型'];
+
+        // raw reason 加前缀，显示时原样返回不翻译（管理员/外部手动输入场景）
+        if ($reasonIsRaw && $reason !== '') {
+            $reason = 'raw:' . $reason;
+        }
 
         // 2. 防刷检查
         $limitCheck = $this->checkDailyLimit($uid, $reason, $dailyLimit);
@@ -88,12 +94,18 @@ class CreditsService {
      * @param int $amount 扣减金额（必须>0）
      * @param string $reason 变动原因
      * @param int $dailyLimit 规则级每日限制次数，0使用全局设置
+     * @param bool $reasonIsRaw true 表示 reason 是管理员/外部手动输入的自由文本，写入时加 raw: 前缀，显示时原样返回不翻译
      * @return array
      */
-    public function sub(int $uid, string $type, int $amount, string $reason = '', int $dailyLimit = 0): array {
+    public function sub(int $uid, string $type, int $amount, string $reason = '', int $dailyLimit = 0, bool $reasonIsRaw = false): array {
         if ($uid <= 0) return ['ok' => false, 'message' => '无效的用户ID'];
         if ($amount <= 0) return ['ok' => false, 'message' => '扣减金额必须大于0'];
         if (!$this->isValidType($type)) return ['ok' => false, 'message' => '无效的积分类型'];
+
+        // raw reason 加前缀，显示时原样返回不翻译（管理员/外部手动输入场景）
+        if ($reasonIsRaw && $reason !== '') {
+            $reason = 'raw:' . $reason;
+        }
 
         // 防刷检查
         $limitCheck = $this->checkDailyLimit($uid, $reason, $dailyLimit);

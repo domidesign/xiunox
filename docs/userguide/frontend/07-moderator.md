@@ -4,7 +4,7 @@
 
 ### 7.1 公告管理
 
- 
+![7.1 公告管理](images/07-moderator-01.png)
 
 **触发路径：** `/mod-announcement-{fid}`
 
@@ -34,7 +34,7 @@
 
 ### 7.2 关闭帖子
 
- 
+![7.2 关闭帖子](images/07-moderator-02.png)
 
 **触发路径：** `/mod-close-{tid}`
 
@@ -63,7 +63,7 @@
 
 ### 7.3 删除帖子
 
- 
+![7.3 删除帖子](images/07-moderator-03.png)
 
 **触发路径：** `/mod-delete-{tid}`
 
@@ -91,7 +91,7 @@
 
 ### 7.4 移动帖子
 
- 
+![7.4 移动帖子](images/07-moderator-04.png)
 
 **触发路径：** `/mod-move-{tid}`
 
@@ -119,7 +119,7 @@
 
 ### 7.5 置顶帖子
 
-
+![7.5 置顶帖子](images/07-moderator-05.png)
 
 **触发路径：** `/mod-top-{tid}`
 
@@ -155,7 +155,7 @@
 
 ### 7.6 加精帖子
 
- 
+![7.6 加精帖子](images/07-moderator-06.png)
 
 **触发路径：** `/mod-digest-{tid}`
 
@@ -193,7 +193,7 @@
 
 ### 7.7 审核操作
 
- 
+![7.7 审核操作](images/07-moderator-07.png)
 
 **触发路径：** `/mod-audit-{tid}`
 

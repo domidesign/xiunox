@@ -274,25 +274,26 @@ foreach ($userlist as &$_user) {
 			$_db = $_SERVER['db'];
 			$creditsService = new CreditsService($_db, $conf);
 
+			// reason 是管理员手动输入的自由文本，传 reasonIsRaw=true 加 raw: 前缀，显示时原样返回不翻译
 			if($credits_action != 0 && $credits_amount > 0) {
 				if($credits_action > 0) {
-					$creditsService->add($_uid, 'credits', $credits_amount, $reason, -1);
+					$creditsService->add($_uid, 'credits', $credits_amount, $reason, -1, true);
 				} else {
-					$creditsService->sub($_uid, 'credits', $credits_amount, $reason, -1);
+					$creditsService->sub($_uid, 'credits', $credits_amount, $reason, -1, true);
 				}
 			}
 			if($golds_action != 0 && $golds_amount > 0) {
 				if($golds_action > 0) {
-					$creditsService->add($_uid, 'golds', $golds_amount, $reason, -1);
+					$creditsService->add($_uid, 'golds', $golds_amount, $reason, -1, true);
 				} else {
-					$creditsService->sub($_uid, 'golds', $golds_amount, $reason, -1);
+					$creditsService->sub($_uid, 'golds', $golds_amount, $reason, -1, true);
 				}
 			}
 			if($rmbs_action != 0 && $rmbs_amount > 0) {
 				if($rmbs_action > 0) {
-					$creditsService->add($_uid, 'rmbs', $rmbs_amount, $reason, -1);
+					$creditsService->add($_uid, 'rmbs', $rmbs_amount, $reason, -1, true);
 				} else {
-					$creditsService->sub($_uid, 'rmbs', $rmbs_amount, $reason, -1);
+					$creditsService->sub($_uid, 'rmbs', $rmbs_amount, $reason, -1, true);
 				}
 			}
 		}

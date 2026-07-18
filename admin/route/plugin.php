@@ -478,30 +478,65 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 	// 支持两种 zip 结构：
 	//   A) conf.json 在 zip 根目录 → 用上传文件名（去掉 .zip）作为插件目录名
 	//   B) zip 内有一层目录，conf.json 在该目录下 → 用该目录名作为插件目录名
+	// ponytail: 不静默吞错——细分 4 种失败原因给用户独立文案，避免「报错但不知为何」
 	$confData = null;
 	$pluginDir = '';
 	$srcDir = '';
 
-	if(is_file($tmpDir.'conf.json')) {
-		// 结构 A：conf.json 在 zip 根目录
-		$pluginDir = preg_replace('/\.zip$/i', '', $uploadName);
-		$srcDir = $tmpDir;
-		$confData = json_decode(file_get_contents($tmpDir.'conf.json'), true);
-	} else {
-		// 结构 B：zip 内有一层目录
-		$subDirs = glob($tmpDir.'*', GLOB_ONLYDIR);
-		if(count($subDirs) === 1 && is_file($subDirs[0].'/conf.json')) {
-			$pluginDir = basename($subDirs[0]);
-			$srcDir = $subDirs[0];
-			$confData = json_decode(file_get_contents($subDirs[0].'/conf.json'), true);
+	// 先扫顶层结构，过滤 macOS Finder 生成的 __MACOSX 干扰目录
+	$topEntries = glob($tmpDir.'*', GLOB_ONLYDIR);
+	$realSubDirs = array();
+	$hasMacosx = false;
+	if(is_array($topEntries)) {
+		foreach($topEntries as $d) {
+			$base = basename($d);
+			if($base === '__MACOSX') { $hasMacosx = true; continue; }
+			// ponytail: macOS Finder 压缩还会给每个文件生成 ._ 前缀的资源 forks，目录形态下不会进 GLOB_ONLYDIR，glob 仅此一处过滤即可
+			$realSubDirs[] = $d;
 		}
 	}
 
-	// 校验 conf.json
-	if(empty($confData) || !is_array($confData)) {
+	$rootConf = $tmpDir.'conf.json';
+	if(is_file($rootConf)) {
+		// 结构 A：conf.json 在 zip 根目录
+		$pluginDir = preg_replace('/\.zip$/i', '', $uploadName);
+		$srcDir = $tmpDir;
+		$confRaw = file_get_contents($rootConf);
+		$confData = json_decode($confRaw, true);
+	} elseif(count($realSubDirs) === 1 && is_file($realSubDirs[0].'/conf.json')) {
+		// 结构 B：zip 内有一层目录
+		$pluginDir = basename($realSubDirs[0]);
+		$srcDir = $realSubDirs[0];
+		$confRaw = file_get_contents($realSubDirs[0].'/conf.json');
+		$confData = json_decode($confRaw, true);
+	} elseif(count($realSubDirs) > 1) {
+		// 失败原因 1：多个顶层目录，无法判断哪个是插件根
 		rmdir_recusive($tmpDir);
 		plugin_lock_end();
-		message(-1, lang('plugin_upload_conf_invalid'));
+		message(-1, lang('plugin_upload_conf_multi_top', array('dirs'=>implode(', ', array_map('basename', $realSubDirs)))));
+	} else {
+		// 失败原因 2：根目录和唯一子目录都没有 conf.json
+		rmdir_recusive($tmpDir);
+		plugin_lock_end();
+		$hint = $hasMacosx ? lang('plugin_upload_conf_macosx_hint') : '';
+		message(-1, lang('plugin_upload_conf_missing') . $hint);
+	}
+
+	// 失败原因 3：json_decode 返回 null —— 多半是 conf.json 带 UTF-8 BOM
+	// ponytail: 核心代码用 xn_json_decode 会剥 BOM，这里用裸 json_decode 不兼容 BOM，单独提示
+	if($confData === null) {
+		$first3 = substr(isset($confRaw) ? $confRaw : '', 0, 3);
+		$isBom = ($first3 === "\xEF\xBB\xBF");
+		rmdir_recusive($tmpDir);
+		plugin_lock_end();
+		$hint = $isBom ? lang('plugin_upload_conf_bom_hint') : lang('plugin_upload_conf_json_error');
+		message(-1, lang('plugin_upload_conf_invalid') . $hint);
+	}
+	// 失败原因 4：json_decode 返回了非 null 的空结构（空数组/空对象），说明 conf.json 是个空文件或空 JSON
+	if(!is_array($confData) || empty($confData)) {
+		rmdir_recusive($tmpDir);
+		plugin_lock_end();
+		message(-1, lang('plugin_upload_conf_invalid') . lang('plugin_upload_conf_empty'));
 	}
 
 	// 校验目录名合法性

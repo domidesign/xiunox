@@ -409,4 +409,71 @@ plugin/my_hello/
 - **PHP hook 以 `<?php exit;` 开头**
 - **新插件卸载脚本统一叫 `uninstall.php`**
 
+---
+
+## 3. zip 打包规范（发布插件必读）
+
+后台「上传安装 / 升级插件」对 zip 包结构有严格检测，不符合规范会被拒绝并给出细分原因。打包时遵守以下规则：
+
+### 3.1 支持的两种 zip 结构
+
+```
+结构 A（推荐）：conf.json 在 zip 根目录
+my_plugin.zip
+├── conf.json
+├── install.php
+└── hook/
+
+结构 B：zip 内只有一层目录，conf.json 在该目录下
+my_plugin.zip
+└── my_plugin/
+    ├── conf.json
+    ├── install.php
+    └── hook/
+```
+
+> 后台会按上传文件名（结构 A）或内层目录名（结构 B）作为插件目录名。两种都支持，**但不要混用**：zip 根目录同时有 conf.json 和子目录时，会走结构 A，子目录被忽略。
+
+### 3.2 禁止事项
+
+| 禁止项 | 后果 | 正确做法 |
+|--------|------|---------|
+| 多个顶层目录（如同时打包 `my_plugin/` + `docs/`） | 拒绝安装，提示「多个顶层目录」 | 只打包插件目录本身，文档单独发布 |
+| macOS Finder 右键「压缩」生成 `__MACOSX/` 目录 | 后台会自动忽略 `__MACOSX`，但若同时打包了多个目录仍会被拒 | 用命令行 `zip -r -X my_plugin.zip my_plugin/` 跳过扩展属性 |
+| conf.json 带 UTF-8 BOM 头（`EF BB BF`） | `json_decode` 返回 null，提示「BOM 头」 | 用 VS Code / Sublime，编码切到「UTF-8 无 BOM」保存 |
+| conf.json 不是合法 JSON | 拒绝安装，提示「不是合法的 JSON」 | 用 [jsonlint.com](https://jsonlint.com/) 校验语法 |
+| conf.json 为空文件或 `{}` | 拒绝安装，提示「内容为空」 | 至少包含 `name / version / bbs_version` 三个字段 |
+
+### 3.3 推荐打包命令
+
+```bash
+# macOS / Linux
+cd plugin/
+zip -r -X my_plugin.zip my_plugin/
+# -X 跳过 macOS 扩展属性（._ 前缀文件和 __MACOSX 目录）
+
+# 检查 zip 内容（不应有 __MACOSX 或 ._ 前缀文件）
+unzip -l my_plugin.zip
+```
+
+```bash
+# Windows PowerShell
+Compress-Archive -Path my_plugin -DestinationPath my_plugin.zip
+```
+
+### 3.4 错误信息对照表
+
+上传失败时后台会返回带原因的提示，对照下表定位：
+
+| 错误信息 | 根因 | 解决 |
+|---------|------|------|
+| `zip 包中缺少有效的 conf.json...：zip 包根目录及唯一子目录下都未找到 conf.json` | conf.json 不在 zip 内，或目录层级不对 | 检查 zip 结构是否符合 3.1 |
+| `zip 包中缺少有效的 conf.json...。检测到 macOS Finder 生成的 __MACOSX 干扰目录` | 用了 Finder 右键压缩且 conf.json 不在根目录 | 用 `zip -r -X` 命令重打 |
+| `zip 包内存在多个顶层目录（xxx, yyy）` | 同时打包了多个顶层目录 | 删除无关目录，只保留插件目录 |
+| `zip 包中缺少有效的 conf.json...：conf.json 文件带 UTF-8 BOM 头（EF BB BF）` | 编辑器默认加了 BOM | 切到「UTF-8 无 BOM」保存 |
+| `zip 包中缺少有效的 conf.json...：conf.json 文件不是合法的 JSON` | JSON 语法错误（缺逗号、多余逗号、引号未闭合等） | jsonlint.com 校验 |
+| `zip 包中缺少有效的 conf.json...：conf.json 文件内容为空或不是 JSON 对象` | conf.json 是空文件或 `[]` | 至少写 `{}` + 必需字段 |
+
+---
+
 下一步：[03-hooks-catalog.md](03-hooks-catalog.md) 找你要的 hook 点。

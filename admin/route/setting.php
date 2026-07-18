@@ -387,7 +387,7 @@ if($action == 'base') {
 				'icon'=>$nav_icon[$k] ?? '',
 				'name'=>$nav_name[$k] ?? '',
 				'slug'=>$slug,
-				'url'=>$nav_url[$k] ?? '',
+				'url'=>NavService::normalize($nav_url[$k] ?? ''),
 				'class'=>trim($nav_class[$k] ?? ''),
 				'rank'=>intval($nav_rank[$k]),
 			);
@@ -411,7 +411,7 @@ if($action == 'base') {
 				'icon'=>$sidebar_icon[$k] ?? '',
 				'name'=>$sidebar_name[$k] ?? '',
 				'slug'=>$slug,
-				'url'=>$sidebar_url[$k] ?? '',
+				'url'=>NavService::normalize($sidebar_url[$k] ?? ''),
 				'class'=>trim($sidebar_class[$k] ?? ''),
 				'rank'=>intval($sidebar_rank[$k]),
 			);
@@ -432,7 +432,7 @@ if($action == 'base') {
 				'icon' => $mobile_icons[$i] ?? '',
 				'icon_active' => $mobile_icons_active[$i] ?? '',
 				'name' => $mobile_names[$i] ?? '',
-				'url' => $mobile_urls[$i] ?? '',
+				'url' => NavService::normalize($mobile_urls[$i] ?? ''),
 				'class' => trim($mobile_classes[$i] ?? ''),
 				'rank' => intval($mobile_ranks[$i] ?? 0),
 				'need_login' => !empty($mobile_need_login[$i]) ? 1 : 0,
@@ -460,7 +460,7 @@ if($action == 'base') {
 				'icon' => $discover_icons[$i] ?? '',
 				'name' => $discover_names[$i] ?? '',
 				'slug' => $disc_slug,
-				'url' => $discover_urls[$i] ?? '',
+				'url' => NavService::normalize($discover_urls[$i] ?? ''),
 				'class' => trim($discover_classes[$i] ?? ''),
 				'rank' => intval($discover_ranks[$i] ?? 0),
 			);
