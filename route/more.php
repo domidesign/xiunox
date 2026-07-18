@@ -12,6 +12,8 @@ $_SESSION['fid'] = 0;
 $_discover_items = isset($conf['discover_items']) ? $conf['discover_items'] : array();
 
 // 收集插件注册的发现项
+// ponytail: 路由层显式加载 NavService，不依赖 header.inc.htm 视图层兜底（_include 不比较 mtime，旧 tmp 缓存会跳过兜底加载行）
+include APP_PATH . 'lib/NavService.php';
 include APP_PATH . 'lib/DiscoverService.php';
 $plugin_items = DiscoverService::getPluginDiscoverItems();
 $_discover_items = array_merge($_discover_items, $plugin_items);
