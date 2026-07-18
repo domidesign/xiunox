@@ -40,6 +40,10 @@ function index_list_cache_delete() {
 // ------------> 积分事件中文名称映射
 
 function credits_event_name($event) {
+    // raw: 前缀表示管理员/外部手动输入的自由文本，原样返回不翻译
+    if(substr($event, 0, 4) === 'raw:') {
+        return substr($event, 4);
+    }
     // 如果已经是中文，直接返回
     if(preg_match('/[\x{4e00}-\x{9fa5}]/u', $event)) {
         return $event;
@@ -48,8 +52,9 @@ function credits_event_name($event) {
     $baseEvent = strpos($event, ':') !== false ? substr($event, 0, strpos($event, ':')) : $event;
     $key = 'credits_event_' . $baseEvent;
     $name = lang($key);
-    // lang() 找不到时返回 key 本身，此时回退到原始值
-    return ($name !== $key) ? $name : $event;
+    // lang() 找不到时返回 'lang[key]' 格式，此时回退到原始值
+    $notFoundMarker = 'lang[' . $key . ']';
+    return ($name !== $notFoundMarker) ? $name : $event;
 }
 
 // ------------> 帖子状态标签配置

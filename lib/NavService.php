@@ -102,6 +102,57 @@ class NavService {
     }
 
     /**
+     * 规范化导航 URL（后台保存时用）：把任意输入转为路由名格式
+     * - 外链（http(s)://、//）原样返回
+     * - 空、'/'、'' → '/'
+     * - '?xxx.htm' / 'xxx.htm' / 'xxx.html' / '/xxx.htm' / '/xxx' → 'xxx'
+     * - 其他（'xxx'、'thread-create-0'）原样返回
+     * ponytail: 不处理 mailto:/tel:/javascript: 等冷门协议，留给 href() 兜底
+     */
+    public static function normalize($url) {
+        if($url === null) return '';
+        $url = trim($url);
+        if($url === '') return '';
+        // 外链原样返回
+        if(strpos($url, 'http://') === 0 || strpos($url, 'https://') === 0 || strpos($url, '//') === 0) return $url;
+        // 首页
+        if($url === '/') return '/';
+        // 剥离前导 ?
+        if(strpos($url, '?') === 0) $url = substr($url, 1);
+        // 剥离前导 /
+        $url = ltrim($url, '/');
+        // 剥离 .htm / .html 后缀
+        $url = preg_replace('/\.(html?)$/', '', $url);
+        return $url;
+    }
+
+    /**
+     * 渲染导航链接 href（前台模板用）：返回经 url() 转换后的 URL
+     * 兼容数据库历史存量数据（?xxx.htm、xxx.htm、/xxx 等格式）
+     * - 外链、# 锚点 → 原样返回
+     * - 空 → '#'
+     * - '/' → index_url()
+     * - '?xxx.htm' / 'xxx.htm' / '/xxx.htm' / '/xxx' / 'xxx' → url(路由名)
+     */
+    public static function href($url) {
+        if($url === null) return '#';
+        $url = trim($url);
+        if($url === '' || $url === '#') return '#';
+        // 外链
+        if(strpos($url, 'http://') === 0 || strpos($url, 'https://') === 0 || strpos($url, '//') === 0) return $url;
+        // 锚点
+        if(strpos($url, '#') === 0) return $url;
+        // mailto/tel/javascript 等带协议的
+        if(strpos($url, '://') !== false) return $url;
+        // 首页
+        if($url === '/') return index_url();
+        // 规范化为路由名后走 url()
+        $route = self::normalize($url);
+        if($route === '' || $route === '/') return index_url();
+        return url($route);
+    }
+
+    /**
      * 获取指定位置所有已启用插件的导航项（用于前台展示和后台混入主列表）
      * 插件启用即展示，无需后台单独控制
      * @param string $position 'top' / 'side' / 'mobile' / 'discover'

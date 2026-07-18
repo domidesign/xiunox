@@ -50,7 +50,7 @@ if ($subResource === 'log') {
         ApiResponse::forbidden('admin_only');
     }
 
-    $result = $creditsService->add($uid, $type, $amount, $reason);
+    $result = $creditsService->add($uid, $type, $amount, $reason, 0, true);
     if (!$result['ok']) {
         ApiResponse::error(400, $result['message']);
     }
@@ -79,7 +79,7 @@ if ($subResource === 'log') {
         ApiResponse::forbidden('admin_only');
     }
 
-    $result = $creditsService->sub($uid, $type, $amount, $reason);
+    $result = $creditsService->sub($uid, $type, $amount, $reason, 0, true);
     if (!$result['ok']) {
         ApiResponse::error(400, $result['message']);
     }

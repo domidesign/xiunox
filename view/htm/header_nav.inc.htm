@@ -71,11 +71,11 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 					$_nav_j++;
 				}
 				if (empty($_children)) {
-					// 无子项：title 作为一级链接
-					$_url = !empty($_ni['url']) ? esc_attr($_ni['url']) : '#';
-			?>
-			<li class="nav-item" data-active="nav-<?php echo esc_attr($_ni['slug'] ?? '');?>">
-				<a class="nav-link transition-colors<?php echo !empty($_ni['class']) ? ' '.esc_attr($_ni['class']) : '';?>" href="<?php echo $_url;?>">
+				// 无子项：title 作为一级链接
+				$_url = NavService::href($_ni['url']);
+		?>
+		<li class="nav-item" data-active="nav-<?php echo esc_attr($_ni['slug'] ?? '');?>">
+			<a class="nav-link transition-colors<?php echo !empty($_ni['class']) ? ' '.esc_attr($_ni['class']) : '';?>" href="<?php echo esc_attr($_url);?>">
 					<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo esc_attr($_ni['icon']);?> me-1"></i><?php } ?>
 					<?php echo esc_html($_ni['name']);?>
 				</a>
@@ -91,7 +91,7 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 				</a>
 				<ul class="dropdown-menu shadow border-0">
 				<?php foreach($_children as $_link) { ?>
-				<li data-active="nav-<?php echo esc_attr($_link['slug'] ?? '');?>"><a class="dropdown-item py-2<?php echo !empty($_link['class']) ? ' '.esc_attr($_link['class']) : '';?>" href="<?php echo esc_attr($_link['url']);?>">
+				<li data-active="nav-<?php echo esc_attr($_link['slug'] ?? '');?>"><a class="dropdown-item py-2<?php echo !empty($_link['class']) ? ' '.esc_attr($_link['class']) : '';?>" href="<?php echo esc_attr(NavService::href($_link['url']));?>">
 					<?php if(!empty($_link['icon'])) { ?><i class="<?php echo esc_attr($_link['icon']);?> me-2"></i><?php } ?>
 					<?php echo esc_html($_link['name']);?>
 				</a></li>
@@ -105,7 +105,7 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 				// 一级 link（前面没有归属的 title）
 			?>
 			<li class="nav-item" data-active="nav-<?php echo esc_attr($_ni['slug'] ?? '');?>">
-				<a class="nav-link transition-colors<?php echo !empty($_ni['class']) ? ' '.esc_attr($_ni['class']) : '';?>" href="<?php echo esc_attr($_ni['url']);?>">
+			<a class="nav-link transition-colors<?php echo !empty($_ni['class']) ? ' '.esc_attr($_ni['class']) : '';?>" href="<?php echo esc_attr(NavService::href($_ni['url']));?>">
 					<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo esc_attr($_ni['icon']);?>"></i><?php } ?>
 					<?php echo esc_html($_ni['name']);?>
 				</a>

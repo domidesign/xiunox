@@ -68,8 +68,10 @@ function post_create($arr, $fid, $gid) {
 	// hook model_post_create_start.php
 	
 	$pid = post__create($arr, $gid);
-	if(!$pid) return $pid;
-	
+	if(!$pid) {
+		return $pid;
+	}
+
 	$tid = $arr['tid'];
 	$uid = $arr['uid'];
 
@@ -101,16 +103,16 @@ function post_create($arr, $fid, $gid) {
 	if(function_exists('index_list_cache_delete')) {
 		index_list_cache_delete();
 	}
-	
+
 	// 关联附件
 	$message = $arr['message'];
 	attach_assoc_post($pid);
-	
+
 	// 更新用户的用户组
 	user_update_group($uid);
-	
+
 	// hook model_post_create_end.php
-	
+
 	return $pid;
 }
 
