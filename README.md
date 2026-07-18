@@ -1,6 +1,6 @@
 # XIUNOX
 
-<img width="3686" height="1836" alt="shotEasy-screencapture-xiuno-xcxgy-cn" src="https://github.com/user-attachments/assets/2cad8e3e-87f3-4fa9-ae46-c4bc1e08d349" />
+<img width="3686" height="auto" alt="shotEasy-screencapture-xiuno-xcxgy-cn" src="https://github.com/user-attachments/assets/2cad8e3e-87f3-4fa9-ae46-c4bc1e08d349" />
 
 
 基于 [Xiuno BBS 4.0.4](xiunobbs4.0.4.md) 原版打造的现代化重构版本 XIUNOX。
