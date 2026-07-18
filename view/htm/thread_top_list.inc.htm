@@ -13,16 +13,16 @@ if(!empty($toplist)) {
 			<li class="d-flex align-items-center py-1   <?php echo $_thread['top_class'];?>" data-tid="<?php echo $_thread['tid'];?>">
 				<div class="flex-fill" style="min-width:0">
 					<span class="subject break-all leading-snug">
-						<?php echo thread_status_label_html('top', $_top_status_labels); ?>
-						<?php if(!empty($_thread['digest'])) { ?><?php echo thread_status_label_html('digest', $_top_status_labels); ?><?php } ?>
-						<?php if($_thread['closed'] > 0) { ?><?php echo thread_status_label_html('closed', $_top_status_labels); ?><?php } ?>
-						<?php if(!empty($_thread['images'])) { ?><?php echo thread_status_label_html('image', $_top_status_labels); ?><?php } ?>
-						<?php if(!empty($_thread['videos'])) { ?><?php echo thread_status_label_html('video', $_top_status_labels); ?><?php } ?>
-						<?php if(!empty($_thread['files'])) { ?><?php echo thread_status_label_html('attachment', $_top_status_labels); ?><?php } ?>
-						<?php if(isset($_thread['audit_status']) && $_thread['audit_status'] == 0) { ?><span class="badge bg-warning text-dark ms-1"><?php echo lang('pending_audit');?></span><?php } ?>
-						<?php if(isset($_thread['audit_status']) && $_thread['audit_status'] == 2) { ?><span class="badge bg-danger ms-1"><?php echo lang('rejected_audit');?></span><?php } ?>
-						<a href="<?php echo url("thread-$_thread[tid]");?>" class="hover-text-primary transition-colors"><?php echo $_thread['subject'];?></a>
-					</span>
+					<?php echo thread_status_label_html('top', $_top_status_labels); ?>
+					<?php if(!empty($_thread['digest'])) { ?><?php echo thread_status_label_html('digest', $_top_status_labels); ?><?php } ?>
+					<a href="<?php echo url("thread-$_thread[tid]");?>" class="hover-text-primary transition-colors"><?php echo $_thread['subject'];?></a>
+					<?php if(isset($_thread['audit_status']) && $_thread['audit_status'] == 0) { ?><span class="badge bg-warning text-dark ms-1"><?php echo lang('pending_audit');?></span><?php } ?>
+					<?php if(isset($_thread['audit_status']) && $_thread['audit_status'] == 2) { ?><span class="badge bg-danger ms-1"><?php echo lang('rejected_audit');?></span><?php } ?>
+					<?php if(!empty($_thread['images'])) { ?><?php echo thread_status_label_html('image', $_top_status_labels); ?><?php } ?>
+					<?php if(!empty($_thread['videos'])) { ?><?php echo thread_status_label_html('video', $_top_status_labels); ?><?php } ?>
+					<?php if(!empty($_thread['files'])) { ?><?php echo thread_status_label_html('attachment', $_top_status_labels); ?><?php } ?>
+					<?php if($_thread['closed'] > 0) { ?><?php echo thread_status_label_html('closed', $_top_status_labels); ?><?php } ?>
+				</span>
 				</div>
 			</li>
 			<?php } unset($_thread); ?>

@@ -1766,6 +1766,8 @@ return array(
 	// 显示设置
 	'admin_home_forum_filter'=>'首页版块过滤',
 	'admin_home_forum_filter_desc'=>'选择要在首页帖子列表中显示的版块，不选则显示全部。置顶帖子不受此限制。',
+	'admin_post_forum_filter'=>'发帖页版块过滤',
+	'admin_post_forum_filter_desc'=>'选择在发帖/编辑页版块下拉框中显示的版块，不选则显示全部。若某分区下所有版块均未选，该分区也不显示。管理员组不受此限制。',
 	'admin_editor_tip'=>'编辑器提示文字',
 	'admin_editor_tip_desc'=>'在发帖/回帖编辑器顶部显示的提示文字，留空则不显示。支持换行，纯文本。',
 	'admin_default_lang'=>'默认语言',
@@ -1954,6 +1956,13 @@ return array(
 	'admin_ai_model_tip'=>'点击模型标签切换启用/禁用，X 删除',
 	'admin_ai_provider_delete_confirm'=>'确定删除该提供商及其模型配置？',
 	'admin_ai_provider_empty_tip'=>'暂无 AI 提供商，点击下方「添加提供商」开始配置',
+	'admin_ai_url_help_title'=>'API URL 写法说明',
+	'admin_ai_url_help_desc'=>'不同提供商的 API URL 填写规范如下。系统会根据 URL 自动识别接口风格并采用对应的请求格式，无需手动选择适配方式。',
+	'admin_ai_url_help_provider'=>'提供商',
+	'admin_ai_url_help_note'=>'说明',
+	'admin_ai_url_help_common_note'=>'URL 末尾不要带 /images/generations 或 /chat/completions，系统会按功能自动拼接。末尾的 /v1 或 /v3 等版本前缀必须保留。系统按域名自动识别接口风格：agnes-ai.com 用 Agnes 格式（return_base64），其余默认走 OpenAI 兼容格式（response_format）。插件可通过 AIService::registerImageAdapter() 注册自定义风格。',
+	'admin_ai_url_help_doubao'=>'豆包',
+	'admin_ai_url_help_siliconflow'=>'硅基流动',
 	// 功能配置 tab 字段
 	'admin_ai_feature_name'=>'功能名称',
 	'admin_ai_feature_mode'=>'模式',

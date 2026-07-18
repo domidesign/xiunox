@@ -223,6 +223,7 @@ return array (
 
 	// 显示设置
 	'home_forum_ids' => array(),         // 首页版块过滤（空=显示全部）
+	'post_forum_ids' => array(),         // 发帖页版块过滤（空=显示全部；管理员豁免）
 	'editor_tip' => '',                  // 编辑器顶部提示文字（空=不显示）
 	'default_lang' => '',                // 默认语言（空=跟随浏览器）
 	'mobile_nav_items' => array(),       // 手机底部导航（空=使用默认）

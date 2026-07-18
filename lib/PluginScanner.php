@@ -26,6 +26,13 @@ class PluginScanner {
      */
     private array $suppressDomXssUntil = [];
 
+    /**
+     * raw_htmlspecialchars 抑制区间（按文件路径索引）
+     * 用于跳过第三方库/已审计的合理 htmlspecialchars 调用（如 Parsedown 内部精细 flags 控制）
+     * 格式：['lib/Parsedown.php' => 最大抑制行号]
+     */
+    private array $suppressRawHtmlspecialcharsUntil = [];
+
     public function __construct() {
         $this->rules = PluginScannerRules::getRules();
         $this->severityLevels = PluginScannerRules::getSeverityLevels();
@@ -481,6 +488,13 @@ class PluginScanner {
             $this->suppressDomXssUntil[$shortPath] = max($current, $isFileLevel ? PHP_INT_MAX : $lineNumber + 5);
         }
 
+        // raw_htmlspecialchars 抑制：检测"@suppress raw_htmlspecialchars"注释
+        // 用于跳过第三方库（如 Parsedown）或已审计的精细 htmlspecialchars 调用
+        // 文件级抑制：注释含 raw_htmlspecialchars 关键字 → 抑制整个文件
+        if ($contextExt === 'php' && preg_match('/(?:保留|@suppress).*raw_htmlspecialchars/', $line)) {
+            $this->suppressRawHtmlspecialcharsUntil[$shortPath] = PHP_INT_MAX;
+        }
+
         // JS-only 分类（js_eval_call/js_dom_xss/jquery_html_xss）：仅在 JS 上下文扫描
         // 避免 PHP 代码中字符串里的 JS 函数名被误报
         static $jsOnlyCats = null;
@@ -556,6 +570,11 @@ class PluginScanner {
                         continue;
                     }
 
+                    // raw_htmlspecialchars 抑制区间检查（用于第三方库如 Parsedown 的 @suppress 注释）
+                    if ($category === 'raw_htmlspecialchars' && $lineNumber <= ($this->suppressRawHtmlspecialcharsUntil[$shortPath] ?? 0)) {
+                        continue;
+                    }
+
                     $context = PluginScannerSuggestion::extractContext($line, $pattern, $category);
                     $dynamicSuggestion = PluginScannerSuggestion::build($category, $pattern, $suggestion, $line);
 
@@ -598,7 +617,10 @@ class PluginScanner {
         // raw_htmlspecialchars 检测：裸 htmlspecialchars 调用
         if ($contextExt === 'php' && in_array('raw_htmlspecialchars', $phpOnlyCats)) {
             if (preg_match('/\bhtmlspecialchars\s*\(/', $line)) {
-                $issues[] = $this->buildIssue($shortPath, $lineNumber, 'raw_htmlspecialchars', 'htmlspecialchars(', '禁止裸写 htmlspecialchars，必须用 esc_html() / esc_attr() / esc_js() 统一转义', $line);
+                // 抑制区间检查（用于第三方库如 Parsedown 的 @suppress 注释）
+                if ($lineNumber > ($this->suppressRawHtmlspecialcharsUntil[$shortPath] ?? 0)) {
+                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'raw_htmlspecialchars', 'htmlspecialchars(', '禁止裸写 htmlspecialchars，必须用 esc_html() / esc_attr() / esc_js() 统一转义', $line);
+                }
             }
         }
 
@@ -632,32 +654,42 @@ class PluginScanner {
 
         // 提取 <script> 块（排除 type="application/json" 等非 JS 类型）
         if (preg_match_all('/<script(?![^>]*type\s*=\s*["\'](?:application\/(?:json|ld\+json)|text\/(?:x-template|html|x-handlebars-template))["\'])([^>]*)>(.*?)<\/script>/si', $content, $matches, PREG_OFFSET_CAPTURE)) {
+            // 从后往前替换：避免前一次 substr_replace 改变 phpHtml 长度后，后续 offset 错位
+            // ponytail: bug 修复 - 原顺序替换导致第二个 <script> 块的 offset 指向错误位置，JS 代码被当作 PHP 扫描触发 split() 误报
+            $scriptMatches = [];
             foreach ($matches[0] as $i => $fullMatch) {
-                $full = $fullMatch[0];
-                $offset = $fullMatch[1];
-                $jsContent = isset($matches[3][$i][0]) ? $matches[3][$i][0] : '';
-
-                // 保持行号对齐：用等长空行替换
-                $lineCount = substr_count($full, "\n");
+                $scriptMatches[] = [
+                    'full' => $fullMatch[0],
+                    'offset' => $fullMatch[1],
+                    'jsContent' => isset($matches[3][$i][0]) ? $matches[3][$i][0] : '',
+                ];
+            }
+            // 按 offset 降序排序（从后往前）
+            usort($scriptMatches, function($a, $b) { return $b['offset'] - $a['offset']; });
+            foreach ($scriptMatches as $m) {
+                $lineCount = substr_count($m['full'], "\n");
                 $replacement = str_repeat("\n", $lineCount);
-                $phpHtml = substr_replace($phpHtml, $replacement, $offset, strlen($full));
-
-                if ($jsContent !== '') $jsParts[] = $jsContent;
+                $phpHtml = substr_replace($phpHtml, $replacement, $m['offset'], strlen($m['full']));
+                if ($m['jsContent'] !== '') $jsParts[] = $m['jsContent'];
             }
         }
 
         // 提取 <style> 块
         if (preg_match_all('/<style[^>]*>(.*?)<\/style>/si', $content, $matches, PREG_OFFSET_CAPTURE)) {
+            $styleMatches = [];
             foreach ($matches[0] as $i => $fullMatch) {
-                $full = $fullMatch[0];
-                $offset = $fullMatch[1];
-                $cssContent = isset($matches[1][$i][0]) ? $matches[1][$i][0] : '';
-
-                $lineCount = substr_count($full, "\n");
+                $styleMatches[] = [
+                    'full' => $fullMatch[0],
+                    'offset' => $fullMatch[1],
+                    'cssContent' => isset($matches[1][$i][0]) ? $matches[1][$i][0] : '',
+                ];
+            }
+            usort($styleMatches, function($a, $b) { return $b['offset'] - $a['offset']; });
+            foreach ($styleMatches as $m) {
+                $lineCount = substr_count($m['full'], "\n");
                 $replacement = str_repeat("\n", $lineCount);
-                $phpHtml = substr_replace($phpHtml, $replacement, $offset, strlen($full));
-
-                if ($cssContent !== '') $cssParts[] = $cssContent;
+                $phpHtml = substr_replace($phpHtml, $replacement, $m['offset'], strlen($m['full']));
+                if ($m['cssContent'] !== '') $cssParts[] = $m['cssContent'];
             }
         }
 

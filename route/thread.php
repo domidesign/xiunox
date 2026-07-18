@@ -312,6 +312,8 @@ if($action == 'create') {
 		foreach($forumlist_allowthread as $k=>$f) {
 			if(!empty($f['type'])) unset($forumlist_allowthread[$k]);
 		}
+		// 发帖页版块过滤（应用 conf.post_forum_ids 白名单，管理员豁免）
+		$forumlist_allowthread = forum_list_post_filter($forumlist_allowthread, $gid, $fid);
 		$forumarr = xn_json_encode(arrlist_key_values($forumlist_allowthread, 'fid', 'name'));
 		if(empty($forumlist_allowthread)) {
 			message(-1, lang('user_group_insufficient_privilege'));
@@ -332,6 +334,12 @@ if($action == 'create') {
 				$forum_by_category[$fup][] = $f;
 			} else {
 				$forum_orphan[] = $f;
+			}
+		}
+		// 级联隐藏：移除没有可发帖子版块的分区（分区下所有版块均被 post_forum_ids 过滤时，分区也不显示）
+		foreach($forum_categories as $catid => $cat) {
+			if(!isset($forum_by_category[$catid])) {
+				unset($forum_categories[$catid]);
 			}
 		}
 		// 当前 fid 所属分区（用于回填第一级 select）

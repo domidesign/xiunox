@@ -881,6 +881,9 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 		// 首页版块过滤
 		$home_forum_ids = isset($conf['home_forum_ids']) ? $conf['home_forum_ids'] : array();
 
+		// 发帖页版块过滤
+		$post_forum_ids = isset($conf['post_forum_ids']) ? $conf['post_forum_ids'] : array();
+
 		// 编辑器提示文字
 		$editor_tip = isset($conf['editor_tip']) ? $conf['editor_tip'] : '';
 
@@ -941,12 +944,17 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 		$home_forum_ids = param('home_forum_ids', array());
 		$home_forum_ids = array_map('intval', $home_forum_ids);
 
+		// 发帖页版块过滤
+		$post_forum_ids = param('post_forum_ids', array());
+		$post_forum_ids = array_map('intval', $post_forum_ids);
+
 		// 编辑器提示文字（纯文本，保留换行）
 	// 关闭 htmlspecialchars：该值后续经 json_encode 输出到 JS placeholder，htmlspecialchars 会把 " 破坏成 &quot; 导致显示乱码
 	$editor_tip = trim(param('editor_tip', '', FALSE));
 
 		$display_replace = array();
 		$display_replace['home_forum_ids'] = $home_forum_ids;
+		$display_replace['post_forum_ids'] = $post_forum_ids;
 		$display_replace['editor_tip'] = $editor_tip;
 		file_replace_var(APP_PATH.'conf/conf.php', $display_replace);
 

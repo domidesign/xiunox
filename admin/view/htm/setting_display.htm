@@ -12,24 +12,44 @@
 			<?php echo CsrfService::input(); ?>
 
 		<!-- 首页版块过滤 -->
-			<h6 class="fw-semibold mb-3"><i class="ti ti-filter me-1"></i><?php echo lang('admin_home_forum_filter');?></h6>
-			<p class="text-body-secondary small mb-3"><?php echo lang('admin_home_forum_filter_desc');?></p>
-			<div class="mb-4">
-				<div class="d-flex flex-wrap gap-2">
-					<?php foreach($all_forums as $_forum) { ?>
-				<?php if(!empty($_forum['type']) && $_forum['type'] == 1) continue; // 跳过分区（type=1），保留无分类版块（type=0, fup=0） ?>
-					<div class="form-check">
-						<input class="form-check-input" type="checkbox" name="home_forum_ids[]" value="<?php echo $_forum['fid'];?>" id="forum_<?php echo $_forum['fid'];?>" <?php echo in_array($_forum['fid'], $home_forum_ids) ? 'checked' : '';?>>
-						<label class="form-check-label small" for="forum_<?php echo $_forum['fid'];?>"><?php echo esc_html($_forum['name'] ?? '');?></label>
-					</div>
-					<?php } ?>
+		<h6 class="fw-semibold mb-3"><i class="ti ti-filter me-1"></i><?php echo lang('admin_home_forum_filter');?></h6>
+		<p class="text-body-secondary small mb-3"><?php echo lang('admin_home_forum_filter_desc');?></p>
+		<div class="mb-4">
+			<div class="d-flex flex-wrap gap-2">
+				<?php foreach($all_forums as $_forum) { ?>
+			<?php if(!empty($_forum['type']) && $_forum['type'] == 1) continue; // 跳过分区（type=1），保留无分类版块（type=0, fup=0） ?>
+				<div class="form-check">
+					<input class="form-check-input" type="checkbox" name="home_forum_ids[]" value="<?php echo $_forum['fid'];?>" id="forum_<?php echo $_forum['fid'];?>" <?php echo in_array($_forum['fid'], $home_forum_ids) ? 'checked' : '';?>>
+					<label class="form-check-label small" for="forum_<?php echo $_forum['fid'];?>"><?php echo esc_html($_forum['name'] ?? '');?></label>
 				</div>
-				<?php if(empty($all_forums)) { ?>
-			<p class="text-body-secondary small"><?php echo lang('admin_no_forum'); ?></p>
-			<?php } ?>
-		</div>
+				<?php } ?>
+			</div>
+			<?php if(empty($all_forums)) { ?>
+		<p class="text-body-secondary small"><?php echo lang('admin_no_forum'); ?></p>
+		<?php } ?>
+	</div>
 
-		<hr class="my-4">
+	<hr class="my-4">
+
+	<!-- 发帖页版块过滤 -->
+		<h6 class="fw-semibold mb-3"><i class="ti ti-edit me-1"></i><?php echo lang('admin_post_forum_filter');?></h6>
+		<p class="text-body-secondary small mb-3"><?php echo lang('admin_post_forum_filter_desc');?></p>
+		<div class="mb-4">
+			<div class="d-flex flex-wrap gap-2">
+				<?php foreach($all_forums as $_forum) { ?>
+			<?php if(!empty($_forum['type']) && $_forum['type'] == 1) continue; // 跳过分区（type=1），保留无分类版块（type=0, fup=0） ?>
+				<div class="form-check">
+					<input class="form-check-input" type="checkbox" name="post_forum_ids[]" value="<?php echo $_forum['fid'];?>" id="post_forum_<?php echo $_forum['fid'];?>" <?php echo in_array($_forum['fid'], $post_forum_ids) ? 'checked' : '';?>>
+					<label class="form-check-label small" for="post_forum_<?php echo $_forum['fid'];?>"><?php echo esc_html($_forum['name'] ?? '');?></label>
+				</div>
+				<?php } ?>
+			</div>
+			<?php if(empty($all_forums)) { ?>
+		<p class="text-body-secondary small"><?php echo lang('admin_no_forum'); ?></p>
+		<?php } ?>
+	</div>
+
+	<hr class="my-4">
 
 		<h6 class="fw-semibold mb-3"><i class="ti ti-info-circle me-1"></i><?php echo lang('admin_editor_tip');?></h6>
 		<p class="text-body-secondary small mb-3"><?php echo lang('admin_editor_tip_desc');?></p>

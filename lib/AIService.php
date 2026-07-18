@@ -46,6 +46,9 @@ class AIService {
     /** 内容后处理过滤器：key => [callback, ...] */
     private static $postFilters = array();
 
+    /** 图片 API adapter 注册表：style => ['detect'=>cb, 'buildBody'=>cb, 'parseResponse'=>cb] */
+    private static $imageAdapters = array();
+
     /** provider 健康状态缓存（kv 加载一次，请求内复用） */
     private static $healthCache = null;
 
@@ -378,19 +381,24 @@ class AIService {
         );
 
         // 顺序 fallback：按 mode 选择遍历顺序
+        // ponytail: 收集每个 provider 最后一次失败的 message，聚合到最终返回，便于上层排查
+        $failErrors = array();
         if ($mode === 'random') {
             $order = range(0, count($configs) - 1);
             shuffle($order);
             foreach ($order as $idx) {
                 $cfg = $configs[$idx];
+                $lastErr = '';
                 for ($r = 0; $r <= $retry; $r++) {
                     $result = $this->callImageByConfig($cfg, $prompt, $options, $logBase);
                     if ($result['code'] === 0) {
                         $this->markProviderOnline($cfg['provider_name']);
                         return $result;
                     }
+                    $lastErr = isset($result['message']) ? (string)$result['message'] : 'unknown';
                 }
                 $this->markProviderOffline($cfg['provider_name']);
+                $failErrors[] = $cfg['provider_name'] . ': ' . $lastErr;
             }
         } elseif ($mode === 'round_robin') {
             $count = count($configs);
@@ -405,6 +413,7 @@ class AIService {
             for ($i = 0; $i < $count; $i++) {
                 $idx = ($startIdx + $i) % $count;
                 $cfg = $configs[$idx];
+                $lastErr = '';
                 for ($r = 0; $r <= $retry; $r++) {
                     $result = $this->callImageByConfig($cfg, $prompt, $options, $logBase);
                     if ($result['code'] === 0) {
@@ -414,23 +423,33 @@ class AIService {
                         }
                         return $result;
                     }
+                    $lastErr = isset($result['message']) ? (string)$result['message'] : 'unknown';
                 }
                 $this->markProviderOffline($cfg['provider_name']);
+                $failErrors[] = $cfg['provider_name'] . ': ' . $lastErr;
             }
         } else {
             // failover（默认）
             foreach ($configs as $cfg) {
+                $lastErr = '';
                 for ($r = 0; $r <= $retry; $r++) {
                     $result = $this->callImageByConfig($cfg, $prompt, $options, $logBase);
                     if ($result['code'] === 0) {
                         $this->markProviderOnline($cfg['provider_name']);
                         return $result;
                     }
+                    $lastErr = isset($result['message']) ? (string)$result['message'] : 'unknown';
                 }
                 $this->markProviderOffline($cfg['provider_name']);
+                $failErrors[] = $cfg['provider_name'] . ': ' . $lastErr;
             }
         }
-        return array('code' => 1, 'message' => '所有 provider 均调用失败', 'data' => null);
+        // ponytail: 聚合每个 provider 的失败原因到 message，前端直接显示具体错误而非笼统的「均失败」
+        $aggMsg = '所有 provider 均调用失败';
+        if (!empty($failErrors)) {
+            $aggMsg .= '：' . implode(' | ', $failErrors);
+        }
+        return array('code' => 1, 'message' => $aggMsg, 'data' => null);
     }
 
     /**
@@ -453,20 +472,10 @@ class AIService {
             return array('code' => 1, 'message' => 'AI 配置不完整', 'data' => null);
         }
 
-        $url = rtrim($config['url'], '/') . '/images/generations';
-        $body = array(
-            'model'  => $config['model'],
-            'prompt' => (string)$prompt,
-            'n'      => intval(isset($options['n']) ? $options['n'] : 1),
-        );
-        // OpenAI 标准 size 参数（'1024x1024'）和 Agnes 等兼容 API 的档位参数（'1K'）都支持
-        if (isset($options['size'])) $body['size'] = $options['size'];
-        if (isset($options['ratio'])) $body['ratio'] = $options['ratio'];
-        // response_format: 'url' 或 'b64_json'，默认 'url'
-        $responseFormat = isset($options['response_format']) ? $options['response_format'] : 'url';
-        $body['response_format'] = $responseFormat;
-        // Agnes 等兼容 API 需要 extra_body.response_format（ ponytail: 兼容字段，多余但无害）
-        $body['extra_body'] = array('response_format' => $responseFormat);
+        $url = $this->buildEndpointUrl($config['url'], '/images/generations');
+        // ponytail: 通过 URL 自动探测 API 风格，按风格构造请求体（支持 openai/agnes + 插件扩展）
+        $apiStyle = $this->detectImageApiStyle($config['url']);
+        $body = $this->buildImageRequestBody($apiStyle, $config, $prompt, $options);
 
         $payload = xn_json_encode($body);
         if ($payload === false) {
@@ -479,6 +488,9 @@ class AIService {
         // 图片生成比文本慢，默认 60s
         $timeout = isset($options['timeout']) ? intval($options['timeout']) : 60;
 
+        // ponytail: 收集响应头到 $respHeaders，用于排查 Cloudflare 403 等拦截
+        // 关键头：server / cf-ray / cf-mitigated / cf-cache-status / content-type
+        $respHeaders = array();
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_POST, true);
@@ -486,10 +498,20 @@ class AIService {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_HEADERFUNCTION, function($curl, $header) use (&$respHeaders) {
+            $len = strlen($header);
+            $parts = explode(':', $header, 2);
+            if (count($parts) === 2) {
+                $respHeaders[strtolower(trim($parts[0]))] = trim($parts[1]);
+            }
+            return $len;
+        });
+        // ponytail: 必须带 User-Agent，否则 Cloudflare Bot Protection 直接 403 拦截
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
             'Authorization: Bearer ' . $config['apiKey'],
             'Content-Type: application/json',
             'Accept: application/json',
+            'User-Agent: XiunoX-BBS/1.0',
         ));
         $response = curl_exec($ch);
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -500,17 +522,27 @@ class AIService {
         }
 
         if ($response === false || $curl_err) {
+            $msg = 'curl error: ' . $curl_err . ' url=' . $url;
             if (!empty($logBase)) {
-                $this->writeLog($logBase, 0, 0, 'curl error: ' . $curl_err, 0, $startTime);
+                $this->writeLog($logBase, 0, 0, $msg, 0, $startTime);
             }
-            return array('code' => 1, 'message' => 'curl error: ' . $curl_err, 'data' => null);
+            return array('code' => 1, 'message' => $msg, 'data' => null);
         }
         if ($http_code != 200) {
-            $snippet = mb_substr((string)$response, 0, 300);
-            if (!empty($logBase)) {
-                $this->writeLog($logBase, 0, 0, 'HTTP ' . $http_code . ': ' . $snippet, 0, $startTime);
+            $snippet = mb_substr((string)$response, 0, 500, 'UTF-8');
+            $cfKeys = array('server', 'cf-ray', 'cf-mitigated', 'cf-cache-status', 'content-type');
+            $hdrInfo = '';
+            foreach ($cfKeys as $k) {
+                if (isset($respHeaders[$k])) {
+                    $hdrInfo .= $k . '=' . $respHeaders[$k] . '; ';
+                }
             }
-            return array('code' => 1, 'message' => 'HTTP ' . $http_code . ': ' . $snippet, 'data' => null);
+            $hdrInfo = rtrim($hdrInfo, '; ');
+            $msg = 'HTTP ' . $http_code . ' [' . $hdrInfo . '] url=' . $url . ' body=' . $snippet;
+            if (!empty($logBase)) {
+                $this->writeLog($logBase, 0, 0, $msg, 0, $startTime);
+            }
+            return array('code' => 1, 'message' => $msg, 'data' => null);
         }
 
         $data = json_decode($response, true);
@@ -521,14 +553,11 @@ class AIService {
             return array('code' => 1, 'message' => 'Invalid JSON response', 'data' => null);
         }
 
-        // 响应解析：data[0].url 或 data[0].b64_json
-        $imageUrl = '';
-        $imageBase64 = '';
-        if (isset($data['data'][0]['url'])) {
-            $imageUrl = (string)$data['data'][0]['url'];
-        } elseif (isset($data['data'][0]['b64_json'])) {
-            $imageBase64 = (string)$data['data'][0]['b64_json'];
-        } else {
+        // 响应解析：按 api style 分发（openai/agnes 走同一格式，插件可自定义）
+        $parsed = $this->parseImageResponse($apiStyle, $data);
+        $imageUrl = $parsed['image_url'];
+        $imageBase64 = $parsed['image_base64'];
+        if ($imageUrl === '' && $imageBase64 === '') {
             $err_msg = isset($data['error']['message']) ? $data['error']['message'] : 'empty image data';
             if (!empty($logBase)) {
                 $this->writeLog($logBase, 0, 0, $err_msg, 0, $startTime);
@@ -580,7 +609,7 @@ class AIService {
             return array('code' => 1, 'message' => 'AI 配置不完整', 'data' => null);
         }
 
-        $url = rtrim($config['url'], '/') . '/chat/completions';
+        $url = $this->buildEndpointUrl($config['url'], '/chat/completions');
         $body = array(
             'model'       => $config['model'],
             'messages'    => $messages,
@@ -607,10 +636,12 @@ class AIService {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        // ponytail: 必须带 User-Agent，否则 Cloudflare Bot Protection 直接 403 拦截
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
             'Authorization: Bearer ' . $config['apiKey'],
             'Content-Type: application/json',
             'Accept: application/json',
+            'User-Agent: XiunoX-BBS/1.0',
         ));
         $response = curl_exec($ch);
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -775,7 +806,7 @@ class AIService {
         $map = array();
 
         foreach ($candidates as $cfg) {
-            $url = rtrim($cfg['url'], '/') . '/chat/completions';
+            $url = $this->buildEndpointUrl($cfg['url'], '/chat/completions');
             $body = array(
                 'model'       => $cfg['model'],
                 'messages'    => $messages,
@@ -798,6 +829,7 @@ class AIService {
                 'Authorization: Bearer ' . $cfg['apiKey'],
                 'Content-Type: application/json',
                 'Accept: application/json',
+                'User-Agent: XiunoX-BBS/1.0',
             ));
             curl_multi_add_handle($mh, $ch);
             $handles[] = $ch;
@@ -870,6 +902,127 @@ class AIService {
             $this->writeLog($logBase, 0, 0, 'concurrent: 所有 provider 均失败', 0, $startTime);
         }
         return array('code' => 1, 'message' => '所有 provider 均调用失败', 'data' => null);
+    }
+
+    /**
+     * 注册图片 API adapter（插件扩展点）
+     *
+     * 插件可注册自定义 API 风格（如千问独立协议、Stability AI 等），核心层会按 URL 自动探测并调用对应 adapter。
+     * 内置两种风格：openai（默认）、agnes（agnes-ai.com 域名自动匹配）。
+     *
+     * adapter 回调签名：
+     *   - detect(string $url): bool  — 判断给定 URL 是否匹配此风格
+     *   - buildBody(array $config, string $prompt, array $options): array  — 构造请求体（返回完整 body 数组）
+     *   - parseResponse(array $data, array $context): array  — 解析响应，返回 ['image_url'=>string, 'image_base64'=>string]
+     *
+     * @param string $style 风格名（如 'qwen'、'stability'）
+     * @param array $callbacks ['detect'=>callable, 'buildBody'=>callable, 'parseResponse'=>callable]
+     */
+    public static function registerImageAdapter($style, array $callbacks) {
+        if (empty($style) || !isset($callbacks['buildBody']) || !isset($callbacks['parseResponse'])) return;
+        self::$imageAdapters[$style] = $callbacks;
+    }
+
+    /**
+     * 取所有已注册的图片 adapter（调试/展示用）
+     */
+    public static function getImageAdapters() {
+        return self::$imageAdapters;
+    }
+
+    /**
+     * 构造 API 端点 URL（兼容 base url 和完整路径两种填法）
+     * 用户可能填 `https://api.openai.com/v1` 或 `https://api.openai.com/v1/chat/completions`
+     * 两种都应正确工作：若 URL 已以目标 path 结尾则不再拼接
+     *
+     * @param string $baseUrl 配置的 URL
+     * @param string $path 要拼接的路径（如 '/chat/completions'、'/images/generations'）
+     * @return string
+     */
+    private function buildEndpointUrl($baseUrl, $path) {
+        $baseUrl = rtrim((string)$baseUrl, '/');
+        // ponytail: 若 URL 已以目标 path 结尾，直接返回（兼容用户填完整路径的情况）
+        if (substr($baseUrl, -strlen($path)) === $path) {
+            return $baseUrl;
+        }
+        return $baseUrl . $path;
+    }
+
+    /**
+     * 自动探测图片 API 风格
+     * 优先级：插件注册的 adapter（按注册顺序）→ 内置 agnes → 默认 openai
+     *
+     * @param string $url provider URL
+     * @return string 风格名
+     */
+    private function detectImageApiStyle($url) {
+        $url = strtolower((string)$url);
+        // 1. 先遍历插件注册的 adapter
+        foreach (self::$imageAdapters as $style => $adapter) {
+            if (!isset($adapter['detect'])) continue;
+            if (is_callable($adapter['detect']) && call_user_func($adapter['detect'], $url)) {
+                return $style;
+            }
+        }
+        // 2. 内置 agnes 探测
+        if (strpos($url, 'agnes-ai.com') !== false) {
+            return 'agnes';
+        }
+        // 3. 默认 openai 兼容
+        return 'openai';
+    }
+
+    /**
+     * 构造图片请求体（按 api style 分发）
+     */
+    private function buildImageRequestBody($apiStyle, array $config, $prompt, array $options) {
+        // 插件注册的 adapter 优先
+        if (isset(self::$imageAdapters[$apiStyle]['buildBody'])) {
+            $cb = self::$imageAdapters[$apiStyle]['buildBody'];
+            if (is_callable($cb)) return call_user_func($cb, $config, $prompt, $options);
+        }
+        // 内置 adapter
+        $body = array(
+            'model'  => $config['model'],
+            'prompt' => (string)$prompt,
+            'n'      => intval(isset($options['n']) ? $options['n'] : 1),
+        );
+        if (isset($options['size'])) $body['size'] = $options['size'];
+        if (isset($options['ratio'])) $body['ratio'] = $options['ratio'];
+
+        $responseFormat = isset($options['response_format']) ? $options['response_format'] : 'url';
+
+        if ($apiStyle === 'agnes') {
+            // Agnes：用 return_base64 (boolean)，不支持顶层 response_format
+            if ($responseFormat === 'b64_json') {
+                $body['return_base64'] = true;
+            }
+        } else {
+            // openai 兼容：用 response_format
+            $body['response_format'] = $responseFormat;
+        }
+        return $body;
+    }
+
+    /**
+     * 解析图片响应（按 api style 分发）
+     * 返回 ['image_url'=>string, 'image_base64'=>string]
+     */
+    private function parseImageResponse($apiStyle, $data) {
+        // 插件注册的 adapter 优先
+        if (isset(self::$imageAdapters[$apiStyle]['parseResponse'])) {
+            $cb = self::$imageAdapters[$apiStyle]['parseResponse'];
+            if (is_callable($cb)) return call_user_func($cb, $data);
+        }
+        // 内置 openai / agnes 响应格式一致：data[0].url 或 data[0].b64_json
+        $imageUrl = '';
+        $imageBase64 = '';
+        if (isset($data['data'][0]['url'])) {
+            $imageUrl = (string)$data['data'][0]['url'];
+        } elseif (isset($data['data'][0]['b64_json'])) {
+            $imageBase64 = (string)$data['data'][0]['b64_json'];
+        }
+        return array('image_url' => $imageUrl, 'image_base64' => $imageBase64);
     }
 
     /**

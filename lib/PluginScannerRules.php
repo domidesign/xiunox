@@ -18,14 +18,14 @@ class PluginScannerRules {
                 'mysql_result', 'mysql_list_tables', 'mysql_list_fields', 'mysql_db_name',
                 'mysql_pconnect', 'mysql_get_server_info', 'mysql_set_charset',
                 '\beach\(' => 'each() 函数已移除，改用 foreach', 
-                'create_function\(', 
+                'create_function(', 
                 '\bsplit\(' => 'split() 函数已移除，改用 preg_split 或 explode',
                 '\bspliti\(' => 'spliti() 函数已移除，改用 preg_split 带 i 修饰符',
                 '\bereg\(' => 'ereg() 函数已移除，改用 preg_match',
                 '\bereg_replace\(' => 'ereg_replace() 函数已移除，改用 preg_replace',
                 '\beregi\(' => 'eregi() 函数已移除，改用 preg_match 带 i 修饰符',
                 '\beregi_replace\(' => 'eregi_replace() 函数已移除，改用 preg_replace 带 i 修饰符',
-                'call_user_method\(',
+                'call_user_method(',
             ],
             'php8_syntax' => [
                 '&new ' => '&new 语法已移除，改用 new',
@@ -143,17 +143,17 @@ class PluginScannerRules {
                 'method="post"' => 'POST 表单缺少 CSRF 令牌，请添加 CsrfService::input()',
             ],
             'direct_db' => [
-                'db_exec\(' => '原始 SQL 执行，注意 SQL 注入风险',
-                'db_sql_find_one\(' => '原始 SQL 查询，注意 SQL 注入风险，建议优先使用 db_find_one()',
-                'db_sql_find\(' => '原始 SQL 查询，注意 SQL 注入风险，建议优先使用 db_find()',
+                'db_exec(' => '原始 SQL 执行，注意 SQL 注入风险',
+                'db_sql_find_one(' => '原始 SQL 查询，注意 SQL 注入风险，建议优先使用 db_find_one()',
+                'db_sql_find(' => '原始 SQL 查询，注意 SQL 注入风险，建议优先使用 db_find()',
             ],
             'php8_deprecated' => [
                 'get_magic_quotes_gpc' => 'get_magic_quotes_gpc() 在 PHP 7.4 废弃、8.0 移除，始终返回 false',
                 'get_magic_quotes_runtime' => 'get_magic_quotes_runtime() 在 PHP 7.4 废弃、8.0 移除',
-                'utf8_encode\(' => 'utf8_encode() 在 PHP 8.2 废弃，使用 mb_convert_encoding()',
-                'utf8_decode\(' => 'utf8_decode() 在 PHP 8.2 废弃，使用 mb_convert_encoding()',
-                'money_format\(' => 'money_format() 在 PHP 7.4 废弃、8.0 移除，使用 NumberFormatter',
-                'is_resource\(' => 'is_resource() 对 PDO/MySQLi 对象返回 false（PHP 8.0+），改用 instanceof',
+                'utf8_encode(' => 'utf8_encode() 在 PHP 8.2 废弃，使用 mb_convert_encoding()',
+                'utf8_decode(' => 'utf8_decode() 在 PHP 8.2 废弃，使用 mb_convert_encoding()',
+                'money_format(' => 'money_format() 在 PHP 7.4 废弃、8.0 移除，使用 NumberFormatter',
+                'is_resource(' => 'is_resource() 对 PDO/MySQLi 对象返回 false（PHP 8.0+），改用 instanceof',
             ],
             'icon_libraries' => [
                 'class="[^"]*\bfa-[a-z]' => 'Font Awesome 图标 → Tabler Icons ti-*',
@@ -161,8 +161,8 @@ class PluginScannerRules {
                 'class="[^"]*glyphicon glyphicon-' => 'Glyphicon 图标 → Tabler Icons ti-*',
             ],
             'frontend_md5' => [
-                'hex_md5\(' => '前端 MD5 哈希已移除，密码必须明文提交由服务端 password_md5() 处理',
-                'md5_hex\(' => '前端 MD5 哈希已移除，密码必须明文提交由服务端 password_md5() 处理',
+                'hex_md5(' => '前端 MD5 哈希已移除，密码必须明文提交由服务端 password_md5() 处理',
+                'md5_hex(' => '前端 MD5 哈希已移除，密码必须明文提交由服务端 password_md5() 处理',
             ],
             // XSS 风险检测（warning 级别，可跳过）
             'php_superglobal_output' => [
@@ -179,24 +179,6 @@ class PluginScannerRules {
             ],
             'jquery_html_xss' => [
                 '\$\(.*\)\.html\s*\(' => 'jQuery .html() 设置 innerHTML 会导致 DOM XSS，应使用 .text() 或 DOM API',
-            ],
-            // 07-17 起 6 个旧 JS 文件已从 footer.inc.htm 删除引用，shim 在 xiuno-modern.js 实现
-            // 插件禁止 <script src> 引用这些文件（会导致 jQuery 重复加载、shim 失效）
-            // 实际检测在 PluginScanner::scanPluginDir 主循环中按文件内容匹配，不通过 scanLine 按行匹配
-            'deprecated_js_ref' => [
-                'jquery-3.7.1.min.js' => '07-17 起已删除 jQuery 引用，xiuno-modern.js 内置 jQuery 兼容 shim（window.jQuery=$），禁止 <script src> 重新引入 jquery-3.7.1.min.js',
-                'view/js/xiuno.js' => '07-17 起已删除 xiuno.js 引用，xn.* 函数库已迁移到 xiuno-modern.js，禁止 <script src> 引用 view/js/xiuno.js',
-                'view/js/bootstrap-plugin.js' => '07-17 起已删除 bootstrap-plugin.js 引用，$.alert/$.confirm 已由 XN.alert/XN.confirm + shim 覆盖，禁止 <script src> 引用 view/js/bootstrap-plugin.js',
-                'view/js/form.js' => '07-17 起已删除 form.js 引用，xn.form_radio/options/select 已由 bbs.js 重新定义，禁止 <script src> 引用 view/js/form.js',
-                'view/js/async.js' => '07-17 起已删除 async.js 引用，该文件无任何全局符号导出是纯死代码，禁止 <script src> 引用 view/js/async.js',
-                'view/js/upload.js' => '07-17 起已删除 upload.js 引用，FileUploader 已被 upload-service.js 的 UploadService 替代，禁止 <script src> 引用 view/js/upload.js',
-            ],
-            // 07-17 起插件 JS 必须放 plugin/<dir>/static/js/，CSS 放 static/css/
-            // 放 view/htm/ 会被 _include() 当模板编译导致 fatal
-            // 实际检测在 PluginScanner::scanPluginDir 主循环中按文件路径匹配
-            'js_resource_location' => [
-                'view/htm/*.js' => 'JS 文件禁止放在 view/htm/ 目录（会被 _include() 当模板编译导致 fatal），必须放在 plugin/<dir>/static/js/',
-                'view/htm/*.css' => 'CSS 文件禁止放在 view/htm/ 目录（会被 _include() 当模板编译导致 fatal），必须放在 plugin/<dir>/static/css/',
             ],
         ];
     }
@@ -237,14 +219,11 @@ class PluginScannerRules {
             'install_non_idempotent' => 'warning',
             'capabilities_format' => 'warning',
             'conf_version' => 'error',
-            'plugin_version_format' => 'warning',
             // XSS 风险统一 warning（可跳过，不强制阻止安装）
             'php_superglobal_output' => 'warning',
             'js_eval_call' => 'warning',
             'js_dom_xss' => 'warning',
             'jquery_html_xss' => 'warning',
-            'deprecated_js_ref' => 'fatal',
-            'js_resource_location' => 'warning',
         ];
     }
 
@@ -266,7 +245,6 @@ class PluginScannerRules {
             'hook_htm_header',
             'app_path_in_url',
             'conf_version',
-            'deprecated_js_ref',
         ];
     }
 
@@ -305,15 +283,12 @@ class PluginScannerRules {
             'app_path_in_url' => 'script/link 用 APP_PATH（浏览器无法访问）',
             'install_non_idempotent' => 'CREATE TABLE 缺少 IF NOT EXISTS',
             'capabilities_format' => 'capabilities 字段格式不正确（应为 lowercase.dots 字符串数组）',
-            'conf_version' => 'conf.json bbs_version 兼容性（必须两位制 X.Y，且 <= 当前核心主次版本）',
-            'plugin_version_format' => 'conf.json version 格式（必须三位制 X.Y.Z）',
+            'conf_version' => 'conf.json 版本兼容性检查（bbs_version 缺失或低于 1.0.2）',
             // XSS 风险分类中文名
             'php_superglobal_output' => 'PHP 超全局变量直接输出（反射型 XSS）',
             'js_eval_call' => 'JS eval() 调用（代码注入风险）',
             'js_dom_xss' => 'JS DOM XSS（innerHTML/document.write 等）',
             'jquery_html_xss' => 'jQuery .html() 调用（XSS 风险）',
-            'deprecated_js_ref' => '引用已删除的旧 JS 文件（07-17 去 jQuery 化）',
-            'js_resource_location' => 'JS/CSS 放置位置错误（应在 static/ 而非 view/htm/）',
         ];
     }
 

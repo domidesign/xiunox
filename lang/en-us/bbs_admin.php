@@ -1704,6 +1704,8 @@ return array(
 	// Display Settings - Thread List Style
 	'admin_home_forum_filter'=>'Homepage Forum Filter',
 	'admin_home_forum_filter_desc'=>'Select forums to display on the homepage thread list. If none selected, all forums are shown. Pinned threads are not affected.',
+	'admin_post_forum_filter'=>'Post Page Forum Filter',
+	'admin_post_forum_filter_desc'=>'Select forums to display in the forum dropdown on the post/edit page. If none selected, all forums are shown. If all forums under a category are unselected, the category is also hidden. Administrator groups are not affected.',
 	'admin_editor_tip'=>'Editor Tip Text',
 	'admin_editor_tip_desc'=>'Tip text displayed at the top of the post/reply editor. Leave empty to hide. Supports line breaks, plain text only.',
 	'admin_default_lang'=>'Default Language',
@@ -1892,6 +1894,13 @@ return array(
 	'admin_ai_model_tip'=>'Click a model tag to toggle enable/disable; X to remove',
 	'admin_ai_provider_delete_confirm'=>'Delete this provider and its model config?',
 	'admin_ai_provider_empty_tip'=>'No AI providers yet. Click "Add Provider" below to start.',
+	'admin_ai_url_help_title'=>'API URL Format Guide',
+	'admin_ai_url_help_desc'=>'Different providers require different API URL formats. The system auto-detects the API style from the URL and applies the correct request format — no manual selection needed.',
+	'admin_ai_url_help_provider'=>'Provider',
+	'admin_ai_url_help_note'=>'Note',
+	'admin_ai_url_help_common_note'=>'Do not append /images/generations or /chat/completions to the URL — the system appends the correct path per feature. Keep the version prefix (/v1, /v3, etc.). The system detects API style by domain: agnes-ai.com uses Agnes format (return_base64); all others default to OpenAI-compatible format (response_format). Plugins can register custom styles via AIService::registerImageAdapter().',
+	'admin_ai_url_help_doubao'=>'Doubao',
+	'admin_ai_url_help_siliconflow'=>'SiliconFlow',
 	// Feature configuration tab fields
 	'admin_ai_feature_name'=>'Feature Name',
 	'admin_ai_feature_mode'=>'Mode',

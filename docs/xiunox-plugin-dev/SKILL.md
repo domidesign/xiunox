@@ -169,6 +169,7 @@ description: >
   - ✅ 正确：`<div class="card x-card">...</div>` / `<li class="py-3">`（纯留白分隔）
   - ❌ 错误：`<div class="card border">` / `<li class="border-bottom py-3">` / `<div class="card border-start">`
   - **所有 border 都尽量不用**：卡片用 `x-card` 自带阴影分隔，列表项之间用纯 `py-*` 留白分隔（不加 border-bottom），需要视觉分隔时优先用 `py-*` / `mb-*` / `mt-*` / `gap-*` 等间距工具类，或用 `<hr>`（已有 `.thread-list-divider hr` 样式可复用）
+- ✅ **发帖页新增功能放右侧栏（PC）并使用"引用帖子"卡片样式**：发帖辅助功能（投票/话题/附件权限/楼主可见/抽奖等）必须挂到 `post_ref_thread_after.htm`（PC 右侧栏）+ `post_ref_thread_after_mobile.htm`（手机端表单内），禁止挂到 `post_subject_after.htm`（标题下方）或 `post_message_after.htm`（编辑器下方）。卡片结构必须与"引用帖子"卡片完全一致：`x-card card` + `card-header bg-transparent border-bottom-0 py-2` + `<h6 class="mb-0 fw-semibold"><i class="ti ti-xxx me-1"></i>标题</h6>` + `card-body pt-0`。手机端不渲染 card-header。⚠️ 已遵循：xnx_tag/xnx_fields/xnx_attach_access/xnx_private_reply/xnx_lottery；已违反 1 次（xnx_private_reply 初版挂到 post_subject_after.htm，已迁移）
 - ✅ **插件层获取用户信息用于显示时，用核心函数 `user_find_by_uids(implode(',', $uids))` / `user_read($uid)` / `user_read_cache($uid)`**（自动调用 `user_format()` 生成 `display_name`：`nickname` 优先，为空 fallback 到 `username`），禁止用 `db_find('user', ...)` 绕过核心层。模板显示用户名统一取 `$user['display_name']`，禁止直接取 `$user['username']`（`username` 是登录名，`nickname` 才是用户可修改的显示名）。已存在 `db_find('user')` 场景如需保留，必须在结果上手动 `user_format($user)` 补 `display_name` 字段
 
 ---
@@ -215,11 +216,13 @@ description: >
 | 字段 | 类型 | 错误写法 | 正确写法 |
 |---|---|---|---|
 | `version` | string | `"1.0"` | `"1.0.0"`（三位制 X.Y.Z） |
-| `bbs_version` | string | `"1.0.0"` | `"1.0"`（两位制 X.Y，不能高于当前核心主次版本） |
+| `bbs_version` | string | `"1.0.0"` / `"4.5"` / `"2.0"` | `"1.0"` / `"1.1"`（两位制 X.Y，**当前 XIUNOX 核心为 1.x 系列，禁止写 4.5 或其他版本号**） |
 | `hooks_rank` | object | `[]` / `{}` 空对象不展示用法 | `{"hook_name.php": 10}`（值大先执行，默认 0） |
 | `overwrites_rank` | object | `[]` **（常见错误：写成数组）** | `{"view/htm/header.inc.htm": 10}`（值最大的覆盖文件生效，赢家通吃） |
 | `dependencies` | object | `[]` **（常见错误：写成数组）** | `{"xn_search": "1.0"}`（key=依赖插件目录名，value=最低版本约束，支持 npm 风格 `>=`/`^`/`~`/`*`） |
 | `capabilities` | array | `"lowercase.dots"` 字符串 | `["lowercase.dots"]`（权限沙箱声明，扫描器强制校验 `lowercase.dots` 格式） |
+
+> ⚠️ **`bbs_version` 误判高发区**：XIUNOX 是基于 Xiuno BBS 4.x 的现代化分支，但 **`bbs_version` 字段值跟随 XIUNOX 核心版本号（1.x 系列），不是 Xiuno BBS 4.5**。合法取值示例：`"1.0"`、`"1.1"`。写成 `"4.5"` 会被核心兼容性校验拒绝。审查插件时遇到 `bbs_version: "1.x"` 是正确的，不要标记为错误。
 
 **必需字段：** `name` / `brief` / `version` / `bbs_version` / `installed` / `enable`（后两个系统维护，勿手填）
 **可选字段：** `hooks_rank` / `overwrites_rank` / `dependencies` / `capabilities` / `type`（默认 `"plugin"`）/ `author` / `id`
@@ -847,9 +850,21 @@ if($reputation['score'] < -50) {
 
 **`post_ref_thread_after.htm`** 是发布页插件功能的首选 hook 点：
 - 位于引用帖子卡片之后，桌面端和手机端共用同一个 hook 名
-- 适合插入：话题标签、投票、附件选项等发帖辅助功能
-- 插件 UI 应使用 `.x-card.card` 样式，与引用帖子卡片保持一致
-- 桌面端用 `card-header`（`d-none d-lg-block`）+ `card-body`，手机端用 `card-body` 内的 `d-lg-none` 标题
+- 适合插入：话题标签、投票、附件选项、楼主可见等发帖辅助功能
+- **必须使用与"引用帖子"卡片一致的样式**（PC 端），禁止自创卡片结构：
+  ```html
+  <div class="x-card card">
+      <div class="card-header bg-transparent border-bottom-0 py-2">
+          <h6 class="mb-0 fw-semibold"><i class="ti ti-xxx me-1"></i><?php echo lang('xxx_title');?></h6>
+      </div>
+      <div class="card-body pt-0">
+          <!-- 功能内容 -->
+      </div>
+  </div>
+  ```
+- 手机端用 `post_ref_thread_after_mobile.htm`（表单内，`d-xl-none` 容器），不渲染 card-header，仅保留 card-body（手机端已在表单流中，无需卡片标题）
+- 桌面/手机端共用同一个 htm 模板时，用全局计数器 `$GLOBALS['xxx_hook_idx']` 区分实例（0=mobile 先执行，1=desktop 后执行），通过 `$_suffix === 'd'` 判断是否渲染 header
+- 已遵循此规范的插件：xnx_tag、xnx_fields、xnx_attach_access、xnx_private_reply、xnx_lottery
 
 **完整 Hook 目录** → 读 `references/hooks-catalog.md`
 
@@ -1067,6 +1082,7 @@ hiddenInput.value = editor.getHtml();
 - [ ] **改动 `.htm` 模板后清 `tmp/view_htm_*.htm` 编译缓存**：`_include()` 不比较源文件 mtime，只检查 tmpfile 是否存在，源文件改了不清缓存则修改不生效。批量清理：`rm -f tmp/view_htm_*.htm tmp/admin_view_htm_*.htm`（已违反多次）
 - [ ] **所有 hook 文件禁止 `return;`（路由层 + model 层 + view 层全适用）**：hook 编译期内联到宿主，`return` 会从宿主返回，跳过后续逻辑。已违反 4 次（路由层 3 次 + model 层 1 次 pid 丢失 + model 层 runlevel 拦截失效）。例外：终止性操作允许 `exit;` 但必须 if 包裹 + `// ponytail:` 注释说明
 - [ ] **发帖/回复共用 `post.htm` 的 hook 按场景区分**：`post_ref_thread_after.htm`/`post_ref_thread_after_mobile.htm`/`post_end.htm`/`post_js.htm` 同时编译进发帖页和回复页，只需发帖场景的功能必须加 `if ($route == 'thread' && $action == 'create')` 判断，避免回复页加载不需要的模块
+- [ ] **发帖页新增功能挂到 `post_ref_thread_after.htm`（PC 右侧栏）+ `post_ref_thread_after_mobile.htm`（手机端）**：禁止挂到 `post_subject_after.htm`（标题下方）或 `post_message_after.htm`（编辑器下方）。卡片样式必须与"引用帖子"卡片一致：`x-card card` + `card-header bg-transparent border-bottom-0 py-2` + `<h6 class="mb-0 fw-semibold"><i class="ti ti-xxx me-1"></i>标题</h6>` + `card-body pt-0`。手机端不渲染 card-header，仅 card-body
 
 ---
 
