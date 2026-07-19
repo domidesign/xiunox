@@ -126,6 +126,7 @@ return array(
 
 	// ========== 通用提示 (原 bbs_common.php) ==========
 	'operate_successfully'=>'操作成功',
+	'operate'=>'操作',
 	'parameters_error'=>'参数错误',
 	'insufficient_privilege'=>'权限不足',
 	'operation_failed'=>'操作失败',

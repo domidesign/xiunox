@@ -1050,7 +1050,7 @@ return array(
 	'admin_permalink_copied'=>'Copied',
 	'admin_permalink_detecting'=>'Detecting if rewrite rules are working...',
 	'admin_permalink_detect_success'=>'Rewrite rules are working, settings saved successfully',
-	'admin_permalink_detect_fail'=>'Rewrite rules are not working, settings rolled back. Please configure your web server rewrite rules first',
+	'admin_permalink_detect_fail'=>'Rewrite rules detection failed, but settings were kept. Please check your web server rewrite rules',
 	'admin_permalink_nginx_label'=>'Nginx',
 	'admin_permalink_apache_label'=>'Apache',
 	'admin_permalink_current'=>'Current',

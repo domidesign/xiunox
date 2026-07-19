@@ -137,7 +137,10 @@ require_once APP_PATH.'lib/avatar_component.php';
 
 // SEO: /sitemap.xml 早期拦截（所有 url_rewrite_on 模式通用，不依赖路由分发）
 // ponytail: 在 index.inc.php 之前拦截，跳过 session/路由开销，直接输出 XML
+// 但 sitemap 路由会调用 forum_format() -> esc_attr()，EscapeService.php 在 index.inc.php 才加载
+// 此处提前 include 一次，避免 esc_attr undefined fatal
 if(isset($_SERVER['REQUEST_URI']) && preg_match('#/sitemap\.xml($|\?)#', $_SERVER['REQUEST_URI'])) {
+	include_once APP_PATH.'lib/EscapeService.php';
 	include APP_PATH.'route/sitemap.php';
 	exit;
 }

@@ -803,13 +803,10 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 			}
 
 			if(!$rewrite_ok) {
-				// 回滚设置
-				$rollback = array();
-				$rollback['url_rewrite_on'] = $old_url_rewrite_on;
-				file_replace_var(APP_PATH.'conf/conf.php', $rollback);
-
-				message(-1, lang('admin_permalink_detect_fail'));
-			}
+			// ponytail: 检测失败不回滚，保留用户选择，仅返回警告；
+			// 自动回滚会让用户以为保存没生效，且掩盖了真实的 rewrite 配置问题
+			message(-1, lang('admin_permalink_detect_fail'));
+		}
 		}
 
 		// hook admin_setting_permalink_post_end.php

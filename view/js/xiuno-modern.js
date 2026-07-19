@@ -83,6 +83,13 @@
                 headers['Content-Type'] = 'application/x-www-form-urlencoded';
                 body = $.param(data);
             } else {
+                // ponytail: 字符串 body（如 jform.serialize() 的 key=val&key=val 格式）
+                // 必须显式设 Content-Type，否则 fetch 默认 text/plain，PHP 不解析到 $_POST
+                // 已违反 1 次：导致后台所有 $.xpost(action, jform.serialize()) 表单 $_POST 为空，
+                // param() 全部返回默认值（permalink 保存退回 0、user_update 字段丢失等）
+                if (!headers['Content-Type']) {
+                    headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+                }
                 body = data;
             }
         } else if (!isPost && data) {

@@ -21,7 +21,8 @@ $left_lg = isset($left_lg) ? $left_lg : true;
 $main_class = isset($main_class) ? $main_class : '';
 $right_class = isset($right_class) ? $right_class : '';
 ?>
-<div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="innerHTML" hx-select="#body" hx-push-url="true">
+<?php // ponytail: hx-swap=outerHTML + hx-select=#body 用响应中的新 #body 整体替换旧 #body；之前用 innerHTML 会把新 main#body 嵌套进旧 #body 内（HTML 规范禁止嵌套 <main>），造成左侧栏/tabs/右侧栏布局失效 ?>
+<div class="row g-4" hx-boost="true" hx-target="#body" hx-swap="outerHTML" hx-select="#body" hx-push-url="true">
 	<div class="d-none d-<?php echo $left_lg ? 'lg' : 'xl'; ?>-block<?php echo $left_lg ? ' col-lg-2' : ''; ?> col-xl-2">
 		<?php if($sidebar_left_file) include _include(APP_PATH.'view/htm/'.$sidebar_left_file);?>
 	</div>
