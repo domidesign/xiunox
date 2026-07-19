@@ -1069,7 +1069,11 @@ HTML;
         $csrfToken = CsrfService::getToken();
         // 加 _ai_proxy=1 标识参数，前端 fetch hook 据此识别 AI 代理请求
         // 不依赖 URL 路径匹配，完全兼容所有伪静态格式（url_rewrite_on 0-5）
-        $proxyUrl = url('ai-chat') . '?_csrf=' . urlencode($csrfToken) . '&_ai_proxy=1';
+        // ponytail: url_rewrite_on=0 时 url('ai-chat') 返回 /?ai-chat.htm（已含 ?），
+        // 追加 query 必须用 & 否则出现两个 ? 产生非法 URL，浏览器把整段当 query 导致路由解析失败
+        $aiChatUrl = url('ai-chat');
+        $sep = strpos($aiChatUrl, '?') === FALSE ? '?' : '&';
+        $proxyUrl = $aiChatUrl . $sep . '_csrf=' . urlencode($csrfToken) . '&_ai_proxy=1';
         $models = [
             'openai' => [
                 'customUrl' => $proxyUrl,

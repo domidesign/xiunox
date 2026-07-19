@@ -1154,19 +1154,24 @@ function xn_url_parse_path_format($s) {
 	// 兼容微信等应用复制 URL 自动追加等号
 	$s = rtrim($s, '=');
 	substr($s, 0, 1) == '/' AND $s = substr($s, 1);
+	// ponytail: 先分离 query string，再去掉 .html/.htm 后缀
+	// 已违反 1 次：原逻辑先检查末尾 .html，但末尾被 ?event=xxx&fid= 遮挡，
+	// 导致 .html 后缀未被去掉，param(1) = 'credits_check.html' 路由匹配失败 404
+	$_query_str = '';
+	$_qpos = strpos($s, '?');
+	if($_qpos !== FALSE) {
+		$_query_str = substr($s, $_qpos + 1);
+		$s = substr($s, 0, $_qpos);
+	}
 	// 兼容 .html/.htm 后缀：去掉后缀再解析路径
 	// 如 /user-21.html → user/21，/my.html → my
 	if(substr($s, -5) == '.html') $s = substr($s, 0, -5);
 	if(substr($s, -4) == '.htm') $s = substr($s, 0, -4);
 	$arr = explode('/', $s);
 	$get = $arr;
-	$last = array_pop($arr);
-	if(strpos($last, '?') !== FALSE) {
-		$get = $arr;
-		$arr1 = explode('?', $last);
-		parse_str($arr1[1], $arr2);
-		$get[] = $arr1[0];
-		$get = array_merge($get, $arr2);
+	if($_query_str !== '') {
+		parse_str($_query_str, $_query_arr);
+		$get = array_merge($get, $_query_arr);
 	}
 	return $get;
 }
