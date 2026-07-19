@@ -301,6 +301,22 @@ function forum_list_post_filter($forumlist, $gid, $current_fid = 0) {
 	return $result;
 }
 
+// 检查当前用户是否可以在指定版块发帖（conf.post_forum_ids 白名单校验）
+// 与 forum_list_post_filter 共享同一套判断语义，供路由层拦截和模板层按钮显隐复用
+// - 管理员组 (gid=1,2) 豁免
+// - $fid=0 表示无特定版块（首页/全局按钮），放行（发帖页会自行过滤下拉框）
+// - 空白名单 = 不过滤 = 放行
+// - 白名单非空时，$fid 必须在白名单内
+function forum_can_post($fid, $gid) {
+	global $conf;
+	if($gid == 1 || $gid == 2) return TRUE;
+	$fid = intval($fid);
+	if($fid === 0) return TRUE;
+	$post_forum_ids = isset($conf['post_forum_ids']) ? $conf['post_forum_ids'] : array();
+	if(empty($post_forum_ids)) return TRUE;
+	return in_array($fid, $post_forum_ids, TRUE);
+}
+
 function forum_filter_moduid($moduids) {
 	$moduids = trim($moduids);
 	if(empty($moduids)) return '';

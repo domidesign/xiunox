@@ -43,8 +43,35 @@ description: >
 - ❌ 裸 `include` → 用 `_include()`
 - ❌ `window.__xxxData` → 状态放 DOM（`data-*`、hidden input）
 - ❌ 后台（admin/）用 htmx
+- ❌ **htmx 4 的 `htmx:config:request` 事件中修改 DOM 元素** → 该事件触发时 FormData 已构建完成，修改 DOM（如动态添加 input）不会影响请求体。必须直接修改 `evt.detail.ctx.request.body`（FormData 对象）来追加参数。
+  - ❌ 错误写法：在 `htmx:config:request` 中 `document.createElement('input')` + `appendChild`
+  - ✅ 正确写法：`evt.detail.ctx.request.body.append('key', 'value')`
 - ❌ 用 `APP_PATH` 生成 `<script src>` / `<link href>`（`APP_PATH` 是文件系统绝对路径，浏览器无法访问）
 - ❌ 把 JS/CSS 放在 `view/htm/` 目录（应放 `static/js/`、`static/css/`）
+- ❌ **`static/*.js` 文件中写 PHP 代码**（`<?php echo lang('xxx'); ?>` 等）→ `.js` 是纯静态文件不会被 PHP 解析，浏览器看到 `'<?php echo lang('` 单引号闭合后，`xxx` 变成裸标识符触发 `Uncaught SyntaxError: Unexpected identifier`。翻译字符串必须通过引入该 JS 的 hook 模板（hook 是 `.htm` 会被 `_include()` 编译执行）注入到 `window.XXX_I18N` 全局对象，JS 文件改用 `var I18N = window.XXX_I18N || {fallback};` 读取。⚠️ 已违反 1 次（xnx_poll poll_post.js 3 处 + poll.js 7 处，导致发帖页开启投票后选项列表不显示 + 帖子详情页投票卡按钮失效）
+  - ✅ 正确范式（hook 模板注入 + JS 读取）：
+    ```php
+    // hook/post_js.htm（.htm 会被 PHP 解析）
+    echo '<script>window.XNX_POLL_I18N_POST = ' . xn_json_encode(array(
+        'options'      => lang('xnx_poll_options'),
+        'min_options'  => lang('xnx_poll_min_options'),
+    )) . ';</script>';
+    echo '<script src="' . $conf['view_url'] . '../plugin/xnx_poll/static/js/poll_post.js?v=' . $v . '"></script>';
+    ```
+    ```javascript
+    // static/js/poll_post.js（纯静态）
+    var I18N = window.XNX_POLL_I18N_POST || { options: '选项', min_options: '至少需要 2 个选项' };
+    XN.toast(I18N.min_options, 'warning');
+    ```
+  - 💡 判断规则：只要文件扩展名是 `.js`（非 `.htm`/`.php`），就当作纯静态文件，禁止写任何 `<?php ?>` 代码
+- ❌ **后台插件设置页/管理页模板（`view/htm/setting.htm`、`view/htm/xxx_admin.htm`）不 include 后台 header/footer** → 这些模板是独立页面，必须首尾分别 `include _include(ADMIN_PATH . 'view/htm/header.inc.htm')` 和 `footer.inc.htm`，否则页面没有后台顶部导航栏和侧边栏（光秃秃只有表单）。前台插件页面则应 include `APP_PATH . 'view/htm/header.inc.htm'`（非 ADMIN_PATH）。⚠️ 已违反 1 次（xnx_poll setting.htm + poll_admin.htm 两个模板都漏 include）
+  - ✅ 正确范式：
+    ```php
+    <?php include _include(ADMIN_PATH . 'view/htm/header.inc.htm'); ?>
+    <div class="x-card card">...</div>
+    <?php include _include(ADMIN_PATH . 'view/htm/footer.inc.htm'); ?>
+    ```
+  - 💡 参考：`xnx_related/view/htm/setting.htm`、`xnx_appcenter/view/htm/setting.htm` 已有正确 include
 - ❌ `.htm` 模板 hook 文件以 `<?php exit;` 开头（会白屏！只能用 `<?php`）
 - ❌ `.htm` 模板 hook 文件用 `.php` 扩展名（文件名必须和源码标记一模一样）
 - ❌ 数据库表用 `utf8`（必须 `utf8mb4` 支持 emoji）
@@ -1083,6 +1110,9 @@ hiddenInput.value = editor.getHtml();
 - [ ] **所有 hook 文件禁止 `return;`（路由层 + model 层 + view 层全适用）**：hook 编译期内联到宿主，`return` 会从宿主返回，跳过后续逻辑。已违反 4 次（路由层 3 次 + model 层 1 次 pid 丢失 + model 层 runlevel 拦截失效）。例外：终止性操作允许 `exit;` 但必须 if 包裹 + `// ponytail:` 注释说明
 - [ ] **发帖/回复共用 `post.htm` 的 hook 按场景区分**：`post_ref_thread_after.htm`/`post_ref_thread_after_mobile.htm`/`post_end.htm`/`post_js.htm` 同时编译进发帖页和回复页，只需发帖场景的功能必须加 `if ($route == 'thread' && $action == 'create')` 判断，避免回复页加载不需要的模块
 - [ ] **发帖页新增功能挂到 `post_ref_thread_after.htm`（PC 右侧栏）+ `post_ref_thread_after_mobile.htm`（手机端）**：禁止挂到 `post_subject_after.htm`（标题下方）或 `post_message_after.htm`（编辑器下方）。卡片样式必须与"引用帖子"卡片一致：`x-card card` + `card-header bg-transparent border-bottom-0 py-2` + `<h6 class="mb-0 fw-semibold"><i class="ti ti-xxx me-1"></i>标题</h6>` + `card-body pt-0`。手机端不渲染 card-header，仅 card-body
+- [ ] **所有 `static/*.js` 文件中无 `<?php` 代码**（用 Grep 检查 `<\?php|lang\(` 确认，JS 文件是纯静态不会被 PHP 解析，翻译字符串通过引入 JS 的 hook 模板注入 `window.XXX_I18N` 全局对象）
+- [ ] **后台插件模板（setting.htm / xxx_admin.htm）首尾 include `_include(ADMIN_PATH . 'view/htm/header.inc.htm')` 和 `footer.inc.htm`**（前台插件模板用 `APP_PATH . 'view/htm/header.inc.htm'`）
+- [ ] **后台表单提交用 fetch 拦截 + 按钮 loading spinner + toast 反馈**（避免页面跳转，下拉框只有 1 个选项时直接删除）
 
 ---
 

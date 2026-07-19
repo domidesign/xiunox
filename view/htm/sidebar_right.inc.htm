@@ -154,12 +154,14 @@ if($_is_mobile) return;
 		</div>
 		<?php } ?>
 		<div class="py-3 d-flex gap-2 flex-wrap">
-			<a role="button" class="btn btn-primary flex-fill rounded-pill"
-				href="<?php echo thread_create_url($fid);?>" hx-boost="false"><i class="ti ti-pencil me-1"></i>
-				<?php echo lang('thread_create_new');?>
-			</a>
-			<!--{hook index_site_brief_post_after.htm}-->
-		</div>
+		<?php if(forum_can_post($fid, $gid)) { ?>
+		<a role="button" class="btn btn-primary flex-fill rounded-pill"
+			href="<?php echo thread_create_url($fid);?>" hx-boost="false"><i class="ti ti-pencil me-1"></i>
+			<?php echo lang('thread_create_new');?>
+		</a>
+		<?php } ?>
+		<!--{hook index_site_brief_post_after.htm}-->
+	</div>
 		<!--{hook index_site_brief_stats_after.htm}-->
 		<!--{hook index_site_brief_end.htm}-->
 	</div>

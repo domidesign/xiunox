@@ -639,12 +639,16 @@ if($action == 'create') {
 			empty($forum) AND message('fid', lang('forum_not_exists'));
 			
 			if($fid != $newfid) {
-			!forum_access_user($fid, $gid, 'allowthread') AND message(-1, lang('user_group_insufficient_privilege'));
-			// 检查目标版块的发帖权限，防止移动到无权限的版块
-			!forum_access_user($newfid, $gid, 'allowthread') AND message(-1, lang('user_group_insufficient_privilege'));
-			$post['uid'] != $uid AND !forum_access_mod($fid, $gid, 'allowupdate') AND message(-1, lang('user_group_insufficient_privilege'));
-			$arr['fid'] = $newfid;
+		!forum_access_user($fid, $gid, 'allowthread') AND message(-1, lang('user_group_insufficient_privilege'));
+		// 检查目标版块的发帖权限，防止移动到无权限的版块
+		!forum_access_user($newfid, $gid, 'allowthread') AND message(-1, lang('user_group_insufficient_privilege'));
+		// 发帖版块白名单校验（防止通过移帖绕过 post_forum_ids 限制到受限版块）
+		if(!forum_can_post($newfid, $gid)) {
+			message(-1, lang('user_group_insufficient_privilege'));
 		}
+		$post['uid'] != $uid AND !forum_access_mod($fid, $gid, 'allowupdate') AND message(-1, lang('user_group_insufficient_privilege'));
+		$arr['fid'] = $newfid;
+	}
 			if($subject != $thread['subject']) {
 				mb_strlen($subject, 'UTF-8') > 80 AND message('subject', lang('subject_max_length', array('max'=>80)));
 				$arr['subject'] = $subject;

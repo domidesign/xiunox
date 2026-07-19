@@ -71,10 +71,12 @@
                 </b></div>
         </div>
     </div>
+    <?php if(forum_can_post($fid, $gid)) { ?>
     <a role="button" class="btn btn-primary w-100 my-2" href="<?php echo thread_create_url($fid);?>"
         hx-boost="false"><i class="ti ti-pencil me-1"></i>
         <?php echo lang('thread_create_new');?>
     </a>
+    <?php } ?>
 </div>
 
 <!-- 3. 帖子目录（有标题时显示） -->

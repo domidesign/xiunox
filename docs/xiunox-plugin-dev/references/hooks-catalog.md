@@ -26,12 +26,64 @@
 
 ## 帖子详情（thread）
 
+> Hook 分布在四个模板：`thread.htm`（骨架）、`thread_main.inc.htm`（正文主体）、`thread_right.inc.htm`（右侧栏）、`thread_left.inc.htm`（左侧操作栏）。
+
+### 页面骨架（thread.htm）
+
 | Hook | 用途 |
 |---|---|
 | `thread_start/end.htm` | 页面首尾 |
-| `thread_subject_before/after.htm` | ✅ 标题后（标签/徽章） |
-| `thread_action_before/after.htm` | 操作按钮 |
-| `thread_message_before/after.htm` | 楼主消息区 |
+
+### 正文主体（thread_main.inc.htm）
+
+| Hook | 用途 |
+|---|---|
+| `thread_status_alert_after.htm` | 审核状态提示后 |
+| `thread_subject_before.htm` | 标题前 |
+| `thread_subject_start.htm` | 标题内开始 |
+| `thread_subject_badge_after.htm` | ✅ 标题徽章后（标签/加精/置顶图标） |
+| `thread_subject_end.htm` | 标题内结束 |
+| `thread_subject_after.htm` | ✅ 标题后（话题徽章） |
+| `thread_username_before.htm` | 作者名前 |
+| `thread_info_end.htm` | 作者信息结束 |
+| `thread_views_after.htm` | 浏览量后 |
+| `thread_update_before.htm` | 编辑按钮前 |
+| `thread_delete_after.htm` | 删除按钮后 |
+| `thread_message_before.htm` | ✅ 楼主正文前 |
+| `thread_message_after.htm` | ✅ 楼主正文后（打赏/签名） |
+| `thread_filelist_after.htm` | 附件列表后 |
+| `thread_message_more_before/after.htm` | 分页"查看更多"前后 |
+| `thread_message_actions_before/after.htm` | 互动操作区前/后（点赞/收藏） |
+| `thread_message_actions_end.htm` | 互动操作区结束 |
+| `thread_plugin_before.htm` | 插件区前 |
+| `thread_plugin_body.htm` | ✅ 插件区主体（打赏/投票等） |
+| `thread_plugin_after.htm` | 插件区后 |
+| `thread_postlist_before.htm` | ✅ 评论区前（相关帖位置一） |
+| `thread_post_list_title_middle.htm` | 评论列表标题中部（排序） |
+| `thread_post_list_title_right.htm` | 评论列表标题右侧 |
+| `thread_quick_reply_message_before/after.htm` | 快速回复编辑器前/后 |
+| `thread_quick_reply_left_start/end.htm` | 快速回复左侧开始/结束 |
+| `thread_quick_reply_right_start/end.htm` | 快速回复右侧开始/结束 |
+| `thread_quick_reply_submit_after.htm` | 快速回复提交按钮后 |
+| `thread_postlist_after.htm` | 评论区后 |
+| `thread_page_after.htm` | 分页组件后 |
+
+### 右侧栏（thread_right.inc.htm）
+
+| Hook | 用途 |
+|---|---|
+| `thread_author_card_username_after.htm` | 作者卡片用户名后 |
+| `thread_user_after.htm` | ✅ 右侧栏末尾（热门话题/相关帖位置二） |
+
+### 左侧操作栏（thread_left.inc.htm）
+
+| Hook | 用途 |
+|---|---|
+| `thread_action_bar_top.htm` | 操作栏顶部 |
+| `thread_action_bar_body.htm` | ✅ 操作栏主体（点赞/收藏按钮） |
+| `thread_action_bar_bottom.htm` | 操作栏底部 |
+
+> 注意：旧文档中的 `thread_action_before/after.htm` 在核心模板中不存在，已被 `thread_action_bar_*` 系列取代。
 
 ## 帖子列表（4 种视图：inc/masonry/timeline/card）
 
@@ -49,7 +101,7 @@
 |---|---|
 | `post_start/end.htm` | 页面首尾 |
 | `post_start_init.htm` | ✅ 编辑器数据注入 |
-| `post_subject_before/after.htm` | ✅ 标题输入后（标签框） |
+| `post_subject_before/after.htm` | ✅ 标题输入后（标签框）（注意：发帖/回帖页专用，与楼层视图的 post_list_inc_subject_* 不同） |
 | `post_message_before/after.htm` | 编辑器 |
 | `post_action_before/after.htm` | 提交按钮 |
 
@@ -58,8 +110,17 @@
 | Hook | 用途 |
 |---|---|
 | `post_list_inc_start/end.htm` | 楼层首尾 |
-| `post_subject_before/after.htm` | ✅ 楼层标题后 |
-| `post_message_before/after.htm` | 消息后（签名档） |
+| `post_list_inc_avatar_after.htm` | 头像后 |
+| `post_list_inc_username_before/after.htm` | 用户名前/后 |
+| `post_list_inc_subject_before/after.htm` | ✅ 楼层标题后（注意：post_list 视图专用，与发帖页的 post_subject_* 不同） |
+| `post_list_inc_message_before/after.htm` | 消息前/后（签名档） |
+| `post_list_inc_filelist_before/after.htm` | 附件前/后 |
+| `post_list_inc_create_date_before/after.htm` | 日期前/后 |
+| `post_list_inc_quote_before/after.htm` | 引用前/后 |
+| `post_list_inc_update_before/after.htm` | 编辑按钮前/后 |
+| `post_list_inc_delete_before/after.htm` | 删除按钮前/后 |
+| `post_list_inc_floor_before/after.htm` | 楼层号前/后 |
+| `post_list_inc_reply_delete_after.htm` | 回复删除后 |
 | `post_user_before/after.htm` | ✅ 用户旁（勋章/等级） |
 | `post_action_before/after.htm` | 操作按钮 |
 

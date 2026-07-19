@@ -41,6 +41,7 @@ if(!empty($_mobile_nav_items)) {
 		<i class="ti ti-category"></i>
 		<span><?php echo lang('forum');?></span>
 	</a>
+	<?php if(forum_can_post($fid, $gid)) { ?>
 	<?php if(!empty($uid)) { ?>
 	<a href="<?php echo thread_create_url($fid);?>" class="bottom-nav-item" data-nav="create" hx-boost="false">
 		<i class="ti ti-circle-plus"></i>
@@ -51,6 +52,7 @@ if(!empty($_mobile_nav_items)) {
 		<i class="ti ti-circle-plus"></i>
 		<span><?php echo lang('thread_create');?></span>
 	</a>
+	<?php } ?>
 	<?php } ?>
 	<a href="<?php echo more_url();?>" class="bottom-nav-item" data-nav="discover">
 		<i class="ti ti-compass"></i>

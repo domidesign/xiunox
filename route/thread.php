@@ -382,6 +382,11 @@ if($action == 'create') {
 		$r = forum_access_user($fid, $gid, 'allowthread');
 	!$r AND message(-1, lang('user_group_insufficient_privilege'));
 
+	// 发帖版块白名单校验（管理员豁免，空白名单放行，防止 curl 绕过 post_forum_ids 限制）
+	if(!forum_can_post($fid, $gid)) {
+		message(-1, lang('user_group_insufficient_privilege'));
+	}
+
 	// 发帖前检查 IP 黑名单（被封 IP 不能发帖）
 	include_once APP_PATH.'model/banned_ip.func.php';
 	// hook banned_ip_check.php

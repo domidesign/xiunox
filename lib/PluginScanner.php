@@ -107,6 +107,7 @@ class PluginScanner {
             'fatal' => $fatal,
             'error' => $error,
             'warning' => $warning,
+            'force_blocked' => $forceBlocked,
             'issues' => $issues,
             'total' => count($issues),
             'summary' => empty($parts) ? '未发现兼容性问题' : implode('，', $parts),
@@ -157,7 +158,7 @@ class PluginScanner {
         $issues = [];
 
         $files = [];
-        $this->collectFiles($dirPath, $files, ['php', 'htm', 'html', 'js', 'css']);
+        $this->collectFiles($dirPath, $files, ['php', 'htm', 'html', 'js', 'css', 'json']);
 
         $phpOnlyCats = PluginScannerRules::getPhpOnlyCategories();
         $htmlOnlyCats = PluginScannerRules::getHtmlOnlyCategories();
@@ -332,6 +333,16 @@ class PluginScanner {
                     ? preg_replace('/^(\d+\.\d+)\..*/', '$1', XIUNOX_VERSION)
                     : '1.0';
 
+                // name 必填字段校验（fatal，不可跳过）
+                if ($conf && (!isset($conf['name']) || !is_string($conf['name']) || trim($conf['name']) === '')) {
+                    $issues[] = [
+                        'file' => $shortPath, 'line' => 0, 'category' => 'conf_required_fields',
+                        'match' => 'name: (missing/empty)', 'suggestion' => '插件缺少 name 字段，conf.json 必须声明插件名称',
+                        'severity' => $this->severityLevels['conf_required_fields'] ?? 'fatal',
+                        'context' => 'name 字段缺失或为空',
+                    ];
+                }
+
                 // bbs_version 校验
                 if ($conf && !isset($conf['bbs_version'])) {
                     $issues[] = [
@@ -471,6 +482,10 @@ class PluginScanner {
      * @param array &$issues 结果收集
      */
     private function scanLine(string $line, int $lineNumber, string $shortPath, string $contextExt, array $phpOnlyCats, array $htmlOnlyCats, array &$issues): void {
+        // ponytail: JSON 文件不走逐行规则扫描——conf.json 的字段校验在 scanPluginDir 特殊处理块完成，
+        // 逐行扫描 JSON 内容会被 PHP/HTML 规则误报（如 description 字符串里的关键词）
+        if ($contextExt === 'json') return;
+
         // direct_db 抑制：检测"保留 db_*"注释，标记后续 10 行跳过 direct_db 报告
         // 用于跳过已审计的合理保留 SQL（JOIN/系统表/复杂聚合等），符合 bugfix_rules 中"保留的原始 SQL 必须在代码注释中说明保留原因"的要求
         if ($contextExt === 'php' && preg_match('/(保留|@suppress).*db_(?:sql_find|sql_find_one|exec)/', $line)) {
