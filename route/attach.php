@@ -126,7 +126,10 @@ if(empty($action) || $action == 'create') {
         sess_restart();
 
         empty($_SESSION['tmp_files']) AND $_SESSION['tmp_files'] = array();
-        $n = count($_SESSION['tmp_files']);
+        // ponytail: 用 max(array_keys)+1 替代 count()，避免并发上传或中途删除某项后 key 重叠覆盖
+        // 旧逻辑 count() 在 [0,1,3] 这种非连续数组上会得到 3，下次上传 key=3 覆盖已有数据
+        $_keys = array_keys($_SESSION['tmp_files']);
+        $n = empty($_keys) ? 0 : (intval(max($_keys)) + 1);
         $filesize = filesize($tmpfile);
         $attach = array(
             'url'        => $tmpurl,
@@ -227,7 +230,9 @@ if(empty($action) || $action == 'create') {
         sess_restart();
 
         empty($_SESSION['tmp_files']) AND $_SESSION['tmp_files'] = array();
-        $n = count($_SESSION['tmp_files']);
+        // ponytail: 同上，用 max(array_keys)+1 避免并发或非连续 key 覆盖
+        $_keys = array_keys($_SESSION['tmp_files']);
+        $n = empty($_keys) ? 0 : (intval(max($_keys)) + 1);
         $filesize = filesize($tmpfile);
         $attach = array(
             'url'        => $tmpurl,

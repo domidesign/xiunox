@@ -252,8 +252,9 @@ function attach_gc() {
 	if(is_array($tmpfiles)) {
 		foreach($tmpfiles as $file) {
 			// 清理超过一天还没处理的临时文件
+			// ponytail: @unlink 抑制并发清理时文件已被另一进程删除的 warning
 			if($time - filemtime($file) > 86400) {
-				unlink($file);
+				@unlink($file);
 			}
 		}
 	}
@@ -262,7 +263,7 @@ function attach_gc() {
 	if(is_array($thumbfiles)) {
 		foreach($thumbfiles as $file) {
 			if($time - filemtime($file) > 86400) {
-				unlink($file);
+				@unlink($file);
 			}
 		}
 	}

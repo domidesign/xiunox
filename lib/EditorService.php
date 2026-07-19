@@ -10,15 +10,18 @@ class EditorService {
 
     public function getEditorAssets(): array {
         $viewUrl = isset($GLOBALS['conf']['view_url']) ? $GLOBALS['conf']['view_url'] : '/view/';
-        // upload-service.js 用 filemtime 版本号，避免修改后浏览器缓存旧版本
+        // upload-service.js / editor-paste-markdown.js 用 filemtime 版本号，避免修改后浏览器缓存旧版本
         $_uploadServicePath = APP_PATH . 'view/js/upload-service.js';
         $_uploadServiceV = is_file($_uploadServicePath) ? '?v=' . substr(md5((string)filemtime($_uploadServicePath)), 0, 8) : ($GLOBALS['conf']['static_version'] ?? '?1.0');
+        $_pasteMdPath = APP_PATH . 'view/js/editor-paste-markdown.js';
+        $_pasteMdV = is_file($_pasteMdPath) ? '?v=' . substr(md5((string)filemtime($_pasteMdPath)), 0, 8) : ($GLOBALS['conf']['static_version'] ?? '?1.0');
         $assets = [
             'css' => [
                 $viewUrl . 'js/aieditor/style.css',
             ],
             'js' => [
                 $viewUrl . 'js/upload-service.js' . $_uploadServiceV,
+                $viewUrl . 'js/editor-paste-markdown.js' . $_pasteMdV,
                 $viewUrl . 'js/aieditor/index.umd.js',
             ],
         ];
@@ -823,14 +826,14 @@ class EditorService {
             var _origFetch = window.fetch;
             window.fetch = function(input, init) {
                 var urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : '');
-                console.log('[AI Fetch Hook] 拦截到请求:', urlStr);
+                //console.log('[AI Fetch Hook] 拦截到请求:', urlStr);
                 // 用 _ai_proxy=1 标识参数识别 AI 代理请求，不依赖 URL 路径匹配
                 // 兼容所有伪静态格式（url_rewrite_on 0-5：ai-chat.htm / ai/chat / ai-chat.html 等）
                 if (urlStr.indexOf('_ai_proxy=1') === -1) {
-                    console.log('[AI Fetch Hook] 非 AI 请求，放行');
+                    //console.log('[AI Fetch Hook] 非 AI 请求，放行');
                     return _origFetch.apply(this, arguments);
                 }
-                console.log('[AI Fetch Hook] 命中 AI 请求，当前 aiGenerating=', aiGenerating);
+                //console.log('[AI Fetch Hook] 命中 AI 请求，当前 aiGenerating=', aiGenerating);
                 // 防抖：正在生成时拒绝新请求
                 if (aiGenerating) {
                     console.warn('[AI Fetch Hook] 正在生成中，拒绝请求');
@@ -840,18 +843,18 @@ class EditorService {
                     return Promise.reject(new Error('AI generating'));
                 }
                 aiGenerating = true;
-                console.log('[AI Fetch Hook] 设置 aiGenerating=true，显示遮罩');
+                //console.log('[AI Fetch Hook] 设置 aiGenerating=true，显示遮罩');
                 showAiGenerating();
-                console.log('[AI Fetch Hook] 遮罩已创建:', aiOverlay);
+                //console.log('[AI Fetch Hook] 遮罩已创建:', aiOverlay);
                 // 安全兜底：30 秒后自动解锁（防止 stream 异常卡死）
                 var safetyTimer = setTimeout(aiGenDone, 30000);
 
                 return _origFetch.apply(this, arguments).then(function(response) {
-                    console.log('[AI Fetch Hook] 收到响应，status=', response.status, 'body=', !!response.body);
+                    //console.log('[AI Fetch Hook] 收到响应，status=', response.status, 'body=', !!response.body);
                     // 收到响应头说明 AI 已开始输出，立即去掉遮罩，让用户看到文字逐个出现
                     // 防抖锁保持（aiGenerating 仍为 true），防止生成期间再次发起请求
                     hideAiGenerating();
-                    console.log('[AI Fetch Hook] 遮罩已移除，等待 stream 完成');
+                    //console.log('[AI Fetch Hook] 遮罩已移除，等待 stream 完成');
 
                     // 用 TransformStream 包装 response.body，在 stream 关闭时检测 done
                     // 不能用 getReader 包装：AIEditor 的 ER 函数通过 pipeThrough 创建新流，会绕过
@@ -864,7 +867,7 @@ class EditorService {
                             flush: function() {
                                 if (!streamDone) {
                                     streamDone = true;
-                                    console.log('[AI Fetch Hook] TransformStream flush, stream done, 解锁');
+                                    //console.log('[AI Fetch Hook] TransformStream flush, stream done, 解锁');
                                     clearTimeout(safetyTimer);
                                     aiGenDone();
                                 }
@@ -878,13 +881,13 @@ class EditorService {
                             statusText: response.statusText
                         });
                     } else {
-                        console.log('[AI Fetch Hook] 无 body 或不支持 TransformStream，立即解锁');
+                        //console.log('[AI Fetch Hook] 无 body 或不支持 TransformStream，立即解锁');
                         clearTimeout(safetyTimer);
                         aiGenDone();
                         return response;
                     }
                 }).catch(function(err) {
-                    console.error('[AI Fetch Hook] 请求失败，解锁:', err);
+                    //console.error('[AI Fetch Hook] 请求失败，解锁:', err);
                     clearTimeout(safetyTimer);
                     aiGenDone();
                     throw err;
@@ -892,121 +895,15 @@ class EditorService {
             };
             // ===== END AI 生成防抖锁 =====
 
-            // 粘贴 Markdown 自动转 HTML：在 capture 阶段拦截 paste 事件
-            // 核心判断：text/html 与 text/plain 长度比例
-            // - 网页富文本：HTML 含大量标签/样式/嵌套，比例通常 > 5（放行给内置 PasteExt）
-            // - Markdown 编辑器复制：HTML 只是 <pre><code> 简单包装，比例通常 < 2（走 insertMarkdown）
-            // - 纯 Markdown 文本：无 text/html（走 insertMarkdown）
-            container.addEventListener('paste', function(e) {
-                var cd = e.clipboardData || window.clipboardData;
-                if (!cd) return;
-
-                // 图片/文件粘贴不拦截，让 AIEditor 内置逻辑处理上传
-                var hasImage = false;
-                if (cd.files && cd.files.length > 0) {
-                    for (var i = 0; i < cd.files.length; i++) {
-                        if (cd.files[i].type.indexOf('image/') === 0) {
-                            hasImage = true;
-                            break;
-                        }
-                    }
-                }
-                if (hasImage) {
-                    console.log('[Editor Paste] 检测到图片，放行给内置逻辑处理');
-                    return;
-                }
-
-                var text = cd.getData('text/plain');
-                var html = cd.getData('text/html');
-                var textLen = text ? text.length : 0;
-                var htmlLen = html ? html.length : 0;
-                var ratio = textLen > 0 ? htmlLen / textLen : 0;
-                console.log('[Editor Paste] text/plain 长度:', textLen, 'text/html 长度:', htmlLen, '比例:', ratio.toFixed(2));
-
-                // 调试：打印 text/html 前 200 字符和提取的标签
-                if (html) {
-                    console.log('[Editor Paste] text/html 前 200 字符:', html.substring(0, 200));
-                    var tagMatches = html.match(/<(\w+)/g) || [];
-                    var tagSet = {};
-                    for (var i = 0; i < tagMatches.length; i++) {
-                        tagSet[tagMatches[i].substring(1).toLowerCase()] = true;
-                    }
-                    console.log('[Editor Paste] text/html 标签列表:', Object.keys(tagSet));
-                }
-
-                // 没有纯文本时不拦截
-                if (!text) {
-                    console.log('[Editor Paste] 无 text/plain，放行');
-                    return;
-                }
-
-                // 决策逻辑：
-                // 1. 无 text/html + text/plain 像 Markdown → insertMarkdown
-                // 2. 有 text/html 但比例 < 2（简单包装）+ text/plain 像 Markdown → insertMarkdown
-                // 3. 有 text/html 且比例 >= 2（富文本）→ 放行给内置 PasteExt
-                // 4. 其他 → 放行
-                function looksLikeMarkdown(str) {
-                    if (!str) return false;
-                    var patterns = [
-                        /^#{1,6}\s/m,           // 标题
-                        /^\s*[-*+]\s/m,         // 无序列表
-                        /^\s*\d+\.\s/m,         // 有序列表
-                        /^>\s/m,                // 引用
-                        /```/,                  // 代码块
-                        /`[^`]+`/,              // 行内代码
-                        /\*\*[^*]+\*\*/,        // 粗体
-                        /\[.+?\]\(.+?\)/,       // 链接
-                        /^---+$/m,              // 分割线
-                        /^\|.*\|/m              // 表格
-                    ];
-                    var matchCount = 0;
-                    for (var i = 0; i < patterns.length; i++) {
-                        if (patterns[i].test(str)) matchCount++;
-                    }
-                    return matchCount >= 2;
-                }
-
-                var isMarkdown = looksLikeMarkdown(text);
-                var shouldConvert = false;
-
-                if (!html) {
-                    // 无 text/html
-                    if (isMarkdown) {
-                        shouldConvert = true;
-                        console.log('[Editor Paste] 仅 text/plain 且像 Markdown，走 insertMarkdown');
-                    } else {
-                        console.log('[Editor Paste] 仅 text/plain 但非 Markdown，放行');
-                    }
-                } else {
-                    // 有 text/html，用比例判断
-                    if (ratio < 2 && isMarkdown) {
-                        shouldConvert = true;
-                        console.log('[Editor Paste] HTML 比例低 + 像 Markdown，走 insertMarkdown');
-                    } else {
-                        console.log('[Editor Paste] HTML 比例高或非 Markdown，放行给内置逻辑处理');
-                    }
-                }
-
-                if (!shouldConvert) return;
-
-                // 走 Markdown 转换路径
-                e.preventDefault();
-                e.stopImmediatePropagation();
-
-                try {
-                    aiEditorInstance.insertMarkdown(text);
-                    syncEditorContent();
-                    console.log('[Editor Paste] 已通过 insertMarkdown 插入，长度:', text.length);
-                } catch(err) {
-                    console.error('[Editor Paste] insertMarkdown 失败，回退到纯文本插入:', err);
-                    try {
-                        aiEditorInstance.insert(text);
-                        syncEditorContent();
-                    } catch(e2) {
-                        console.error('[Editor Paste] 回退插入也失败:', e2);
-                    }
-                }
-            }, true); // capture 阶段，优先级高于内置 PasteExt
+            // 粘贴 Markdown 自动转 HTML：复用公共模块 view/js/editor-paste-markdown.js
+            // 识别 IDE/Typora/纯文本等 markdown 复制场景，自动调用 insertMarkdown 转换为 HTML
+            if (typeof window.setupEditorPasteMarkdown === 'function') {
+                window.setupEditorPasteMarkdown(
+                    container,
+                    function() { return aiEditorInstance; },
+                    syncEditorContent
+                );
+            }
 
             // AI 未配置完整时，给 AI 按钮绑定提示和跳转
             if (!aiConfigured) {

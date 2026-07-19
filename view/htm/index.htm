@@ -34,18 +34,19 @@
 		<div class="  py-1 pe-3">
 			<div class="d-flex justify-content-between align-items-center flex-wrap">
 				<ul class="nav thread-nav-tabs" role="tablist">
-					<li class="nav-item"><a class="nav-link<?php echo ($order == 'lastpid' || $order == 'tid') ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'lastpid'));?>" hx-get="<?php echo url("$route", array('order' => 'lastpid'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('latest_tab');?></a></li>
-					<li class="nav-item"><a class="nav-link<?php echo $order == 'hot' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'hot'));?>" hx-get="<?php echo url("$route", array('order' => 'hot'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('hottest_tab');?></a></li>
-					<li class="nav-item"><a class="nav-link<?php echo $order == 'digest' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'digest'));?>" hx-get="<?php echo url("$route", array('order' => 'digest'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('digest');?></a></li>
-					<?php if(!empty($uid)) { ?>
-					<li class="nav-item"><a class="nav-link<?php echo $order == 'follow' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'follow'));?>" hx-get="<?php echo url("$route", array('order' => 'follow'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('follow_tab');?></a></li>
-					<?php } ?>
+					<?php // ponytail: hx-swap=outerHTML + hx-select=#body 用响应中的新 #body 整体替换旧 #body；之前用 innerHTML 会把新 main#body 嵌套进旧 #body 内，造成左侧栏/tabs/右侧栏布局失效 ?>
+				<li class="nav-item"><a class="nav-link<?php echo ($order == 'lastpid' || $order == 'tid') ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'lastpid'));?>" hx-get="<?php echo url("$route", array('order' => 'lastpid'));?>" hx-target="#body" hx-select="#body" hx-swap="outerHTML" hx-push-url="true"><?php echo lang('latest_tab');?></a></li>
+				<li class="nav-item"><a class="nav-link<?php echo $order == 'hot' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'hot'));?>" hx-get="<?php echo url("$route", array('order' => 'hot'));?>" hx-target="#body" hx-select="#body" hx-swap="outerHTML" hx-push-url="true"><?php echo lang('hottest_tab');?></a></li>
+				<li class="nav-item"><a class="nav-link<?php echo $order == 'digest' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'digest'));?>" hx-get="<?php echo url("$route", array('order' => 'digest'));?>" hx-target="#body" hx-select="#body" hx-swap="outerHTML" hx-push-url="true"><?php echo lang('digest');?></a></li>
+				<?php if(!empty($uid)) { ?>
+				<li class="nav-item"><a class="nav-link<?php echo $order == 'follow' ? ' active' : '';?>" role="tab" href="<?php echo url("$route", array('order' => 'follow'));?>" hx-get="<?php echo url("$route", array('order' => 'follow'));?>" hx-target="#body" hx-select="#body" hx-swap="outerHTML" hx-push-url="true"><?php echo lang('follow_tab');?></a></li>
+				<?php } ?>
 					<!--{hook index_thread_list_nav_item_after.htm}-->
 				</ul>
 				<?php if($order == 'lastpid' || $order == 'tid') { ?>
 				<div class="btn-group btn-group-sm" role="group">
-					<a class="btn btn-outline-secondary<?php echo $order == 'lastpid' ? ' active' : '';?>" href="<?php echo url("$route", array('order' => 'lastpid'));?>" hx-get="<?php echo url("$route", array('order' => 'lastpid'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('latest_reply');?></a>
-					<a class="btn btn-outline-secondary<?php echo $order == 'tid' ? ' active' : '';?>" href="<?php echo url("$route", array('order' => 'tid'));?>" hx-get="<?php echo url("$route", array('order' => 'tid'));?>" hx-target="#body" hx-select="#body" hx-swap="innerHTML" hx-push-url="true"><?php echo lang('new_thread');?></a>
+					<a class="btn btn-outline-secondary<?php echo $order == 'lastpid' ? ' active' : '';?>" href="<?php echo url("$route", array('order' => 'lastpid'));?>" hx-get="<?php echo url("$route", array('order' => 'lastpid'));?>" hx-target="#body" hx-select="#body" hx-swap="outerHTML" hx-push-url="true"><?php echo lang('latest_reply');?></a>
+				<a class="btn btn-outline-secondary<?php echo $order == 'tid' ? ' active' : '';?>" href="<?php echo url("$route", array('order' => 'tid'));?>" hx-get="<?php echo url("$route", array('order' => 'tid'));?>" hx-target="#body" hx-select="#body" hx-swap="outerHTML" hx-push-url="true"><?php echo lang('new_thread');?></a>
 				</div>
 				<?php } ?>
 			</div>

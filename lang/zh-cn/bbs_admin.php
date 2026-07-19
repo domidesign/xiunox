@@ -1436,7 +1436,7 @@ return array(
 	'admin_permalink_copied'=>'已复制',
 	'admin_permalink_detecting'=>'正在检测 rewrite 是否生效...',
 	'admin_permalink_detect_success'=>'Rewrite 规则已生效，设置保存成功',
-	'admin_permalink_detect_fail'=>'Rewrite 规则未生效，已回滚设置。请先配置 Web 服务器的 rewrite 规则',
+	'admin_permalink_detect_fail'=>'Rewrite 规则检测未通过，但设置已保留。请检查 Web 服务器的 rewrite 规则是否正确配置',
 	'admin_permalink_nginx_label'=>'Nginx',
 	'admin_permalink_apache_label'=>'Apache',
 	'admin_permalink_current'=>'当前',
