@@ -695,7 +695,10 @@ function openExtRefModal() {
 	var fidSelect = document.querySelector('select[name="fid"]');
 	function checkCredits() {
 		var fid = fidSelect ? fidSelect.value : defaultFid;
-		fetch(creditsCheckUrl + '?event=' + creditsEvent + '&fid=' + fid, {
+		// ponytail: creditsCheckUrl 在 url_rewrite_on=0 下为 /?my-credits_check.htm（已含 ?），
+		// 追加 query 必须判断分隔符，否则双 ? 会导致 PHP 解析失败
+		var _sep = creditsCheckUrl.indexOf('?') >= 0 ? '&' : '?';
+		fetch(creditsCheckUrl + _sep + 'event=' + creditsEvent + '&fid=' + fid, {
 			headers: {'X-Requested-With': 'XMLHttpRequest'}
 		}).then(function(r) { return r.json(); }).then(function(res) {
 			if (res.code == 0 && res.data && res.data.deduct_desc) {
