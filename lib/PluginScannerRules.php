@@ -18,14 +18,14 @@ class PluginScannerRules {
                 'mysql_result', 'mysql_list_tables', 'mysql_list_fields', 'mysql_db_name',
                 'mysql_pconnect', 'mysql_get_server_info', 'mysql_set_charset',
                 '\beach\(' => 'each() 函数已移除，改用 foreach', 
-                'create_function(', 
+                'create_function\(' => 'create_function() 函数已移除，改用匿名函数',
                 '\bsplit\(' => 'split() 函数已移除，改用 preg_split 或 explode',
                 '\bspliti\(' => 'spliti() 函数已移除，改用 preg_split 带 i 修饰符',
                 '\bereg\(' => 'ereg() 函数已移除，改用 preg_match',
                 '\bereg_replace\(' => 'ereg_replace() 函数已移除，改用 preg_replace',
                 '\beregi\(' => 'eregi() 函数已移除，改用 preg_match 带 i 修饰符',
                 '\beregi_replace\(' => 'eregi_replace() 函数已移除，改用 preg_replace 带 i 修饰符',
-                'call_user_method(',
+                'call_user_method\(' => 'call_user_method() 函数已移除，改用 call_user_func()',
             ],
             'php8_syntax' => [
                 '&new ' => '&new 语法已移除，改用 new',
@@ -143,17 +143,17 @@ class PluginScannerRules {
                 'method="post"' => 'POST 表单缺少 CSRF 令牌，请添加 CsrfService::input()',
             ],
             'direct_db' => [
-                'db_exec(' => '原始 SQL 执行，注意 SQL 注入风险',
-                'db_sql_find_one(' => '原始 SQL 查询，注意 SQL 注入风险，建议优先使用 db_find_one()',
-                'db_sql_find(' => '原始 SQL 查询，注意 SQL 注入风险，建议优先使用 db_find()',
+                'db_exec\(' => '原始 SQL 执行，注意 SQL 注入风险',
+                'db_sql_find_one\(' => '原始 SQL 查询，注意 SQL 注入风险，建议优先使用 db_find_one()',
+                'db_sql_find\(' => '原始 SQL 查询，注意 SQL 注入风险，建议优先使用 db_find()',
             ],
             'php8_deprecated' => [
                 'get_magic_quotes_gpc' => 'get_magic_quotes_gpc() 在 PHP 7.4 废弃、8.0 移除，始终返回 false',
                 'get_magic_quotes_runtime' => 'get_magic_quotes_runtime() 在 PHP 7.4 废弃、8.0 移除',
-                'utf8_encode(' => 'utf8_encode() 在 PHP 8.2 废弃，使用 mb_convert_encoding()',
-                'utf8_decode(' => 'utf8_decode() 在 PHP 8.2 废弃，使用 mb_convert_encoding()',
-                'money_format(' => 'money_format() 在 PHP 7.4 废弃、8.0 移除，使用 NumberFormatter',
-                'is_resource(' => 'is_resource() 对 PDO/MySQLi 对象返回 false（PHP 8.0+），改用 instanceof',
+                'utf8_encode\(' => 'utf8_encode() 在 PHP 8.2 废弃，使用 mb_convert_encoding()',
+                'utf8_decode\(' => 'utf8_decode() 在 PHP 8.2 废弃，使用 mb_convert_encoding()',
+                'money_format\(' => 'money_format() 在 PHP 7.4 废弃、8.0 移除，使用 NumberFormatter',
+                'is_resource\(' => 'is_resource() 对 PDO/MySQLi 对象返回 false（PHP 8.0+），改用 instanceof',
             ],
             'icon_libraries' => [
                 'class="[^"]*\bfa-[a-z]' => 'Font Awesome 图标 → Tabler Icons ti-*',
@@ -161,8 +161,8 @@ class PluginScannerRules {
                 'class="[^"]*glyphicon glyphicon-' => 'Glyphicon 图标 → Tabler Icons ti-*',
             ],
             'frontend_md5' => [
-                'hex_md5(' => '前端 MD5 哈希已移除，密码必须明文提交由服务端 password_md5() 处理',
-                'md5_hex(' => '前端 MD5 哈希已移除，密码必须明文提交由服务端 password_md5() 处理',
+                'hex_md5\(' => '前端 MD5 哈希已移除，密码必须明文提交由服务端 password_md5() 处理',
+                'md5_hex\(' => '前端 MD5 哈希已移除，密码必须明文提交由服务端 password_md5() 处理',
             ],
             // XSS 风险检测（warning 级别，可跳过）
             'php_superglobal_output' => [
@@ -219,6 +219,7 @@ class PluginScannerRules {
             'install_non_idempotent' => 'warning',
             'capabilities_format' => 'warning',
             'conf_version' => 'error',
+            'conf_required_fields' => 'fatal',
             // XSS 风险统一 warning（可跳过，不强制阻止安装）
             'php_superglobal_output' => 'warning',
             'js_eval_call' => 'warning',
@@ -245,6 +246,7 @@ class PluginScannerRules {
             'hook_htm_header',
             'app_path_in_url',
             'conf_version',
+            'conf_required_fields',
         ];
     }
 
@@ -284,6 +286,7 @@ class PluginScannerRules {
             'install_non_idempotent' => 'CREATE TABLE 缺少 IF NOT EXISTS',
             'capabilities_format' => 'capabilities 字段格式不正确（应为 lowercase.dots 字符串数组）',
             'conf_version' => 'conf.json 版本兼容性检查（bbs_version 缺失或低于 1.0.2）',
+            'conf_required_fields' => 'conf.json 必填字段缺失（name）',
             // XSS 风险分类中文名
             'php_superglobal_output' => 'PHP 超全局变量直接输出（反射型 XSS）',
             'js_eval_call' => 'JS eval() 调用（代码注入风险）',

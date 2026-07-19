@@ -168,14 +168,27 @@ if($action == 'local') {
 	$scanner = new PluginScanner();
 	$scanResult = $scanner->scanBeforeInstall($dir);
 	
-	if(!$scanResult['can_install'] && !$force) {
+	// forceBlocked 不可被 force 跳过（conf_version/conf_required_fields 等强制阻断分类）
+	// ponytail: force=1 时仅放行非 forceBlocked 的 fatal/error，forceBlocked 仍阻止；force=0 时全部阻止
+	$hardBlocked = !empty($scanResult['force_blocked']);
+	$softBlocked = !$scanResult['can_install'];
+	if($hardBlocked || ($softBlocked && !$force)) {
 		// 有致命问题，阻止安装，返回扫描结果
 		plugin_lock_end();
-		$fatalList = [];
-		foreach($scanResult['fatal'] as $f) {
-			$fatalList[] = $f['file'] . ':' . $f['line'] . ' ' . $f['suggestion'];
+		$blockedList = [];
+		$shown = [];
+		// force=1 时只显示 force_blocked；force=0 时显示 fatal + force_blocked + error（去重）
+		$keys = $force ? array('force_blocked') : array('fatal', 'force_blocked', 'error');
+		foreach($keys as $key) {
+			if(empty($scanResult[$key])) continue;
+			foreach($scanResult[$key] as $f) {
+				$k = $f['file'].':'.$f['line'].':'.$f['category'];
+				if(isset($shown[$k])) continue;
+				$shown[$k] = true;
+				$blockedList[] = $f['file'].':'.$f['line'].' '.$f['suggestion'];
+			}
 		}
-		$msg = lang('plugin_install_blocked', array('name'=>$name, 'issues'=>implode("\n", $fatalList)));
+		$msg = lang('plugin_install_blocked', array('name'=>$name, 'issues'=>implode("\n", $blockedList)));
 		message(-1, $msg);
 	}
 	
@@ -593,11 +606,19 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 			rmdir_recusive($pluginPath);
 			plugin_clear_tmp_dir();
 			plugin_lock_end();
-			$fatalList = array();
-			foreach($scanResult['fatal'] as $f) {
-				$fatalList[] = $f['file'].':'.$f['line'].' '.$f['suggestion'];
+			// 合并 fatal + force_blocked + error 去重显示（原代码只显示 fatal，error 级问题不可见）
+			$blockedList = array();
+			$shown = array();
+			foreach(array('fatal', 'force_blocked', 'error') as $key) {
+				if(empty($scanResult[$key])) continue;
+				foreach($scanResult[$key] as $f) {
+					$k = $f['file'].':'.$f['line'].':'.$f['category'];
+					if(isset($shown[$k])) continue;
+					$shown[$k] = true;
+					$blockedList[] = $f['file'].':'.$f['line'].' '.$f['suggestion'];
+				}
 			}
-			$msg = lang('plugin_install_blocked', array('name'=>$pluginName, 'issues'=>implode("\n", $fatalList)));
+			$msg = lang('plugin_install_blocked', array('name'=>$pluginName, 'issues'=>implode("\n", $blockedList)));
 			message(-1, $msg);
 		}
 

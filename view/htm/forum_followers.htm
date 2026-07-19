@@ -76,7 +76,9 @@
 				</div>
 			</div>
 			<div class="px-3 pb-3">
-				<a role="button" class="btn btn-primary w-100" href="<?php echo thread_create_url($fid);?>" hx-boost="false"><i class="ti ti-pencil me-1"></i> <?php echo lang('thread_create_new');?></a>
+			<?php if(forum_can_post($fid, $gid)) { ?>
+			<a role="button" class="btn btn-primary w-100" href="<?php echo thread_create_url($fid);?>" hx-boost="false"><i class="ti ti-pencil me-1"></i> <?php echo lang('thread_create_new');?></a>
+			<?php } ?>
 		</div>
 <?php $right_html = ob_get_clean(); $sidebar_right_file = ''; $main_class = 'main'; $right_class = 'aside'; include _include(APP_PATH.'view/htm/layout_three_column.inc.htm');?>
 

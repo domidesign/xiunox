@@ -17,8 +17,8 @@ $_fa_is_user_auth = ($route == 'user' && in_array($_fa_action, array('login', 'c
 // 是否显示返回按钮（非首页、非登录注册页都显示返回）
 $_fa_show_back = !$_fa_is_index && !$_fa_is_user_auth;
 
-// 是否显示发帖按钮（已登录 + 首页/版块页/帖子详情页，排除发帖页本身）
-$_fa_show_post = !empty($uid) && ($_fa_is_index || $_fa_is_forum || $_fa_is_thread) && !$_fa_is_thread_create;
+// 是否显示发帖按钮（已登录 + 首页/版块页/帖子详情页，排除发帖页本身 + 当前版块在白名单内）
+$_fa_show_post = !empty($uid) && ($_fa_is_index || $_fa_is_forum || $_fa_is_thread) && !$_fa_is_thread_create && forum_can_post($fid, $gid);
 
 // 是否显示回复按钮（已登录 + 帖子详情页 + 帖子未关闭）
 $_fa_show_reply = false;
@@ -86,11 +86,21 @@ $_fa_user_gid = intval($gid);
 
     var isLoggedIn = <?php echo $_fa_logged_in;?>;
     var userGid = <?php echo $_fa_user_gid;?>;
+    var isAdmin = userGid === 1 || userGid === 2;
+    var postForumIds = <?php echo xn_json_encode(isset($conf['post_forum_ids']) ? $conf['post_forum_ids'] : array());?>;
     var homeUrl = '<?php echo index_url();?>';
     var threadCreateBaseUrl = '<?php echo thread_create_url();?>';
     var replyBaseUrl = '<?php echo url("post-create");?>';
     var langPost = '<?php echo lang('floating_post');?>';
     var langReply = '<?php echo lang('floating_reply');?>';
+
+    // 白名单校验（与 PHP 端 forum_can_post 语义一致：管理员豁免 / 空白名单放行 / fid=0 放行）
+    function canPostToForum(fid) {
+        if(isAdmin) return true;
+        if(postForumIds.length === 0) return true;
+        if(fid === 0) return true;
+        return postForumIds.indexOf(fid) !== -1;
+    }
 
     // 从 URL 解析当前页面类型
     function getPageInfo() {
@@ -142,9 +152,9 @@ $_fa_user_gid = intval($gid);
             }
         }
 
-        // 发帖按钮：已登录 + 首页/版块页/帖子详情页显示
+        // 发帖按钮：已登录 + 首页/版块页/帖子详情页显示 + 当前版块在白名单内
         if(fabPost) {
-            if(isLoggedIn && (info.type === 'index' || info.type === 'forum' || info.type === 'thread')) {
+            if(isLoggedIn && (info.type === 'index' || info.type === 'forum' || info.type === 'thread') && canPostToForum(info.fid)) {
                 fabPost.removeAttribute('hidden');
                 // url() 已添加 .htm 后缀，需在 .htm 前插入 -fid
                 var postUrl = info.fid > 0
