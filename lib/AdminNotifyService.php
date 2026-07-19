@@ -18,8 +18,8 @@ class AdminNotifyService {
 
     // 防抖 cache key 前缀
     const DEBOUNCE_PREFIX = 'admin_notify_';
-    // 防抖 TTL（24 小时）
-    const DEBOUNCE_TTL = 86400;
+    // 防抖 TTL（30 分钟； ponytail: 原 24h 过长，用户反馈"根本不通知"，缩短到 30min 平衡及时性与防刷屏）
+    const DEBOUNCE_TTL = 1800;
 
     // ===== 公有 API =====
 
@@ -54,18 +54,27 @@ class AdminNotifyService {
         $enabled = is_array($plugin_cfg) && isset($plugin_cfg['admin_notify_enabled'])
             ? intval($plugin_cfg['admin_notify_enabled'])
             : 0;
+        // ponytail: 调试日志，帮助排查"管理员没收到通知"根因（2026-07-19 用户反馈第一次就没收到）
+        error_log('[AdminNotify] audit() start: plugin=' . $plugin . ' audit_type=' . $audit_type . ' enabled=' . $enabled . ' cfg_keys=' . (is_array($plugin_cfg) ? implode(',', array_keys($plugin_cfg)) : 'not_array'));
         if (empty($enabled)) {
             // 用户明确关闭，不写防抖标记，下次开启后立即生效
             $result['reason'] = 'disabled';
+            error_log('[AdminNotify] return disabled: admin_notify_enabled=0');
             return $result;
         }
 
         // 2. 防抖检查
         $debounce_key = self::DEBOUNCE_PREFIX . $plugin . '_' . $audit_type;
-        if (cache_get($debounce_key) !== NULL) {
+        // ponytail: cache_get 在 MySQL 驱动键不存在返回 FALSE、Redis 驱动返回 NULL；
+        // 原 `!== NULL` 在 MySQL 驱动下 FALSE!==NULL 恒为 true 导致防抖永远命中（第一次就不发）。
+        // 改为同时排除 FALSE 和 NULL，两种驱动都兼容。
+        $debounce_val = cache_get($debounce_key);
+        if ($debounce_val !== FALSE && $debounce_val !== NULL) {
             $result['reason'] = 'debounced';
+            error_log('[AdminNotify] return debounced: key=' . $debounce_key . ' val=' . var_export($debounce_val, true));
             return $result;
         }
+        error_log('[AdminNotify] debounce miss (ok): key=' . $debounce_key . ' val=' . var_export($debounce_val, true));
 
         // 3. 获取接收人 admin_uids（options 覆盖 > 插件配置 > fallback gid=1）
         $admin_uids = array();
@@ -91,8 +100,10 @@ class AdminNotifyService {
         }
         if (empty($admin_uids)) {
             $result['reason'] = 'no_recipients';
+            error_log('[AdminNotify] return no_recipients: plugin_cfg.admin_notify_uids=' . (isset($plugin_cfg['admin_notify_uids']) ? var_export($plugin_cfg['admin_notify_uids'], true) : 'unset'));
             return $result;
         }
+        error_log('[AdminNotify] admin_uids=' . implode(',', $admin_uids));
 
         $from_uid = isset($options['from_uid']) ? intval($options['from_uid']) : 0;
         $skip_notify = !empty($options['skip_notify']);
@@ -114,6 +125,7 @@ class AdminNotifyService {
                     'url' => $url,
                 );
                 $ret = notify_create($uid, $from_uid, 'audit_pending', 0, 0, $subject, $extra);
+                error_log('[AdminNotify] notify_create: uid=' . $uid . ' from_uid=' . $from_uid . ' subject=' . substr($subject, 0, 60) . ' ret=' . var_export($ret, true));
                 if ($ret !== FALSE) {
                     $sent_notify++;
                 }
@@ -150,8 +162,12 @@ class AdminNotifyService {
             }
         }
 
-        // 7. 写防抖标记（只要站内通知发出就算成功）
-        cache_set($debounce_key, 1, self::DEBOUNCE_TTL);
+        // 7. 写防抖标记（只在站内通知发出或主动跳过时才写，避免发送失败也写防抖导致后续不再尝试）
+        // ponytail: 原代码无条件写入，若 notify_create 全部失败（如 db 异常）也会写防抖，
+        // 导致 30 分钟内不再尝试，用户感知为"根本不通知"。改为仅在成功时写入。
+        if ($sent_notify > 0 || $skip_notify) {
+            cache_set($debounce_key, 1, self::DEBOUNCE_TTL);
+        }
 
         // 8. 返回结果：站内通知发出即视为成功
         $result['ok'] = ($sent_notify > 0 || $skip_notify);
@@ -160,6 +176,7 @@ class AdminNotifyService {
         if (!$result['ok']) {
             $result['reason'] = 'notify_failed';
         }
+        error_log('[AdminNotify] audit() done: ok=' . ($result['ok'] ? 1 : 0) . ' reason=' . $result['reason'] . ' sent_notify=' . $sent_notify . ' sent_mail=' . $sent_mail . ' smtp_ok=' . ($smtp_ok ? 1 : 0));
         return $result;
     }
 

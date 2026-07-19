@@ -1242,6 +1242,13 @@ if(empty($action)) {
 		$unreadClass = empty($item['is_read']) ? ' notice-unread' : '';
 		$unreadDot = empty($item['is_read']) ? '<span class="badge bg-primary rounded-pill flex-shrink-0" style="font-size:0.5rem;padding:2px 5px;">新</span>' : '';
 		$href = !empty($item['url']) ? $item['url'] : my_notify_url();
+		// v1.6.0: audit_pending 类型显示具体内容（应用名等），而非仅显示"待审核"标签
+		if($_is_audit) {
+			$_audit_content = isset($item['content']) ? trim($item['content']) : '';
+			if($_audit_content !== '') {
+				$typeLabel = $_audit_content;
+			}
+		}
 
 		$html .= '<a href="' . htmlspecialchars($href) . '" class="dropdown-item d-flex align-items-center gap-2 px-3 py-2 notice-dropdown-item' . $unreadClass . '" data-nid="' . $item['nid'] . '" data-source="notify" hx-boost="false">';
 		if($_is_audit) {

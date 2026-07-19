@@ -390,7 +390,8 @@ function notify_format(&$notify, $prefetched = array()) {
 		$notify['from_is_system'] = FALSE;
 	}
 
-	$notify['url'] = '';
+	// ponytail: tid>0 时用帖子链接覆盖；tid=0 时保留 notify 表中存储的 url（如 audit_pending 的应用详情链接）。
+	// 原代码无条件 `$notify['url'] = ''` 会清空 audit_pending/report_xxx 等无 tid 通知的自定义 url。
 	if($notify['tid'] > 0) {
 		$notify['url'] = url('thread-'.$notify['tid']);
 	}
