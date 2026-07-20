@@ -1829,7 +1829,7 @@ function xn_html_purify($html, $config = array()) {
     if (class_exists('HTMLPurifier_HTML5Config')) {
         // 使用 HTML5 配置，支持 video/audio/source 等 HTML5 元素
         $purifierConfig = HTMLPurifier_HTML5Config::createDefault();
-        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height|style],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,ins,mark,dl,dt,dd,video[src|controls|preload|class|style|width|height],source[src|type],audio[controls|preload|class|style],figure,figcaption,iframe[src|width|height|frameborder|class|style]');
+        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height|style],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,s,ins,mark,dl,dt,dd,video[src|controls|preload|class|style|width|height],source[src|type],audio[controls|preload|class|style],figure,figcaption,iframe[src|width|height|frameborder|class|style]');
         $purifierConfig->set('Attr.AllowedFrameTargets', array('_blank', '_self', '_parent', '_top'));
         $purifierConfig->set('Attr.AllowedRel', array('noopener', 'noreferrer', 'nofollow'));
         $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,max-width,height,border');
@@ -1871,7 +1871,7 @@ function xn_html_purify($html, $config = array()) {
     }
     if (class_exists('HTMLPurifier', false)) {
         $purifierConfig = HTMLPurifier_Config::createDefault();
-        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height|style],video[src|controls|preload|width|style],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style|data-type|data-params],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,ins,mark,dl,dt,dd,iframe[src|width|height|frameborder|class|style]');
+        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height|style],video[src|controls|preload|width|style],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style|data-type|data-params],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,s,ins,mark,dl,dt,dd,iframe[src|width|height|frameborder|class|style]');
         $purifierConfig->set('Attr.AllowedFrameTargets', array('_blank', '_self', '_parent', '_top'));
         $purifierConfig->set('Attr.AllowedRel', array('noopener', 'noreferrer', 'nofollow'));
         $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,max-width,height,border');
@@ -1942,7 +1942,7 @@ function xn_signature_purify($html) {
     }
 
     // 基础排版白名单：仅允许内联排版标签，禁止块级/媒体/嵌入元素
-    $allowedTags = 'p[style],br,b,i,u,strong,em,a[href|title|target|rel],span[style|class],sub,sup,del,ins,mark,abbr[title],code';
+    $allowedTags = 'p[style],br,b,i,u,strong,em,a[href|title|target|rel],span[style|class],sub,sup,del,s,ins,mark,abbr[title],code';
 
     if (class_exists('HTMLPurifier_HTML5Config')) {
         $purifierConfig = HTMLPurifier_HTML5Config::createDefault();

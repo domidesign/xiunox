@@ -1439,6 +1439,7 @@ return array(
 	'admin_permalink_detect_fail'=>'Rewrite 规则检测未通过，但设置已保留。请检查 Web 服务器的 rewrite 规则是否正确配置',
 	'admin_permalink_nginx_label'=>'Nginx',
 	'admin_permalink_apache_label'=>'Apache',
+	'admin_permalink_caddy_label'=>'Caddy',
 	'admin_permalink_current'=>'当前',
 	'admin_permalink_warning'=>'切换 URL 风格后，旧链接将自动 301 重定向到新格式。后台始终使用兼容模式，不受伪静态风格影响。',
 	'admin_permalink_skip_detect'=>'跳过 rewrite 检测',

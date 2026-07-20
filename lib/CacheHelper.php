@@ -467,14 +467,6 @@ class CacheHelper {
         self::$stats['keys'][$key][$type]++;
         if($type === 'hit') self::$stats['hit']++;
         if($type === 'miss') self::$stats['miss']++;
-
-        // DEBUG>1 模式仅记录缓存未命中（HIT/SET 是正常行为不记录，避免日志爆炸）
-        if(defined('DEBUG') && DEBUG > 1 && $type === 'miss') {
-            $pluginTag = $plugin ? "[{$plugin}]" : '[core]';
-            if(function_exists('xn_log')) {
-                xn_log("{$pluginTag} MISS {$key}", 'cache_debug');
-            }
-        }
     }
 
     /**

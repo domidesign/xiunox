@@ -242,12 +242,13 @@ $('.audit-approve').on('click', function() {
 $('.audit-reject').on('click', function() {
     var type = $(this).data('type');
     var id = $(this).data('id');
-    var reason = prompt('<?php echo lang('admin_reject_reason_prompt')?>');
-    $.xpost('<?php echo admin_security_url('audit');?>', {csrf_token: csrf_token, audit_action: 'reject', target_type: type, target_id: id, reason: reason || ''}, function(code, message) {
-        if(code == 0) {
-            showToast(message, 'success');
-            setTimeout(function(){ location.reload(); }, 1000);
-        } else { showToast(message, 'error'); }
+    XN.prompt('<?php echo lang('admin_reject_reason_prompt')?>', '', function(reason) {
+        $.xpost('<?php echo admin_security_url('audit');?>', {csrf_token: csrf_token, audit_action: 'reject', target_type: type, target_id: id, reason: reason || ''}, function(code, message) {
+            if(code == 0) {
+                showToast(message, 'success');
+                setTimeout(function(){ location.reload(); }, 1000);
+            } else { showToast(message, 'error'); }
+        });
     });
 });
 
@@ -295,12 +296,13 @@ $('.audit-profile-approve').on('click', function() {
 // 资料审核驳回
 $('.audit-profile-reject').on('click', function() {
     var id = $(this).data('id');
-    var reason = prompt('<?php echo lang('admin_reject_reason_prompt')?>');
-    $.xpost('<?php echo admin_security_url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_reject', audit_id: id, reason: reason || ''}, function(code, message) {
-        if(code == 0) {
-            showToast(message, 'success');
-            setTimeout(function(){ location.reload(); }, 1000);
-        } else { showToast(message, 'error'); }
+    XN.prompt('<?php echo lang('admin_reject_reason_prompt')?>', '', function(reason) {
+        $.xpost('<?php echo admin_security_url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_reject', audit_id: id, reason: reason || ''}, function(code, message) {
+            if(code == 0) {
+                showToast(message, 'success');
+                setTimeout(function(){ location.reload(); }, 1000);
+            } else { showToast(message, 'error'); }
+        });
     });
 });
 

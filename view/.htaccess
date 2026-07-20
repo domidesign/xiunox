@@ -1,0 +1,17 @@
+# view/ 静态资源缓存策略
+# ponytail: 不用 mod_expires（部分环境未启用），用 mod_headers 的 Cache-Control 通用性更好
+
+# 字体：几乎永不变，1 年 immutable
+<FilesMatch "\.(woff2?|ttf|eot|otf)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+</FilesMatch>
+
+# CSS/JS/图片：30 天 immutable（升级靠 static_version 查询参数破缓存）
+<FilesMatch "\.(css|js|gif|jpeg|jpg|png|webp|avif|svg|ico)$">
+    Header set Cache-Control "public, max-age=2592000, immutable"
+</FilesMatch>
+
+# HTML 不缓存（含动态内容，由 PHP 控制响应头）
+<FilesMatch "\.html?$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+</FilesMatch>

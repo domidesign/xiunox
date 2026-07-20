@@ -51,9 +51,10 @@ $_sidebar_nav_enable = !isset($conf['sidebar_nav_enable']) ? 1 : (!empty($conf['
 			<li class="side-nav-title"><?php echo esc_html($_sni['name']);?></li>
 		<?php
 					} else {
+						$_side_active = NavService::isActive($_sni['url']);
 		?>
-			<li class="side-nav-item" data-active="nav-<?php echo esc_attr($_sni['slug'] ?? '');?>">
-				<a href="<?php echo esc_attr($_side_url);?>" class="side-nav-link<?php echo !empty($_sni['class']) ? ' '.esc_attr($_sni['class']) : '';?>">
+			<li class="side-nav-item<?php echo $_side_active ? ' active' : '';?>" data-active="nav-<?php echo esc_attr($_sni['slug'] ?? '');?>">
+				<a href="<?php echo esc_attr($_side_url);?>" class="side-nav-link<?php echo $_side_active ? ' active' : '';?><?php echo !empty($_sni['class']) ? ' '.esc_attr($_sni['class']) : '';?>">
 						<span class="menu-icon"><?php if(!empty($_sni['icon'])) { ?><i class="<?php echo esc_attr($_sni['icon']);?>"></i><?php } else { ?><i class="ti ti-folder"></i><?php } ?></span>
 						<span class="menu-text"><?php echo esc_html($_sni['name']);?></span>
 					</a>
@@ -67,9 +68,11 @@ $_sidebar_nav_enable = !isset($conf['sidebar_nav_enable']) ? 1 : (!empty($conf['
 					<?php if(!empty($_sni['icon'])) { ?><i class="<?php echo esc_attr($_sni['icon']);?> me-1"></i><?php } ?>
 					<?php echo esc_html($_sni['name']);?>
 				</li>
-				<?php foreach($_side_children as $_clink) { ?>
-				<li class="side-nav-item side-nav-child" data-active="nav-<?php echo esc_attr($_clink['slug'] ?? '');?>">
-				<a href="<?php echo esc_attr(NavService::href($_clink['url']));?>" class="side-nav-link<?php echo !empty($_clink['class']) ? ' '.esc_attr($_clink['class']) : '';?>">
+				<?php foreach($_side_children as $_clink) {
+					$_child_active = NavService::isActive($_clink['url']);
+				?>
+				<li class="side-nav-item side-nav-child<?php echo $_child_active ? ' active' : '';?>" data-active="nav-<?php echo esc_attr($_clink['slug'] ?? '');?>">
+				<a href="<?php echo esc_attr(NavService::href($_clink['url']));?>" class="side-nav-link<?php echo $_child_active ? ' active' : '';?><?php echo !empty($_clink['class']) ? ' '.esc_attr($_clink['class']) : '';?>">
 						<span class="menu-icon"><?php if(!empty($_clink['icon'])) { ?><i class="<?php echo esc_attr($_clink['icon']);?>"></i><?php } else { ?><i class="ti ti-link"></i><?php } ?></span>
 						<span class="menu-text"><?php echo esc_html($_clink['name']);?></span>
 					</a>
@@ -80,17 +83,18 @@ $_sidebar_nav_enable = !isset($conf['sidebar_nav_enable']) ? 1 : (!empty($conf['
 					$_side_i = $_side_j;
 				} else {
 					// 一级 link
+					$_side_active = NavService::isActive($_sni['url']);
 			?>
-				<li class="side-nav-item" data-active="nav-<?php echo esc_attr($_sni['slug'] ?? '');?>">
-				<a href="<?php echo esc_attr(NavService::href($_sni['url']));?>" class="side-nav-link<?php echo !empty($_sni['class']) ? ' '.esc_attr($_sni['class']) : '';?>">
+				<li class="side-nav-item<?php echo $_side_active ? ' active' : '';?>" data-active="nav-<?php echo esc_attr($_sni['slug'] ?? '');?>">
+				<a href="<?php echo esc_attr(NavService::href($_sni['url']));?>" class="side-nav-link<?php echo $_side_active ? ' active' : '';?><?php echo !empty($_sni['class']) ? ' '.esc_attr($_sni['class']) : '';?>">
 						<span class="menu-icon"><?php if(!empty($_sni['icon'])) { ?><i class="<?php echo esc_attr($_sni['icon']);?>"></i><?php } else { ?><i class="ti ti-link"></i><?php } ?></span>
 						<span class="menu-text"><?php echo esc_html($_sni['name']);?></span>
 					</a>
 				</li>
 			<?php
-					$_side_i++;
-				}
+				$_side_i++;
 			}
+		}
 			?>
 			</ul>
 		</div>

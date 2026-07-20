@@ -188,6 +188,63 @@ class AdminNotifyService {
     }
 
     /**
+     * 给被审核用户发送审核结果通知（站内通知 + 邮件）
+     *
+     * 与 audit() 对应：audit() 通知管理员有新待办，notifyUser() 通知用户审核结果。
+     * 无防抖逻辑（每个审核结果都应通知对应用户）。
+     *
+     * @param int    $uid     被审核用户 uid
+     * @param string $subject 通知主题（也作为邮件主题）
+     * @param string $content 通知正文（可含 HTML）
+     * @param string $url     点击通知跳转的 URL
+     * @return array ['ok'=>bool, 'sent_notify'=>int, 'sent_mail'=>int]
+     */
+    public static function notifyUser($uid, $subject, $content, $url = '') {
+        $result = array('ok' => false, 'sent_notify' => 0, 'sent_mail' => 0, 'reason' => '');
+        $uid = intval($uid);
+        if ($uid <= 0) {
+            $result['reason'] = 'invalid_uid';
+            return $result;
+        }
+
+        // 1. 站内通知
+        $extra = array('message' => $content, 'url' => $url);
+        $ret = notify_create($uid, 0, 'audit_pending', 0, 0, $subject, $extra);
+        if ($ret !== FALSE) {
+            $result['sent_notify'] = 1;
+        }
+
+        // 2. 邮件（仅当 SMTP 已配置且用户有邮箱）
+        $smtp = self::getSmtpConfig();
+        if ($smtp !== FALSE) {
+            $user = user_read($uid);
+            if (!empty($user) && !empty($user['email'])) {
+                if (!function_exists('xn_send_mail')) {
+                    include _include(XIUNOPHP_PATH . 'xn_send_mail.func.php');
+                }
+                global $conf;
+                $from_name = isset($conf['sitename']) ? $conf['sitename'] : 'BBS';
+                $content_html = '<!DOCTYPE html><html><body><div>'
+                    . $content
+                    . '</div><p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">点击查看</a></p></body></html>';
+                $mail_ret = xn_send_mail($smtp, $from_name, $user['email'], $subject, $content_html, array('is_html' => TRUE));
+                if ($mail_ret === TRUE) {
+                    $result['sent_mail'] = 1;
+                } else {
+                    $err = is_string($mail_ret) ? $mail_ret : 'unknown';
+                    error_log('[AdminNotify] notifyUser mail failed: uid=' . $uid . ' email=' . $user['email'] . ' err=' . $err);
+                }
+            }
+        }
+
+        $result['ok'] = ($result['sent_notify'] > 0);
+        if (!$result['ok']) {
+            $result['reason'] = 'notify_failed';
+        }
+        return $result;
+    }
+
+    /**
      * 获取 SMTP 配置（内联 xn_smtp_get() 逻辑，避免依赖 xiunophp/xn_send_mail.func.php）
      *
      * 原因：xn_smtp_get() 定义在 xiunophp/xn_send_mail.func.php，该文件仅由
@@ -274,7 +331,10 @@ class AdminNotifyService {
      * @return array [['uid'=>int,'username'=>string,'display_name'=>string,'gid'=>int], ...]
      */
     public static function getAdminCandidates() {
-        $rows = db_find('user', array('gid' => array('IN' => array(1, 2)), 'status' => 1), array('uid' => 1), 1, 50, 'uid');
+        // ponytail: db_cond_to_sqladd 不支持 array('IN' => array(1,2)) 语法，
+        // 仅支持 array('gid' => array(1,2)) 这种 OR 数组形式（会被识别为 IN）。
+        // 旧写法会拼成 `gid`IN? 错误 SQL，查询返回空，导致后台"接收管理员"无选项。
+        $rows = db_find('user', array('gid' => array(1, 2), 'status' => 1), array('uid' => 1), 1, 50, 'uid');
         $candidates = array();
         if (!empty($rows)) {
             foreach ($rows as $uid => $row) {

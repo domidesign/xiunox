@@ -153,19 +153,22 @@ function forum_access_user($fid, $gid, $access) {
 function forum_access_mod($fid, $gid, $access) {
 	// hook model_forum_access_mod_start.php
 	global $uid, $conf, $grouplist, $forumlist;
-	
+
 	// 结果缓存，加速判断！
 	static $result = array();
 	$k = "$fid-$gid-$access";
 	if(isset($result[$k])) return $result[$k];
-	
+
 	if($gid == 1 || $gid == 2) return TRUE; // 管理员有所有权限
+	$r = FALSE;
 	if($gid == 3 || $gid == 4) {
-		$group = $grouplist[$gid];
-		$forum = $forumlist[$fid];
-		$r = !empty($group[$access]) && in_string($uid, $forum['moduids']);
-	} else {
-		$r = FALSE;
+		// ponytail: 兜底 $grouplist/$forumlist 缺失键，避免 PHP 8.x Undefined array key 警告
+		if(isset($grouplist[$gid]) && isset($forumlist[$fid])) {
+			$group = $grouplist[$gid];
+			$forum = $forumlist[$fid];
+			$moduids = isset($forum['moduids']) ? $forum['moduids'] : '';
+			$r = !empty($group[$access]) && in_string($uid, $moduids);
+		}
 	}
 	$result[$k] = $r;
 	// hook model_forum_access_mod_end.php
@@ -178,9 +181,11 @@ function forum_is_mod($fid, $gid, $uid) {
 	if($gid == 1 || $gid == 2) return TRUE; // 管理员有所有权限
 	if($gid == 3 || $gid == 4) {
 		if($fid == 0) return TRUE; // 此处不严谨！
-		$group = $grouplist[$gid];
+		// ponytail: 兜底 $grouplist/$forumlist 缺失键，避免 PHP 8.x Undefined array key 警告
+		if(!isset($forumlist[$fid])) return FALSE;
 		$forum = $forumlist[$fid];
-		return in_string($uid, $forum['moduids']);
+		$moduids = isset($forum['moduids']) ? $forum['moduids'] : '';
+		return in_string($uid, $moduids);
 	}
 	// hook forum_is_mod_end.php
 	return FALSE;

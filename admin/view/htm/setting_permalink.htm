@@ -169,27 +169,37 @@
 			</div>
 			<p class="text-body-secondary small mb-2"><?php echo lang('admin_permalink_rewrite_rules_desc');?></p>
 				<div class="row g-3">
-						<!-- Nginx -->
-						<div class="col-md-6">
-							<div class="d-flex justify-content-between align-items-center mb-1">
-								<span class="fw-medium small"><?php echo lang('admin_permalink_nginx_label');?></span>
-								<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="copyRules('nginx_rules')">
-									<i class="ti ti-copy me-1"></i><?php echo lang('admin_permalink_copy');?>
-								</button>
-							</div>
-							<pre class="bg-body-secondary p-3 rounded small mb-0" id="nginx_rules" style="max-height:340px;overflow:auto;"><?php echo htmlspecialchars($nginx_rules);?></pre>
+					<!-- Nginx -->
+					<div class="col-md-6 col-lg-4">
+						<div class="d-flex justify-content-between align-items-center mb-1">
+							<span class="fw-medium small"><?php echo lang('admin_permalink_nginx_label');?></span>
+							<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="copyRules('nginx_rules')">
+								<i class="ti ti-copy me-1"></i><?php echo lang('admin_permalink_copy');?>
+							</button>
 						</div>
-						<!-- Apache -->
-						<div class="col-md-6">
-							<div class="d-flex justify-content-between align-items-center mb-1">
-								<span class="fw-medium small"><?php echo lang('admin_permalink_apache_label');?></span>
-								<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="copyRules('apache_rules')">
-									<i class="ti ti-copy me-1"></i><?php echo lang('admin_permalink_copy');?>
-								</button>
-							</div>
-							<pre class="bg-body-secondary p-3 rounded small mb-0" id="apache_rules" style="max-height:340px;overflow:auto;"><?php echo htmlspecialchars($apache_rules);?></pre>
-						</div>
+						<pre class="bg-body-secondary p-3 rounded small mb-0" id="nginx_rules" style="max-height:340px;overflow:auto;"><?php echo htmlspecialchars($nginx_rules);?></pre>
 					</div>
+					<!-- Apache -->
+					<div class="col-md-6 col-lg-4">
+						<div class="d-flex justify-content-between align-items-center mb-1">
+							<span class="fw-medium small"><?php echo lang('admin_permalink_apache_label');?></span>
+							<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="copyRules('apache_rules')">
+								<i class="ti ti-copy me-1"></i><?php echo lang('admin_permalink_copy');?>
+							</button>
+						</div>
+						<pre class="bg-body-secondary p-3 rounded small mb-0" id="apache_rules" style="max-height:340px;overflow:auto;"><?php echo htmlspecialchars($apache_rules);?></pre>
+					</div>
+					<!-- Caddy -->
+					<div class="col-md-6 col-lg-4">
+						<div class="d-flex justify-content-between align-items-center mb-1">
+							<span class="fw-medium small"><?php echo lang('admin_permalink_caddy_label');?></span>
+							<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="copyRules('caddy_rules')">
+								<i class="ti ti-copy me-1"></i><?php echo lang('admin_permalink_copy');?>
+							</button>
+						</div>
+						<pre class="bg-body-secondary p-3 rounded small mb-0" id="caddy_rules" style="max-height:340px;overflow:auto;"><?php echo htmlspecialchars($caddy_rules);?></pre>
+					</div>
+				</div>
 			</div>
 
 		<!-- 警告提示 -->
@@ -283,7 +293,7 @@ function copyRules(elementId) {
 }
 
 function showCopyFeedback(elementId) {
-	var btn = document.querySelector('#' + elementId).closest('.col-md-6').querySelector('button');
+	var btn = document.querySelector('#' + elementId).closest('[class*="col-"]').querySelector('button');
 	var originalText = btn.innerHTML;
 	btn.innerHTML = '<i class="ti ti-check me-1"></i><?php echo lang('admin_permalink_copied');?>';
 	btn.classList.remove('btn-outline-secondary');

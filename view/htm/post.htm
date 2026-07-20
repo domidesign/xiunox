@@ -89,6 +89,7 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 
 <!--{hook post_start.htm}-->
 
+<form hx-post="<?php echo $form_action;?>" hx-target="#post-msg" hx-swap="innerHTML" hx-encoding="multipart/form-data" hx-confirm=" " id="form">
 <div class="row g-3 g-lg-4">
 	<div class="col-12 col-lg post-form-wrap">
 		<div class="x-card card">
@@ -96,7 +97,6 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 			<h6 class="mb-0 fw-semibold"><i class="ti ti-message-plus me-1"></i><?php echo $form_title; ?></h6>
 		</div>
 		<div class="card-body">
-				<form hx-post="<?php echo $form_action;?>" hx-target="#post-msg" hx-swap="innerHTML" hx-encoding="multipart/form-data" hx-confirm=" " id="form">
 					<?php echo CsrfService::input(); ?>
 					<input type="hidden" name="doctype" value="0" />
 					<input type="hidden" name="quotepid" value="<?php echo $quotepid;?>" />
@@ -147,7 +147,59 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 						</div>
 					</div>
 					<!--{hook post_subject_after.htm}-->
-					<?php } ?>
+				<?php } ?>
+
+				<?php if(!empty($route) && $route == 'thread' && !empty($action) && $action == 'create') { ?>
+			<!-- 特殊主题容器（抽奖/悬赏/投票），仅发帖页渲染，回复页不显示 -->
+			<!-- ponytail: 按钮组方案 - 每个插件一个按钮，点击切换展开/折叠，可同时展开多个；默认全部折叠，input 全部 disabled -->
+			<style>
+			/* ponytail: 按钮组样式 */
+			#special-topic-btn-group {
+				gap: 0.5rem;
+				flex-wrap: wrap;
+			}
+			#special-topic-btn-group .special-topic-btn {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.375rem;
+				background: var(--bs-tertiary-bg);
+				border: 1px solid var(--bs-border-color);
+				border-radius: var(--bs-border-radius);
+				padding: 0.375rem 0.75rem;
+				font-size: 0.8125rem;
+				font-weight: 500;
+				color: var(--bs-body-color);
+				cursor: pointer;
+				transition: all 0.15s ease-in-out;
+				line-height: 1.4;
+			}
+			#special-topic-btn-group .special-topic-btn:hover {
+				background: var(--bs-secondary-bg);
+				border-color: var(--bs-secondary-color);
+			}
+			/* ponytail: 展开状态（active） */
+			#special-topic-btn-group .special-topic-btn.active {
+				background: var(--bs-primary);
+				color: #fff;
+				border-color: var(--bs-primary);
+			}
+			/* ponytail: 字段区域 - 无边框，浅色背景 */
+			#special-topic-panes .special-topic-pane {
+				padding: 0.625rem 0.875rem;
+				background: var(--bs-tertiary-bg);
+				border-radius: var(--bs-border-radius);
+				margin-top: 0.5rem;
+			}
+			</style>
+			<div class="mb-3" id="special-topic-tabs" style="display:none;">
+				<div class="d-flex" id="special-topic-btn-group">
+					<!--{hook post_special_topic_tab_nav.htm}-->
+				</div>
+				<div id="special-topic-panes">
+					<!--{hook post_special_topic_tab_pane.htm}-->
+				</div>
+			</div>
+			<?php } ?>
 
 					<div class="mb-3 position-relative" id="message-editor-wrap">
 					<textarea class="form-control w-100 post-input " placeholder="<?php echo lang('message');?>" name="message" id="message" style="min-height: 300px; height: auto;"><?php echo $form_message;?></textarea>
@@ -206,13 +258,12 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 
 					<!--{hook post_submit_after.htm}-->
 
-				</form>
 			</div>
 		</div>
 	</div>
 
 	<!-- 桌面端：右侧高级功能区块 -->
-	<div class="d-none d-xl-block col-xl-auto" style="width:280px;min-width:240px;position:sticky;top:1rem;align-self:flex-start;max-height:calc(100vh - 2rem);overflow-y:auto;">
+	<div class="d-none d-xl-block col-xl-auto" style="width:300px;min-width:260px;position:sticky;top:1rem;align-self:flex-start;max-height:calc(100vh - 2rem);overflow-y:auto;">
 		<!--{hook post_sidebar_top.htm}-->
 
 		<?php if($isfirst && $uid > 0): ?>
@@ -245,6 +296,7 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 		<!--{hook post_sidebar_bottom.htm}-->
 	</div>
 </div>
+</form>
 
 <!--{hook post_end.htm}-->
 
@@ -748,3 +800,135 @@ function openExtRefModal() {
 </script>
 
 <!--{hook post_js.htm}-->
+
+<?php if(!empty($route) && $route == 'thread' && !empty($action) && $action == 'create') { ?>
+<script>
+// ponytail: 特殊主题按钮组控制
+// 设计：
+//   1. 每个插件一个按钮 + 一个字段区域（pane），无 tab 互斥
+//   2. 点击按钮切换对应 pane 的展开/折叠，可同时展开多个
+//   3. fid=0（未选版块）整块隐藏，所有 input disabled
+//   4. fid>0 按白名单计算可见按钮数量：0 个整块隐藏；>=1 个显示按钮组
+//   5. 折叠状态的 pane input 全部 disabled，防止误提交
+//   6. allow_forums 空数组 = 全部允许；非空时 fid 必须在白名单内
+//   7. 版块切换时：被移出白名单的按钮自动折叠并隐藏；仍可见的按钮保持原展开/折叠状态
+(function() {
+    var tabsBox = document.getElementById('special-topic-tabs');
+    if (!tabsBox) return;
+    var btnGroup = document.getElementById('special-topic-btn-group');
+    if (!btnGroup) return;
+    var panesBox = document.getElementById('special-topic-panes');
+    if (!panesBox) return;
+
+    var allBtns = btnGroup.querySelectorAll('button.special-topic-btn');
+    if (allBtns.length === 0) return; // 无插件按钮，整块保持隐藏
+
+    var fidSelect = document.querySelector('select[name="fid"]');
+
+    // ponytail: 通过按钮找对应 pane（data-target="#pane-xxx"）
+    function getPaneByBtn(btn) {
+        var target = btn.getAttribute('data-target');
+        return target ? document.querySelector(target) : null;
+    }
+
+    // ponytail: 判断按钮是否允许在当前 fid 显示
+    function isAllowed(btn, fid) {
+        var raw = btn.getAttribute('data-allow-forums') || '';
+        if (raw === '') return true; // 无属性 = 不限制
+        var list;
+        try { list = JSON.parse(raw); } catch (e) { return true; }
+        if (!list || !list.length) return true; // 空数组 = 全部允许
+        if (fid === 0) return false; // ponytail: fid=0 时整块隐藏（占位符）
+        for (var i = 0; i < list.length; i++) {
+            if (parseInt(list[i], 10) === fid) return true;
+        }
+        return false;
+    }
+
+    // ponytail: 设置 pane 内所有 input/select/textarea/button 的 disabled 状态
+    function setPaneInputsDisabled(pane, disabled) {
+        if (!pane) return;
+        var inputs = pane.querySelectorAll('input, select, textarea, button');
+        for (var i = 0; i < inputs.length; i++) {
+            if (disabled) {
+                inputs[i].setAttribute('disabled', 'disabled');
+            } else {
+                inputs[i].removeAttribute('disabled');
+            }
+        }
+    }
+
+    // ponytail: 切换单个按钮的展开/折叠状态
+    function toggleBtn(btn, expand) {
+        if (!btn) return;
+        var pane = getPaneByBtn(btn);
+        if (!pane) return;
+        if (expand) {
+            btn.classList.add('active');
+            pane.style.display = '';
+            setPaneInputsDisabled(pane, false);
+        } else {
+            btn.classList.remove('active');
+            pane.style.display = 'none';
+            setPaneInputsDisabled(pane, true);
+        }
+    }
+
+    // ponytail: 折叠并隐藏某个按钮+pane（用于版块切换时移出白名单的插件）
+    function hideBtn(btn) {
+        if (!btn) return;
+        toggleBtn(btn, false); // 先折叠，禁用 input
+        btn.style.display = 'none';
+    }
+
+    function refresh() {
+        var fid = fidSelect ? (parseInt(fidSelect.value, 10) || 0) : 0;
+        var visibleCount = 0;
+
+        // ponytail: 第一遍 - 计算可见性并显隐按钮，被移出白名单的折叠+隐藏
+        for (var i = 0; i < allBtns.length; i++) {
+            var btn = allBtns[i];
+            var allowed = isAllowed(btn, fid);
+            if (allowed) {
+                btn.style.display = '';
+                visibleCount++;
+            } else {
+                hideBtn(btn);
+            }
+        }
+
+        // ponytail: fid=0 或无可见按钮时整块隐藏
+        if (fid === 0 || visibleCount === 0) {
+            tabsBox.style.display = 'none';
+            return;
+        }
+
+        tabsBox.style.display = '';
+
+        // ponytail: 统一同步所有可见按钮的展开/折叠状态
+        // 确保折叠状态的 pane input 全部 disabled，展开状态的 input 启用
+        for (var j = 0; j < allBtns.length; j++) {
+            var b = allBtns[j];
+            if (b.style.display === 'none') continue; // 隐藏按钮跳过
+            var isExpanded = b.classList.contains('active');
+            // ponytail: 强制同步状态（不早退），确保 input disabled 与展开状态一致
+            toggleBtn(b, isExpanded);
+        }
+    }
+
+    // ponytail: 按钮点击 - 切换展开/折叠（单个也可切换）
+    btnGroup.addEventListener('click', function(e) {
+        var btn = e.target.closest('button.special-topic-btn');
+        if (!btn) return;
+        e.preventDefault();
+        var isExpanded = btn.classList.contains('active');
+        toggleBtn(btn, !isExpanded);
+    });
+
+    if (fidSelect) {
+        fidSelect.addEventListener('change', refresh);
+    }
+    refresh();
+})();
+</script>
+<?php } ?>

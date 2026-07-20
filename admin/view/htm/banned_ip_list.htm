@@ -88,11 +88,11 @@
 				</td>
 				<td class="text-body-secondary"><?php echo esc_html($_item['admin_username']);?></td>
 				<td>
-					<form method="post" action="<?php echo url('banned_ip-delete');?>" style="display:inline" onsubmit="return confirm('<?php echo lang('admin_banned_ip_delete_confirm');?>');">
-						<?php echo CsrfService::input();?>
-						<input type="hidden" name="ip" value="<?php echo esc_html($_item['ip']);?>">
-						<button type="submit" class="btn btn-outline-danger btn-sm" title="<?php echo lang('delete');?>"><i class="ti ti-trash"></i></button>
-					</form>
+					<form method="post" action="<?php echo url('banned_ip-delete');?>" style="display:inline" data-confirm="<?php echo lang('admin_banned_ip_delete_confirm');?>">
+					<?php echo CsrfService::input();?>
+					<input type="hidden" name="ip" value="<?php echo esc_html($_item['ip']);?>">
+					<button type="submit" class="btn btn-outline-danger btn-sm" title="<?php echo lang('delete');?>"><i class="ti ti-trash"></i></button>
+				</form>
 				</td>
 			</tr>
 			<?php } ?>
@@ -105,5 +105,22 @@
 </div>
 
 <!--{hook admin_banned_ip_list_end.htm}-->
+
+<script>
+// data-confirm 表单：onsubmit confirm 改为 XN.confirm Bootstrap Modal
+document.querySelectorAll('form[data-confirm]').forEach(function(f) {
+	f.addEventListener('submit', function(e) {
+		if (f.dataset.confirmed === '1') {
+			f.dataset.confirmed = '';
+			return;
+		}
+		e.preventDefault();
+		XN.confirm(f.dataset.confirm, function() {
+			f.dataset.confirmed = '1';
+			HTMLFormElement.prototype.submit.call(f);
+		});
+	});
+});
+</script>
 
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>

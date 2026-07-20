@@ -976,6 +976,9 @@ return array(
 
 	'page_navigation'=>'Page navigation',
 
+	'normal_topic'=>'Normal',
+	'normal_topic_hint'=>'No special topic enabled, just a normal post',
+
 	// hook lang_en_us_bbs_common.php
 );
 

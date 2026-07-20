@@ -357,14 +357,8 @@ if($keyword_safe) {
             $merged_slice = array_slice($merged, ($page - 1) * $pagesize, $pagesize, true);
             $tidarr = array_keys($merged_slice);
 
-            // DEBUG: 记录 tidarr
-            xn_log("search_debug: tidarr=" . json_encode($tidarr) . " page={$page} pagesize={$pagesize}", 'debug_error');
-
             // 查询帖子详情，用 tid 作 key 确保结果不重复
             $threadlist = db_find('thread', array('tid' => $tidarr), array('tid' => -1), 1, $pagesize, 'tid');
-
-            // DEBUG: 记录 threadlist 结果
-            xn_log("search_debug: threadlist_count=" . (is_array($threadlist) ? count($threadlist) : 'not_array') . " threadlist_keys=" . (is_array($threadlist) ? json_encode(array_keys($threadlist)) : 'n/a'), 'debug_error');
 
             if($threadlist) {
                 // 按相关度重新排序

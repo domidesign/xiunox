@@ -759,9 +759,10 @@ function user_login_check() {
 // 获取用户来路
 function user_http_referer() {
 	// hook user_http_referer_start.php
-	// 优先从参数获取（兼容 name="referer" 和 name="next" 两种表单字段名）
+	// 优先从参数获取（兼容 name="referer" / name="next" / ?redirect_url= 三种来源）
 	$referer = param('referer');
 	empty($referer) AND $referer = param('next');
+	empty($referer) AND $referer = param('redirect_url');
 	empty($referer) AND $referer = array_value($_SERVER, 'HTTP_REFERER', '');
 
 	$referer = str_replace(array('\"', '"', '<', '>', ' ', '*', "\t", "\r", "\n"), '', $referer); // 干掉特殊字符 strip special chars

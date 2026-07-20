@@ -960,6 +960,9 @@ return array(
 
 	'page_navigation'=>'頁碼導航',
 
+	'normal_topic'=>'普通帖',
+	'normal_topic_hint'=>'不啟用任何特殊主題，直接發布普通帖子',
+
 	// hook lang_zh_tw_bbs_common.php
 );
 

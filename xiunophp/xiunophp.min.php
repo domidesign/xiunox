@@ -1153,10 +1153,6 @@ class cache_redis {
                 } catch(\Throwable $e) {
                         $this->error(-1, 'Redis deleteByPrefix 异常：' . $e->getMessage());
                 }
-                if(function_exists('xn_log')) {
-                        $elapsed = round(microtime(TRUE) - $start, 3);
-                        xn_log('deleteByPrefix(' . $prefix . ') scanned=' . $scanned . ' deleted=' . $deleted . ' elapsed=' . $elapsed . 's unlink=' . ($useUnlink ? '1' : ($useUnlink === FALSE ? '0' : 'N/A')), 'cache_clear');
-                }
                 return $deleted;
         }
         public function error($errno = 0, $errstr = '') {
@@ -1245,8 +1241,6 @@ function db_exec($sql, $d = NULL) {
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
 
-	DEBUG AND xn_log($sql, 'db_exec');
-
 	$n = $d->exec($sql);
 
 	// exec() 返回 int，异常时返回 0 而非 FALSE；需检查 errno 判断是否真正出错
@@ -1267,8 +1261,6 @@ function db_exec_prepared($sql, $params = array(), $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
-
-	DEBUG AND xn_log($sql.' ['.xn_json_encode($params).']', 'db_exec');
 
 	$stmt = $d->prepare($sql, $params);
 	if(!$stmt) {

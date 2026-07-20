@@ -51,16 +51,9 @@
 				<?php } ?>
 			</div>
 		</div>
-		<?php /* SEO: noscript 降级，确保爬虫和禁用 JS 的用户能切换 tab（HTMX 仅用于交互增强，不阻塞内容抓取） */ ?>
-		<noscript>
-			<style>.thread-nav-tabs .nav-link[hx-get]{display:none !important;}</style>
-			<p class="small text-muted py-2"><?php echo lang('latest_tab');?>:
-				<a href="<?php echo url("$route", array('order' => 'lastpid'));?>"><?php echo lang('latest_reply');?></a> |
-				<a href="<?php echo url("$route", array('order' => 'tid'));?>"><?php echo lang('new_thread');?></a> |
-				<a href="<?php echo url("$route", array('order' => 'hot'));?>"><?php echo lang('hottest_tab');?></a> |
-				<a href="<?php echo url("$route", array('order' => 'digest'));?>"><?php echo lang('digest');?></a>
-			</p>
-		</noscript>
+		<?php // ponytail: 删除原 noscript 块——htmx 4 用 DOMParser 解析响应时，noscript 内的 <style> 会被当作真实元素解析，
+		// swap 后全局生效，.nav-link[hx-get] 选择器匹配所有 tab 链接，display:none!important 把它们全隐藏，导致 tab 栏消失。
+		// 带 hx-get 的 a 标签本身有 href，禁用 JS 时正常跳转，无需 noscript 降级。 ?>
 		<div class="mt-0 ">
 			<!--{hook index_threadlist_before.htm}-->
 			
@@ -80,10 +73,6 @@
 <!--{hook index_end.htm}-->
 
 <?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
-
-<script>
-$('li[data-active="fid-0"]').addClass('active');
-</script>
 
 <script>
 // anime.js 加 defer 后，需等 DOMContentLoaded 触发（此时 anime 已加载完成）
