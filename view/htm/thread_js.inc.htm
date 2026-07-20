@@ -106,8 +106,6 @@
     jmessage.on('focus', function () { if (jmessage.t) { clearTimeout(jmessage.t); jmessage.t = null; } jmessage.css('height', '8rem'); });
     jmessage.on('blur', function () { jmessage.t = setTimeout(function () { jmessage.css('height', '2.5rem'); }, 1000); });
 
-    $('li[data-active="fid-<?php echo $fid;?>"]').addClass('active');
-
     // 管理按钮事件委托
     document.addEventListener('click', function(e) {
         var btn = e.target.closest('.thread-mod-btn');

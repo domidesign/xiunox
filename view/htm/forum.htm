@@ -7,8 +7,9 @@
 <?php ob_start();?>
 
 
-		<div class="index-threadlist">
-			<div class="x-card card py-1">
+		<?php include _include(APP_PATH.'view/htm/thread_top_list.inc.htm');?>
+		<div class="index-threadlist list-mode">
+			<div class="  py-1 pe-3">
 				<div class="d-flex justify-content-between align-items-center flex-wrap">
 					<ul class="nav thread-nav-tabs" role="tablist">
 					<?php // ponytail: hx-swap=outerHTML + hx-select=#body 用响应中的新 #body 整体替换旧 #body；之前用 innerHTML 会把新 main#body 嵌套进旧 #body 内，造成左侧栏/tabs/右侧栏布局失效 ?>
@@ -28,9 +29,8 @@
 				<?php } ?>
 				</div>
 			</div>
-			<div>
+			<div class="mt-0 ">
 			<!--{hook forum_threadlist_before.htm}-->
-			<?php include _include(APP_PATH.'view/htm/thread_top_list.inc.htm');?>
 			<ul class="list-none threadlist x-card card mb-0">
 				<?php include _include(APP_PATH.'view/htm/thread_list.inc.htm');?>
 			</ul>
@@ -125,9 +125,5 @@
 <!--{hook forum_end.htm}-->
 
 <?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
-
-<script>
-$('li[data-active="fid-<?php echo $fid;?>"]').addClass('active');
-</script>
 
 <!--{hook forum_js.htm}-->

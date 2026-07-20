@@ -168,11 +168,6 @@ class cache_redis {
                         // SCAN 失败时记录错误但不中断业务
                         $this->error(-1, 'Redis deleteByPrefix 异常：' . $e->getMessage());
                 }
-                // 记录耗时和键数，便于排查"卡住"问题根因
-                if(function_exists('xn_log')) {
-                        $elapsed = round(microtime(TRUE) - $start, 3);
-                        xn_log('deleteByPrefix(' . $prefix . ') scanned=' . $scanned . ' deleted=' . $deleted . ' elapsed=' . $elapsed . 's unlink=' . ($useUnlink ? '1' : ($useUnlink === FALSE ? '0' : 'N/A')), 'cache_clear');
-                }
                 return $deleted;
         }
         public function error($errno = 0, $errstr = '') {

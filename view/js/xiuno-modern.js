@@ -523,6 +523,137 @@
         return modal;
     };
 
+    // XN.prompt(message, defaultValue, callback, options) — 替代原生 prompt()
+    // options: { title, type, size, okText, cancelText, placeholder, required, multiline, cancelCallback, validate }
+    //   type: 'info' | 'warning' | 'danger'（默认 'info'）
+    //   size: 'sm' | 'md' | 'lg'（默认 'md'）
+    //   required: true 时空值不让提交
+    //   multiline: true 渲染 textarea，否则 input
+    //   validate: function(value) -> string|undefined，返回错误文案阻止提交
+    //   callback: function(value)，用户确定时调用（同步读取 value）；取消时不调用
+    //   cancelCallback: function()，取消时调用
+    // 返回 Bootstrap Modal 实例
+    XN.prompt = function (message, defaultValue, callback, options) {
+        options = options || {};
+        var type = options.type || 'info';
+        var size = options.size || 'md';
+        var okText = options.okText || ((typeof lang !== 'undefined' && lang.confirm) || '确定');
+        var cancelText = options.cancelText || ((typeof lang !== 'undefined' && lang.close) || '关闭');
+        var placeholder = options.placeholder || '';
+        var required = options.required !== false;
+        var multiline = !!options.multiline;
+        var validate = options.validate;
+        var cancelCallback = options.cancelCallback;
+
+        var iconMap = {
+            info: 'ti-keyboard text-primary',
+            warning: 'ti-alert-triangle text-warning',
+            danger: 'ti-alert-circle text-danger'
+        };
+        var iconCls = iconMap[type] || iconMap.info;
+        var titleText = options.title || (typeof lang !== 'undefined' && lang.input_title) || '请输入';
+
+        var id = 'xn-prompt-' + Date.now();
+        var inputHtml = multiline
+            ? '<textarea class="form-control xn-prompt-input" rows="3" placeholder="' + XN.escapeHtml(placeholder) + '"></textarea>'
+            : '<input type="text" class="form-control xn-prompt-input" placeholder="' + XN.escapeHtml(placeholder) + '" />';
+        var html = '<div class="modal fade" id="' + id + '" tabindex="-1" aria-hidden="true">' +
+            '<div class="modal-dialog modal-dialog-centered modal-' + size + '">' +
+            '<div class="modal-content border-0 rounded-3 shadow">' +
+            '<div class="modal-header border-0 pb-0">' +
+            '<h6 class="modal-title fw-bold"><i class="ti ' + iconCls + ' me-2"></i>' + XN.escapeHtml(titleText) + '</h6>' +
+            '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>' +
+            '</div>' +
+            '<div class="modal-body pt-2">' +
+            (message ? '<p class="mb-2">' + message + '</p>' : '') +
+            inputHtml +
+            '<div class="xn-prompt-error text-danger small mt-1" style="display:none;"></div>' +
+            '</div>' +
+            '<div class="modal-footer border-0 pt-0">' +
+            '<button type="button" class="btn btn-primary px-4 xn-prompt-ok">' + XN.escapeHtml(okText) + '</button>' +
+            '<button type="button" class="btn btn-outline-secondary px-4 xn-prompt-cancel" data-bs-dismiss="modal">' + XN.escapeHtml(cancelText) + '</button>' +
+            '</div></div></div></div>';
+
+        document.body.insertAdjacentHTML('beforeend', html);
+        var el = document.getElementById(id);
+        var inputEl = el.querySelector('.xn-prompt-input');
+        var errEl = el.querySelector('.xn-prompt-error');
+        if (defaultValue !== undefined && defaultValue !== null) {
+            inputEl.value = String(defaultValue);
+        }
+
+        var modal = new bootstrap.Modal(el);
+        modal.show();
+
+        // ponytail: 自动聚焦输入框并选中默认值（模拟原生 prompt 行为）
+        el.addEventListener('shown.bs.modal', function () {
+            inputEl.focus();
+            inputEl.select();
+        });
+
+        var okCallbackFired = false;
+        el.addEventListener('hidden.bs.modal', function () {
+            el.remove();
+            if (okCallbackFired && callback) {
+                callback(inputEl.value);
+            }
+        });
+
+        function showError(msg) {
+            if (msg) {
+                errEl.textContent = msg;
+                errEl.style.display = 'block';
+            } else {
+                errEl.style.display = 'none';
+            }
+        }
+
+        function doOk() {
+            var val = inputEl.value;
+            if (required && !val.trim()) {
+                showError((typeof lang !== 'undefined' && lang.input_required) || '请输入内容');
+                return;
+            }
+            if (typeof validate === 'function') {
+                var err = validate(val);
+                if (err) { showError(err); return; }
+            }
+            showError('');
+            okCallbackFired = true;
+            if (document.activeElement && document.activeElement.blur) {
+                document.activeElement.blur();
+            }
+            modal.hide();
+        }
+
+        el.querySelector('.xn-prompt-ok').addEventListener('click', doOk);
+        el.querySelector('.xn-prompt-cancel').addEventListener('click', function () {
+            if (document.activeElement && document.activeElement.blur) {
+                document.activeElement.blur();
+            }
+            if (cancelCallback) cancelCallback();
+        });
+        el.querySelector('.btn-close').addEventListener('click', function () {
+            if (document.activeElement && document.activeElement.blur) {
+                document.activeElement.blur();
+            }
+            if (cancelCallback) cancelCallback();
+        });
+
+        // ponytail: 单行 input 按 Enter 提交，textarea 按 Ctrl/Cmd+Enter 提交
+        inputEl.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !multiline) {
+                e.preventDefault();
+                doOk();
+            } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && multiline) {
+                e.preventDefault();
+                doOk();
+            }
+        });
+
+        return modal;
+    };
+
     // ========== 积分扣除确认 ==========
 
     // 调用后端预检查 API，有扣减则弹 Modal 确认，确认后才执行 callback

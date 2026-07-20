@@ -83,8 +83,6 @@ function db_exec($sql, $d = NULL) {
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
 
-	DEBUG AND xn_log($sql, 'db_exec');
-
 	$n = $d->exec($sql);
 
 	// exec() 返回 int，异常时返回 0 而非 FALSE；需检查 errno 判断是否真正出错
@@ -109,8 +107,6 @@ function db_exec_prepared($sql, $params = array(), $d = NULL) {
 	$db = $_SERVER['db'];
 	$d = $d ? $d : $db;
 	if(!$d) return FALSE;
-
-	DEBUG AND xn_log($sql.' ['.xn_json_encode($params).']', 'db_exec');
 
 	$stmt = $d->prepare($sql, $params);
 	if(!$stmt) {

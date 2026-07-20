@@ -1053,6 +1053,7 @@ return array(
 	'admin_permalink_detect_fail'=>'Rewrite rules detection failed, but settings were kept. Please check your web server rewrite rules',
 	'admin_permalink_nginx_label'=>'Nginx',
 	'admin_permalink_apache_label'=>'Apache',
+	'admin_permalink_caddy_label'=>'Caddy',
 	'admin_permalink_current'=>'Current',
 	'admin_permalink_warning'=>'After switching URL style, old links will automatically 301 redirect to the new format',
 	'admin_permalink_skip_detect'=>'Skip rewrite detection',

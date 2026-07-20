@@ -302,9 +302,9 @@
 
 		tr.querySelector('.delete-provider').addEventListener('click', function(e) {
 			e.preventDefault();
-			if (confirm('<?php echo lang('admin_ai_provider_delete_confirm');?>')) {
+			XN.confirm('<?php echo lang('admin_ai_provider_delete_confirm');?>', function() {
 				tr.remove();
-			}
+			});
 		});
 
 		return tr;

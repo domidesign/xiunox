@@ -153,6 +153,56 @@ class NavService {
     }
 
     /**
+     * 判断导航项 URL 是否匹配当前请求路由（用于服务端渲染 active 类）
+     * ponytail: 匹配规则 - 规范化后精确匹配或前缀匹配（处理 forum-1 vs forum-1-2 分页）
+     * 已知 ceiling: 无法处理完全自定义的 URL 结构（如外链锚点跳转），外链直接返回 false
+     * @param string $url 导航项原始 URL（nav_items 配置中的 url 字段）
+     * @return bool
+     */
+    public static function isActive($url) {
+        if ($url === null) return false;
+        $url = trim($url);
+        if ($url === '' || $url === '#') return false;
+        // 外链 / 锚点 / mailto 等不参与 active 匹配
+        if (strpos($url, 'http://') === 0 || strpos($url, 'https://') === 0) return false;
+        if (strpos($url, '//') === 0) return false;
+        if (strpos($url, '://') !== false) return false;
+        if (strpos($url, '#') === 0) return false;
+
+        // 当前请求的规范化路由：用全局 $route 拼接 param(1) 得到如 forum-1、thread-15
+        // ponytail: route 在 index.inc.php 路由解析后设置，header.inc.htm 渲染时已可用
+        static $_cur_route = null;
+        if ($_cur_route === null) {
+            $_cur_route = '';
+            $cur_route = isset($GLOBALS['route']) ? $GLOBALS['route'] : '';
+            if ($cur_route !== '' && function_exists('param')) {
+                $id_seg = param(1);
+                if ($id_seg !== '' && $id_seg !== null) {
+                    $_cur_route = $cur_route . '-' . $id_seg;
+                } else {
+                    $_cur_route = $cur_route;
+                }
+            }
+        }
+
+        // nav_item 规范化
+        $nav_route = self::normalize($url);
+
+        // 首页匹配：nav_item url 为空 / / 或 index 时，匹配当前路由 index 或空
+        if ($nav_route === '' || $nav_route === '/' || $nav_route === 'index') {
+            return $_cur_route === 'index' || $_cur_route === '';
+        }
+
+        // 精确匹配（如 nav_url='rank' vs cur='rank'）
+        if ($_cur_route === $nav_route) return true;
+
+        // 前缀匹配（如 nav_url='forum-1' vs cur='forum-1-2' 分页 / forum-1.htm/2 等）
+        if (strpos($_cur_route, $nav_route . '-') === 0) return true;
+
+        return false;
+    }
+
+    /**
      * 获取指定位置所有已启用插件的导航项（用于前台展示和后台混入主列表）
      * 插件启用即展示，无需后台单独控制
      * @param string $position 'top' / 'side' / 'mobile' / 'discover'

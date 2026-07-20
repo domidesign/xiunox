@@ -58,8 +58,11 @@ function sess_read($sid) {
 		return '';
 	}
 	if($arr['bigdata'] == 1) {
+		// ponytail: session_data 记录可能被 GC 清理但 session 仍存在 bigdata=1 的残留状态，
+		// 此时 $arr2 为 false，访问 ['data'] 会触发 PHP8 Trying to access array offset on null Warning
+		// → ErrorHandler 升级 ErrorException → 500。守卫空值，回退到空 session 数据
 		$arr2 = db_find_one('session_data', array('sid'=>$sid));
-		$arr['data'] = $arr2['data'];
+		$arr['data'] = $arr2 ? $arr2['data'] : '';
 	}
 	$g_session = $arr;
 	// 在 php 5.6.29 版本，需要返回 session_decode()

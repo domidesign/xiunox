@@ -28,6 +28,27 @@ a:hover {
     border: none;
 }
 
+/* ===== nav-tabs active 椭圆指示条 ===== */
+.nav-tabs .nav-link {
+    position: relative;
+}
+.nav-tabs .nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 22px;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--bs-primary);
+    transform: translateX(-50%) scaleX(0);
+    transform-origin: center;
+    transition: transform 0.2s ease;
+}
+.nav-tabs .nav-link.active::after {
+    transform: translateX(-50%) scaleX(1);
+}
+
 /* 导航Tab横向滚动（移动端不换行，可左右滑动） */
 .nav-tabs-scroll {
     flex-wrap: nowrap;
@@ -131,7 +152,7 @@ a {
    
 }
 .admin-content  .nav-link.active  {
-   color: var(--bs-primary); 
+   color: var(--bs-primary)!important; 
    border-radius: 12px;
    font-weight: 500;
 }

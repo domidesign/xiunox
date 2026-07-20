@@ -503,28 +503,29 @@ document.querySelectorAll('.btn-clear-plugin').forEach(function(btn) {
     btn.addEventListener('click', function() {
         var plugin = this.dataset.plugin;
         var confirmMsg = '<?php echo lang('admin_cache_clear_plugin_confirm');?>'.replace('%s', plugin);
-        if(!confirm(confirmMsg)) return;
-        btn.disabled = true;
-        fetch(btn.dataset.url, {
-            method: 'POST',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: 'csrf_token=<?php echo CsrfService::getToken();?>&plugin=' + encodeURIComponent(plugin)
-        })
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-            var type = parseInt(data.code) === 0 ? 'success' : 'error';
-            if(typeof showToast === 'function') {
-                showToast(data.message, type);
-            } else {
-                XN.alert(data.message, {type:'danger'});
-            }
-            btn.disabled = false;
-        })
-        .catch(function(err) {
-            btn.disabled = false;
+        XN.confirm(confirmMsg, function() {
+            btn.disabled = true;
+            fetch(btn.dataset.url, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'csrf_token=<?php echo CsrfService::getToken();?>&plugin=' + encodeURIComponent(plugin)
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                var type = parseInt(data.code) === 0 ? 'success' : 'error';
+                if(typeof showToast === 'function') {
+                    showToast(data.message, type);
+                } else {
+                    XN.alert(data.message, {type:'danger'});
+                }
+                btn.disabled = false;
+            })
+            .catch(function(err) {
+                btn.disabled = false;
+            });
         });
     });
 });

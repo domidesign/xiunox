@@ -95,11 +95,11 @@
 				</td>
 				<td class="text-body-secondary"><?php echo $_admin_username;?></td>
 				<td>
-					<form method="post" action="<?php echo url('banned_user-unban');?>" style="display:inline" onsubmit="return confirm('<?php echo lang('admin_banned_user_unban_confirm');?>');">
-						<?php echo CsrfService::input();?>
-						<input type="hidden" name="uid" value="<?php echo intval($_user['uid']);?>">
-						<button type="submit" class="btn btn-outline-success btn-sm" title="<?php echo lang('admin_banned_user_unban_btn');?>"><i class="ti ti-key"></i></button>
-					</form>
+					<form method="post" action="<?php echo url('banned_user-unban');?>" style="display:inline" data-confirm="<?php echo lang('admin_banned_user_unban_confirm');?>">
+					<?php echo CsrfService::input();?>
+					<input type="hidden" name="uid" value="<?php echo intval($_user['uid']);?>">
+					<button type="submit" class="btn btn-outline-success btn-sm" title="<?php echo lang('admin_banned_user_unban_btn');?>"><i class="ti ti-key"></i></button>
+				</form>
 				</td>
 			</tr>
 			<!--{hook admin_banned_user_item_end.htm}-->
@@ -115,6 +115,20 @@
 <!--{hook admin_banned_user_list_end.htm}-->
 
 <script>
+// data-confirm 表单：onsubmit confirm 改为 XN.confirm Bootstrap Modal
+document.querySelectorAll('form[data-confirm]').forEach(function(f) {
+	f.addEventListener('submit', function(e) {
+		if (f.dataset.confirmed === '1') {
+			f.dataset.confirmed = '';
+			return;
+		}
+		e.preventDefault();
+		XN.confirm(f.dataset.confirm, function() {
+			f.dataset.confirmed = '1';
+			HTMLFormElement.prototype.submit.call(f);
+		});
+	});
+});
 // 搜索表单：构造路径风格 URL 跳转，与 admin/route/user.php 风格一致
 (function(){
 	var jkw = document.getElementById('keyword');

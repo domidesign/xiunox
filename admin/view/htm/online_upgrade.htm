@@ -494,32 +494,33 @@ function showUpgradeError(msg) {
 }
 
 function reinstall() {
-	if (!confirm('<?php echo lang('admin_online_upgrade_reinstall_confirm');?>')) return;
-	var btn = document.getElementById('reinstallBtn');
-	btn.disabled = true;
-	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_reinstalling');?>';
+	XN.confirm('<?php echo lang('admin_online_upgrade_reinstall_confirm');?>', function() {
+		var btn = document.getElementById('reinstallBtn');
+		btn.disabled = true;
+		btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_reinstalling');?>';
 
-	$.ajax({
-		url: '<?php echo url('online_upgrade-reinstall');?>',
-		type: 'POST',
-		data: { csrf_token: csrfToken },
-		dataType: 'json',
-		success: function(res) {
+		$.ajax({
+			url: '<?php echo url('online_upgrade-reinstall');?>',
+			type: 'POST',
+			data: { csrf_token: csrfToken },
+			dataType: 'json',
+			success: function(res) {
+				btn.disabled = false;
+				btn.innerHTML = '<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>';
+				var logArea = document.getElementById('logArea');
+				if (res.ok) {
+				logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i>' + escapeHtml(res.message || '<?php echo lang('admin_online_upgrade_reinstall_success');?>') + '</div>';
+			} else {
+				logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + escapeHtml(res.message || '<?php echo lang('admin_online_upgrade_reinstall_failed');?>') + '</div>';
+			}
+		},
+		error: function(xhr) {
 			btn.disabled = false;
 			btn.innerHTML = '<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>';
 			var logArea = document.getElementById('logArea');
-			if (res.ok) {
-			logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i>' + escapeHtml(res.message || '<?php echo lang('admin_online_upgrade_reinstall_success');?>') + '</div>';
-		} else {
-			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + escapeHtml(res.message || '<?php echo lang('admin_online_upgrade_reinstall_failed');?>') + '</div>';
+			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + escapeHtml(xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
 		}
-	},
-	error: function(xhr) {
-		btn.disabled = false;
-		btn.innerHTML = '<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>';
-		var logArea = document.getElementById('logArea');
-		logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + escapeHtml(xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
-	}
+		});
 	});
 }
 

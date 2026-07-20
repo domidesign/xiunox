@@ -287,20 +287,21 @@ if(checkAll) {
 document.querySelectorAll('.quick-ban-btn').forEach(function(btn) {
 	btn.addEventListener('click', function() {
 		var uid = this.getAttribute('data-uid');
-		if(!confirm('<?php echo lang('admin_user_quick_silence_7d_confirm');?>')) return;
-		$.xpost(xn.url('user-ban'), {
-			uid: uid,
-			ban_type: 1,
-			duration: 604800,
-			reason: '<?php echo lang('user_ban_quick_silence_reason');?>',
-		 csrf_token: csrfToken
-		}, function(code, message) {
-			if(code == 0) {
-				showToast(message, 'success');
-				setTimeout(function(){ window.location.reload(); }, 800);
-			} else {
-				showToast(message, 'error');
-			}
+		XN.confirm('<?php echo lang('admin_user_quick_silence_7d_confirm');?>', function() {
+			$.xpost(xn.url('user-ban'), {
+				uid: uid,
+				ban_type: 1,
+				duration: 604800,
+				reason: '<?php echo lang('user_ban_quick_silence_reason');?>',
+			 csrf_token: csrfToken
+			}, function(code, message) {
+				if(code == 0) {
+					showToast(message, 'success');
+					setTimeout(function(){ window.location.reload(); }, 800);
+				} else {
+					showToast(message, 'error');
+				}
+			});
 		});
 	});
 });
@@ -340,17 +341,18 @@ document.getElementById('batchBanConfirmBtn').addEventListener('click', function
 document.getElementById('batchUnbanBtn').addEventListener('click', function() {
 	var jchecked = juserlist.find('input[name="delete"]').filter(function(){ return this.checked; });
 	if(jchecked.length < 1) return showToast('<?php echo lang('admin_user_batch_select_users');?>', 'error');
-	if(!confirm('<?php echo lang('admin_user_batch_unban_confirm');?>')) return;
-	var successCount = 0, failCount = 0, total = jchecked.length;
-	jchecked.each(function() {
-		var jtr = $(this).closest('tr');
-		var uid = jtr.attr('uid');
-		$.xpost(xn.url('user-unban'), {uid: uid, csrf_token: csrfToken}, function(code, message) {
-			if(code == 0) { successCount++; } else { failCount++; }
-			if(successCount + failCount >= total) {
-				showToast('<?php echo lang('admin_user_batch_unban_done');?>' + successCount + '/' + total, successCount > 0 ? 'success' : 'error');
-				setTimeout(function(){ window.location.reload(); }, 1000);
-			}
+	XN.confirm('<?php echo lang('admin_user_batch_unban_confirm');?>', function() {
+		var successCount = 0, failCount = 0, total = jchecked.length;
+		jchecked.each(function() {
+			var jtr = $(this).closest('tr');
+			var uid = jtr.attr('uid');
+			$.xpost(xn.url('user-unban'), {uid: uid, csrf_token: csrfToken}, function(code, message) {
+				if(code == 0) { successCount++; } else { failCount++; }
+				if(successCount + failCount >= total) {
+					showToast('<?php echo lang('admin_user_batch_unban_done');?>' + successCount + '/' + total, successCount > 0 ? 'success' : 'error');
+					setTimeout(function(){ window.location.reload(); }, 1000);
+				}
+			});
 		});
 	});
 });

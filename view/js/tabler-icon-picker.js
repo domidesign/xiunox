@@ -63,49 +63,62 @@
 		}
 
 		_loadPromise = (async function() {
-			try {
-				// 从 DOM 中查找 tabler-icons 的 CSS 链接
-				var linkEl = document.querySelector('link[href*="tabler-icons"]');
-				if (!linkEl || !linkEl.href) {
-					console.warn('TablerIconPicker: 未找到 tabler-icons CSS 链接，使用回退图标列表');
-					_iconCache = _fallbackIcons.slice();
-					return _iconCache;
-				}
+		try {
+			// ponytail: 遍历所有 tabler-icons CSS link（outline + filled），并行 fetch 合并图标列表
+			// 之前只 querySelector 取第一个，filled CSS 从未被加载
+			var linkEls = document.querySelectorAll('link[href*="tabler-icons"]');
+			if (linkEls.length === 0) {
+				console.warn('TablerIconPicker: 未找到 tabler-icons CSS 链接，使用回退图标列表');
+				_iconCache = _fallbackIcons.slice();
+				return _iconCache;
+			}
 
-				var cssUrl = linkEl.href;
+			// 收集所有 CSS URL 并去重（同一 URL 可能被多个页面引入）
+			var cssUrls = [];
+			var seen = {};
+			for (var i = 0; i < linkEls.length; i++) {
+				var href = linkEls[i].href;
+				if (!href || seen[href]) continue;
+				seen[href] = true;
+				cssUrls.push(href);
+			}
 
-				// 获取 CSS 文件内容
-				var response = await fetch(cssUrl);
-				if (!response.ok) {
-					throw new Error('HTTP ' + response.status);
-				}
-				var cssText = await response.text();
+			// 并行 fetch 所有 CSS
+			var responses = await Promise.all(cssUrls.map(function(url) {
+				return fetch(url).then(function(r) {
+					if (!r.ok) throw new Error('HTTP ' + r.status);
+					return r.text();
+				});
+			}));
 
-				// 用正则提取所有图标类名
-				var iconSet = new Set();
-				var regex = /\.ti-([\w-]+):before/g;
-				var match;
+			// 用正则提取所有图标类名
+			var iconSet = new Set();
+			var regex = /\.ti-([\w-]+):before/g;
+			var match;
+			responses.forEach(function(cssText) {
+				regex.lastIndex = 0;  // 全局正则复用时需重置
 				while ((match = regex.exec(cssText)) !== null) {
 					iconSet.add('ti-' + match[1]);
 				}
+			});
 
-				if (iconSet.size === 0) {
-					console.warn('TablerIconPicker: CSS 中未解析到图标，使用回退图标列表');
-					_iconCache = _fallbackIcons.slice();
-					return _iconCache;
-				}
-
-				// 去重排序后缓存
-				_iconCache = Array.from(iconSet).sort();
-				return _iconCache;
-			} catch (err) {
-				console.warn('TablerIconPicker: 加载图标列表失败，使用回退图标列表', err);
+			if (iconSet.size === 0) {
+				console.warn('TablerIconPicker: CSS 中未解析到图标，使用回退图标列表');
 				_iconCache = _fallbackIcons.slice();
 				return _iconCache;
-			} finally {
-				_loadPromise = null;
 			}
-		})();
+
+			// 去重排序后缓存（outline 在前，-filled 在后，自然分组）
+			_iconCache = Array.from(iconSet).sort();
+			return _iconCache;
+		} catch (err) {
+			console.warn('TablerIconPicker: 加载图标列表失败，使用回退图标列表', err);
+			_iconCache = _fallbackIcons.slice();
+			return _iconCache;
+		} finally {
+			_loadPromise = null;
+		}
+	})();
 
 		return _loadPromise;
 	}

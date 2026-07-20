@@ -59,12 +59,6 @@ class DiscoverService {
             'name_lang' => 'discover_plugin_name_duel',
             'rank' => 80,
         ),
-        'xnx_lottery' => array(
-            'url' => 'lottery',
-            'icon' => 'ti-gift',
-            'name_lang' => 'discover_plugin_name_lottery',
-            'rank' => 90,
-        ),
         'xnx_verify' => array(
             'url' => 'verify',
             'icon' => 'ti-certificate',

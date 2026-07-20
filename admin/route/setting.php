@@ -1,11 +1,12 @@
 <?php
 
-!defined('DEBUG') AND exit('Access Denied.');
+!defined('DEBUG') AND exit('Access Denied');
 
 $action = param(1);
 
 include _include(APP_PATH.'model/smtp.func.php');
 include _include(APP_PATH.'model/email_log.func.php');
+include_once APP_PATH . 'lib/CacheService.php';
 $smtplist = smtp_init(APP_PATH.'conf/smtp.conf.php');
 // hook admin_setting_start.php
 
@@ -127,7 +128,7 @@ if($action == 'base') {
 		$user = param('user', array(''));
 		$pass = param('pass', array(''));
 		$ssl = param('ssl', array(0));
-		
+
 		$smtplist = array();
 		foreach ($email as $k=>$v) {
 			$smtplist[$k] = array(
@@ -141,6 +142,11 @@ if($action == 'base') {
 		}
 		$r = file_put_contents_try(APP_PATH.'conf/smtp.conf.php', "<?php\r\nreturn ".var_export($smtplist,true).";\r\n?>");
 		!$r AND message(-1, lang('conf/smtp.conf.php', array('file'=>'conf/smtp.conf.php')));
+
+		// ponytail: opcache.revalidate_freq=2 会导致 1 秒后 reload 读到旧字节码,保存后立即失效
+		if (function_exists('opcache_invalidate')) {
+			opcache_invalidate(APP_PATH.'conf/smtp.conf.php', true);
+		}
 
 		// hook admin_setting_smtp_post_end.php
 
@@ -709,6 +715,55 @@ RewriteRule ^(.*)$ index.php [L,QSA]
     Deny from all
 </FilesMatch>';
 
+		// Caddy v2 伪静态规则
+		// 将以下内容添加到 Caddyfile 的站点块（example.com { ... }）中
+		// 后台 URL 使用 ? 格式，不需要伪静态规则
+		$_caddy_index = $_base_path !== '' ? $_base_path . '/index.php' : '/index.php';
+		$caddy_rules = '# ========== Caddy v2 伪静态配置 ==========
+# 将以下内容添加到 Caddyfile 的站点块中：
+# example.com {
+#     ...（粘贴以下指令）
+# }' . ($_base_path !== '' ? "\n# 检测到子目录安装（base_path='$_base_path'），路径已自动适配" : '') . '
+
+# 前台伪静态核心规则（后台使用 ? 格式，无需伪静态）
+try_files {path} {path}/ ' . $_caddy_index . '?{query}
+
+# PHP FastCGI 处理（如已使用 php_fastcgi 指令可省略）
+# php_fastcgi unix//tmp/php-cgi.sock
+
+# 静态资源缓存 30 天
+@static {
+    path *.js *.css *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff *.woff2 *.ttf *.eot
+}
+header @static Cache-Control "public, max-age=2592000"
+
+# 禁止访问隐藏文件（如 .git/.env）
+@hidden path /.*
+respond @hidden 404
+
+# ========== 完整 Caddyfile 参考 ==========
+# 以下为完整站点配置参考，按需修改域名、根目录、PHP 监听方式
+#example.com {
+#    root * /path/to/xiuno
+#    encode gzip
+#
+#    # PHP FastCGI（按实际监听方式修改）
+#    php_fastcgi unix//tmp/php-cgi.sock
+#
+#    # 前台伪静态核心规则
+#    try_files {path} {path}/ ' . $_caddy_index . '?{query}
+#
+#    # 静态资源缓存
+#    @static {
+#        path *.js *.css *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff *.woff2 *.ttf *.eot
+#    }
+#    header @static Cache-Control "public, max-age=2592000"
+#
+#    # 禁止访问隐藏文件
+#    @hidden path /.*
+#    respond @hidden 404
+#}';
+
 		$header['title'] = lang('admin_setting_permalink');
 		$header['mobile_title'] = lang('admin_setting_permalink');
 
@@ -736,16 +791,15 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 		$replace['url_rewrite_on'] = $url_rewrite_on;
 		file_replace_var(APP_PATH.'conf/conf.php', $replace);
 
+		// ponytail: 固定链接切换会改变全站 URL 生成规则，必须清 tmp 编译缓存 + 数据缓存 + OPcache
+		// 否则模板编译产物 / NavService 缓存 / opcache 字节码仍是旧 url_rewrite_on，前端 404
+		// 原条件 >0 && !=old && !skip_detect 漏掉切到 0 模式和 skip_detect 场景
+		if(class_exists('CacheService', false)) {
+			CacheService::clearByType(array('tmp', 'data', 'opcache'));
+		}
+
 		// 如果切换到需要 rewrite 的模式，检测 rewrite 是否生效
 		if($url_rewrite_on > 0 && $url_rewrite_on != $old_url_rewrite_on && !$skip_detect) {
-			// 清理 tmp 缓存，确保新配置生效
-			$tmp_path = isset($conf['tmp_path']) ? $conf['tmp_path'] : APP_PATH.'tmp/';
-			$tmp_files = glob($tmp_path.'*.php');
-			if($tmp_files) {
-				foreach($tmp_files as $f) {
-					@unlink($f);
-				}
-			}
 
 			// 构建测试 URL：使用新格式请求首页
 			$base_url = http_url_path();
@@ -860,6 +914,11 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 
         $r = file_put_contents_try(APP_PATH.'conf/email_templates.conf.php', "<?php\r\nreturn ".var_export($templates, true).";\r\n?>");
         !$r AND message(-1, '保存失败，请检查 conf 目录权限');
+
+        // ponytail: 同 smtp.conf.php,opcache 缓存导致 reload 读旧值
+        if (function_exists('opcache_invalidate')) {
+            opcache_invalidate(APP_PATH.'conf/email_templates.conf.php', true);
+        }
 
         admin_log_create('setting_email_tpl', 'setting', '', '修改邮件模板设置');
         message(0, lang('save_successfully'));

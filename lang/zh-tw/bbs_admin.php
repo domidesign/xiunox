@@ -1469,6 +1469,7 @@ return array(
 	'admin_permalink_detect_fail'=>'Rewrite 規則檢測未通過，但設定已保留。請檢查 Web 伺服器的 rewrite 規則是否正確配置',
 	'admin_permalink_nginx_label'=>'Nginx',
 	'admin_permalink_apache_label'=>'Apache',
+	'admin_permalink_caddy_label'=>'Caddy',
 	'admin_permalink_current'=>'目前',
 	'admin_permalink_warning'=>'切換 URL 風格後，舊連結將自動 301 重定向到新格式',
 	'admin_permalink_html_suffix'=>'後綴風格',

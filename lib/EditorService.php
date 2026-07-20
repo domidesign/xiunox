@@ -920,9 +920,9 @@ class EditorService {
                         target.addEventListener('click', function(e) {
                             e.stopImmediatePropagation();
                             e.preventDefault();
-                            if (confirm(aiNotConfiguredTip)) {
+                            XN.confirm(aiNotConfiguredTip, function() {
                                 window.location.href = '{$myAiUrl}';
-                            }
+                            });
                         }, true);
                     }
                 }, 500);

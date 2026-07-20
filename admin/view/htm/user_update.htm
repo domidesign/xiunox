@@ -209,15 +209,15 @@
 
 			<!-- 清空内容（危险操作） -->
 			<hr class="my-3">
-			<form action="<?php echo url('user-clear_content');?>" method="post" onsubmit="return confirm('<?php echo lang('user_clear_content_confirm');?>')">
-				<?php echo CsrfService::input(); ?>
-				<input type="hidden" name="uid" value="<?php echo $_uid;?>">
-				<input type="hidden" name="confirm" value="1">
-				<button type="submit" class="btn btn-danger btn-sm">
-					<i class="ti ti-trash"></i> <?php echo lang('admin_user_clear_content_btn');?>
-				</button>
-				<small class="text-body-secondary ms-2"><?php echo lang('admin_user_clear_content_tip');?></small>
-			</form>
+			<form id="form-clear-content" action="<?php echo url('user-clear_content');?>" method="post">
+			<?php echo CsrfService::input(); ?>
+			<input type="hidden" name="uid" value="<?php echo $_uid;?>">
+			<input type="hidden" name="confirm" value="1">
+			<button type="submit" class="btn btn-danger btn-sm">
+				<i class="ti ti-trash"></i> <?php echo lang('admin_user_clear_content_btn');?>
+			</button>
+			<small class="text-body-secondary ms-2"><?php echo lang('admin_user_clear_content_tip');?></small>
+		</form>
 		</div>
 	</div>
 </div>
@@ -228,6 +228,18 @@
 
 
 <script>
+// 清空内容表单：confirm 改为 XN.confirm Bootstrap Modal
+(function(){
+	var f = document.getElementById('form-clear-content');
+	if (f) {
+		f.addEventListener('submit', function(e) {
+			e.preventDefault();
+			XN.confirm('<?php echo lang('user_clear_content_confirm');?>', function() {
+				HTMLFormElement.prototype.submit.call(f);
+			});
+		});
+	}
+})();
 var jform = $('#form');
 var jsubmit = $('#submit');
 var langCreditsReasonRequired = <?php echo json_encode(lang('admin_credits_reason_required'));?>;

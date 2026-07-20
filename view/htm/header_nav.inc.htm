@@ -73,25 +73,32 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 				if (empty($_children)) {
 				// 无子项：title 作为一级链接
 				$_url = NavService::href($_ni['url']);
+				$_is_active = NavService::isActive($_ni['url']);
 		?>
-		<li class="nav-item" data-active="nav-<?php echo esc_attr($_ni['slug'] ?? '');?>">
-			<a class="nav-link transition-colors<?php echo !empty($_ni['class']) ? ' '.esc_attr($_ni['class']) : '';?>" href="<?php echo esc_attr($_url);?>">
+		<li class="nav-item<?php echo $_is_active ? ' active' : '';?>" data-active="nav-<?php echo esc_attr($_ni['slug'] ?? '');?>">
+			<a class="nav-link transition-colors<?php echo $_is_active ? ' active' : '';?><?php echo !empty($_ni['class']) ? ' '.esc_attr($_ni['class']) : '';?>" href="<?php echo esc_attr($_url);?>">
 					<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo esc_attr($_ni['icon']);?> me-1"></i><?php } ?>
 					<?php echo esc_html($_ni['name']);?>
 				</a>
 			</li>
 			<?php
 				} else {
-					// 有子项：渲染为下拉菜单
+					// 有子项：渲染为下拉菜单，任一子项 active 则父项也 active
+					$_parent_active = false;
+					foreach ($_children as $_cl) {
+						if (NavService::isActive($_cl['url'])) { $_parent_active = true; break; }
+					}
 			?>
-			<li class="nav-item dropdown">
-				<a class="nav-link transition-colors dropdown-toggle<?php echo !empty($_ni['class']) ? ' '.esc_attr($_ni['class']) : '';?>" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+			<li class="nav-item dropdown<?php echo $_parent_active ? ' active' : '';?>">
+				<a class="nav-link transition-colors dropdown-toggle<?php echo $_parent_active ? ' active' : '';?><?php echo !empty($_ni['class']) ? ' '.esc_attr($_ni['class']) : '';?>" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
 					<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo esc_attr($_ni['icon']);?> me-1"></i><?php } ?>
 					<?php echo esc_html($_ni['name']);?>
 				</a>
 				<ul class="dropdown-menu shadow border-0">
-				<?php foreach($_children as $_link) { ?>
-				<li data-active="nav-<?php echo esc_attr($_link['slug'] ?? '');?>"><a class="dropdown-item py-2<?php echo !empty($_link['class']) ? ' '.esc_attr($_link['class']) : '';?>" href="<?php echo esc_attr(NavService::href($_link['url']));?>">
+				<?php foreach($_children as $_link) {
+					$_child_active = NavService::isActive($_link['url']);
+				?>
+				<li data-active="nav-<?php echo esc_attr($_link['slug'] ?? '');?>"><a class="dropdown-item py-2<?php echo $_child_active ? ' active' : '';?><?php echo !empty($_link['class']) ? ' '.esc_attr($_link['class']) : '';?>" href="<?php echo esc_attr(NavService::href($_link['url']));?>">
 					<?php if(!empty($_link['icon'])) { ?><i class="<?php echo esc_attr($_link['icon']);?> me-2"></i><?php } ?>
 					<?php echo esc_html($_link['name']);?>
 				</a></li>
@@ -103,9 +110,10 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 				$_nav_i = $_nav_j;
 			} else {
 				// 一级 link（前面没有归属的 title）
+				$_is_active = NavService::isActive($_ni['url']);
 			?>
-			<li class="nav-item" data-active="nav-<?php echo esc_attr($_ni['slug'] ?? '');?>">
-			<a class="nav-link transition-colors<?php echo !empty($_ni['class']) ? ' '.esc_attr($_ni['class']) : '';?>" href="<?php echo esc_attr(NavService::href($_ni['url']));?>">
+			<li class="nav-item<?php echo $_is_active ? ' active' : '';?>" data-active="nav-<?php echo esc_attr($_ni['slug'] ?? '');?>">
+			<a class="nav-link transition-colors<?php echo $_is_active ? ' active' : '';?><?php echo !empty($_ni['class']) ? ' '.esc_attr($_ni['class']) : '';?>" href="<?php echo esc_attr(NavService::href($_ni['url']));?>">
 					<?php if(!empty($_ni['icon'])) { ?><i class="<?php echo esc_attr($_ni['icon']);?>"></i><?php } ?>
 					<?php echo esc_html($_ni['name']);?>
 				</a>

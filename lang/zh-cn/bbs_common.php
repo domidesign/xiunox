@@ -1001,6 +1001,9 @@ return array(
 
 	'page_navigation'=>'页码导航',
 
+	'normal_topic'=>'普通帖',
+	'normal_topic_hint'=>'不启用任何特殊主题，直接发布普通帖子',
+
 	// hook lang_zh_cn_bbs_common.php
 );
 

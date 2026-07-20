@@ -280,16 +280,34 @@ function _render_favorite_btn($tid, $is_favorited, $favorites_count, $ctx = 'thr
 */
 function message($code, $message, $extra = array()) {
 	global $ajax, $header, $conf;
-	
+
+	// 早期 hook 崩溃时 esc_* 可能尚未加载，提供降级实现（与 error_page() 保持一致）
+	// ponytail: EscapeService.php 在 index.inc.php:10 加载，若该文件加载失败 + check_runlevel 调用 message，
+	// header.inc.htm 会 fatal "Call to undefined function esc_html()"。此处兜底避免不必要的 fatal 链路
+	if(!function_exists('esc_html')) {
+		function esc_html($s) { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
+	}
+	if(!function_exists('esc_attr')) {
+		function esc_attr($s) { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
+	}
+	if(!function_exists('esc_js')) {
+		function esc_js($s) {
+			$s = json_encode((string)$s, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+			$s = substr($s, 1, -1);
+			$s = str_replace("'", "\\'", $s);
+			return str_replace('</', '<\/', $s);
+		}
+	}
+
 	$arr = $extra;
 	$arr['code'] = $code.'';
 	$arr['message'] = $message;
 	if(empty($header['title'])) $header['title'] = $conf['sitename'];
 	if(!isset($header['description'])) $header['description'] = '';
 	if(!isset($header['keywords'])) $header['keywords'] = '';
-	
+
 	// hook model_message_start.php
-	
+
 	// 防止 message 本身出现错误死循环
 	static $called = FALSE;
 	$called ? exit(xn_json_encode($arr)) : $called = TRUE;
@@ -448,13 +466,22 @@ function error_page($code, $message = '') {
 		$header = array('title' => '');
 	}
 
-	// 早期 hook 崩溃时 esc_html/esc_attr 可能尚未加载，提供降级实现
-	// ponytail: 不修改全局定义，只在 error_page 作用域内兜底
+	// 早期 hook 崩溃时 esc_* 可能尚未加载，提供降级实现
+	// ponytail: session 启动崩溃时 EscapeService.php 还未 include（sess_start 在 index.inc.php:7，EscapeService 在 index.inc.php:10）
+	// error_page 渲染 error.htm 可能调用 esc_js（如 onclick 内联 JS），缺兜底会 fatal "Call to undefined function esc_js()"
 	if(!function_exists('esc_html')) {
 		function esc_html($s) { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
 	}
 	if(!function_exists('esc_attr')) {
 		function esc_attr($s) { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
+	}
+	if(!function_exists('esc_js')) {
+		function esc_js($s) {
+			$s = json_encode((string)$s, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+			$s = substr($s, 1, -1);
+			$s = str_replace("'", "\\'", $s);
+			return str_replace('</', '<\/', $s);
+		}
 	}
 
 	// 防止 error_page 自身出现错误死循环
