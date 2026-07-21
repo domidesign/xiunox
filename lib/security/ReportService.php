@@ -61,9 +61,6 @@ class ReportService {
     public static function create_report(int $uid, string $target_type, int $target_id, string $reason_type, string $reason_text = ''): array {
         global $time, $longip;
 
-        // 调试日志：确认入参（文件名含 error 才会在生产环境写入）
-        xn_log("create_report 入参: uid={$uid}, target_type={$target_type}, target_id={$target_id}, reason_type={$reason_type}", 'report_error');
-
         // 参数校验
         if (!in_array($target_type, ['thread', 'post', 'user'])) {
             return ['code' => -1, 'message' => '无效的举报类型'];
@@ -77,7 +74,6 @@ class ReportService {
 
         // 检查重复举报
         if (self::check_duplicate($uid, $target_type, $target_id)) {
-            xn_log("create_report 拦截-重复举报: uid={$uid}, target_type={$target_type}, target_id={$target_id}", 'report_error');
             return ['code' => -1, 'message' => '您已举报过该内容，同一内容只能举报一次'];
         }
 
@@ -95,7 +91,6 @@ class ReportService {
 
         // 验证目标是否存在
         if (!self::validate_target($target_type, $target_id)) {
-            xn_log("create_report 拦截-目标不存在: target_type={$target_type}, target_id={$target_id}", 'report_error');
             return ['code' => -1, 'message' => '举报目标不存在'];
         }
 
@@ -124,18 +119,14 @@ class ReportService {
         ]);
 
         if ($r === false) {
-            xn_log("create_report 失败-db_create 返回 false: uid={$uid}, target_type={$target_type}, target_id={$target_id}", 'report_error');
             return ['code' => -1, 'message' => '举报失败，请稍后重试'];
         }
-
-        xn_log("create_report 成功: uid={$uid}, target_type={$target_type}, target_id={$target_id}, reportid={$r}", 'report_error');
 
         // 每次举报都通知管理员
         self::notify_admins_new($target_type, $target_id, $reason_type, $reason_text, $uid);
 
         // 检查是否达到自动审核阈值
-        $audited = self::handle_auto_audit($target_type, $target_id);
-        xn_log("handle_auto_audit 结果: audited=" . ($audited ? '1' : '0') . ", target_type={$target_type}, target_id={$target_id}", 'report_error');
+        self::handle_auto_audit($target_type, $target_id);
 
         return ['code' => 0, 'message' => '举报成功，我们会尽快处理'];
     }
@@ -165,7 +156,6 @@ class ReportService {
             'target_type' => $target_type,
             'target_id' => $target_id,
         ]);
-        xn_log("check_duplicate: uid={$uid}, target_type={$target_type}, target_id={$target_id}, count={$count}", 'report_error');
         return $count > 0;
     }
 
@@ -221,34 +211,28 @@ class ReportService {
     public static function handle_auto_audit(string $target_type, int $target_id): bool {
         $threshold = self::get_setting('auto_audit_count', 3);
         if ($threshold <= 0) {
-            xn_log("handle_auto_audit 跳过: threshold<=0 (threshold={$threshold})", 'report_error');
             return false;
         }
 
         $count = self::get_report_count($target_type, $target_id);
-        xn_log("handle_auto_audit: target_type={$target_type}, target_id={$target_id}, count={$count}, threshold={$threshold}", 'report_error');
         if ($count < $threshold) return false;
 
         // 检查是否已经处于待审核状态，避免重复操作
         if ($target_type === 'thread') {
             $thread = thread_read($target_id);
             if (!empty($thread) && $thread['audit_status'] == 0) {
-                xn_log("handle_auto_audit 跳过: thread 已处于待审状态 tid={$target_id}", 'report_error');
                 return false;
             }
 
             db_update('thread', ['tid' => $target_id], ['audit_status' => 0]);
-            xn_log("handle_auto_audit 触发: thread tid={$target_id} 已设为待审", 'report_error');
             self::notify_admins('thread', $target_id, $count);
         } elseif ($target_type === 'post') {
             $post = post_read($target_id);
             if (!empty($post) && isset($post['audit_status']) && $post['audit_status'] == 0) {
-                xn_log("handle_auto_audit 跳过: post 已处于待审状态 pid={$target_id}", 'report_error');
                 return false;
             }
 
             db_update('post', ['pid' => $target_id], ['audit_status' => 0]);
-            xn_log("handle_auto_audit 触发: post pid={$target_id} 已设为待审", 'report_error');
             self::notify_admins('post', $target_id, $count);
         } elseif ($target_type === 'user') {
             self::notify_admins('user', $target_id, $count);

@@ -2464,6 +2464,8 @@ function xn_strlen($s) {
 }
 
 function xn_substr($s, $start, $len) {
+	// ponytail: PHP 8.1+ 弃用 null 参数，历史脏数据可能传 null（如 post.message 字段为 NULL）
+	if ($s === null) $s = '';
 	return mb_substr($s, $start, $len, 'UTF-8');
 }
 

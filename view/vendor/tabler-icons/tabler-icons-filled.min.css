@@ -6,7 +6,8 @@
     font-family: "tabler-icons";
     font-style: normal;
     font-weight: 400;
-    src: url("./fonts/tabler-icons-filled.woff2?v3.45.0") format("woff2")
+    src: url("./fonts/tabler-icons-filled.woff2?v3.45.0") format("woff2");
+    font-display: swap;
 }
 
  
