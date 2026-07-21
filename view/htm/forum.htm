@@ -87,6 +87,7 @@
 			<?php if(forum_can_post($fid, $gid)) { ?>
 			<a role="button" class="btn btn-primary w-100" href="<?php echo url('thread-create-'.$fid);?>" hx-boost="false"><i class="ti ti-pencil me-1"></i> <?php echo lang('thread_create_new');?></a>
 			<?php } ?>
+			<!--{hook forum_post_btn_after.htm}-->
 		</div>
 		</div>
 

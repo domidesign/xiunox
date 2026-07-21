@@ -42,6 +42,30 @@ $forumService = new ForumService($db);
 $attachmentService = new AttachmentService($db);
 $notificationService = new NotificationService($db);
 
+// ponytail: API 模式未走 index.inc.php 的语言加载流程，$_SERVER['lang'] 未设置，
+// Service 内部 lang() 调用会返回 'lang[key]' 字面量（如 UserBanService::sendNotice 把字面量存入 notify 表）。
+// 统一加载前台语言包（含 bbs_common.php + 插件 lang hook 注入的键），开销可接受。
+if (!isset($_SERVER['lang'])) {
+    $_lang_dir = APP_PATH . "lang/{$conf['lang']}";
+    $_lang_file = is_file("$_lang_dir/bbs.php") ? _include(APP_PATH . "lang/{$conf['lang']}/bbs.php") : null;
+    if (is_array($_lang_file)) {
+        // 积分类型名称动态覆盖（与 index.inc.php 保持一致）
+        if (isset($conf['credits_name']) && $conf['credits_name']) {
+            $_lang_file['credits_label'] = $conf['credits_name'];
+            $_lang_file['admin_credits_type_credits'] = $conf['credits_name'];
+        }
+        if (isset($conf['golds_name']) && $conf['golds_name']) {
+            $_lang_file['golds_label'] = $conf['golds_name'];
+            $_lang_file['admin_credits_type_golds'] = $conf['golds_name'];
+        }
+        if (isset($conf['rmbs_name']) && $conf['rmbs_name']) {
+            $_lang_file['admin_credits_type_rmbs'] = $conf['rmbs_name'];
+        }
+        $_SERVER['lang'] = $_lang_file;
+    }
+    unset($_lang_dir, $_lang_file);
+}
+
 $uri = $_SERVER['REQUEST_URI'];
 $method = $_SERVER['REQUEST_METHOD'];
 $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';

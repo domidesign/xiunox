@@ -66,6 +66,7 @@ $_fa_user_gid = intval($gid);
         <i class="ti ti-pencil"></i>
         <span class="fab-label"><?php echo lang('floating_post');?></span>
     </a>
+    <!--{hook floating_action_post_after.htm}-->
 
     <!-- 回复 -->
     <a href="<?php echo $_fa_reply_url;?>" class="fab-btn fab-primary" id="fabReply" title="<?php echo lang('floating_reply');?>"<?php echo $_fa_show_reply ? '' : ' hidden';?> hx-boost="false">

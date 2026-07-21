@@ -300,20 +300,27 @@ function plugin_enable($dir) {
 	return TRUE;
 }
 
-// 清空插件生命周期相关缓存：tmp/ 编译缓存 + 整站数据缓存
+// 清空插件生命周期相关缓存：tmp/ 编译缓存 + 整站数据缓存 + OPcache
 // 调用位置：install/enable/disable/uninstall 后，确保新启停的插件状态在所有缓存层即时生效
 function plugin_clear_tmp_dir() {
 	global $conf;
 	rmdir_recusive($conf['tmp_path'], TRUE);
 	xn_unlink($conf['tmp_path'].'model.min.php');
-	// 整站数据缓存清理（Redis/Memcached 驱动下尤其必要；file 驱动下 tmp/cache 已被上面 rmdir_recusive 删除）
+	// 整站数据缓存 + OPcache 清理
+	// - 数据缓存：Redis/Memcached 驱动下尤其必要（file 驱动下 tmp/cache 已被上面 rmdir_recusive 删除）
+	// - OPcache：validate_timestamps=1 + revalidate_freq 较大或多 worker 时，旧字节码不会自动重载
+	//   → 启用插件后 hook/Service 类不生效 → 调用未定义符号 → 500。必须显式 opcache_reset()
 	// ponytail: 全站清理粒度较粗，但插件启停属于低频管理操作，性能可接受；类未加载时静默跳过避免独立入口致命错误
 	if(class_exists('CacheService', false)) {
 		try {
-			CacheService::clearByType(array('data'));
+			CacheService::clearByType(array('data', 'opcache'));
 		} catch(\Throwable $e) {
-			error_log('plugin lifecycle clearByType(data) failed: '.$e->getMessage());
+			error_log('plugin lifecycle clearByType(data,opcache) failed: '.$e->getMessage());
 		}
+	} else {
+		// 兜底：CacheService 未加载时直接调用底层函数（独立入口/CLI 场景）
+		if(function_exists('opcache_reset')) { @opcache_reset(); }
+		if(function_exists('cache_truncate')) { @cache_truncate(); }
 	}
 }
 
