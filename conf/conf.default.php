@@ -218,7 +218,7 @@ return array (
 	// 注意：version 字段运行时会被 index.php 中的 XIUNOX_VERSION 常量覆盖
 	// 真实版本号唯一来源为 version.php，修改版本号只需改 version.php
 	'version' => '1.0.1',
-	'static_version' => '?1.0',
+	'static_version' => '?1.4.18',
 	'installed' => 0,
 
 	// 显示设置

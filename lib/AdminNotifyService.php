@@ -26,6 +26,12 @@ class AdminNotifyService {
     /**
      * 发送审核通知给管理员
      *
+     * v2.0 改造（2026-07-21）：
+     *   - 站内通知：自动发给所有 gid IN (1,2) 且 ban_type=0 的管理员（无需勾选）
+     *   - 邮件：发给插件配置 admin_notify_emails（逗号分隔邮箱列表）；
+     *     若为空则 fallback 到站内通知接收人的 user.email 字段
+     *   - 修复根因：原 status=1 条件 user 表无此字段（user 表用 ban_type），SQL 报 Unknown column
+     *
      * @param string $plugin     插件目录名（如 'xnx_verify'）
      * @param string $audit_type 审核类型（如 'verify_apply'）
      * @param string $subject    邮件主题（也作为通知摘要）
@@ -33,7 +39,8 @@ class AdminNotifyService {
      * @param string $url        点击通知跳转的 URL
      * @param array  $options    可选：
      *                           - from_uid: 发送者 uid（默认 0=系统）
-     *                           - admin_uids: 覆盖接收人 uid 数组（默认读插件配置）
+     *                           - admin_uids: 覆盖站内通知接收人 uid 数组（保留兼容，默认自动查 gid=1,2）
+     *                           - admin_emails: 覆盖邮件接收人邮箱数组（默认读插件配置 admin_notify_emails）
      *                           - skip_notify: true 时跳过站内通知
      *                           - skip_mail: true 时跳过邮件
      * @return array ['ok'=>bool, 'reason'=>string, 'sent_notify'=>int, 'sent_mail'=>int]
@@ -54,12 +61,9 @@ class AdminNotifyService {
         $enabled = is_array($plugin_cfg) && isset($plugin_cfg['admin_notify_enabled'])
             ? intval($plugin_cfg['admin_notify_enabled'])
             : 0;
-        // ponytail: 调试日志，帮助排查"管理员没收到通知"根因（2026-07-19 用户反馈第一次就没收到）
-        error_log('[AdminNotify] audit() start: plugin=' . $plugin . ' audit_type=' . $audit_type . ' enabled=' . $enabled . ' cfg_keys=' . (is_array($plugin_cfg) ? implode(',', array_keys($plugin_cfg)) : 'not_array'));
         if (empty($enabled)) {
             // 用户明确关闭，不写防抖标记，下次开启后立即生效
             $result['reason'] = 'disabled';
-            error_log('[AdminNotify] return disabled: admin_notify_enabled=0');
             return $result;
         }
 
@@ -71,26 +75,21 @@ class AdminNotifyService {
         $debounce_val = cache_get($debounce_key);
         if ($debounce_val !== FALSE && $debounce_val !== NULL) {
             $result['reason'] = 'debounced';
-            error_log('[AdminNotify] return debounced: key=' . $debounce_key . ' val=' . var_export($debounce_val, true));
             return $result;
         }
-        error_log('[AdminNotify] debounce miss (ok): key=' . $debounce_key . ' val=' . var_export($debounce_val, true));
 
-        // 3. 获取接收人 admin_uids（options 覆盖 > 插件配置 > fallback gid=1）
+        // 3. 站内通知接收人（options 覆盖 > 自动查 gid=1,2 且 ban_type=0）
+        // ponytail: user 表无 status 字段（旧代码 status=1 SQL 报 Unknown column 导致接收人列表恒为空）。
+        // user 表用 ban_type 表示封禁状态：0=正常/1=禁言/2=禁止访问/3=锁定。这里查 ban_type=0 的有效管理员。
         $admin_uids = array();
         if (!empty($options['admin_uids']) && is_array($options['admin_uids'])) {
             foreach ($options['admin_uids'] as $uid) {
                 $uid = intval($uid);
                 $uid > 0 AND $admin_uids[$uid] = $uid;
             }
-        } elseif (is_array($plugin_cfg) && !empty($plugin_cfg['admin_notify_uids']) && is_array($plugin_cfg['admin_notify_uids'])) {
-            foreach ($plugin_cfg['admin_notify_uids'] as $uid) {
-                $uid = intval($uid);
-                $uid > 0 AND $admin_uids[$uid] = $uid;
-            }
         } else {
-            // fallback：查 gid=1 超管，db_find 返回以 uid 为 key 的行数组
-            $rows = db_find('user', array('gid' => 1, 'status' => 1), array(), 1, 100, 'uid');
+            // 自动查 gid IN (1,2) 且 ban_type=0 的管理员
+            $rows = db_find('user', array('gid' => array(1, 2), 'ban_type' => 0), array('uid' => 1), 1, 100, 'uid');
             if (!empty($rows)) {
                 foreach ($rows as $uid => $row) {
                     $uid = intval($uid);
@@ -98,18 +97,23 @@ class AdminNotifyService {
                 }
             }
         }
-        if (empty($admin_uids)) {
-            $result['reason'] = 'no_recipients';
-            error_log('[AdminNotify] return no_recipients: plugin_cfg.admin_notify_uids=' . (isset($plugin_cfg['admin_notify_uids']) ? var_export($plugin_cfg['admin_notify_uids'], true) : 'unset'));
-            return $result;
+
+        // 4. 邮件接收人（options 覆盖 > 插件配置 admin_notify_emails > fallback 站内通知接收人的 email）
+        $admin_emails = array();
+        if (!empty($options['admin_emails']) && is_array($options['admin_emails'])) {
+            foreach ($options['admin_emails'] as $email) {
+                $email = filter_var(trim($email), FILTER_VALIDATE_EMAIL);
+                if ($email !== false) $admin_emails[$email] = $email;
+            }
+        } else {
+            $admin_emails = self::getAdminEmails($plugin);
         }
-        error_log('[AdminNotify] admin_uids=' . implode(',', $admin_uids));
 
         $from_uid = isset($options['from_uid']) ? intval($options['from_uid']) : 0;
         $skip_notify = !empty($options['skip_notify']);
         $skip_mail = !empty($options['skip_mail']);
 
-        // 4. SMTP 检测（内联 getSmtpConfig，不依赖 xn_smtp_get()）
+        // 5. SMTP 检测（内联 getSmtpConfig，不依赖 xn_smtp_get()）
         $smtp = self::getSmtpConfig();
         $smtp_ok = ($smtp !== FALSE);
         $result['smtp_ok'] = $smtp_ok;
@@ -117,66 +121,69 @@ class AdminNotifyService {
         $sent_notify = 0;
         $sent_mail = 0;
 
-        // 5. 发送站内通知
-        if (!$skip_notify) {
+        // 6. 发送站内通知（发给所有 admin_uids）
+        if (!$skip_notify && !empty($admin_uids)) {
             foreach ($admin_uids as $uid) {
                 $extra = array(
                     'message' => $content,
                     'url' => $url,
                 );
                 $ret = notify_create($uid, $from_uid, 'audit_pending', 0, 0, $subject, $extra);
-                error_log('[AdminNotify] notify_create: uid=' . $uid . ' from_uid=' . $from_uid . ' subject=' . substr($subject, 0, 60) . ' ret=' . var_export($ret, true));
                 if ($ret !== FALSE) {
                     $sent_notify++;
                 }
             }
         }
 
-        // 6. 发送邮件（仅当 SMTP 已配置）
+        // 7. 发送邮件
         // ponytail: xn_send_mail() 定义在 xiunophp/xn_send_mail.func.php，audit() 的 7 个调用方
         // （插件路由 verify.php/medal.php/appcenter.php/ad.php 及 ReportService）均不加载该文件，
         // 故此处按需 include。此处不会与 user.php 等路由重复声明：audit() 不从那些路由调用。
         if (!$skip_mail && $smtp_ok) {
-            if (!function_exists('xn_send_mail')) {
-                include _include(XIUNOPHP_PATH . 'xn_send_mail.func.php');
-            }
-            $from_name = isset($conf['sitename']) ? $conf['sitename'] : 'BBS';
-            $content_html = '<!DOCTYPE html><html><body><div>'
-                . $content
-                . '</div><p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">点击查看</a></p></body></html>';
-
-            foreach ($admin_uids as $uid) {
-                $user = user_read($uid);
-                if (empty($user) || empty($user['email'])) {
-                    continue;
+            // 邮件接收人：优先用 admin_emails 配置；若为空，fallback 到 admin_uids 对应的 user.email
+            $mail_recipients = array();
+            if (!empty($admin_emails)) {
+                $mail_recipients = $admin_emails;
+            } elseif (!empty($admin_uids)) {
+                foreach ($admin_uids as $uid) {
+                    $user = user_read($uid);
+                    if (!empty($user) && !empty($user['email'])) {
+                        $mail_recipients[$user['email']] = $user['email'];
+                    }
                 }
-                $email = $user['email'];
-                $mail_ret = xn_send_mail($smtp, $from_name, $email, $subject, $content_html, array('is_html' => TRUE));
-                if ($mail_ret === TRUE) {
-                    $sent_mail++;
-                } else {
-                    // 失败不中断，仅记录日志
-                    $err = is_string($mail_ret) ? $mail_ret : 'unknown';
-                    error_log('[AdminNotify] mail failed: uid=' . $uid . ' email=' . $email . ' err=' . $err);
+            }
+            if (!empty($mail_recipients)) {
+                if (!function_exists('xn_send_mail')) {
+                    include _include(XIUNOPHP_PATH . 'xn_send_mail.func.php');
+                }
+                $from_name = isset($conf['sitename']) ? $conf['sitename'] : 'BBS';
+                $content_html = '<!DOCTYPE html><html><body><div>'
+                    . $content
+                    . '</div><p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">点击查看</a></p></body></html>';
+                foreach ($mail_recipients as $email) {
+                    $mail_ret = xn_send_mail($smtp, $from_name, $email, $subject, $content_html, array('is_html' => TRUE));
+                    if ($mail_ret === TRUE) {
+                        $sent_mail++;
+                    } else {
+                        $err = is_string($mail_ret) ? $mail_ret : 'unknown';
+                        error_log('[AdminNotify] mail failed: email=' . $email . ' err=' . $err);
+                    }
                 }
             }
         }
 
-        // 7. 写防抖标记（只在站内通知发出或主动跳过时才写，避免发送失败也写防抖导致后续不再尝试）
-        // ponytail: 原代码无条件写入，若 notify_create 全部失败（如 db 异常）也会写防抖，
-        // 导致 30 分钟内不再尝试，用户感知为"根本不通知"。改为仅在成功时写入。
+        // 8. 写防抖标记（只在站内通知发出或主动跳过时才写，避免发送失败也写防抖导致后续不再尝试）
         if ($sent_notify > 0 || $skip_notify) {
             cache_set($debounce_key, 1, self::DEBOUNCE_TTL);
         }
 
-        // 8. 返回结果：站内通知发出即视为成功
-        $result['ok'] = ($sent_notify > 0 || $skip_notify);
+        // 9. 返回结果：站内通知发出或邮件发出即视为成功
+        $result['ok'] = ($sent_notify > 0 || $sent_mail > 0 || $skip_notify);
         $result['sent_notify'] = $sent_notify;
         $result['sent_mail'] = $sent_mail;
         if (!$result['ok']) {
-            $result['reason'] = 'notify_failed';
+            $result['reason'] = (empty($admin_uids) && empty($admin_emails)) ? 'no_recipients' : 'notify_failed';
         }
-        error_log('[AdminNotify] audit() done: ok=' . ($result['ok'] ? 1 : 0) . ' reason=' . $result['reason'] . ' sent_notify=' . $sent_notify . ' sent_mail=' . $sent_mail . ' smtp_ok=' . ($smtp_ok ? 1 : 0));
         return $result;
     }
 
@@ -297,7 +304,38 @@ class AdminNotifyService {
     }
 
     /**
-     * 获取接收管理员 uid 列表（供插件设置页回显勾选状态）
+     * 获取管理员邮箱列表（供插件设置页回显 + audit() 邮件发送）
+     *
+     * v2.0 新增（2026-07-21）：替代旧的 admin_notify_uids 勾选机制。
+     * 邮箱列表存储在插件配置 admin_notify_emails 字段（逗号/换行分隔的字符串）。
+     *
+     * @param string $plugin
+     * @return array 邮箱数组（已 filter_var 校验，key=value 去重）
+     */
+    public static function getAdminEmails($plugin) {
+        $plugin_cfg = setting_get($plugin);
+        $emails = array();
+        if (is_array($plugin_cfg) && !empty($plugin_cfg['admin_notify_emails'])) {
+            // 支持逗号、换行、空格分隔
+            $raw_list = preg_split('/[\s,;]+/', trim($plugin_cfg['admin_notify_emails']));
+            if (is_array($raw_list)) {
+                foreach ($raw_list as $email) {
+                    $email = filter_var(trim($email), FILTER_VALIDATE_EMAIL);
+                    if ($email !== false) {
+                        $emails[$email] = $email;
+                    }
+                }
+            }
+        }
+        return $emails;
+    }
+
+    /**
+     * 获取接收管理员 uid 列表（供插件设置页回显勾选状态，保留向后兼容）
+     *
+     * v2.0 起 audit() 不再依赖此方法（自动查 gid=1,2），但保留供旧模板/调用方使用。
+     * 已修复 status=1 bug（user 表无 status 字段，改用 ban_type=0）。
+     *
      * @param string $plugin
      * @return array uid 数组
      */
@@ -313,8 +351,9 @@ class AdminNotifyService {
                 return array_values($uids);
             }
         }
-        // fallback：gid=1 超管，db_find 返回以 uid 为 key 的行数组
-        $rows = db_find('user', array('gid' => 1, 'status' => 1), array(), 1, 100, 'uid');
+        // fallback：gid IN (1,2) 且 ban_type=0 的有效管理员
+        // ponytail: 旧代码 status=1 SQL 报 Unknown column 'status'（user 表用 ban_type 字段）
+        $rows = db_find('user', array('gid' => array(1, 2), 'ban_type' => 0), array('uid' => 1), 1, 100, 'uid');
         $uids = array();
         if (!empty($rows)) {
             foreach ($rows as $uid => $row) {
@@ -326,15 +365,19 @@ class AdminNotifyService {
     }
 
     /**
-     * 获取接收管理员候选列表（供插件设置页渲染多选 checkbox）
-     * 返回 gid IN (1,2) 且 status=1 的用户，避免列出被封禁账号
+     * 获取接收管理员候选列表（供插件设置页渲染多选 checkbox，保留向后兼容）
+     *
+     * v2.0 起建议改用邮箱输入框（getAdminEmails），此方法保留供未迁移的模板使用。
+     * 已修复 status=1 bug（user 表无 status 字段，改用 ban_type=0）。
+     *
      * @return array [['uid'=>int,'username'=>string,'display_name'=>string,'gid'=>int], ...]
      */
     public static function getAdminCandidates() {
         // ponytail: db_cond_to_sqladd 不支持 array('IN' => array(1,2)) 语法，
         // 仅支持 array('gid' => array(1,2)) 这种 OR 数组形式（会被识别为 IN）。
         // 旧写法会拼成 `gid`IN? 错误 SQL，查询返回空，导致后台"接收管理员"无选项。
-        $rows = db_find('user', array('gid' => array(1, 2), 'status' => 1), array('uid' => 1), 1, 50, 'uid');
+        // 同时修复 status=1 bug：user 表用 ban_type 字段（0=正常/1=禁言/2=禁止访问/3=锁定）
+        $rows = db_find('user', array('gid' => array(1, 2), 'ban_type' => 0), array('uid' => 1), 1, 50, 'uid');
         $candidates = array();
         if (!empty($rows)) {
             foreach ($rows as $uid => $row) {

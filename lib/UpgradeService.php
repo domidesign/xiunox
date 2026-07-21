@@ -1188,6 +1188,23 @@ class UpgradeService {
             $results[] = ['name' => 'cache_dir_create', 'ok' => true, 'message' => '已存在，跳过'];
         }
 
+        // 4. 扩容 bbs_cache.k 字段：char(32) → varchar(255)
+        // ponytail: CACHE_KEY_MD5_THRESHOLD=200 允许长键，但字段只有 char(32)，
+        // STRICT_TRANS_TABLES 模式下超 32 字符的 cache_set 会失败（如 thread_pl_replies_<tid>_<md5>_v<n> = 56字符），
+        // 导致帖子回复列表缓存形同虚设，每次访问都重查 DB。扩到 varchar(255) 让长键能正常写入。
+        $cacheTable = $this->conf['db']['tablepre'] . 'cache';
+        $colInfo = $this->db->query("SHOW COLUMNS FROM `{$cacheTable}` LIKE 'k'")->fetch();
+        if ($colInfo && stripos($colInfo['Type'], 'char(32)') !== false) {
+            try {
+                $this->db->exec("ALTER TABLE `{$cacheTable}` MODIFY `k` VARCHAR(255) NOT NULL DEFAULT ''");
+                $results[] = ['name' => 'cache_key_varchar', 'ok' => true, 'message' => 'bbs_cache.k 已扩容 char(32) → varchar(255)'];
+            } catch (\Throwable $e) {
+                $results[] = ['name' => 'cache_key_varchar', 'ok' => false, 'message' => '扩容 bbs_cache.k 失败: ' . $e->getMessage()];
+            }
+        } else {
+            $results[] = ['name' => 'cache_key_varchar', 'ok' => true, 'message' => '已扩容或字段不存在，跳过'];
+        }
+
         $allOk = !in_array(false, array_column($results, 'ok'), true);
         $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
         return [
