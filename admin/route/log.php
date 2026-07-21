@@ -6,6 +6,17 @@ $action = param(1, 'credits');
 
 // hook admin_log_start.php
 
+// ponytail: 用户名/昵称模糊匹配 → uid 列表。原 db_find_one 精确匹配 username 搜不到昵称（如"欧琳"）。
+function log_search_user_by_name($keyword) {
+	if($keyword === '') return array();
+	$_by_username = db_find('user', array('username'=>array('LIKE'=>$keyword)), array(), 1, 50, 'uid');
+	$_by_nickname = db_find('user', array('nickname'=>array('LIKE'=>$keyword)), array(), 1, 50, 'uid');
+	$_uid_map = array();
+	if($_by_username) foreach($_by_username as $_u) $_uid_map[intval($_u['uid'])] = 1;
+	if($_by_nickname) foreach($_by_nickname as $_u) $_uid_map[intval($_u['uid'])] = 1;
+	return array_keys($_uid_map);
+}
+
 if($action == 'credits') {
 
 	// hook admin_log_credits_start.php
@@ -27,13 +38,9 @@ if($action == 'credits') {
 	if($filter_uid > 0) {
 		$cond['uid'] = $filter_uid;
 	} elseif(!empty($filter_username)) {
-		$_user = db_find_one('user', array('username'=>$filter_username));
-		if(!empty($_user)) {
-			$cond['uid'] = $_user['uid'];
-			$filter_uid = $_user['uid'];
-		} else {
-			$cond['uid'] = -1; // 不存在的用户
-		}
+		// ponytail: 用户输入可能是 username 或 nickname，且常为部分匹配；精确匹配 username 永远搜不到昵称，LIKE 双字段取 uid 列表
+		$_uid_list = log_search_user_by_name($filter_username);
+		$cond['uid'] = $_uid_list ? $_uid_list : -1; // 不存在则强制无结果
 	}
 	if(!empty($filter_type)) {
 		$cond['type'] = $filter_type;
@@ -136,13 +143,9 @@ if($action == 'credits') {
 	if($filter_uid > 0) {
 		$cond['uid'] = $filter_uid;
 	} elseif(!empty($filter_username)) {
-		$_user = db_find_one('user', array('username'=>$filter_username));
-		if(!empty($_user)) {
-			$cond['uid'] = $_user['uid'];
-			$filter_uid = $_user['uid'];
-		} else {
-			$cond['uid'] = -1;
-		}
+		// ponytail: 用户输入可能是 username 或 nickname，且常为部分匹配；精确匹配 username 永远搜不到昵称，LIKE 双字段取 uid 列表
+		$_uid_list = log_search_user_by_name($filter_username);
+		$cond['uid'] = $_uid_list ? $_uid_list : -1; // 不存在则强制无结果
 	}
 	if($filter_success >= 0) {
 		$cond['success'] = intval($filter_success);

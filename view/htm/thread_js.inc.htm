@@ -38,24 +38,6 @@
     })();
 </script>
 
-<div class="modal fade" id="imageLightbox" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0 bg-transparent">
-            <div class="modal-body p-0 text-center position-relative">
-                <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-2 z-3"
-                    data-bs-dismiss="modal" aria-label="Close"></button>
-                <img id="lightboxImage" class="img-fluid rounded-1" src="" alt="">
-                <div class="position-absolute bottom-0 start-0 m-3">
-                    <button type="button" class="btn btn-sm btn-light rounded-circle me-2" id="lightboxPrev"><i
-                            class="ti ti-chevron-left"></i></button>
-                    <button type="button" class="btn btn-sm btn-light rounded-circle" id="lightboxNext"><i
-                            class="ti ti-chevron-right"></i></button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
     function resize_image() {
         var jmessagelist = $('div.message');
@@ -225,44 +207,6 @@
             syncAdvancedReplyHref(0);
         });
     })();
-
-    // 图片灯箱：原生 JS 实现，支持 htmx 局部刷新后重绑定（参考 bindCopyCode 模式）
-    var lightboxImages = [];
-    var lightboxIndex = 0;
-    function bindLightbox(container) {
-        var root = container || document;
-        if (!root.querySelectorAll) return;
-        var nodes = root.querySelectorAll('.message img');
-        for (var i = 0; i < nodes.length; i++) {
-            (function (img) {
-                if (img.dataset.lightboxBound === '1') return;  // 避免重复绑定
-                var src = img.getAttribute('src');
-                if (!src || img.closest('a')) return;  // 裸图才绑定，被 <a> 包裹的保留跳转行为
-                img.dataset.lightboxBound = '1';
-                if (lightboxImages.indexOf(src) === -1) lightboxImages.push(src);
-                img.style.cursor = 'pointer';
-                img.addEventListener('click', function () {
-                    lightboxIndex = lightboxImages.indexOf(src);
-                    $('#lightboxImage').attr('src', src);
-                    new bootstrap.Modal(document.getElementById('imageLightbox')).show();
-                });
-            })(nodes[i]);
-        }
-    }
-    bindLightbox(document);
-    document.addEventListener('htmx:after:swap', function (evt) {
-        bindLightbox(evt.target);
-    });
-    $('#lightboxPrev').on('click', function () {
-        if (lightboxImages.length === 0) return;
-        lightboxIndex = (lightboxIndex - 1 + lightboxImages.length) % lightboxImages.length;
-        $('#lightboxImage').attr('src', lightboxImages[lightboxIndex]);
-    });
-    $('#lightboxNext').on('click', function () {
-        if (lightboxImages.length === 0) return;
-        lightboxIndex = (lightboxIndex + 1) % lightboxImages.length;
-        $('#lightboxImage').attr('src', lightboxImages[lightboxIndex]);
-    });
 
     // 代码块复制按钮：原生 JS 实现，支持 htmx 局部刷新后重绑定
     function bindCopyCode(container) {
