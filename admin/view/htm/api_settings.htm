@@ -5,6 +5,9 @@
 <div class="mb-3">
 	<a href="<?php echo admin_api_doc_url();?>" class="btn btn-sm btn-outline-secondary"><i class="ti ti-book"></i> 文档</a>
 	<a href="<?php echo admin_api_settings_url();?>" class="btn btn-sm btn-primary"><i class="ti ti-settings"></i> 设置</a>
+	<?php if(!empty($conf['api_log'])): ?>
+	<a href="<?php echo admin_api_log_url();?>" class="btn btn-sm btn-outline-secondary"><i class="ti ti-history"></i> <?php echo lang('admin_api_log_title');?></a>
+	<?php endif; ?>
 </div>
 
 <!-- API 总开关 -->
@@ -178,7 +181,7 @@
 				</div>
 				<div class="mb-3">
 					<label class="form-label">权限范围</label>
-					<select class="form-select form-select-sm" id="createAppScope">
+					<select class="form-select form-select-sm" id="createAppScope" onchange="updateAllowedResourcesState('create')">
 						<option value="readonly">只读 - 仅允许 GET 请求</option>
 						<option value="readwrite">读写 - 允许读写操作</option>
 						<option value="full">完全 - 允许所有操作</option>
@@ -219,9 +222,10 @@
 			<div class="mb-3">
 				<label class="form-label"><?php echo lang('api_app_allowed_resources');?></label>
 				<small class="text-muted d-block mb-2"><?php echo lang('api_app_allowed_resources_desc');?></small>
-				<div class="d-flex flex-wrap gap-3">
+				<div class="d-flex flex-wrap gap-3" id="createAllowedResources">
 					<?php
-					$createResources = ['thread','post','user','forum','admin','notify','credits','search'];
+					// ponytail: 资源列表需与 bootstrap.php 路由一致，缺 auth 会导致 auth/login 永远 403
+					$createResources = ['thread','post','user','forum','admin','notify','credits','search','auth','attach','site','rank','captcha','mod','my'];
 					foreach($createResources as $res):
 						$resId = 'createRes_' . $res;
 					?>
@@ -231,6 +235,7 @@
 					</div>
 					<?php endforeach; ?>
 				</div>
+				<small class="text-warning d-none mt-1" id="createAllowedResourcesHint"><?php echo lang('api_app_allowed_resources_scope_full_hint');?></small>
 			</div>
 
 			<!-- 端点黑名单 -->
@@ -276,7 +281,7 @@
 				</div>
 				<div class="mb-3">
 					<label class="form-label">权限范围</label>
-					<select class="form-select form-select-sm" id="editAppScope">
+					<select class="form-select form-select-sm" id="editAppScope" onchange="updateAllowedResourcesState('edit')">
 						<option value="readonly">只读 - 仅允许 GET 请求</option>
 						<option value="readwrite">读写 - 允许读写操作</option>
 						<option value="full">完全 - 允许所有操作</option>
@@ -323,9 +328,9 @@
 			<div class="mb-3">
 				<label class="form-label"><?php echo lang('api_app_allowed_resources');?></label>
 				<small class="text-muted d-block mb-2"><?php echo lang('api_app_allowed_resources_desc');?></small>
-				<div class="d-flex flex-wrap gap-3">
+				<div class="d-flex flex-wrap gap-3" id="editAllowedResources">
 					<?php
-					$editResources = ['thread','post','user','forum','admin','notify','credits','search'];
+					$editResources = ['thread','post','user','forum','admin','notify','credits','search','auth','attach','site','rank','captcha','mod','my'];
 					foreach($editResources as $res):
 						$resId = 'editRes_' . $res;
 					?>
@@ -335,6 +340,7 @@
 					</div>
 					<?php endforeach; ?>
 				</div>
+				<small class="text-warning d-none mt-1" id="editAllowedResourcesHint"><?php echo lang('api_app_allowed_resources_scope_full_hint');?></small>
 			</div>
 
 			<!-- 端点黑名单 -->
@@ -478,6 +484,25 @@ function resetCapabilitiesFields(scopePrefix) {
 	document.querySelectorAll('#' + modalId + ' input[name="allowed_resources[]"]').forEach(function(cb) {
 		cb.checked = false;
 	});
+	updateAllowedResourcesState(scopePrefix);
+}
+
+// ponytail: scope=full 时联动禁用 allowed_resources 复选框（避免 scope=full 仍被白名单拦截）
+function updateAllowedResourcesState(scopePrefix) {
+	var scopeSelect = document.getElementById(scopePrefix + 'AppScope');
+	if (!scopeSelect) return;
+	var isFull = scopeSelect.value === 'full';
+	var containerId = scopePrefix + 'AllowedResources';
+	var hintId = scopePrefix + 'AllowedResourcesHint';
+	var container = document.getElementById(containerId);
+	var hint = document.getElementById(hintId);
+	if (container) {
+		container.querySelectorAll('input[name="allowed_resources[]"]').forEach(function(cb) {
+			cb.disabled = isFull;
+			if (isFull) cb.checked = false;
+		});
+	}
+	if (hint) hint.classList.toggle('d-none', !isFull);
 }
 
 function collectCapabilitiesParams(params, scopePrefix) {
@@ -572,6 +597,8 @@ function showEditModal(id, name, description, scope, isEnabled, rateLimit) {
 	document.querySelectorAll('#editAppModal input[name="allowed_resources[]"]').forEach(function(cb) {
 		cb.checked = allowedRes.indexOf(cb.value) !== -1;
 	});
+	// ponytail: scope=full 时清空并禁用 allowed_resources（避免 scope=full 仍被白名单拦截）
+	updateAllowedResourcesState('edit');
 
 	var modal = new bootstrap.Modal(document.getElementById('editAppModal'));
 	modal.show();

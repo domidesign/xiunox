@@ -157,9 +157,10 @@ class AdminNotifyService {
                     include _include(XIUNOPHP_PATH . 'xn_send_mail.func.php');
                 }
                 $from_name = isset($conf['sitename']) ? $conf['sitename'] : 'BBS';
+                $_mail_url = self::absoluteMailUrl($url);
                 $content_html = '<!DOCTYPE html><html><body><div>'
                     . $content
-                    . '</div><p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">点击查看</a></p></body></html>';
+                    . '</div><p><a href="' . htmlspecialchars($_mail_url, ENT_QUOTES) . '">点击查看</a></p></body></html>';
                 foreach ($mail_recipients as $email) {
                     $mail_ret = xn_send_mail($smtp, $from_name, $email, $subject, $content_html, array('is_html' => TRUE));
                     if ($mail_ret === TRUE) {
@@ -231,9 +232,10 @@ class AdminNotifyService {
                 }
                 global $conf;
                 $from_name = isset($conf['sitename']) ? $conf['sitename'] : 'BBS';
+                $_mail_url = self::absoluteMailUrl($url);
                 $content_html = '<!DOCTYPE html><html><body><div>'
                     . $content
-                    . '</div><p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">点击查看</a></p></body></html>';
+                    . '</div><p><a href="' . htmlspecialchars($_mail_url, ENT_QUOTES) . '">点击查看</a></p></body></html>';
                 $mail_ret = xn_send_mail($smtp, $from_name, $user['email'], $subject, $content_html, array('is_html' => TRUE));
                 if ($mail_ret === TRUE) {
                     $result['sent_mail'] = 1;
@@ -249,6 +251,30 @@ class AdminNotifyService {
             $result['reason'] = 'notify_failed';
         }
         return $result;
+    }
+
+    /**
+     * 将相对路径 URL 转为绝对 URL（邮件中链接必须用绝对 URL，邮件客户端无法解析相对路径）
+     * ponytail: route_url() 从后台 admin 调用时会生成 './?xxx.htm' 格式（admin 强制 ? 格式 + ./ 前缀），
+     *   需先去掉 ./ 前缀再用 absolute_url() 拼接，否则得到 'http://host/path/./?xxx.htm'（虽能用但不干净）
+     */
+    private static function absoluteMailUrl($url) {
+        if ($url === '') return '';
+        // 已是绝对 URL 直接返回
+        if (strpos($url, 'http') === 0 || strpos($url, '//') === 0) return $url;
+        // 去掉 admin 路径下的 ./ 前缀
+        if (strpos($url, './') === 0) {
+            $url = substr($url, 2);
+        }
+        // absolute_url() 定义在 model/misc.func.php，核心启动流程已加载
+        if (function_exists('absolute_url')) {
+            return absolute_url($url);
+        }
+        // fallback：直接用 http_url_path() 拼接
+        if (function_exists('http_url_path')) {
+            return rtrim(http_url_path(), '/') . '/' . ltrim($url, '/');
+        }
+        return $url;
     }
 
     /**

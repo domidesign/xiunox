@@ -158,6 +158,8 @@ class UpgradeService {
             ['user', 'nickname', "ALTER TABLE `{$tablepre}user` ADD COLUMN `nickname` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '昵称' AFTER `username`"],
             ['credits_rule_global', 'daily_limit', "ALTER TABLE `{$tablepre}credits_rule_global` ADD COLUMN `daily_limit` INT NOT NULL DEFAULT 0 COMMENT '每日防刷限制次数，0使用全局设置' AFTER `enabled`"],
             ['credits_rule_forum', 'daily_limit', "ALTER TABLE `{$tablepre}credits_rule_forum` ADD COLUMN `daily_limit` INT NOT NULL DEFAULT 0 COMMENT '每日防刷限制次数，0使用全局设置' AFTER `enabled`"],
+            // ponytail: 老版本 UpgradeService 创建 api_log 表时漏了 appid 字段，bootstrap.php 写日志用 appid 导致静默失败
+            ['api_log', 'appid', "ALTER TABLE `{$tablepre}api_log` ADD COLUMN `appid` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '应用ID' AFTER `ip`"],
         ];
 
         foreach ($columns as $col) {
@@ -595,12 +597,14 @@ class UpgradeService {
                 `method` varchar(10) NOT NULL DEFAULT '',
                 `uid` int(11) unsigned NOT NULL DEFAULT 0,
                 `ip` int(11) unsigned NOT NULL DEFAULT 0,
+                `appid` varchar(32) NOT NULL DEFAULT '' COMMENT '应用ID',
                 `duration` int(11) unsigned NOT NULL DEFAULT 0,
                 `create_date` int(11) unsigned NOT NULL DEFAULT 0,
                 PRIMARY KEY (`id`),
                 KEY `resource_method` (`resource`, `method`),
                 KEY `uid` (`uid`),
-                KEY `create_date` (`create_date`)
+                KEY `create_date` (`create_date`),
+                KEY `appid` (`appid`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='API日志'"],
         ];
 

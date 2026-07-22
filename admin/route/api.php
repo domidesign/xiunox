@@ -25,6 +25,12 @@ function xn_build_app_capabilities($gid = 0) {
 		$skipAudit = 0;
 	}
 
+	// ponytail: scope=full 时清空 allowed_resources（避免 scope=full 仍被白名单拦截，与 UI 联动一致）
+	$scope = param('scope', 'readonly');
+	if($scope === 'full') {
+		$allowedResources = [];
+	}
+
 	$capabilities = [
 		'skip_captcha' => $skipCaptcha,
 		'skip_audit' => $skipAudit,
@@ -65,6 +71,9 @@ if($action == 'doc') {
 
 		$tokens = $db->find('api_token', [], ['id' => -1], 1, 50, 'id');
 		$tokenCount = $db->count('api_token');
+		// ponytail: 调试页需选 API 应用携带 X-App-Id（bootstrap.php 中间件强制要求）；
+		// secret 是 password_hash 存储无法反查，仅传 appid/scope/name 供下拉框展示
+		$apps = $db->find('api_app', ['is_enabled' => 1], ['id' => -1], 1, 100, 'id');
 		include _include(ADMIN_PATH.'view/htm/api_debug.htm');
 
 	} elseif($method == 'POST') {
@@ -91,6 +100,20 @@ if($action == 'doc') {
 			include APP_PATH . 'lib/ApiAuthService.php';
 			$apiAuth = new ApiAuthService($db);
 			$apiAuth->revokeTokens($token);
+			message(0, lang('delete_successfully'));
+
+		} elseif($op == 'revoke_token_by_id') {
+			// ponytail: 按 refresh token 主键 id 删除整对 access+refresh
+			// revokeTokens() 接收明文 token，但调试页表格只有 hash，无法调用
+			$id = param('id', 0);
+			if($id <= 0) message(-1, 'ID error');
+			$row = $db->findOne('api_token', ['id' => $id, 'type' => 'refresh']);
+			if(!$row) message(-1, lang('record_not_exists'));
+			// 删除 refresh 行 + 关联的 access 行（access.related_id 指向 refresh.id）
+			$db->delete('api_token', ['id' => $id]);
+			if(!empty($row['related_id'])) {
+				$db->delete('api_token', ['id' => $row['related_id']]);
+			}
 			message(0, lang('delete_successfully'));
 
 		} elseif($op == 'test_api') {
@@ -139,6 +162,72 @@ if($action == 'doc') {
 	} else {
 		message(-1, 'Method not allowed');
 	}
+
+} elseif($action == 'log') {
+
+	// hook admin_api_log_start.php
+
+	// ponytail: api_log 未开启时直接跳到设置页，避免空表查询
+	if(empty($conf['api_log'])) {
+		http_location(admin_api_settings_url());
+	}
+
+	// ponytail: 老版本 UpgradeService 创建 api_log 表漏了 appid 字段，bootstrap.php 写日志静默失败
+	// 首次访问日志页时幂等补字段（用 setting kv 标记避免每次访问都查 INFORMATION_SCHEMA）
+	if(!setting_get('api_log_appid_col_checked')) {
+		$_col = $db->sqlFindOne("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$db->tablepre}api_log' AND COLUMN_NAME = 'appid'");
+		if(empty($_col)) {
+			$db->exec("ALTER TABLE `{$db->tablepre}api_log` ADD COLUMN `appid` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '应用ID' AFTER `ip`, ADD INDEX `appid` (`appid`)");
+		}
+		setting_set('api_log_appid_col_checked', 1);
+	}
+
+	$page = param(2, 1);
+	$pagesize = 50;
+
+	// 过滤条件（从 GET 取，URL 形式 api-log-{page}?resource=thread&method=GET&uid=1&appid=xxx）
+	$srch_resource = param('resource', '');
+	$srch_method   = param('method', '');
+	$srch_uid      = param('uid', 0);
+	$srch_appid    = param('appid', '');
+
+	$cond = [];
+	if($srch_resource !== '') $cond['resource'] = $srch_resource;
+	if($srch_method !== '')   $cond['method']   = $srch_method;
+	if($srch_uid > 0)         $cond['uid']      = intval($srch_uid);
+	if($srch_appid !== '')    $cond['appid']    = $srch_appid;
+
+	$n = $db->count('api_log', $cond);
+	$logs = $db->find('api_log', $cond, ['id' => -1], $page, $pagesize, 'id');
+	if(!is_array($logs)) $logs = [];
+
+	// 批量查用户名（避免 N+1）
+	// ponytail: user_find_by_uids() 第578行 trim() 期望字符串"1,2,3"，不能传数组
+	$uids = [];
+	foreach($logs as $_l) {
+		if(!empty($_l['uid'])) $uids[$_l['uid']] = $_l['uid'];
+	}
+	$users = [];
+	if($uids) {
+		$_users = user_find_by_uids(implode(',', array_keys($uids)));
+		if(is_array($_users)) {
+			foreach($_users as $_u) $users[$_u['uid']] = $_u;
+		}
+	}
+
+	// 拼接过滤查询串（分页链接保留过滤条件）
+	$flt_q = [];
+	if($srch_resource !== '') $flt_q['resource'] = $srch_resource;
+	if($srch_method !== '')   $flt_q['method']   = $srch_method;
+	if($srch_uid > 0)         $flt_q['uid']      = $srch_uid;
+	if($srch_appid !== '')    $flt_q['appid']    = $srch_appid;
+	$flt_qs = $flt_q ? '&' . http_build_query($flt_q) : '';
+	$pagination = pagination(url("api-log-{page}") . $flt_qs, $n, $page, $pagesize);
+
+	$header['title'] = lang('admin_api_log_title');
+	$header['mobile_title'] = lang('admin_api_log_title');
+
+	include _include(ADMIN_PATH.'view/htm/api_log.htm');
 
 } elseif($action == 'token_delete') {
 

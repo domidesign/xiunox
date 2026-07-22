@@ -3,61 +3,55 @@
 
 /**
  * 导航插件注册服务
- * 管理插件在顶部导航/左侧导航的显示配置
+ * 管理插件在顶部导航/左侧导航/手机导航的显示配置
  *
- * 插件通过 $registry 静态声明默认导航项。
- * 插件启用即在前台/后台展示，无需后台单独启用/禁用。
- * 后台导航设置页中插件项为纯展示（不可编辑/拖动），URL 提供复制按钮。
+ * v2 设计（去核心化）：
+ * - 注册表 $registry 初始为空，由各插件通过自己的 nav_register.php 调用 register() 自注册
+ * - NavService 不再硬编码任何插件条目，符合开闭原则（与 DiscoverService 保持一致）
+ * - lazy 加载：第一次被使用时扫描所有启用插件的 nav_register.php
+ * - 插件启用即在前台展示，无需后台单独启用/禁用
+ * - 后台导航设置页中插件项为纯展示（不可编辑/拖动），URL 提供复制按钮
  */
 class NavService {
 
-    // 插件导航注册表：插件ID => 默认配置
+    // 插件导航注册表：插件ID => 默认配置（由插件 nav_register.php 自注册）
     // position: 数组，支持 'top'/'side'/'mobile' 多位置（discover 由 DiscoverService 管理）
     // name_lang: 语言键，运行时通过 lang() 解析
-    private static $registry = array(
-        'xnx_medal' => array(
-            'position' => array('top', 'side', 'mobile'),
-            'url' => 'medals',
-            'icon' => 'ti-award',
-            'name_lang' => 'nav_plugin_name_medal',
-            'rank' => 100,
-        ),
-        'xnx_checkin' => array(
-            'position' => array('top', 'side', 'mobile'),
-            'url' => 'xnx_checkin',
-            'icon' => 'ti-calendar-check',
-            'name_lang' => 'nav_plugin_name_checkin',
-            'rank' => 110,
-        ),
-        'xnx_invite' => array(
-            'position' => array('top', 'side', 'mobile'),
-            'url' => 'xnx_invite-center',
-            'icon' => 'ti-user-plus',
-            'name_lang' => 'nav_plugin_name_invite',
-            'rank' => 120,
-        ),
-        'xnx_friendlink' => array(
-            'position' => array('top', 'side', 'mobile'),
-            'url' => 'links',
-            'icon' => 'ti-link',
-            'name_lang' => 'nav_plugin_name_friendlink',
-            'rank' => 130,
-        ),
-        'xnx_magic' => array(
-            'position' => array('top', 'side', 'mobile'),
-            'url' => 'magic',
-            'icon' => 'ti-sparkles',
-            'name_lang' => 'nav_plugin_name_magic',
-            'rank' => 140,
-        ),
-        'xnx_tag' => array(
-            'position' => array('top', 'side', 'mobile'),
-            'url' => 'topic',
-            'icon' => 'ti-tags',
-            'name_lang' => 'nav_plugin_name_tag',
-            'rank' => 150,
-        ),
-    );
+    private static $registry = array();
+
+    // 是否已扫描启用插件加载自注册文件
+    private static $registered = false;
+
+    /**
+     * 注册插件到导航（由插件 nav_register.php 调用）
+     * @param string $plugin_id 插件ID（如 'xnx_medal'）
+     * @param array $defaults 默认配置：position/url/icon/name_lang/rank
+     */
+    public static function register($plugin_id, array $defaults) {
+        if (!isset(self::$registry[$plugin_id])) {
+            self::$registry[$plugin_id] = $defaults;
+        }
+    }
+
+    /**
+     * 扫描所有启用插件，加载其 nav_register.php（如果存在）
+     * 该文件内部应调用 NavService::register(...) 完成自注册
+     * lazy + 单次执行：第一次访问注册表前触发
+     */
+    private static function ensureRegistered() {
+        if (self::$registered) return;
+        self::$registered = true;
+
+        // ponytail: plugin_paths_enabled 在 model/plugin.func.php，若极早期加载场景不可用则跳过
+        if (!function_exists('plugin_paths_enabled')) return;
+
+        foreach (plugin_paths_enabled() as $_path => $_pconf) {
+            $_reg_file = $_path . '/nav_register.php';
+            if (is_file($_reg_file)) {
+                include $_reg_file;
+            }
+        }
+    }
 
     /**
      * 生成前台固定链接 URL（绕过 admin 路径下 url() 强制 ?xxx.htm 格式）
@@ -209,6 +203,8 @@ class NavService {
      * @return array 每项含 type/icon/name/slug/url/rank/source
      */
     public static function getPluginNavItems($position = 'top') {
+        self::ensureRegistered();
+
         $items = array();
         // plugin_paths_enabled() 直接读 conf.json 检测 enable+installed，无需 plugin_init()
         // ponytail: 曾用 kv_get('plugins')，但项目从未 kv_set 该键，恒返回 NULL 导致插件项全部丢失
@@ -239,4 +235,3 @@ class NavService {
         return $items;
     }
 }
-

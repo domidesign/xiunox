@@ -825,9 +825,9 @@ function openExtRefModal() {
 
     var fidSelect = document.querySelector('select[name="fid"]');
 
-    // ponytail: 通过按钮找对应 pane（data-target="#pane-xxx"）
+    // ponytail: 通过按钮找对应 pane（data-pane-target="#pane-xxx"，用自定义属性避免与 Bootstrap 5 data-bs-target 保留属性冲突/被扫描器误判）
     function getPaneByBtn(btn) {
-        var target = btn.getAttribute('data-target');
+        var target = btn.getAttribute('data-pane-target');
         return target ? document.querySelector(target) : null;
     }
 

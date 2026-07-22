@@ -1,0 +1,115 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_api_log_start.htm}-->
+
+<div class="mb-3">
+	<a href="<?php echo admin_api_doc_url();?>" class="btn btn-sm btn-outline-secondary"><i class="ti ti-book"></i> <?php echo lang('admin_api_doc');?></a>
+	<a href="<?php echo admin_api_settings_url();?>" class="btn btn-sm btn-outline-secondary"><i class="ti ti-settings"></i> <?php echo lang('admin_api_settings');?></a>
+	<a href="<?php echo admin_api_debug_url();?>" class="btn btn-sm btn-outline-secondary"><i class="ti ti-terminal-2"></i> <?php echo lang('admin_api_debug');?></a>
+	<a href="<?php echo admin_api_log_url();?>" class="btn btn-sm btn-primary"><i class="ti ti-history"></i> <?php echo lang('admin_api_log_title');?></a>
+</div>
+
+<div class="x-card card mb-3">
+	<div class="card-body">
+		<?php // ponytail: GET 表单提交会丢弃 ?api-log.htm 路由信息，改用 JS 拼接 URL 跳转（参考 ai_logs.htm 模式） ?>
+		<form id="apiLogSearchForm" class="row g-2 align-items-end">
+			<div class="col-6 col-md-3">
+				<label class="form-label small text-secondary mb-1"><?php echo lang('admin_api_log_filter_resource');?></label>
+				<input type="text" class="form-control form-control-sm" name="resource" value="<?php echo esc_html($srch_resource);?>" placeholder="thread / post / user ...">
+			</div>
+			<div class="col-6 col-md-2">
+				<label class="form-label small text-secondary mb-1"><?php echo lang('admin_api_log_filter_method');?></label>
+				<select class="form-select form-select-sm" name="method">
+					<option value=""><?php echo lang('admin_api_log_all');?></option>
+					<?php foreach(['GET','POST','PUT','DELETE','OPTIONS'] as $_m): ?>
+					<option value="<?php echo $_m;?>" <?php echo $srch_method === $_m ? 'selected' : '';?>><?php echo $_m;?></option>
+					<?php endforeach; ?>
+				</select>
+			</div>
+			<div class="col-6 col-md-2">
+				<label class="form-label small text-secondary mb-1">UID</label>
+				<input type="number" class="form-control form-control-sm" name="uid" value="<?php echo intval($srch_uid);?>" placeholder="0">
+			</div>
+			<div class="col-6 col-md-3">
+				<label class="form-label small text-secondary mb-1">AppID</label>
+				<input type="text" class="form-control form-control-sm" name="appid" value="<?php echo esc_html($srch_appid);?>" placeholder="<?php echo lang('admin_api_log_filter_appid_ph');?>">
+			</div>
+			<div class="col-12 col-md-2">
+				<button type="submit" class="btn btn-sm btn-primary px-4"><i class="ti ti-search"></i> <?php echo lang('admin_api_log_search');?></button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<div class="d-flex justify-content-between align-items-center mb-3">
+			<h6 class="fw-semibold mb-0"><i class="ti ti-history me-1"></i><?php echo lang('admin_api_log_title');?> <span class="badge bg-secondary"><?php echo intval($n);?></span></h6>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-hover align-middle table-sm">
+				<thead>
+					<tr>
+						<th style="width:60px">ID</th>
+						<th style="width:80px">Method</th>
+						<th>Resource</th>
+						<th style="width:100px">UID</th>
+						<th>AppID</th>
+						<th style="width:120px">IP</th>
+						<th style="width:80px"><?php echo lang('admin_api_log_duration');?></th>
+						<th style="width:140px"><?php echo lang('admin_api_log_time');?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php if(empty($logs)): ?>
+					<tr><td colspan="8" class="text-center text-body-secondary py-4"><?php echo lang('admin_api_log_empty');?></td></tr>
+					<?php else: foreach($logs as $_l):
+						$_method = $_l['method'] ?? '';
+						$_method_cls = ['GET'=>'info','POST'=>'warning','PUT'=>'primary','DELETE'=>'danger','OPTIONS'=>'secondary'];
+						$_cls = $_method_cls[$_method] ?? 'secondary';
+						$_ip = !empty($_l['ip']) ? long2ip($_l['ip']) : '-';
+						$_uname = isset($users[$_l['uid']]) ? esc_html($users[$_l['uid']]['username']) : '-';
+					?>
+					<tr>
+						<td class="small text-body-secondary"><?php echo intval($_l['id']);?></td>
+						<td><span class="badge bg-<?php echo $_cls;?>"><?php echo esc_html($_method);?></span></td>
+						<td><code class="small"><?php echo esc_html($_l['resource']);?></code></td>
+						<td>
+							<?php if($_l['uid'] > 0): ?>
+							<span class="small"><?php echo intval($_l['uid']);?></span>
+							<div class="small text-body-secondary"><?php echo $_uname;?></div>
+							<?php else: ?>
+							<span class="text-body-secondary">-</span>
+							<?php endif; ?>
+						</td>
+						<td><code class="small text-body-secondary"><?php echo esc_html($_l['appid']);?></code></td>
+						<td class="small"><?php echo $_ip;?></td>
+						<td class="small"><?php echo intval($_l['duration']);?> ms</td>
+						<td class="small text-body-secondary"><?php echo date('Y-m-d H:i:s', $_l['create_date']);?></td>
+					</tr>
+					<?php endforeach; endif; ?>
+				</tbody>
+			</table>
+		</div>
+		<?php if($pagination):?>
+		<nav class="mt-3"><ul class="pagination pagination-boxed justify-content-center"><?php echo $pagination;?></ul></nav>
+		<?php endif;?>
+	</div>
+</div>
+
+<!--{hook admin_api_log_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+// ponytail: GET 表单提交会丢弃 ?api-log.htm 路由信息，改用 JS 拼接 URL 跳转
+document.getElementById('apiLogSearchForm').addEventListener('submit', function(e) {
+	e.preventDefault();
+	var f = this;
+	var url = '<?php echo url('api-log');?>?resource=' + encodeURIComponent(f.elements['resource'].value)
+			+ '&method=' + encodeURIComponent(f.elements['method'].value)
+			+ '&uid=' + encodeURIComponent(f.elements['uid'].value)
+			+ '&appid=' + encodeURIComponent(f.elements['appid'].value);
+	window.location.href = url;
+});
+</script>

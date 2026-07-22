@@ -151,6 +151,19 @@ description: >
     ?>
     ```
   - 💡 判断变量来源：`$route` 和 `$action` 是 `index.inc.php` 解析路由时设置的全局变量，`post.htm` 模板顶部已用 `($route == 'thread' && $action == 'create')` 区分发帖/回复/编辑三种场景
+- ❌ **thread 详情页 hook 中按 `$action == 'read'` 判断详情页** → thread 详情页 URL 是 `thread-{tid}.htm`，`route/thread.php` 中 `$action = param(1)` 取得的是 tid（数字字符串），不是 `'read'`。按 `$action == 'read'` 判断会永远不匹配，导致相关 JS/CSS/逻辑从未加载。⚠️ 已违反 1 次（xnx_poll `hook/footer_js_after.htm` 条件错误，`poll.js` 从未加载）
+  - ✅ 正确判断：`if (!empty($route) && $route == 'thread' && !empty($action) && is_numeric($action)) { ... }`
+- ❌ **发帖页 PC + mobile 双 hook 注入同名 form 字段** → `post.htm` 同一个 `<form>` 内同时注入 PC 右侧栏和手机端表单内两个 hook，两个 hook 渲染的卡片在 DOM 中同时存在（CSS `d-none` 控制显隐，input 仍在 form 内）。若注入同名非数组 input（如 `name="xnx_reward_amount"`），PHP `$_REQUEST` 只保留最后一个值，PC 用户填写的真实值会被 mobile 卡片的默认值覆盖，导致后端收到错误数据。⚠️ 已违反 2 次（xnx_poll poll_data 为空 + xnx_reward PC 金额/留言被 mobile 默认值覆盖）
+  - ✅ 修复方案：mobile hook 的所有 input/select/textarea `name` 必须加 `_m` 后缀，后端同时检测 `_pc` 和 `_m` 两个 enabled 字段，按可见卡片的标志位取对应字段值；或用 htmx 方案 B（在 form 上注册一次监听器，仅序列化可见卡片）
+  - 💡 判断规则：所有同时注入 `post_ref_thread_after.htm` + `post_ref_thread_after_mobile.htm` 两个 hook 的插件，mobile hook 的表单字段名必须带 `_m` 后缀，禁止与 PC hook 同名
+- ❌ **路由 URL 不带参数时仍从 URL 段取值** → 当路由 URL 模式不含某参数（如 `poll-vote` 不带 `poll_id`），后端 `param(2, 0)` 从 URL 第 2 段取会得到 0。必须改为从 POST body 取，前端 JS 用 FormData 显式传该参数。⚠️ 已违反 1 次（xnx_poll vote action `param(2,0)` 取 poll_id 始终为 0）
+  - ✅ 正确范式：`$poll_id = intval(param('poll_id', 0)); if ($poll_id <= 0) { $poll_id = intval(param(2, 0)); }`
+- ❌ **自定义 tab 切换用 `data-target` 属性** → `lib/PluginScannerSuggestion.php` 会把 `data-target` 判定为 Bootstrap 4 遗留属性建议改成 `data-bs-target`，但 `post.htm` 自定义 tab 切换 JS 用 `getAttribute('data-target')` 读取，改成 `data-bs-target` 又会导致 Bootstrap 5 误识别为 tab 触发器（冲突）。必须改用自定义属性名如 `data-pane-target`（参考 `xnx_landing/static/js/landing.js:76` 的 `data-count-target` 约定）。⚠️ 已违反 1 次（xnx_lottery/xnx_poll/xnx_reward 被扫描器报告）
+- ❌ **AIEditor 富文本图片上传后未立即 promote 为正式 attach** → AIEditor 上传走核心 `attach-create` API 时文件落到 `upload/tmp/`，若保存时 HTML 直接入库（含 `tmp/` URL），1 天后会被 `attach_gc()` 每日清理导致"次日消失"。核心 `attach_assoc_post()` 仅扫描 `post` 表，插件自定义表不会自动处理。必须新增 promote API，在上传成功后立即转正式 attach
+- ❌ **多文件上传用并行 fetch** → 核心 `route/attach.php` 用 `$_SESSION['tmp_files']` 数组 + `max(array_keys)+1` 计数器管理临时文件，多个并行 fetch 都读到相同初始 session，写入时后者覆盖前者，最终只剩一个 tmp_file。必须递归串行上传
+- ❌ **插件直接修改 `lib/DiscoverService.php` / `lib/NavService.php` 等系统核心文件的 `$registry` 数组** → 每个新插件想接入都得改核心文件，卸载后残留条目，升级/迁移时容易冲突，违反"插件自包含"原则。必须通过插件自身的 `<service>_register.php` 自注册。⚠️ 已违反 1 次（架构级，DiscoverService 硬编码 9 个插件、NavService 硬编码 6 个插件）
+  - ✅ 正确范式：系统 Service 提供 `register()` 静态方法 + `ensureRegistered()` lazy 扫描（在 `getXxx()` 入口调用），插件根目录创建 `discover_register.php` / `nav_register.php` 调用 `Service::register('插件ID', $defaults)`
+  - 💡 `<service>_register.php` 顶部必须有 `!defined('DEBUG') AND exit('Access Denied');` 防止直接访问
 
 ### 必须
 
@@ -198,6 +211,12 @@ description: >
   - **所有 border 都尽量不用**：卡片用 `x-card` 自带阴影分隔，列表项之间用纯 `py-*` 留白分隔（不加 border-bottom），需要视觉分隔时优先用 `py-*` / `mb-*` / `mt-*` / `gap-*` 等间距工具类，或用 `<hr>`（已有 `.thread-list-divider hr` 样式可复用）
 - ✅ **发帖页新增功能放右侧栏（PC）并使用"引用帖子"卡片样式**：发帖辅助功能（投票/话题/附件权限/楼主可见/抽奖等）必须挂到 `post_ref_thread_after.htm`（PC 右侧栏）+ `post_ref_thread_after_mobile.htm`（手机端表单内），禁止挂到 `post_subject_after.htm`（标题下方）或 `post_message_after.htm`（编辑器下方）。卡片结构必须与"引用帖子"卡片完全一致：`x-card card` + `card-header bg-transparent border-bottom-0 py-2` + `<h6 class="mb-0 fw-semibold"><i class="ti ti-xxx me-1"></i>标题</h6>` + `card-body pt-0`。手机端不渲染 card-header。⚠️ 已遵循：xnx_tag/xnx_fields/xnx_attach_access/xnx_private_reply/xnx_lottery；已违反 1 次（xnx_private_reply 初版挂到 post_subject_after.htm，已迁移）
 - ✅ **插件层获取用户信息用于显示时，用核心函数 `user_find_by_uids(implode(',', $uids))` / `user_read($uid)` / `user_read_cache($uid)`**（自动调用 `user_format()` 生成 `display_name`：`nickname` 优先，为空 fallback 到 `username`），禁止用 `db_find('user', ...)` 绕过核心层。模板显示用户名统一取 `$user['display_name']`，禁止直接取 `$user['username']`（`username` 是登录名，`nickname` 才是用户可修改的显示名）。已存在 `db_find('user')` 场景如需保留，必须在结果上手动 `user_format($user)` 补 `display_name` 字段
+- ✅ **发帖页 `fid=0` 占位符时把 fid=0 视为"未选择"而非"非白名单"**：按版块白名单动态显隐卡片的 JS 逻辑，在 `fidSelect.value == 0` 时必须显示卡片（不隐藏），只有 `fid > 0` 且不在白名单时才隐藏。版块校验最终由后端 hook 兜底。否则用户进入发帖页就看不到卡片，无法勾选 enabled 开关，插件功能完全无法使用。⚠️ 已违反 1 次（xnx_reward 初始化时卡片 display='none'，悬赏从未创建）
+- ✅ **多卡片共用同一 form 时只在 form 上注册一次 htmx 监听器**：同一 form 内存在多个结构相同的卡片（如响应式 mobile/desktop 双版本），禁止每个卡片各自注册 `htmx:config:request` 监听器，后注册的监听器可能覆盖前者的 form data，或被隐藏卡片的早返回拦截。应在 form 上注册一次监听器，触发时遍历所有卡片实例，仅对可见卡片（`offsetParent !== null`）序列化。详见 [references/frontend-patterns.md](references/frontend-patterns.md)
+- ✅ **悬赏/最佳答案等互斥卡片按状态切换显示**：同类型状态卡片必须互斥显示，禁止两个卡片同时出现。统一在 `thread_message_actions_before.htm` hook 按 `status` 字段切换
+- ✅ **图片放大复用全局 `view/js/lightbox.js` + `#xnLightbox` Modal**：禁止在多个页面/插件各写一套独立 Modal + JS。新场景的图片容器加 `[data-lightbox-container]` 或专用 class，显式截图链接用 `<a href="原图URL" data-lightbox>`，单张图片禁用加 `data-no-lightbox`。详见 [references/frontend-patterns.md](references/frontend-patterns.md)
+- ✅ **同一插件内多个审核流程字段设计保持一致**：拒绝/通过都应记录"拒绝原因 + 审核人 + 审核时间"三件套（`reject_reason`/`audit_uid`/`audit_time`），不要复用 `update_time` 作为审核时间。新增审核流程时必须对照已有同类流程检查字段对称性。⚠️ 已违反 1 次（xnx_appcenter 应用上架审核漏 reject_reason/audit_uid/audit_time）
+- ✅ **插件接入 DiscoverService/NavService 等系统级注册表时通过 `<service>_register.php` 自注册**：禁止直接修改 `lib/` 下核心 Service 文件的 `private static $registry` 数组。系统 Service 提供 `register()` + `ensureRegistered()` lazy 扫描，插件根目录创建 `discover_register.php` / `nav_register.php` 调用 `Service::register('插件ID', $defaults)`
 
 ---
 
@@ -1113,6 +1132,18 @@ hiddenInput.value = editor.getHtml();
 - [ ] **所有 `static/*.js` 文件中无 `<?php` 代码**（用 Grep 检查 `<\?php|lang\(` 确认，JS 文件是纯静态不会被 PHP 解析，翻译字符串通过引入 JS 的 hook 模板注入 `window.XXX_I18N` 全局对象）
 - [ ] **后台插件模板（setting.htm / xxx_admin.htm）首尾 include `_include(ADMIN_PATH . 'view/htm/header.inc.htm')` 和 `footer.inc.htm`**（前台插件模板用 `APP_PATH . 'view/htm/header.inc.htm'`）
 - [ ] **后台表单提交用 fetch 拦截 + 按钮 loading spinner + toast 反馈**（避免页面跳转，下拉框只有 1 个选项时直接删除）
+- [ ] **thread 详情页 hook 不依赖 `$action == 'read'` 判断**（tid 是数字，`is_numeric($action)`）
+- [ ] **同时注入 `post_ref_thread_after.htm` + `post_ref_thread_after_mobile.htm` 的插件，mobile hook 的表单字段名带 `_m` 后缀，禁止与 PC hook 同名**
+- [ ] **路由 URL 不带参数时从 POST body 取关键参数**（不用 `param(2,0)` 从 URL 段取）
+- [ ] **自定义 tab 切换用 `data-pane-target` 等自定义属性**，不用 `data-target`/`data-bs-target` 等 Bootstrap 保留属性
+- [ ] **AIEditor 等富文本编辑器上传图片后立即调 promote API 转为正式 attach**（自定义表保存 HTML 时不能含 `tmp/` URL）
+- [ ] **多文件上传场景串行上传**（递归 uploadNext 或 Promise 链），禁止并行 fetch
+- [ ] **插件接入 DiscoverService/NavService 等系统注册表时，不修改核心 Service 文件**，而是通过 `<plugin_root>/<service>_register.php` 自注册
+- [ ] **发帖页 `fid=0` 时版块白名单卡片显示不隐藏**（fid>0 且不在白名单才隐藏）
+- [ ] **多卡片共用同一 form 时只在 form 上注册一次 htmx 监听器**（仅序列化可见卡片，见 [references/frontend-patterns.md](references/frontend-patterns.md)）
+- [ ] **悬赏/最佳答案等互斥卡片按 `status` 字段切换显示**（统一在 `thread_message_actions_before.htm`）
+- [ ] **图片放大功能复用全局 `view/js/lightbox.js`**，不新建独立 Modal/JS（见 [references/frontend-patterns.md](references/frontend-patterns.md)）
+- [ ] **新增审核流程时字段三件套齐全**（`reject_reason`/`audit_uid`/`audit_time`），并与已有同类流程字段对称
 
 ---
 

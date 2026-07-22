@@ -223,6 +223,7 @@ function route_table() {
 			// ===== 后台 - API =====
 			'admin_api_doc'                 => 'api-doc',
 			'admin_api_debug'               => 'api-debug',
+			'admin_api_log'                 => 'api-log',
 			'admin_api_token_delete'        => 'api-token_delete-{id}',
 			'admin_api_settings'            => 'api-settings',
 			'admin_api_app_create'          => 'api-app_create',
@@ -496,6 +497,7 @@ function admin_attach_batch_delete_url($query = array()) { return route_url('adm
 // ----- 后台 - API -----
 function admin_api_doc_url($query = array())               { return route_url('admin_api_doc', [], $query); }
 function admin_api_debug_url($query = array())             { return route_url('admin_api_debug', [], $query); }
+function admin_api_log_url($query = array())               { return route_url('admin_api_log', [], $query); }
 function admin_api_token_delete_url($id, $query = array()) { return route_url('admin_api_token_delete', ['id' => $id], $query); }
 function admin_api_settings_url($query = array())          { return route_url('admin_api_settings', [], $query); }
 function admin_api_app_create_url($query = array())        { return route_url('admin_api_app_create', [], $query); }
