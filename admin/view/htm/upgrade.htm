@@ -2,6 +2,12 @@
 
 <!--{hook admin_upgrade_start.htm}-->
 
+<?php
+// ponytail: admin/index.inc.php 对所有 POST 请求中央化 CsrfService::check()，
+// 模板必须把 token 注入 JS，AJAX 显式带上 csrf_token 字段，否则被拦截报 CSRF token verification failed
+$csrfToken = CsrfService::getToken();
+?>
+
 <div class="mb-3">
 	<?php echo admin_tab_active($menu['other']['tab'], 'upgrade');?>
 </div>
@@ -67,6 +73,7 @@
 <script>
 var steps = <?php echo json_encode($steps);?>;
 var currentStep = 0;
+var csrfToken = <?php echo json_encode($csrfToken);?>;
 
 function startUpgrade() {
 	var btn = document.getElementById('startBtn');
@@ -98,7 +105,7 @@ function runNextStep() {
 	$.ajax({
 		url: '<?php echo admin_upgrade_url();?>',
 		type: 'POST',
-		data: { step: step.id },
+		data: { step: step.id, csrf_token: csrfToken },
 		dataType: 'json',
 		success: function(res) {
 			iconEl.innerHTML = res.ok ? '<i class="ti ti-check text-white"></i>' : '<i class="ti ti-exclamation-circle text-white"></i>';

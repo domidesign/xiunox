@@ -5,6 +5,9 @@ class UpgradeService {
     private array $conf;
     private string $backupPath;
     private string $targetVersion = XIUNOX_VERSION;
+    // ponytail: 表前缀统一从 db 对象取（conf['db'] 下无 tablepre 键，嵌在 db.{type}.master.tablepre），
+    // db 对象构造时已从 master.tablepre 设置此属性；fallback 'bbs_' 仅在异常情况下兜底
+    private string $tablepre;
 
     // KV 键名：记录上次升级完成时的版本号（不被 index.php 运行时覆盖）
     const INSTALLED_VERSION_KEY = 'installed_version';
@@ -13,6 +16,7 @@ class UpgradeService {
         $this->db = $db;
         $this->conf = $conf;
         $this->backupPath = $conf['tmp_path'] . 'upgrade_backup_' . date('Ymd_His') . '_' . substr(bin2hex(random_bytes(3)), 0, 6) . '/';
+        $this->tablepre = (is_object($db) && isset($db->tablepre)) ? $db->tablepre : 'bbs_';
     }
 
     /**
@@ -143,7 +147,7 @@ class UpgradeService {
     }
 
     public function upgradeDbStructure(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         $columns = [
@@ -215,7 +219,7 @@ class UpgradeService {
     }
 
     public function upgradeSocialTables(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         $columns = [
@@ -298,7 +302,7 @@ class UpgradeService {
     }
 
     public function upgradeCreditsSystem(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 创建积分日志表（使用 InnoDB 引擎，支持行锁）
@@ -339,7 +343,7 @@ class UpgradeService {
     }
 
     public function upgradeCreditsRuleTables(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 创建全局规则表
@@ -415,7 +419,7 @@ class UpgradeService {
     }
 
     public function upgradeApiV1Tables(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // api_token 的 type/related_id 字段已在 migrateDatabase 建表时包含
@@ -495,7 +499,7 @@ class UpgradeService {
      * 创建 API 应用表，自动生成默认应用凭据
      */
     public function upgradeApiAppTable(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 创建 api_app 表
@@ -562,7 +566,7 @@ class UpgradeService {
 
     public function migrateDatabase(): array {
         $results = [];
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
 
         $columns = [
             ['attach', 'width', "ALTER TABLE `{$tablepre}attach` ADD COLUMN `width` int(11) unsigned NOT NULL DEFAULT 0"],
@@ -626,7 +630,7 @@ class UpgradeService {
     }
 
     public function migratePasswords(int $batchSize = 100): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $total = $this->db->count('user');
 
         // 统计旧格式用户（password 字段非空，说明是 md5(md5(明文)+salt) 格式）
@@ -717,7 +721,7 @@ class UpgradeService {
     }
 
     public function upgradeUtf8mb4(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 需要转换的核心表（含文本字段，可能存储 emoji）
@@ -798,7 +802,7 @@ class UpgradeService {
      * 性能索引优化：为高频查询添加联合索引
      */
     public function upgradePerfIndexes(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // thread 表：用户帖子列表 WHERE uid=X ORDER BY tid DESC
@@ -870,7 +874,7 @@ class UpgradeService {
      * 使用 MODIFY COLUMN 幂等操作，重复执行无副作用。
      */
     public function upgradeFidFieldType(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 安全检查：forum.fid 最大值不能超过 smallint 上限（65535）
@@ -932,7 +936,7 @@ class UpgradeService {
     }
 
     public function upgradeSearchIndexes(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // bbs_thread.subject FULLTEXT 索引
@@ -961,7 +965,7 @@ class UpgradeService {
     }
 
     public function upgradeIconColorFields(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 添加用户组图标、颜色字段和版块图标字段
@@ -1018,7 +1022,7 @@ class UpgradeService {
     }
 
     public function upgradeNoticeIsRead(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 如果 notify 表不存在，先建表（含 is_read 字段，对齐 install.sql）
@@ -1083,7 +1087,7 @@ class UpgradeService {
     }
 
     public function upgradeForumManagement(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 添加发帖审核和回帖审核权限字段
@@ -1196,7 +1200,7 @@ class UpgradeService {
         // ponytail: CACHE_KEY_MD5_THRESHOLD=200 允许长键，但字段只有 char(32)，
         // STRICT_TRANS_TABLES 模式下超 32 字符的 cache_set 会失败（如 thread_pl_replies_<tid>_<md5>_v<n> = 56字符），
         // 导致帖子回复列表缓存形同虚设，每次访问都重查 DB。扩到 varchar(255) 让长键能正常写入。
-        $cacheTable = $this->conf['db']['tablepre'] . 'cache';
+        $cacheTable = $this->tablepre . 'cache';
         $colInfo = $this->db->query("SHOW COLUMNS FROM `{$cacheTable}` LIKE 'k'")->fetch();
         if ($colInfo && stripos($colInfo['Type'], 'char(32)') !== false) {
             try {
@@ -1219,7 +1223,7 @@ class UpgradeService {
     }
 
     public function upgradeGroupAuditPermissions(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 添加用户组审核权限字段
@@ -1349,7 +1353,7 @@ class UpgradeService {
         }
 
         // 5. 确保审核相关数据库字段存在
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $auditColumns = [
             ['thread', 'audit_status', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `audit_status` tinyint(1) NOT NULL DEFAULT 1 COMMENT '审核状态: 0待审/1通过/2驳回'"],
             ['post', 'audit_status', "ALTER TABLE `{$tablepre}post` ADD COLUMN `audit_status` tinyint(1) NOT NULL DEFAULT 1 COMMENT '审核状态: 0待审/1通过/2驳回'"],
@@ -1417,7 +1421,7 @@ class UpgradeService {
     }
 
     public function upgradePermissionSystem(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 创建 group_permission 表
@@ -1459,7 +1463,7 @@ class UpgradeService {
     }
 
     public function upgradeAdminLogTable(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         $r = $this->createTable('admin_log', "CREATE TABLE `{$tablepre}admin_log` (
@@ -1488,7 +1492,7 @@ class UpgradeService {
     }
     
     public function upgradeFriendlinkTable(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 添加精华帖相关字段
@@ -1534,7 +1538,7 @@ class UpgradeService {
      * 软删除字段：为 thread 和 post 表添加 is_deleted, deleted_date, deleted_by 字段及索引
      */
     public function upgradeSoftDeleteFields(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // thread 表添加软删除字段
@@ -1580,7 +1584,7 @@ class UpgradeService {
      * 用户封禁系统：为 user 表添加封禁字段，创建封禁历史记录表与 IP 黑名单表
      */
     public function upgradeUserBanSystem(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 1. 为 user 表添加封禁相关字段（放在 banned_until 之后）
@@ -1636,7 +1640,7 @@ class UpgradeService {
      *   - 已过期记录（expire_time > 0 且 <= now）跳过
      */
     public function migrateBannedIpToBlacklist(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 1. 检测 banned_ip 表是否存在（新安装无此表，直接标记已迁移避免重复检测）
@@ -1711,7 +1715,7 @@ class UpgradeService {
     }
 
     public function upgradeEmailLogTable(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         $r = $this->createTable('email_log', "CREATE TABLE `{$tablepre}email_log` (
@@ -1740,7 +1744,7 @@ class UpgradeService {
     }
 
     public function upgradePluginTable(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 创建插件表
@@ -1862,7 +1866,7 @@ class UpgradeService {
      * 昵称字段迁移：将现有 username 复制到 nickname
      */
     public function upgradeNicknameField(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 检查 nickname 字段是否存在
@@ -1897,7 +1901,7 @@ class UpgradeService {
      * 通知系统合并：将 notice 表数据迁移到 notify 表，扩展 notify 表字段
      */
     public function upgradeNotifyMerge(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 1. 扩展 notify 表字段
@@ -2005,7 +2009,7 @@ class UpgradeService {
      * 根据当前 credits 自动重新计算并更新到正确的用户组。
      */
     public function upgradeUserGroupResync(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         // 1. 加载 user_update_group 函数（admin 已通过 index.php 加载过 index.inc.php）
@@ -2100,7 +2104,7 @@ class UpgradeService {
      * AI 调用日志表：统一记录核心 AIService::call() 与插件的 AI 调用
      */
     public function upgradeAiCallLogTable(): array {
-        $tablepre = $this->conf['db']['tablepre'] ?? 'bbs_';
+        $tablepre = $this->tablepre;
         $results = [];
 
         $r = $this->createTable('xnx_ai_call_log', "CREATE TABLE `{$tablepre}xnx_ai_call_log` (
