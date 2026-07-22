@@ -415,9 +415,21 @@ class AuditService {
         $post_uid = isset($post_uid) ? $post_uid : (isset($post['uid']) ? intval($post['uid']) : 0);
 
         // 运行时触发 audit_approve_end hook（lib/ 不走 _include 编译期注入，用 plugin_hook 运行时分发）
-        // ponytail: 审核通过后补写 feed 等延迟通知，hook 在调用方作用域执行可访问 $target_type/$target_id/$tid 等
+        // ponytail: plugin_hook 在自身函数作用域 eval，无法访问本方法局部变量
+        // 通过 $data 关联数组传参，plugin_hook 内部 extract 到 hook 作用域
         if (function_exists('plugin_hook')) {
-            plugin_hook('audit_approve_end.php');
+            $_hook_data = array(
+                'target_type' => $target_type,
+                'target_id'   => $target_id,
+                'tid'         => isset($tid) ? $tid : 0,
+                'fid'         => isset($fid) ? $fid : 0,
+                'pid'         => isset($pid) ? $pid : 0,
+                'thread'      => isset($thread) ? $thread : null,
+                'post'        => isset($post) ? $post : null,
+                'thread_uid'  => isset($thread_uid) ? $thread_uid : 0,
+                'post_uid'    => isset($post_uid) ? $post_uid : 0,
+            );
+            plugin_hook('audit_approve_end.php', $_hook_data);
         }
 
         return true;

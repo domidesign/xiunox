@@ -390,8 +390,9 @@ switch ($method) {
             }
             $update['email'] = $email;
         }
-        $avatar = param('avatar', 0);
-        if ($avatar > 0) $update['avatar'] = intval($avatar);
+        // ponytail: avatar 字段不在 PUT 中处理。avatar 语义是时间戳/预设索引/0，
+        // 直接写数字不会处理图片文件，只会写入无意义的时间戳值。
+        // 头像更新应走 POST /user/{uid}/avatar（上传）或 POST /user/{uid}/avatar/preset（预设）。
         $password = param('password', '', FALSE);
         if (!empty($password)) {
             $salt = xn_rand(16);
@@ -405,12 +406,81 @@ switch ($method) {
         if (isset($_POST['signature']) || isset($jsonInput['signature'])) {
             $update['signature'] = $signature !== '' ? $signature : ($jsonInput['signature'] ?? '');
         }
+
+        // ponytail: 昵称字段（完整复刻前台 route/my.php 的校验逻辑）
+        // 包含：长度/保留词/唯一性/频率限制/审核机制/修改日志
+        $nickname = isset($jsonInput['nickname']) ? $jsonInput['nickname'] : param('nickname', '');
+        $_nickname_audit = false; // 标记昵称是否走了审核路径
+        if ($nickname !== '' && $nickname !== ($user['nickname'] ?? '')) {
+            // 长度校验
+            if (mb_strlen($nickname) > 32) {
+                ApiResponse::validationError(lang('nickname_length_too_long'));
+            }
+            // 保留词检查（防冒充管理员等）
+            include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
+            $nickname_check = SensitiveWordFilter::content_check($nickname, SensitiveWordFilter::TYPE_RESERVED);
+            if (!$nickname_check['pass']) {
+                $hit_words = implode('、', $nickname_check['matched_keywords']);
+                ApiResponse::validationError(lang('nickname_contains_reserved_word', array('words' => $hit_words)));
+            }
+            // 全局唯一性检查
+            $exists = db_find_one('user', array('nickname' => $nickname));
+            if (!empty($exists) && intval($exists['uid']) !== $uid) {
+                ApiResponse::validationError(lang('nickname_is_in_use'));
+            }
+            // 修改频率限制：30天内最多N次（读后台 security_nickname_change_limit 配置）
+            include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+            $nickname_change_limit = intval(SecurityConfigService::get('security_nickname_change_limit', 1));
+            if ($nickname_change_limit > 0 && function_exists('db_check_column_exists') && db_check_column_exists('user', 'nickname') && function_exists('db_check_table_exists') && db_check_table_exists('nickname_change_log')) {
+                $thirty_days_ago = $time - 30 * 86400;
+                $recent_changes = db_count('nickname_change_log', array('uid' => $uid, 'change_time' => array('>' => $thirty_days_ago)));
+                if ($recent_changes >= $nickname_change_limit) {
+                    $last_log = db_find_one('nickname_change_log', array('uid' => $uid, 'change_time' => array('>' => $thirty_days_ago)), array('change_time' => -1));
+                    $last_change_time = $last_log ? $last_log['change_time'] : $time;
+                    $remain_days = 30 - intval((time() - $last_change_time) / 86400);
+                    $remain_days = $remain_days > 0 ? $remain_days : 1;
+                    ApiResponse::validationError(lang('nickname_change_too_frequent', array('days' => $remain_days)));
+                }
+            }
+            // 资料审核权限检查（allow_direct_profile 不足时走 user_profile_audit 审核表）
+            include_once APP_PATH . 'lib/PermissionService.php';
+            $need_profile_audit = !PermissionService::check('allow_direct_profile');
+            if ($need_profile_audit) {
+                // 需要审核：存入审核表，不直接更新 nickname
+                db_insert('user_profile_audit', array(
+                    'uid' => $uid,
+                    'field_name' => 'nickname',
+                    'old_value' => isset($user['nickname']) ? $user['nickname'] : '',
+                    'new_value' => $nickname,
+                    'audit_status' => 0,
+                    'create_date' => $time,
+                ));
+                $_nickname_audit = true;
+            } else {
+                $update['nickname'] = $nickname;
+            }
+        }
+
         if (!empty($update)) {
             $userService->updateUser($uid, $update);
         }
+        // 记录昵称修改日志（仅在直接更新而非审核路径时）
+        if (isset($update['nickname']) && function_exists('db_check_table_exists') && db_check_table_exists('nickname_change_log')) {
+            db_insert('nickname_change_log', array(
+                'uid' => $uid,
+                'old_nickname' => $user['nickname'],
+                'new_nickname' => $update['nickname'],
+                'change_time' => $time,
+                'ip' => ip2long($ip),
+            ));
+        }
         $freshUser = $userService->getUserById($uid);
         $freshUser = sanitizeUserData($freshUser, $authUser, true, intval($authUser['gid']) === 1);
-        ApiResponse::success($freshUser);
+        if ($_nickname_audit) {
+            ApiResponse::success($freshUser, '资料已提交，等待审核');
+        } else {
+            ApiResponse::success($freshUser);
+        }
         break;
 
     case 'POST':

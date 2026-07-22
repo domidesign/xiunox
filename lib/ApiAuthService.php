@@ -130,7 +130,7 @@ class ApiAuthService {
         ];
     }
 
-    public function validateAccessToken(string $token): ?array {
+    public function validateAccessToken(?string $token): ?array {
         if (empty($token)) return null;
 
         $tokenHash = hash('sha256', $token);

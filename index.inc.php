@@ -192,6 +192,22 @@ if(!$_ban_is_admin && $uid > 0) {
 // 全站的设置数据，站点名称，描述，关键词
 // $setting = kv_get('setting');
 
+// ponytail: API 路径 /api/v1/* 早期拦截，避免被下方伪静态 301/严格校验误伤
+// nginx 等不读 .htaccess 的服务器，/api/v1/* 会走根 index.php → index.inc.php，
+// 必须在 301 逻辑之前直接 dispatch 到 bootstrap.php，否则 url_rewrite_on=4 等模式下
+// /api/v1/auth/login 会被 301 跳到 /api-v1-auth-login.html 导致 API 失效
+// 兼容子目录部署：去掉 base_path 前缀后判断 /api/v1/
+$_api_early_uri = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
+$_api_early_bp = isset($conf['base_path']) ? $conf['base_path'] : '';
+if($_api_early_bp !== '' && strpos($_api_early_uri, $_api_early_bp) === 0) {
+	$_api_early_uri = substr($_api_early_uri, strlen($_api_early_bp));
+}
+if($_api_early_uri && strpos($_api_early_uri, '/api/v1/') === 0) {
+	define('SKIP_ROUTE', true);
+	include APP_PATH . 'api/v1/bootstrap.php';
+	exit;
+}
+
 // 固定链接 301 重定向：旧格式 URL 自动跳转到新格式
 // admin 后台不执行 301 重定向（admin 始终用 url_rewrite_on=0 格式，不需要重定向）
 if(!empty($conf['url_rewrite_on']) && strpos($_SERVER['SCRIPT_NAME'], '/admin') === false) {
@@ -260,6 +276,8 @@ if(!empty($conf['url_rewrite_on']) && strpos($_SERVER['SCRIPT_NAME'], '/admin') 
     $_script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/index.php';
     $is_admin_request = (strpos($_script_name, '/admin') !== false);
     $uri_path = parse_url($request_uri, PHP_URL_PATH) ?? '';
+    // ponytail: API 路径 /api/v1/* 不参与跨格式 301（API 始终用路径格式，不套 .html 后缀），否则 /api/v1/auth/login 会被重定向到 /api-v1-auth-login.html 导致 API 失效
+    $_is_api_path = ($uri_path && strpos($uri_path, '/api/v1/') === 0);
     $has_html_suffix = ($uri_path && (substr($uri_path, -5) === '.html' || substr($uri_path, -4) === '.htm'));
     // 计算去掉安装前缀后的相对路径，用于判断是否为路径风格
     $_script_dir = dirname($_script_name);
@@ -273,7 +291,7 @@ if(!empty($conf['url_rewrite_on']) && strpos($_SERVER['SCRIPT_NAME'], '/admin') 
     $need_redirect = false;
     $redirect_url = '';
 
-    if(!$is_admin_request && $conf['url_rewrite_on'] == 3 && $has_html_suffix) {
+    if(!$is_admin_request && !$_is_api_path && $conf['url_rewrite_on'] == 3 && $has_html_suffix) {
         // 路径风格，但 URL 以 .html/.htm 结尾 → 跳转到路径风格
         // /user-21.html → /user/21, /my.html → /my, /thread-123-1.html → /thread/123/1
         $clean = preg_replace('#\.(html|htm)=?$#', '', $uri_path);
@@ -291,11 +309,11 @@ if(!empty($conf['url_rewrite_on']) && strpos($_SERVER['SCRIPT_NAME'], '/admin') 
         $qs = parse_url($request_uri, PHP_URL_QUERY);
         if($qs) $redirect_url .= '?' . $qs;
         $need_redirect = true;
-    } elseif(!$is_admin_request && $conf['url_rewrite_on'] == 1 && $has_html_suffix && substr($uri_path, -5) === '.html') {
+    } elseif(!$is_admin_request && !$_is_api_path && $conf['url_rewrite_on'] == 1 && $has_html_suffix && substr($uri_path, -5) === '.html') {
         // .htm 格式，但 URL 以 .html 结尾 → 跳转到 .htm
         $redirect_url = preg_replace('#\.html=?$#', '.htm', $request_uri);
         $need_redirect = true;
-    } elseif(!$is_admin_request && $conf['url_rewrite_on'] == 4 && !$has_html_suffix) {
+    } elseif(!$is_admin_request && !$_is_api_path && $conf['url_rewrite_on'] == 4 && !$has_html_suffix) {
         // .html 后缀格式，但 URL 没有后缀（路径风格）→ 跳转到 .html
         // /user/21 → /user-21.html, /my → /my.html
         $clean = trim($uri_path, '/');
@@ -313,7 +331,7 @@ if(!empty($conf['url_rewrite_on']) && strpos($_SERVER['SCRIPT_NAME'], '/admin') 
             if($qs) $redirect_url .= '?' . $qs;
             $need_redirect = true;
         }
-    } elseif(!$is_admin_request && $conf['url_rewrite_on'] == 1 && !$has_html_suffix && $is_path_format_redirect) {
+    } elseif(!$is_admin_request && !$_is_api_path && $conf['url_rewrite_on'] == 1 && !$has_html_suffix && $is_path_format_redirect) {
         // .htm 格式，但 URL 是路径风格 → 跳转到 .htm 格式
         // /user/21 → /user-21.htm, /my → /my.htm
         $clean = trim($uri_rel, '/');
@@ -325,7 +343,7 @@ if(!empty($conf['url_rewrite_on']) && strpos($_SERVER['SCRIPT_NAME'], '/admin') 
             if($qs) $redirect_url .= '?' . $qs;
             $need_redirect = true;
         }
-    } elseif(!$is_admin_request && $conf['url_rewrite_on'] == 5 && !$has_html_suffix) {
+    } elseif(!$is_admin_request && !$_is_api_path && $conf['url_rewrite_on'] == 5 && !$has_html_suffix) {
         // 路径+html 格式，但 URL 没有 .html 后缀（路径风格 /user/1 或 .htm 格式 /user-1.htm）
         // → 跳转到 /user/1.html
         // /user/1 → user-1 → url('user-1') → /user/1.html
@@ -344,7 +362,7 @@ if(!empty($conf['url_rewrite_on']) && strpos($_SERVER['SCRIPT_NAME'], '/admin') 
             if($qs) $redirect_url .= (strpos($redirect_url, '?') === FALSE ? '?' : '&') . $qs;
             $need_redirect = true;
         }
-    } elseif(!$is_admin_request && $conf['url_rewrite_on'] == 5 && $has_html_suffix && !$is_path_format_redirect) {
+    } elseif(!$is_admin_request && !$_is_api_path && $conf['url_rewrite_on'] == 5 && $has_html_suffix && !$is_path_format_redirect) {
         // 路径+html 格式，但 URL 是 .html 后缀的非路径风格（如 /user-1.html，url_rewrite_on=4 的格式）
         // → 跳转到 /user/1.html
         // /user-1.html → user-1 → url('user-1') → /user/1.html
