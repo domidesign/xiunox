@@ -30,6 +30,7 @@ if (!function_exists('notify__read')) {
 }
 
 $authUser = $apiAuth->validateAccessToken(ApiAuthService::getBearerToken());
+if (!$authUser) ApiResponse::unauthorized();
 
 $subResource = $segments[1] ?? '';
 
@@ -76,6 +77,8 @@ switch ($method) {
         }
         break;
 
+    // ponytail: POST 作为 PUT 别名，兼容只用 POST 的客户端/表单（原仅 PUT 导致 405）
+    case 'POST':
     case 'PUT':
         if ($subResource === 'read-all') {
             notify_mark_all_read(intval($authUser['uid']));

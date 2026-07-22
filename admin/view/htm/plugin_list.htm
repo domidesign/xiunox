@@ -109,7 +109,7 @@
                                  data-dir="<?php echo esc_attr($dir);?>"
                                  onerror="handlePluginIconError(this)">
                             <div class="flex-grow-1">
-                                <h6 class="mb-1 small font-bold text-truncate text-xl" title="<?php echo esc_attr($plugin['name'] ?? '');?>"><?php echo esc_html($plugin['name'] ?? '');?></h6>
+                                <h6 class="mb-1   text-truncate text-xl" title="<?php echo esc_attr($plugin['name'] ?? '');?>"><?php echo esc_html($plugin['name'] ?? '');?></h6>
                                 <div class="d-flex flex-wrap gap-1 align-items-center">
                                     <span class="badge bg-secondary">v<?php echo esc_html($plugin['version'] ?? '');?></span>
                                     <span class="badge <?php echo $plugin['type'] == 1 ? 'bg-warning' : 'bg-primary';?>">

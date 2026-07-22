@@ -187,7 +187,13 @@ switch ($method) {
         $skipAudit = $apiAppServerAuth && $apiAuth->checkAppCapability($apiApp, 'skip_audit');
         $auditStatus = $skipAudit ? 1 : (in_array(intval($authUser['gid']), [1, 2]) ? 1 : 0);
 
-        $pid = $postService->createPost([
+        // ponytail: 改用核心 post_create()，复用 post_message_fmt() 生成 message_fmt、
+        // 楼中楼 post_quote() 引用拼接、帖子/用户计数更新、缓存失效等完整逻辑。
+        // PostService::createPost() 只做 db_insert，跳过上述全部处理导致内容不显示。
+        if (!function_exists('post_create')) {
+            include_once APP_PATH . 'model/post.func.php';
+        }
+        $pid = post_create([
             'tid' => $tid,
             'uid' => intval($authUser['uid']),
             'isfirst' => 0,
@@ -197,7 +203,7 @@ switch ($method) {
             'doctype' => param('doctype', 1),
             'quotepid' => param('quotepid', 0),
             'audit_status' => $auditStatus,
-        ]);
+        ], intval($thread['fid']), intval($authUser['gid']), ['skip_attach_assoc' => true]);
         if ($pid <= 0) {
             ApiResponse::error(500, 'Failed to create post');
         }
@@ -237,9 +243,17 @@ switch ($method) {
         }
         $update = [];
         $message = param('message', '', false);
-        if (!empty($message)) $update['message'] = $message;
+        if (!empty($message)) {
+            $update['message'] = $message;
+            $update['doctype'] = param('doctype', 0);
+        }
         if (!empty($update)) {
-            $postService->updatePost($id, $update);
+            // ponytail: 改用核心 post_update()，内部调 post_message_fmt() 重新生成 message_fmt +
+            // 失效回帖列表缓存。PostService::updatePost() 只做 db_update 不处理格式转换。
+            if (!function_exists('post_update')) {
+                include_once APP_PATH . 'model/post.func.php';
+            }
+            post_update($id, $update);
         }
         ApiResponse::success($postService->getPostById($id));
         break;

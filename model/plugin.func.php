@@ -853,6 +853,11 @@ function plugin_hook($hookname, &$data = NULL) {
 		// hook 文件以 <?php exit; 开头防直接访问，剥离标签后必须在调用方作用域执行
 		// include 会因 exit; 终止，Closure 无法注入调用方作用域的 $data，故只能用 eval
 		// 已知风险：恶意 hook 文件可执行任意代码（hook 文件由开发者提供，等同源代码信任级别）
+		// ponytail: $data 为关联数组时 extract 到当前作用域，让 hook 能以变量名访问调用方数据
+		// 解决 plugin_hook 在自身函数作用域 eval、无法访问调用方局部变量的问题
+		if (is_array($data)) {
+			extract($data, EXTR_SKIP);
+		}
 		eval($t);
 		} catch(\Throwable $e) {
 			// PHP 7+ Throwable 兼容 Error 和 Exception
