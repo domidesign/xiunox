@@ -62,11 +62,19 @@ function post__find($cond = array(), $orderby = array(), $page = 1, $pagesize = 
 // ------------> 关联 CURD，主要是强相关的数据，比如缓存。弱相关的大量数据需要另外处理。
 
 // 回帖
-function post_create($arr, $fid, $gid) {
+// ponytail: $options 第4参数控制附件关联行为（默认安全：代发场景自动跳过）：
+//   - 默认：若 $arr['uid'] !== 当前登录用户 $GLOBALS['uid']（代发场景），自动跳过 attach_assoc_post
+//   - ['skip_attach_assoc' => true]：强制跳过附件关联（机器人代发/批量生成，明确语义标记）
+//   - ['force_attach_assoc' => true]：强制执行附件关联（管理员代用户发帖且要带附件的少数场景）
+//   根因：attach_assoc_post 内部用 global $uid + $_SESSION['tmp_files']，与 post_create 耦合。
+//   代发场景若执行，会窃取当前访问者上传中的附件（关联到机器人/批量 post），并清空 session
+//   导致原用户保存编辑时附件丢失。修复前已影响 xnx_ai_reply + xnx_demo_data 两个插件。
+//   默认 uid 守卫确保新插件作者即使不知道此参数也不会踩坑。
+function post_create($arr, $fid, $gid, $options = array()) {
 	global $conf, $time;
-	
+
 	// hook model_post_create_start.php
-	
+
 	$pid = post__create($arr, $gid);
 	if(!$pid) {
 		return $pid;
@@ -104,9 +112,23 @@ function post_create($arr, $fid, $gid) {
 		index_list_cache_delete();
 	}
 
-	// 关联附件
-	$message = $arr['message'];
-	attach_assoc_post($pid);
+	// 关联附件：默认安全策略——代发场景（$arr['uid'] !== 当前登录用户）自动跳过
+	// ponytail: attach_assoc_post 内部用 global $uid + $_SESSION['tmp_files']，与发起人身份强耦合。
+	// 机器人代发/批量生成若执行，会窃取当前访问者 session 中的上传附件并清空 session。
+	// 三种控制方式优先级：force_attach_assoc > skip_attach_assoc > uid 守卫自动判断
+	if (!empty($options['force_attach_assoc'])) {
+		$message = $arr['message'];
+		attach_assoc_post($pid);
+	} elseif (empty($options['skip_attach_assoc'])) {
+		// 默认：仅当 post.uid 就是当前登录用户时才关联（用户自己发帖）
+		// 代发场景（uid 不匹配）自动跳过，新插件作者无需知道此参数也安全
+		$_current_uid = isset($GLOBALS['uid']) ? intval($GLOBALS['uid']) : 0;
+		$_post_uid = intval($arr['uid']);
+		if ($_post_uid > 0 && $_post_uid === $_current_uid) {
+			$message = $arr['message'];
+			attach_assoc_post($pid);
+		}
+	}
 
 	// 更新用户的用户组
 	user_update_group($uid);

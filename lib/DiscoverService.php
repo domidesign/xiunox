@@ -4,74 +4,53 @@
 /**
  * 发现页插件注册服务
  * 管理插件在发现页的显示配置
+ *
+ * v2 设计（去核心化）：
+ * - 注册表 $registry 初始为空，由各插件通过自己的 discover_register.php 调用 register() 自注册
+ * - DiscoverService 不再硬编码任何插件条目，符合开闭原则
+ * - lazy 加载：第一次被使用时扫描所有启用插件的 discover_register.php
+ * - 兜底兼容：plugin_paths_enabled 不可用时（极早期加载场景）跳过自动注册
  */
 class DiscoverService {
 
-    // 插件发现页注册表：插件ID => 默认配置
-    // 每个有独立前台页面的插件都在此注册
+    // 插件发现页注册表：插件ID => 默认配置（由插件 discover_register.php 自注册）
     // name 使用语言键，运行时通过 lang() 解析
-    private static $registry = array(
-        'xnx_checkin' => array(
-            'url' => 'xnx_checkin',
-            'icon' => 'ti-calendar-check',
-            'name_lang' => 'discover_plugin_name_checkin',
-            'rank' => 10,
-        ),
-        'xnx_medal' => array(
-            'url' => 'medals',
-            'icon' => 'ti-award',
-            'name_lang' => 'discover_plugin_name_medal',
-            'rank' => 20,
-        ),
-        'xnx_invite' => array(
-            'url' => 'xnx_invite-center',
-            'icon' => 'ti-user-plus',
-            'name_lang' => 'discover_plugin_name_invite',
-            'rank' => 30,
-        ),
-        'xnx_friendlink' => array(
-            'url' => 'links',
-            'icon' => 'ti-link',
-            'name_lang' => 'discover_plugin_name_friendlink',
-            'rank' => 40,
-        ),
-        'xnx_magic' => array(
-            'url' => 'magic',
-            'icon' => 'ti-sparkles',
-            'name_lang' => 'discover_plugin_name_magic',
-            'rank' => 50,
-        ),
-        'xnx_tag' => array(
-            'url' => 'topic',
-            'icon' => 'ti-tags',
-            'name_lang' => 'discover_plugin_name_tag',
-            'rank' => 60,
-        ),
-        'xnx_dice' => array(
-            'url' => 'dice',
-            'icon' => 'ti-dice',
-            'name_lang' => 'discover_plugin_name_dice',
-            'rank' => 70,
-        ),
-        'xnx_duel' => array(
-            'url' => 'duel',
-            'icon' => 'ti-swords',
-            'name_lang' => 'discover_plugin_name_duel',
-            'rank' => 80,
-        ),
-        'xnx_verify' => array(
-            'url' => 'verify',
-            'icon' => 'ti-certificate',
-            'name_lang' => 'discover_plugin_name_verify',
-            'rank' => 100,
-        ),
-        'xnx_icon' => array(
-            'url' => 'icon',
-            'icon' => 'ti-icons',
-            'name_lang' => 'discover_plugin_name_icon',
-            'rank' => 110,
-        ),
-    );
+    private static $registry = array();
+
+    // 是否已扫描启用插件加载自注册文件
+    private static $registered = false;
+
+    /**
+     * 注册插件到发现页（由插件 discover_register.php 调用）
+     * @param string $plugin_id 插件ID（如 'xnx_medal'）
+     * @param array $defaults 默认配置：url/icon/name_lang/rank
+     */
+    public static function register($plugin_id, array $defaults) {
+        if (!isset(self::$registry[$plugin_id])) {
+            self::$registry[$plugin_id] = $defaults;
+        }
+    }
+
+    /**
+     * 扫描所有启用插件，加载其 discover_register.php（如果存在）
+     * 该文件内部应调用 DiscoverService::register(...) 完成自注册
+     * lazy + 单次执行：第一次访问注册表前触发
+     */
+    private static function ensureRegistered() {
+        if (self::$registered) return;
+        self::$registered = true;
+
+        // ponytail: plugin_paths_enabled 在 model/plugin.func.php，若极早期加载场景不可用则跳过
+        // （DiscoverService 主要在路由层调用，此时 plugin.func.php 必然已加载，此兜底仅为防御）
+        if (!function_exists('plugin_paths_enabled')) return;
+
+        foreach (plugin_paths_enabled() as $_path => $_pconf) {
+            $_reg_file = $_path . '/discover_register.php';
+            if (is_file($_reg_file)) {
+                include $_reg_file;
+            }
+        }
+    }
 
     /**
      * 获取所有已启用的插件发现项（用于 more.php 展示）
@@ -79,6 +58,8 @@ class DiscoverService {
      * @return array
      */
     public static function getPluginDiscoverItems($for_admin = false) {
+        self::ensureRegistered();
+
         $items = array();
         $config = self::getAllConfig();
 
@@ -112,6 +93,8 @@ class DiscoverService {
      * @return array
      */
     public static function getPluginDiscoverConfig($plugin_id) {
+        self::ensureRegistered();
+
         if (!isset(self::$registry[$plugin_id])) {
             return array('enabled' => 0, 'icon' => '', 'name' => '', 'rank' => 0);
         }
@@ -141,15 +124,6 @@ class DiscoverService {
             'rank'    => intval($data['rank'] ?? 0),
         );
         setting_set('plugin_discover_items', $config);
-    }
-
-    /**
-     * 获取注册表信息（用于后台模板显示默认值）
-     * @param string $plugin_id
-     * @return array|null
-     */
-    public static function getRegistryInfo($plugin_id) {
-        return isset(self::$registry[$plugin_id]) ? self::$registry[$plugin_id] : null;
     }
 
     /**

@@ -5,6 +5,9 @@
 <div class="mb-3">
     <a href="<?php echo admin_api_doc_url();?>" class="btn btn-sm btn-outline-secondary"><i class="ti ti-book"></i> 文档</a>
     <a href="<?php echo admin_api_settings_url();?>" class="btn btn-sm btn-outline-secondary"><i class="ti ti-settings"></i> 设置</a>
+    <?php if(!empty($conf['api_log'])): ?>
+    <a href="<?php echo admin_api_log_url();?>" class="btn btn-sm btn-outline-secondary"><i class="ti ti-history"></i> <?php echo lang('admin_api_log_title');?></a>
+    <?php endif; ?>
 </div>
 
 <style>
@@ -61,11 +64,11 @@
 						?>
 						<tr>
 							<td><?php echo $t['uid'];?></td>
-							<td><?php if($access) { ?><code style="font-size:0.75rem;cursor:pointer" title="<?php echo lang('api_debug_copy');?>" onclick="copyText('<?php echo $access['token'];?>')"><?php echo substr($access['token'], 0, 12);?>...</code><?php } else { ?><span class="text-secondary">-</span><?php } ?></td>
-							<td><code style="font-size:0.75rem;cursor:pointer" title="<?php echo lang('api_debug_copy');?>" onclick="copyText('<?php echo $t['token'];?>')"><?php echo substr($t['token'], 0, 12);?>...</code></td>
+							<td><?php if($access) { ?><code style="font-size:0.75rem" title="<?php echo lang('api_debug_token_hash_only');?>"><?php echo substr($access['token'], 0, 12);?>...</code><?php } else { ?><span class="text-secondary">-</span><?php } ?></td>
+							<td><code style="font-size:0.75rem" title="<?php echo lang('api_debug_token_hash_only');?>"><?php echo substr($t['token'], 0, 12);?>...</code></td>
 							<td style="font-size:0.75rem"><?php echo $access ? date('m-d H:i', $access['expires_at']) : date('m-d H:i', $t['expires_at']);?></td>
 							<td>
-								<a href="javascript:void(0)" class="text-danger" style="font-size:0.75rem" onclick="revokeToken('<?php echo $t['token'];?>', '<?php echo substr($t['token'], 0, 12);?>...')"><i class="ti ti-trash"></i></a>
+								<a href="javascript:void(0)" class="text-danger" style="font-size:0.75rem" onclick="revokeToken(<?php echo intval($t['id']);?>, '<?php echo intval($t['uid']);?>')"><i class="ti ti-trash"></i></a>
 							</td>
 						</tr>
 						<?php } ?>
@@ -108,13 +111,30 @@
 					</div>
 
 					<div class="mb-3">
-						<label class="fs-6 text-secondary mb-1 d-block"><?php echo lang('admin_api_auth_token'); ?></label>
-						<div class="d-flex gap-1">
-							<input type="text" class="form-control form-control-sm flex-fill" id="apiToken" placeholder="<?php echo lang('api_debug_token_placeholder');?>">
-							<button type="button" class="btn btn-sm btn-ghost" onclick="fillOrGenerateToken()" id="fillTokenBtn"><i class="ti ti-key"></i><?php echo lang('api_debug_fill_token');?></button>
-							<button type="button" class="btn btn-sm btn-ghost" onclick="copyText(document.getElementById('apiToken').value)" title="<?php echo lang('api_debug_copy');?>"><i class="ti ti-clipboard"></i></button>
-						</div>
+					<label class="fs-6 text-secondary mb-1 d-block"><?php echo lang('api_debug_app_section'); ?></label>
+					<div class="d-flex gap-1 mb-1">
+						<select class="form-select form-select-sm flex-fill" id="apiAppId">
+							<option value=""><?php echo lang('api_debug_select_app');?></option>
+							<?php if(!empty($apps)): foreach($apps as $_app): ?>
+							<option value="<?php echo esc_attr($_app['appid']);?>" data-scope="<?php echo esc_attr($_app['scope']);?>">
+								<?php echo esc_html($_app['appid']);?> — <?php echo esc_html($_app['name']);?> (<?php echo esc_html($_app['scope']);?>)
+							</option>
+							<?php endforeach; endif; ?>
+						</select>
 					</div>
+					<div class="d-flex gap-1">
+						<input type="text" class="form-control form-control-sm flex-fill" id="apiAppSecret" placeholder="<?php echo lang('api_debug_app_secret_placeholder');?>">
+					</div>
+				</div>
+
+				<div class="mb-3">
+					<label class="fs-6 text-secondary mb-1 d-block"><?php echo lang('admin_api_auth_token'); ?></label>
+					<div class="d-flex gap-1">
+						<input type="text" class="form-control form-control-sm flex-fill" id="apiToken" placeholder="<?php echo lang('api_debug_token_placeholder');?>">
+						<button type="button" class="btn btn-sm btn-ghost" onclick="fillOrGenerateToken()" id="fillTokenBtn"><i class="ti ti-key"></i><?php echo lang('api_debug_fill_token');?></button>
+						<button type="button" class="btn btn-sm btn-ghost" onclick="copyText(document.getElementById('apiToken').value)" title="<?php echo lang('api_debug_copy');?>"><i class="ti ti-clipboard"></i></button>
+					</div>
+				</div>
 
 					<div class="mb-3" id="apiBodyGroup">
 						<label class="fs-6 text-secondary mb-1 d-block"><?php echo lang('admin_api_request_body'); ?></label>
@@ -173,6 +193,7 @@ var lastResponse = '';
 	var e = params.get('endpoint');
 	var b = params.get('body');
 	var at = params.get('authtoken');
+	var ap = params.get('appid');
 	if (m) document.getElementById('apiMethod').value = m;
 	if (e) document.getElementById('apiEndpoint').value = e;
 	if (b) document.getElementById('apiBody').value = JSON.stringify(JSON.parse(b), null, 2);
@@ -180,6 +201,13 @@ var lastResponse = '';
 		// 优先取 access token 用于 API 鉴权
 		var at0 = latestTokens.find(function(t) { return (t.type || '') === 'access'; }) || latestTokens[0];
 		document.getElementById('apiToken').value = at0.token;
+	}
+	// ponytail: URL 参数 appid 自动选中下拉框（与 authtoken 同样的预填模式）
+	if (ap) {
+		var sel = document.getElementById('apiAppId');
+		for (var i = 0; i < sel.options.length; i++) {
+			if (sel.options[i].value === ap) { sel.selectedIndex = i; break; }
+		}
 	}
 	updateBodyVisibility();
 	loadHistory();
@@ -198,12 +226,8 @@ function updateBodyVisibility() {
 }
 
 function fillOrGenerateToken() {
-	// 优先使用已有的 access token（API 调试用 access token 鉴权）
-	var access = latestTokens.find(function(t) { return (t.type || '') === 'access'; });
-	if(access) {
-		document.getElementById('apiToken').value = access.token;
-		return;
-	}
+	// ponytail: DB 中 token 字段是 SHA-256 hash，无法反查明文；
+	// 明文 token 只在 generateTokens() 返回时出现一次，所以每次都生成新 token
 	var csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 	var btn = document.getElementById('fillTokenBtn');
 	btn.disabled = true;
@@ -212,9 +236,9 @@ function fillOrGenerateToken() {
 		if(code == 0) {
 			// generateTokens() 返回 {access_token, refresh_token, expires_in, user}
 			document.getElementById('apiToken').value = message.access_token;
-			latestTokens.unshift({token: message.access_token, type: 'access'});
 			btn.innerHTML = '<i class="ti ti-key"></i><?php echo lang('api_debug_fill_token');?>';
 			btn.disabled = false;
+			showToast('<?php echo lang('api_debug_token_generated');?>', 'success');
 		} else {
 			showToast(message, 'error');
 			btn.innerHTML = '<i class="ti ti-key"></i><?php echo lang('api_debug_fill_token');?>';
@@ -237,7 +261,15 @@ function sendApiRequest() {
 	var method = document.getElementById('apiMethod').value;
 	var endpoint = document.getElementById('apiEndpoint').value;
 	var token = document.getElementById('apiToken').value;
+	var appId = document.getElementById('apiAppId').value;
+	var appSecret = document.getElementById('apiAppSecret').value;
 	var body = document.getElementById('apiBody').value;
+
+	// ponytail: bootstrap.php 中间件强制要求 X-App-Id，缺失返回 401
+	if(!appId) {
+		showToast('<?php echo lang('api_debug_select_app_required');?>', 'error');
+		return;
+	}
 
 	var url = '../api/v1/' + endpoint;
 	var startTime = performance.now();
@@ -249,6 +281,8 @@ function sendApiRequest() {
 		type: method,
 		dataType: 'text',
 		beforeSend: function(xhr) {
+			xhr.setRequestHeader('X-App-Id', appId);
+			if(appSecret) xhr.setRequestHeader('X-App-Secret', appSecret);
 			if(token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
 		},
 		complete: function() {
@@ -390,11 +424,11 @@ function clearHistory() {
 	renderHistory();
 }
 
-function revokeToken(refreshToken, name) {
-	XN.confirm('<?php echo lang("api_debug_confirm_revoke");?> ' + name + '？', function() {
+function revokeToken(tokenId, uid) {
+	XN.confirm('<?php echo lang("api_debug_confirm_revoke");?> UID=' + uid + '？', function() {
 	var csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-	// revokeTokens() 接收 refresh_token 字符串，删除整对 access+refresh
-	$.xpost('<?php echo admin_api_debug_url();?>', {op: 'revoke_token', token: refreshToken, csrf_token: csrfToken}, function(code, message) {
+	// ponytail: 后端 revoke_token_by_id op 按 refresh token 主键 id 删除整对 access+refresh
+	$.xpost('<?php echo admin_api_debug_url();?>', {op: 'revoke_token_by_id', id: tokenId, csrf_token: csrfToken}, function(code, message) {
 		if(code == 0) {
 			showToast('<?php echo lang("api_debug_token_revoked");?>', 'success');
 			setTimeout(function(){ location.reload(); }, 1000);
