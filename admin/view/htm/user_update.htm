@@ -243,7 +243,10 @@
 var jform = $('#form');
 var jsubmit = $('#submit');
 var langCreditsReasonRequired = <?php echo json_encode(lang('admin_credits_reason_required'));?>;
-jform.on('submit', function() {
+jform.on('submit', function(e) {
+	// ponytail: jQuery shim 的 on() 底层是 addEventListener，return false 不会阻止默认提交，
+	// 必须显式 preventDefault，否则表单会同时发起 AJAX + 原生 POST 两次请求（积分双倍 bug 根因）
+	e.preventDefault();
 	setBtnLoading(jsubmit, true);
 	// 积分调整时必须填写理由
 	var hasCreditsChange = false;

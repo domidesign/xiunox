@@ -161,7 +161,7 @@ function thread__find($cond = array(), $orderby = array(), $page = 1, $pagesize 
 	return $threadlist;
 }
 
-function thread_create($arr, &$pid) {
+function thread_create($arr, &$pid, $options = array()) {
 	global $conf, $gid;
 	$fid = $arr['fid'];
 	$uid = $arr['uid'];
@@ -226,7 +226,9 @@ function thread_create($arr, &$pid) {
 	$uid AND mythread_create($uid, $tid);
 
 	// 关联附件
-	attach_assoc_post($pid);
+	// ponytail: 传递 pageToken 实现多标签页/跨帖子附件隔离
+	$_page_token = isset($options['page_token']) ? $options['page_token'] : '';
+	attach_assoc_post($pid, $_page_token);
 	
 	// 更新板块信息。
 	forum_list_cache_delete();

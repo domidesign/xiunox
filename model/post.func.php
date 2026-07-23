@@ -66,6 +66,7 @@ function post__find($cond = array(), $orderby = array(), $page = 1, $pagesize = 
 //   - 默认：若 $arr['uid'] !== 当前登录用户 $GLOBALS['uid']（代发场景），自动跳过 attach_assoc_post
 //   - ['skip_attach_assoc' => true]：强制跳过附件关联（机器人代发/批量生成，明确语义标记）
 //   - ['force_attach_assoc' => true]：强制执行附件关联（管理员代用户发帖且要带附件的少数场景）
+//   - ['page_token' => 'xxx']：页面会话标识，用于多标签页/跨帖子附件隔离（前端发帖/编辑场景）
 //   根因：attach_assoc_post 内部用 global $uid + $_SESSION['tmp_files']，与 post_create 耦合。
 //   代发场景若执行，会窃取当前访问者上传中的附件（关联到机器人/批量 post），并清空 session
 //   导致原用户保存编辑时附件丢失。修复前已影响 xnx_ai_reply + xnx_demo_data 两个插件。
@@ -116,9 +117,11 @@ function post_create($arr, $fid, $gid, $options = array()) {
 	// ponytail: attach_assoc_post 内部用 global $uid + $_SESSION['tmp_files']，与发起人身份强耦合。
 	// 机器人代发/批量生成若执行，会窃取当前访问者 session 中的上传附件并清空 session。
 	// 三种控制方式优先级：force_attach_assoc > skip_attach_assoc > uid 守卫自动判断
+	// pageToken 用于多标签页/跨帖子附件隔离（前端发帖/编辑场景传入）
+	$_page_token = isset($options['page_token']) ? $options['page_token'] : '';
 	if (!empty($options['force_attach_assoc'])) {
 		$message = $arr['message'];
-		attach_assoc_post($pid);
+		attach_assoc_post($pid, $_page_token);
 	} elseif (empty($options['skip_attach_assoc'])) {
 		// 默认：仅当 post.uid 就是当前登录用户时才关联（用户自己发帖）
 		// 代发场景（uid 不匹配）自动跳过，新插件作者无需知道此参数也安全
@@ -126,7 +129,7 @@ function post_create($arr, $fid, $gid, $options = array()) {
 		$_post_uid = intval($arr['uid']);
 		if ($_post_uid > 0 && $_post_uid === $_current_uid) {
 			$message = $arr['message'];
-			attach_assoc_post($pid);
+			attach_assoc_post($pid, $_page_token);
 		}
 	}
 
@@ -139,7 +142,11 @@ function post_create($arr, $fid, $gid, $options = array()) {
 }
 
 // 编辑回帖
-function post_update($pid, $arr, $tid = 0) {
+// ponytail: $options 第4参数控制附件关联：
+//   - ['page_token' => 'xxx']：页面会话标识，用于多标签页/跨帖子附件隔离
+//   - ['skip_attach_assoc' => true]：强制跳过附件关联
+//   - ['force_attach_assoc' => true]：强制执行附件关联（覆盖 uid 守卫）
+function post_update($pid, $arr, $tid = 0, $options = array()) {
 	global $conf, $user, $gid;
 
 	$post = post__read($pid);
@@ -149,7 +156,7 @@ function post_update($pid, $arr, $tid = 0) {
 	$isfirst = $post['isfirst'];
 	
 	// hook model_post_update_start.php
-
+	
 	
 	post_message_fmt($arr, $gid);
 	
@@ -160,7 +167,21 @@ function post_update($pid, $arr, $tid = 0) {
 	// 失效该帖子的回帖列表缓存（编辑后立即生效，与 post_create/post_delete 对称）
 	post_list_cache_bump_version($tid);
 
-	attach_assoc_post($pid);
+	// 关联附件：与 post_create 一致的 uid 守卫 + pageToken 隔离
+	// ponytail: post_update 原无条件调用 attach_assoc_post，导致多标签页场景下 session 中
+	// 其他帖子的附件被串入当前编辑的帖子。增加 uid 守卫 + pageToken 隔离修复此问题。
+	$_page_token = isset($options['page_token']) ? $options['page_token'] : '';
+	if (!empty($options['force_attach_assoc'])) {
+		attach_assoc_post($pid, $_page_token);
+	} elseif (empty($options['skip_attach_assoc'])) {
+		$_current_uid = isset($GLOBALS['uid']) ? intval($GLOBALS['uid']) : 0;
+		$_post_uid = intval($post['uid']);
+		// 仅当 post.uid 就是当前登录用户时才关联（用户自己编辑）
+		// 管理员代编辑场景如需带附件，显式传 force_attach_assoc=true
+		if ($_post_uid > 0 && $_post_uid === $_current_uid) {
+			attach_assoc_post($pid, $_page_token);
+		}
+	}
 
 	// hook model_post_update_end.php
 	return $r;

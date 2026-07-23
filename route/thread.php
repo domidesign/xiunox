@@ -515,7 +515,7 @@ if($action == 'create') {
 		$audit_status = $need_audit ? 0 : 1;
 		$thread['audit_status'] = $audit_status;
 
-		$tid = thread_create($thread, $pid);
+		$tid = thread_create($thread, $pid, array('page_token' => param('page_token', '')));
 		$pid === FALSE AND message(-1, lang('create_post_failed'));
 		$tid === FALSE AND message(-1, lang('create_thread_failed'));
 		

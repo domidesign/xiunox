@@ -16,8 +16,11 @@
     var ANCHOR_SELECTOR = 'a[data-lightbox]';
     var IMG_EXTS = /\.(jpe?g|png|gif|webp|svg|bmp|avif)(\?|$)/i;
 
+    // ponytail: 打开 lightbox 时的默认缩放比例(80%),让图片略小于窗口便于整体查看
+    var DEFAULT_SCALE = 0.8;
+
     var state = {
-        scale: 1,
+        scale: DEFAULT_SCALE,
         rotation: 0,
         tx: 0,
         ty: 0,
@@ -27,7 +30,7 @@
         dragStartX: 0,
         dragStartY: 0,
         pinchStartDist: 0,
-        pinchStartScale: 1
+        pinchStartScale: DEFAULT_SCALE
     };
 
     var modal = document.getElementById('xnLightbox');
@@ -96,7 +99,7 @@
     }
 
     function resetTransform() {
-        state.scale = 1;
+        state.scale = DEFAULT_SCALE;
         state.rotation = 0;
         state.tx = 0;
         state.ty = 0;
@@ -218,9 +221,9 @@
     });
     if (resetBtn) resetBtn.addEventListener('click', resetTransform);
 
-    // 双击切换 1x / 2x
+    // 双击切换 默认比例 / 2x
     img.addEventListener('dblclick', function () {
-        state.scale = state.scale > 1 ? 1 : 2;
+        state.scale = state.scale > 1 ? DEFAULT_SCALE : 2;
         state.tx = 0;
         state.ty = 0;
         applyTransform();

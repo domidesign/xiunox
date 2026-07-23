@@ -125,6 +125,10 @@ if(empty($action) || $action == 'create') {
         // 保存到 session
         sess_restart();
 
+        // ponytail: 接收 page_token 用于多标签页/跨帖子附件隔离
+        // 前端 UploadService 上传时携带，attach_assoc_post 据此只关联本次提交的附件
+        $page_token = param('page_token', '');
+
         empty($_SESSION['tmp_files']) AND $_SESSION['tmp_files'] = array();
         // ponytail: 用 max(array_keys)+1 替代 count()，避免并发上传或中途删除某项后 key 重叠覆盖
         // 旧逻辑 count() 在 [0,1,3] 这种非连续数组上会得到 3，下次上传 key=3 覆盖已有数据
@@ -142,7 +146,8 @@ if(empty($action) || $action == 'create') {
             'height'     => $height,
             'isimage'    => $isimage,
             'downloads'  => 0,
-            'aid'        => '_'.$n
+            'aid'        => '_'.$n,
+            'page_token' => $page_token,
         );
         $_SESSION['tmp_files'][$n] = $attach;
 
@@ -229,6 +234,9 @@ if(empty($action) || $action == 'create') {
 
         sess_restart();
 
+        // ponytail: 接收 page_token 用于多标签页/跨帖子附件隔离
+        $page_token = param('page_token', '');
+
         empty($_SESSION['tmp_files']) AND $_SESSION['tmp_files'] = array();
         // ponytail: 同上，用 max(array_keys)+1 避免并发或非连续 key 覆盖
         $_keys = array_keys($_SESSION['tmp_files']);
@@ -245,7 +253,8 @@ if(empty($action) || $action == 'create') {
             'height'     => $height,
             'isimage'    => $is_image,
             'downloads'  => 0,
-            'aid'        => '_'.$n
+            'aid'        => '_'.$n,
+            'page_token' => $page_token,
         );
         $_SESSION['tmp_files'][$n] = $attach;
 

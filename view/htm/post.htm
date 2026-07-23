@@ -47,22 +47,36 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 
 	// hook post_start_init.htm
 
+	// ponytail: 生成页面会话标识 pageToken，用于多标签页/跨帖子附件隔离
+	// 每次打开发帖/编辑页生成唯一 token，上传附件时携带，attach_assoc_post 据此只关联本次提交的附件
+	$page_token = bin2hex(random_bytes(16));
+
 	// 创建新帖子/回复时，清空上次遗留的临时文件
+	// ponytail: pageToken 隔离后只清空无 page_token 的旧残留（升级前数据），保留其他标签页的附件
 	if(($route == 'thread' && $action == 'create') || ($route == 'post' && $action == 'create')) {
 		if(!empty($_SESSION['tmp_files'])) {
-			foreach($_SESSION['tmp_files'] as $f) {
+			foreach($_SESSION['tmp_files'] as $k => $f) {
+				// 保留有 page_token 的项（属于其他标签页的上传）
+				if(!empty($f['page_token'])) continue;
 				if(!empty($f['path']) && is_file($f['path'])) @unlink($f['path']);
 				if(!empty($f['thumb_url'])) {
 					$thumb_rel = str_replace($conf['upload_url'].'tmp/', '', $f['thumb_url']);
 					$thumb_path = $conf['upload_path'].'tmp/'.$thumb_rel;
 					is_file($thumb_path) AND @unlink($thumb_path);
 				}
+				unset($_SESSION['tmp_files'][$k]);
 			}
-			$_SESSION['tmp_files'] = array();
 		}
 	}
 
-	$filelist += (array)_SESSION('tmp_files');
+	// ponytail: 只显示当前 pageToken 的临时附件，避免显示其他标签页上传的附件
+	$_session_tmp_files = (array)_SESSION('tmp_files');
+	$_filtered_tmp_files = array();
+	foreach ($_session_tmp_files as $k => $f) {
+		if ($page_token !== '' && (!isset($f['page_token']) || $f['page_token'] !== $page_token)) continue;
+		$_filtered_tmp_files[$k] = $f;
+	}
+	$filelist += $_filtered_tmp_files;
 	$imagelist = array();
 	$videolist = array();
 	if($route == 'post' && $action == 'update' && !empty($post['imagelist'])) {
@@ -98,8 +112,10 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 		</div>
 		<div class="card-body">
 					<?php echo CsrfService::input(); ?>
-					<input type="hidden" name="doctype" value="0" />
-					<input type="hidden" name="quotepid" value="<?php echo $quotepid;?>" />
+				<input type="hidden" name="doctype" value="0" />
+				<input type="hidden" name="quotepid" value="<?php echo $quotepid;?>" />
+				<!-- ponytail: page_token 用于多标签页/跨帖子附件隔离 -->
+				<input type="hidden" name="page_token" id="page_token" value="<?php echo $page_token;?>" />
 
 					<!--{hook post_fid_before.htm}-->
 				<?php if($isfirst) { ?>
