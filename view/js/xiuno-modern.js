@@ -1620,19 +1620,26 @@
                 for (var ei = 0; ei < events.length; ei++) {
                     var ev = events[ei];
                     if (!ev) continue;
-                    if (delegated) {
-                        var wrap = function(e) {
+                    // ponytail: jQuery 兼容 — handler return false 等价于 preventDefault + stopPropagation
+                    // 原生 addEventListener 不处理 return false，会导致表单 AJAX + 原生 POST 双重提交（积分双倍 bug 根因）
+                    // 已违反 1 次：影响 user_update.htm 等 17+ 后台表单
+                    var wrap = function(e) {
+                        var ret;
+                        if (delegated) {
                             var target = e.target.closest(selector);
                             if (target && el.contains(target)) {
-                                actualHandler.call(target, e);
+                                ret = actualHandler.call(target, e);
                             }
-                        };
-                        el.addEventListener(ev, wrap);
-                        el._xnEventStore.push({event: ev, handler: actualHandler, wrap: wrap, selector: selector});
-                    } else {
-                        el.addEventListener(ev, actualHandler);
-                        el._xnEventStore.push({event: ev, handler: actualHandler, wrap: actualHandler, selector: null});
-                    }
+                        } else {
+                            ret = actualHandler.call(el, e);
+                        }
+                        if (ret === false) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }
+                    };
+                    el.addEventListener(ev, wrap);
+                    el._xnEventStore.push({event: ev, handler: actualHandler, wrap: wrap, selector: selector});
                 }
             });
         },

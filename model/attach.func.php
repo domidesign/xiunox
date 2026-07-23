@@ -271,7 +271,10 @@ function attach_gc() {
 }
 
 // 关联 session 中的临时文件，并不会重新统计 images, files
-function attach_assoc_post($pid) {
+// ponytail: 增加 $pageToken 参数实现多标签页/跨帖子会话隔离。
+//   - pageToken 非空（前端发帖/编辑）：只处理 page_token 匹配的临时文件，处理完只删除这些项，保留其他标签页的附件
+//   - pageToken 为空（API/旧客户端）：走原逻辑，处理所有 tmp_files 并清空整个 session（向后兼容）
+function attach_assoc_post($pid, $pageToken = '') {
 	global $uid, $time, $conf;
 	$sess_tmp_files = _SESSION('tmp_files');
 	//if(empty($tmp_files)) return;
@@ -298,9 +301,17 @@ function attach_assoc_post($pid) {
 	// ===== 方案1：从 session 中读取临时文件信息（原有逻辑） =====
 	// 修复孤儿附件：只处理 message 中实际存在的临时文件
 	// 对于附件（非图片/视频），由于不插入编辑器，始终保留
+	// pageToken 隔离：只处理属于本次提交的临时文件，避免多标签页/跨帖子串入
 	$tmp_files = $sess_tmp_files;
+	$processed_keys = array(); // 记录已处理的 key（用于精确清理 session）
 	if($tmp_files) {
-		foreach($tmp_files as $file) {
+		foreach($tmp_files as $key => $file) {
+			
+			// pageToken 隔离：跳过不属于本次提交的临时文件
+			if($pageToken !== '' && (!isset($file['page_token']) || $file['page_token'] !== $pageToken)) {
+				continue;
+			}
+			$processed_keys[] = $key;
 			
 			// 检查临时文件 URL 是否在 message 中（图片/视频）
 			// 附件（非图片/视频）不插入编辑器，始终保留
@@ -328,7 +339,12 @@ function attach_assoc_post($pid) {
 			$desturl = $url.'/'.$filename;
 			$r = xn_copy($file['path'], $destfile);
 			!$r AND xn_log("xn_copy({$file['path']}, $destfile) failed, pid:$pid, tid:$tid", 'php_error');
-			if(is_file($destfile) && filesize($destfile) == filesize($file['path'])) {
+			// xn_copy 失败保护：目标文件不存在时跳过 attach_create，避免创建无物理文件的孤儿记录
+			if(!is_file($destfile)) {
+				xn_log("attach_assoc_post: skip attach_create due to xn_copy failure (dest not found), key:$key, pid:$pid", 'php_error');
+				continue;
+			}
+			if(filesize($destfile) == filesize($file['path'])) {
 				@unlink($file['path']);
 			}
 
@@ -380,7 +396,8 @@ function attach_assoc_post($pid) {
 	// 匹配 src="/upload/tmp/xxx.ext" 或 src="/upload/tmp/xxx.ext" 等格式
 	$tmp_url_prefix = $conf['upload_url'].'tmp/';
 	$tmp_path_prefix = $conf['upload_path'].'tmp/';
-	$need_scan = (empty($tmp_files) || strpos($post['message'], $tmp_url_prefix) !== false || strpos($post['message_fmt'], $tmp_url_prefix) !== false);
+	// pageToken 隔离：用 $processed_keys 判断本次是否处理了附件，而非原始 $tmp_files
+	$need_scan = (empty($processed_keys) || strpos($post['message'], $tmp_url_prefix) !== false || strpos($post['message_fmt'], $tmp_url_prefix) !== false);
 	if($need_scan) {
 		// 扫描 message 和 message_fmt 中所有 /upload/tmp/xxx.ext 的文件名
 		$pattern = '#'.preg_quote($tmp_url_prefix, '#').'([0-9a-f]+\.\w+)#';
@@ -471,8 +488,20 @@ function attach_assoc_post($pid) {
 		}
 	}
 
-	// 清空 session
-	$_SESSION['tmp_files'] = array();
+	// 清空 session（pageToken 隔离：只删除本次处理的项，保留其他标签页的附件）
+	if($pageToken !== '' && !empty($processed_keys)) {
+		// 精确清理：只删除本次 pageToken 处理的 key，保留其他标签页上传的附件
+		foreach($processed_keys as $key) {
+			unset($_SESSION['tmp_files'][$key]);
+		}
+	} else {
+		// 向后兼容：pageToken 为空时清空整个 session（原逻辑，API/旧客户端场景）
+		$_SESSION['tmp_files'] = array();
+	}
+	// sess_save 兜底：立即保存 session，防止 exit/fatal 导致 session 未保存，下次请求读到残留 tmp_files
+	if(function_exists('sess_save')) {
+		sess_save();
+	}
 	
 	// 更新帖子内容（URL 替换后必须保存）
 	post__update($pid, array('message'=>$post['message'], 'message_fmt'=>$post['message_fmt']));

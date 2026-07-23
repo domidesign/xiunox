@@ -235,6 +235,13 @@
             formData.append('file', file);
             formData.append('csrf_token', _this.options.csrfToken);
 
+            // ponytail: 携带 page_token 用于多标签页/跨帖子附件隔离
+            // 从页面 hidden input 读取，attach-create 后端存入 session tmp_files
+            var pageTokenEl = document.getElementById('page_token');
+            if (pageTokenEl) {
+                formData.append('page_token', pageTokenEl.value);
+            }
+
             if (isImageFile(file)) {
                 formData.append('is_image', '1');
             } else {

@@ -63,6 +63,15 @@ class EditorService {
         $extMediaVideoInserted = addslashes(lang('ext_media_video_inserted'));
         $extMediaInsertFail = addslashes(lang('ext_media_insert_fail'));
         $extMediaLoadFail = addslashes(lang('ext_media_load_fail'));
+        // 插入 Markdown 按钮相关语言包
+        $insertMarkdownTip = lang('insert_markdown_tip');
+        $insertMarkdownTitle = lang('insert_markdown_title');
+        $insertMarkdownPlaceholder = addslashes(lang('insert_markdown_placeholder'));
+        $insertMarkdownInsertBtn = lang('insert_markdown_insert_btn');
+        $insertMarkdownCancel = lang('insert_markdown_cancel');
+        $insertMarkdownInserted = addslashes(lang('insert_markdown_inserted'));
+        $insertMarkdownConvertFail = addslashes(lang('insert_markdown_convert_fail'));
+        $insertMarkdownEmpty = addslashes(lang('insert_markdown_empty'));
         // 引用话题 / 隐藏内容按钮的语言包（仅主帖页注入）
         global $isfirst;
         $isFirstPost = !empty($isfirst);
@@ -366,6 +375,11 @@ class EditorService {
             var fd = new FormData();
             fd.append('file', file);
             fd.append('csrf_token', '{$csrfToken}');
+            // ponytail: 携带 page_token 用于多标签页/跨帖子附件隔离
+            var _pageTokenEl = document.getElementById('page_token');
+            if (_pageTokenEl) {
+                fd.append('page_token', _pageTokenEl.value);
+            }
             xhr.send(fd);
         });
     }
@@ -536,6 +550,107 @@ class EditorService {
         }
     }
 
+    // ===== 插入 Markdown =====
+    // ponytail: 替代原粘贴自动转换功能，用户主动点击按钮粘贴 markdown 源码，调用 editor.insertMarkdown 转换为 HTML
+    // 避免在 code 代码块内和源代码弹窗内粘贴时被误拦截转换
+    var insertMarkdownModalInstance = null;
+
+    function ensureInsertMarkdownModal() {
+        if (document.getElementById('insertMarkdownModal')) {
+            if (!insertMarkdownModalInstance && typeof bootstrap !== 'undefined') {
+                insertMarkdownModalInstance = bootstrap.Modal.getOrCreateInstance(document.getElementById('insertMarkdownModal'));
+            }
+            return;
+        }
+        var modalHtml = '<div class="modal fade" id="insertMarkdownModal" tabindex="-1" aria-hidden="true">' +
+            '<div class="modal-dialog modal-dialog-centered modal-lg">' +
+            '<div class="modal-content">' +
+            '<div class="modal-header">' +
+            '<h5 class="modal-title"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width:20px;height:20px;margin-right:6px;vertical-align:-3px"><path d="M22.27 19.385H1.73A1.73 1.73 0 010 17.655V6.345a1.73 1.73 0 011.73-1.73h20.54A1.73 1.73 0 0124 6.345v11.308a1.73 1.73 0 01-1.73 1.73zM5.769 15.923v-4.5l2.308 2.885 2.307-2.885v4.5h2.308V8.078h-2.308l-2.307 2.885-2.308-2.885H3.46v7.847zM21.232 12h-2.308V8.078h-2.307V12h-2.308l3.46 4.039z"></path></svg>{$insertMarkdownTitle}</h5>' +
+            '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>' +
+            '</div>' +
+            '<div class="modal-body">' +
+            '<textarea class="form-control" id="insertMarkdownContent" rows="12" style="font-family:var(--bs-font-monospace,Menlo,Monaco,Consolas,monospace);resize:vertical" placeholder="{$insertMarkdownPlaceholder}"></textarea>' +
+            '</div>' +
+            '<div class="modal-footer">' +
+            '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{$insertMarkdownCancel}</button>' +
+            '<button type="button" class="btn btn-primary" id="insertMarkdownConfirmBtn"><i class="ti ti-check me-1"></i>{$insertMarkdownInsertBtn}</button>' +
+            '</div>' +
+            '</div></div></div>';
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        var modalEl = document.getElementById('insertMarkdownModal');
+        var textarea = document.getElementById('insertMarkdownContent');
+        var confirmBtn = document.getElementById('insertMarkdownConfirmBtn');
+
+        // 输入时启用/禁用确认按钮
+        textarea.addEventListener('input', function() {
+            confirmBtn.disabled = !textarea.value.trim();
+        });
+        // Ctrl/Cmd+Enter 快捷插入
+        textarea.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                if (!confirmBtn.disabled) doInsertMarkdownConvert();
+            }
+        });
+        confirmBtn.addEventListener('click', doInsertMarkdownConvert);
+        confirmBtn.disabled = true;
+
+        if (typeof bootstrap !== 'undefined') {
+            insertMarkdownModalInstance = new bootstrap.Modal(modalEl);
+        }
+    }
+
+    function openInsertMarkdownModal() {
+        ensureInsertMarkdownModal();
+        var textarea = document.getElementById('insertMarkdownContent');
+        textarea.value = '';
+        document.getElementById('insertMarkdownConfirmBtn').disabled = true;
+        if (insertMarkdownModalInstance) {
+            insertMarkdownModalInstance.show();
+            setTimeout(function() { textarea.focus(); }, 350);
+        }
+    }
+
+    function doInsertMarkdownConvert() {
+        var textarea = document.getElementById('insertMarkdownContent');
+        var text = textarea.value;
+        if (!text.trim()) {
+            if (typeof XN !== 'undefined' && XN.toast) {
+                XN.toast('{$insertMarkdownEmpty}', 'warning');
+            }
+            return;
+        }
+        var confirmBtn = document.getElementById('insertMarkdownConfirmBtn');
+        // 防重复提交：禁用按钮 + 显示 loading
+        var origHtml = confirmBtn.innerHTML;
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>{$insertMarkdownInsertBtn}';
+
+        try {
+            if (!aiEditorInstance || typeof aiEditorInstance.insertMarkdown !== 'function') {
+                throw new Error('editor.insertMarkdown not available');
+            }
+            aiEditorInstance.insertMarkdown(text);
+            syncEditorContent();
+            if (typeof XN !== 'undefined' && XN.toast) {
+                XN.toast('{$insertMarkdownInserted}', 'success');
+            }
+            if (insertMarkdownModalInstance) {
+                insertMarkdownModalInstance.hide();
+            }
+        } catch(err) {
+            console.error('[Editor] insertMarkdown 转换失败:', err);
+            if (typeof XN !== 'undefined' && XN.toast) {
+                XN.toast('{$insertMarkdownConvertFail}', 'danger');
+            }
+        } finally {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = origHtml;
+        }
+    }
+
     function initAiEditor() {
         if (aiEditorInstance) return;
 
@@ -595,6 +710,18 @@ class EditorService {
             tip: '{$extMediaTip}'
         };
 
+        // 插入 Markdown 按钮：点击弹出 Modal 让用户粘贴 markdown 源码，确认后调用 insertMarkdown 转换为 HTML
+        // ponytail: 替代原粘贴自动转换功能，避免在 code 代码块内和源代码弹窗内粘贴时被误拦截
+        // SVG 使用 Markdown 官方 logo 路径
+        var insertMarkdownBtn = {
+            icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M22.27 19.385H1.73A1.73 1.73 0 010 17.655V6.345a1.73 1.73 0 011.73-1.73h20.54A1.73 1.73 0 0124 6.345v11.308a1.73 1.73 0 01-1.73 1.73zM5.769 15.923v-4.5l2.308 2.885 2.307-2.885v4.5h2.308V8.078h-2.308l-2.307 2.885-2.308-2.885H3.46v7.847zM21.232 12h-2.308V8.078h-2.307V12h-2.308l3.46 4.039z"></path></svg>',
+            onClick: function(event, editor) {
+                if (editor) editor.focus();
+                openInsertMarkdownModal();
+            },
+            tip: '{$insertMarkdownTip}'
+        };
+
         // 引用话题按钮：点击弹出搜索 Modal（Remix Icon file-list 图标，fill 模式）
         // 仅主帖页注入；onClick 调用 openExtRefModal()，该函数由 post.htm 的引用话题 Modal JS 提供
         var refThreadBtn = {
@@ -636,7 +763,7 @@ class EditorService {
             'undo', 'redo',
             '|', 'heading', 'bold', 'italic', 'underline', 'strike', 'link', 'code',
             '|', 'bullet-list', 'ordered-list', 'quote', 'code-block',
-            '|', 'image', 'video', 'attachment', mentionBtn, extMediaBtn,
+            '|', 'image', 'video', 'attachment', mentionBtn, extMediaBtn, insertMarkdownBtn,
             '|', 'font-color', 'highlight', 'align',
             '|', 'fullscreen', 'ai'
         ].concat(firstPostBtns);
@@ -647,7 +774,7 @@ class EditorService {
             '|', 'highlight', 'font-color',
             '|', 'align', 'line-height',
             '|', 'bullet-list', 'ordered-list', 'indent-decrease', 'indent-increase', 'break',
-            '|', 'image', 'video', 'attachment', mentionBtn, extMediaBtn, 'quote', 'container', 'code-block', 'table'
+            '|', 'image', 'video', 'attachment', mentionBtn, extMediaBtn, insertMarkdownBtn, 'quote', 'container', 'code-block', 'table'
         ].concat(firstPostBtns).concat([
             '|', 'source-code', 'printer', 'fullscreen', 'ai'
         ]);
@@ -895,15 +1022,11 @@ class EditorService {
             };
             // ===== END AI 生成防抖锁 =====
 
-            // 粘贴 Markdown 自动转 HTML：复用公共模块 view/js/editor-paste-markdown.js
-            // 识别 IDE/Typora/纯文本等 markdown 复制场景，自动调用 insertMarkdown 转换为 HTML
-            if (typeof window.setupEditorPasteMarkdown === 'function') {
-                window.setupEditorPasteMarkdown(
-                    container,
-                    function() { return aiEditorInstance; },
-                    syncEditorContent
-                );
-            }
+            // ponytail: 已移除粘贴 Markdown 自动转换功能
+            // 原因：capture 阶段在 container 上绑定 paste 监听，会拦截 code 代码块内和源代码弹窗(#source-code textarea)内的粘贴，
+            //       代码中含 # 注释 / ``` 反引号 等会被 looksLikeMarkdown 误判走 editor.insertMarkdown 错误转换。
+            // 替代方案：工具栏新增"插入 Markdown"按钮（insertMarkdownBtn），用户主动点击粘贴 markdown 源码，避免误拦截。
+            // 公共模块 view/js/editor-paste-markdown.js 仍保留，xnx_appcenter 应用介绍编辑器继续复用。
 
             // AI 未配置完整时，给 AI 按钮绑定提示和跳转
             if (!aiConfigured) {

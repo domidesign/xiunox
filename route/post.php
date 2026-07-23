@@ -196,7 +196,7 @@ if($action == 'create') {
 		$audit_status = $need_reply_audit ? 0 : 1;
 		$post['audit_status'] = $audit_status;
 
-		$pid = post_create($post, $fid, $gid);
+		$pid = post_create($post, $fid, $gid, array('page_token' => param('page_token', '')));
 	if(empty($pid)) {
 		message(-1, lang('create_post_failed'));
 	}
@@ -655,7 +655,7 @@ if($action == 'create') {
 			}
 			$arr AND thread_update($tid, $arr) === FALSE AND message(-1, lang('update_thread_failed'));
 	}
-	$r = post_update($pid, array('doctype'=>$doctype, 'message'=>$message));
+	$r = post_update($pid, array('doctype'=>$doctype, 'message'=>$message), 0, array('page_token' => param('page_token', '')));
 	$r === FALSE AND message(-1, lang('update_post_failed'));
 
 	// 被驳回内容编辑后重新提交审核
@@ -669,7 +669,7 @@ if($action == 'create') {
 		}
 		// 首帖还需同步 post 表的 audit_status
 		if($isfirst) {
-			post_update($pid, array('audit_status' => AuditService::STATUS_PENDING));
+			post_update($pid, array('audit_status' => AuditService::STATUS_PENDING), 0, array('skip_attach_assoc' => true));
 		}
 	}
 
