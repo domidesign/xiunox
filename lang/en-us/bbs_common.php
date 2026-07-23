@@ -44,7 +44,7 @@ return array(
 	'method_error'=>'Method Error',
 	'not_exists'=>'Not Exists',
 	'threads'=>'Threads',
-	'posts'=>'Posts',
+	'posts'=>'Comments',
 	'users'=>'Users',
 	'attachs'=>'Attachments',
 	'attach_size'=>'Attachment Size',

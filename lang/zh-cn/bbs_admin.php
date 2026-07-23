@@ -1776,6 +1776,7 @@ return array(
 	'admin_url_type_logout'=>'退出',
 	'admin_url_type_external'=>'外部链接',
 	'admin_nav_drag_tip'=>'拖动左侧手柄调整顺序。"分类标题"行下方的"链接"自动成为其子项（前台显示为下拉菜单，分类标题本身不可点击）。如需将子项改为一级链接，将其类型改为"一级链接"或拖到其他分类标题上方。',
+	'admin_nav_over_limit_tip'=>'顶部导航项已超过 5 个，过多可能导致布局错乱。建议改用「分类标题 + 链接」结构收纳子项，前台以下拉菜单形式展示。',
 	'admin_nav_preview_empty'=>'暂无导航项，点击上方"+ 添加"按钮创建。',
 	'admin_slug_auto_placeholder'=>'可选，留空自动生成',
 	'admin_mobile_preview_screen'=>'页面内容区域（预览效果）',

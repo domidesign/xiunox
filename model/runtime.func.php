@@ -6,22 +6,27 @@ function runtime_init() {
 	// hook model_runtime_init_start.php
 	global $conf;
 	$runtime = cache_get('runtime'); // 实时运行的数据，初始化！
-	if($runtime === NULL || $runtime === FALSE || !isset($runtime['users'])) {
+	// 自愈检测：缓存中统计字段出现负数即说明上游数据不一致，强制重建避免显示负值
+	$_need_rebuild = $runtime === NULL || $runtime === FALSE || !isset($runtime['users'])
+		|| (isset($runtime['posts']) && $runtime['posts'] < 0)
+		|| (isset($runtime['threads']) && $runtime['threads'] < 0)
+		|| (isset($runtime['users']) && $runtime['users'] < 0);
+	if($_need_rebuild) {
 		$runtime = array();
 		$runtime['users'] = user_count();
-		$runtime['posts'] = post_count();
 		// 仅统计未软删且已审核通过的帖子，与 thread_create/soft_delete 的统计口径一致
 		$runtime['threads'] = thread_count(array('is_deleted'=>0, 'audit_status'=>1));
-		$runtime['posts'] -= $runtime['threads']; // 减去首帖
+		// 评论数 = 非首帖且未软删且已审核通过的 post 数，口径与 threads 完全一致，避免相减出现负数
+		$runtime['posts'] = post_count(array('is_deleted'=>0, 'audit_status'=>1, 'is_first'=>0));
 		$runtime['todayusers'] = 0;
 		$runtime['todayposts'] = 0;
 		$runtime['todaythreads'] = 0;
 		$runtime['onlines'] = max(1, online_count());
 		$runtime['cron_1_last_date'] = 0;
 		$runtime['cron_2_last_date'] = 0;
-		
+
 		cache_set('runtime', $runtime);
-		
+
 	}
 	// hook model_runtime_init_end.php
 	return $runtime;

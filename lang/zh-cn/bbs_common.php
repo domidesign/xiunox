@@ -44,7 +44,7 @@ return array(
 	'method_error'=>'方法错误',
 	'not_exists'=>'不存在',
 	'threads'=>'帖子数',
-	'posts'=>'帖子数',
+	'posts'=>'评论数',
 	'users'=>'用户数',
 	'attachs'=>'附件总数',
 	'attach_size'=>'附件大小',
