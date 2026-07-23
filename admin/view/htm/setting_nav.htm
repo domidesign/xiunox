@@ -123,13 +123,18 @@
 						</table>
 					</div>
 					<div class="d-flex gap-3 mb-3">
-						<a role="button" class="text-primary text-decoration-none" id="addTopNav">
-							<i class="ti ti-plus"></i> <?php echo lang('admin_add_top_nav_item')?>
-						</a>
-						<a role="button" class="text-primary text-decoration-none" id="addTopNavTitle">
-							<i class="ti ti-plus"></i> <?php echo lang('admin_add_category_title')?>
-						</a>
-					</div>
+					<a role="button" class="text-primary text-decoration-none" id="addTopNav">
+						<i class="ti ti-plus"></i> <?php echo lang('admin_add_top_nav_item')?>
+					</a>
+					<a role="button" class="text-primary text-decoration-none" id="addTopNavTitle">
+						<i class="ti ti-plus"></i> <?php echo lang('admin_add_category_title')?>
+					</a>
+				</div>
+				<!-- 项目过多提示：超过 5 项时显示 -->
+				<div class="alert alert-warning py-2 px-3 mb-3 d-flex align-items-center gap-2 d-none" id="topNavOverLimitTip" role="alert">
+					<i class="ti ti-alert-triangle"></i>
+					<span class="small"><?php echo lang('admin_nav_over_limit_tip');?></span>
+				</div>
 					<!-- 实时预览 -->
 				<div class="nav-preview-panel" id="topNavPreview">
 					<span class="nav-preview-empty"><?php echo lang('admin_nav_preview_empty');?></span>
@@ -625,6 +630,20 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 	function refreshAllPreviews() {
 		refreshTopNavPreview();
 		refreshMobileNavPreview();
+		checkTopNavCount();
+	}
+
+	// ====== 顶部导航项数量超限提示（>5 项时显示警告） ======
+	function checkTopNavCount() {
+		var tbody = document.getElementById('topNavBody');
+		var tip = document.getElementById('topNavOverLimitTip');
+		if (!tbody || !tip) return;
+		var count = tbody.querySelectorAll('tr').length;
+		if (count > 5) {
+			tip.classList.remove('d-none');
+		} else {
+			tip.classList.add('d-none');
+		}
 	}
 
 	// ====== 发现导航行（custom 行可编辑；插件行纯展示+URL复制） ======

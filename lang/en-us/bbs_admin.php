@@ -1714,6 +1714,7 @@ return array(
 	'admin_url_type_logout'=>'Logout',
 	'admin_url_type_external'=>'External Link',
 	'admin_nav_drag_tip'=>'Drag the left handle to reorder. "Links" below a "Category Title" row become its children (displayed as a dropdown on the frontend; the title itself is not clickable). To make a child a top-level link, change its type to "Top Link" or drag it above other category titles.',
+	'admin_nav_over_limit_tip'=>'Top navigation items exceed 5. Too many items may break the layout. Consider grouping sub-items under a "Category Title + Link" structure, displayed as a dropdown menu on the frontend.',
 	'admin_nav_preview_empty'=>'No nav items yet. Click "+ Add" above to create one.',
 	'admin_slug_auto_placeholder'=>'Optional, auto-generated if empty',
 	'admin_mobile_preview_screen'=>'Page content area (preview)',

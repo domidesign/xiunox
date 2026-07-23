@@ -1701,6 +1701,7 @@ return array(
 	'admin_url_type_logout'=>'登出',
 	'admin_url_type_external'=>'外部連結',
 	'admin_nav_drag_tip'=>'拖動左側手柄調整順序。"分類標題"行下方的"連結"自動成為其子項（前台顯示為下拉選單，分類標題本身不可點擊）。如需將子項改為一級連結，將其類型改為"一級連結"或拖到其他分類標題上方。',
+	'admin_nav_over_limit_tip'=>'頂部導航項已超過 5 個，過多可能導致佈局錯亂。建議改用「分類標題 + 連結」結構收納子項，前台以下拉選單形式展示。',
 	'admin_nav_preview_empty'=>'暫無導航項，點擊上方"+ 新增"按鈕建立。',
 	'admin_slug_auto_placeholder'=>'可選，留空自動生成',
 	'admin_mobile_preview_screen'=>'頁面內容區域（預覽效果）',
