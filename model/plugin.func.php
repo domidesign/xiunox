@@ -179,12 +179,14 @@ function plugin_init() {
 					$plugins[$dir]['db_version'] = $db_list[$dir]['version'];
 				}
 			} else {
-				// 老插件首次进入：用 conf.json 当前值平移到 db，以后以 db 为准
-				plugin_db_init($dir, $plugins[$dir]);
-				if (!empty($plugins[$dir]['installed'])) plugin_db_set_installed($dir, 1);
-				if (!empty($plugins[$dir]['enable']))    plugin_db_set_enable($dir, 1);
-				if (!empty($plugins[$dir]['version']))   plugin_db_set_version($dir, $plugins[$dir]['version']);
-			}
+			// db 无记录：首次发现该插件，默认未安装未启用
+			// ponytail: conf.json 是静态配置，installed/enable 是运行时状态，只以 db 为准
+			// 旧代码用 conf.json 的 enable=1 平移到 db，导致未安装的插件自动"已启用"（已违反 1 次）
+			$plugins[$dir]['installed'] = 0;
+			$plugins[$dir]['enable'] = 0;
+			plugin_db_init($dir, $plugins[$dir]);
+			if (!empty($plugins[$dir]['version'])) plugin_db_set_version($dir, $plugins[$dir]['version']);
+		}
 		}
 	}
 }
@@ -434,10 +436,12 @@ function plugin_paths_enabled() {
 		// db 为权威：批量取 enable/installed
 		// ponytail: 兜底——db 异常或表不存在(install 阶段)回退读 conf.json
 		$db_list = array();
+		$db_available = TRUE;
 		try {
 			$db_list = plugin_db_get_all();
 		} catch (\Throwable $e) {
 			$db_list = array();
+			$db_available = FALSE;
 		}
 
 		foreach($plugin_paths as $path) {
@@ -451,10 +455,14 @@ function plugin_paths_enabled() {
 				// db 权威
 				$enable    = !empty($db_list[$dir]['enable']);
 				$installed = !empty($db_list[$dir]['installed']);
-			} else {
-				// db 无记录或 db 不可用：回退 conf.json
+			} elseif (!$db_available) {
+				// db 不可用（install 阶段/异常）：回退 conf.json
 				$enable    = !empty($pconf['enable']);
 				$installed = !empty($pconf['installed']);
+			} else {
+				// db 可用但无记录：默认未安装未启用（忽略 conf.json 的 installed/enable）
+				$enable    = FALSE;
+				$installed = FALSE;
 			}
 			if(!$enable || !$installed) continue;
 			$pconf['enable'] = 1;
