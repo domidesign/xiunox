@@ -246,7 +246,9 @@ class ThreadService {
         if (empty($validTids)) return [];
         $placeholders = rtrim(str_repeat('?,', count($validTids)), ',');
         $sql = "SELECT * FROM " . $this->db->table('thread') . " WHERE tid IN ({$placeholders})";
-        $stmt = $this->db->execute($sql, $validTids);
+        // ponytail: db_pdo_mysql 无 execute() 方法，用 prepare() 返回 PDOStatement
+        $stmt = $this->db->prepare($sql, $validTids);
+        if (!$stmt) return [];
         $result = $stmt->fetchAll();
         return $result ? $result : [];
     }

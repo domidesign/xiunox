@@ -204,8 +204,9 @@ class ErrorHandler
      *    （该注释由 plugin_compile_srcfile_callback 在编译时拼接注入）
      *
      * 计数策略：cache_get/cache_set 实现 1 小时滚动窗口计数，超阈值（3 次）自动禁用
-     * 禁用操作：写 conf.json enable=0 + db_update + 清 tmp 目录
-     * ponytail: 不调 plugin_disable() 因为它依赖 global $plugins（前台未初始化），直接操作 conf.json + db
+     * 禁用操作：db_update（写 bbs_plugin.enable=0）+ 清 tmp 目录 + 清 OPcache
+     * ponytail: 不调 plugin_disable() 因为它依赖 global $plugins（前台未初始化），直接 db_update
+     * ponytail: conf.json 的 enable/installed 已彻底废弃，代码层任何情况下都不读，禁用只写 db
      *
      * @param string $errorFile 错误发生的文件路径（__FILE__ / $exception->getFile()）
      * @param int    $errorLine 错误发生的行号
@@ -261,19 +262,10 @@ class ErrorHandler
         // 达到阈值，自动禁用
         xn_log("Plugin [{$plugin_dir}] crashed {$count} times within 1h, auto-disabling", 'plugin_crash_error');
 
-        $plugin_path = APP_PATH . 'plugin/' . $plugin_dir;
-        $conf_file = $plugin_path . '/conf.json';
+        // ponytail: conf.json 的 enable/installed 已彻底废弃，代码层任何情况下都不读
+        // 禁用插件只写 db bbs_plugin 表（唯一权威源），不再 file_replace_var 写 conf.json
 
-        // 1. 写 conf.json enable=0
-        if (is_file($conf_file) && function_exists('file_replace_var')) {
-            try {
-                file_replace_var($conf_file, array('enable' => 0), TRUE);
-            } catch (\Throwable $e) {
-                // 忽略，继续尝试 db
-            }
-        }
-
-        // 2. 写数据库 enable=0
+        // 1. 写数据库 enable=0
         global $db, $tablepre, $time;
         if (is_object($db) && function_exists('db_update') && isset($tablepre)) {
             try {
@@ -283,16 +275,37 @@ class ErrorHandler
             }
         }
 
-        // 3. 清 tmp 目录，触发下次请求重新编译（已禁用插件的 hook 不会被编译进去）
+        // 2. 清 tmp 编译缓存，触发下次请求重新编译（已禁用插件的 hook 不会被编译进去）
         global $conf;
         if (isset($conf['tmp_path'])) {
             $tmp_path = $conf['tmp_path'];
-            if (function_exists('rmdir_recusive')) {
-                @rmdir_recusive($tmp_path, TRUE);
-            }
             if (function_exists('xn_unlink')) {
-                @xn_unlink($tmp_path . 'model.min.php');
+                // 核心编译产物
+                @xn_unlink($tmp_path . 'index.inc.php');
+                // 编译后的 model/route/view 文件（含插件 hook 注入）
+                foreach((array)glob($tmp_path . 'model_*.func.php') as $f) @xn_unlink($f);
+                foreach((array)glob($tmp_path . 'route_*.php') as $f) @xn_unlink($f);
+                foreach((array)glob($tmp_path . 'view_htm_*.htm') as $f) @xn_unlink($f);
+                foreach((array)glob($tmp_path . 'plugin_*.php') as $f) @xn_unlink($f);
             }
+            // 确保 tmp 目录存在（rmdir_recusive 可能已删除）
+            if (!is_dir($tmp_path)) {
+                @mkdir($tmp_path, 0755, TRUE);
+            }
+        }
+
+        // 3. 同步清理数据缓存 + OPcache（与 plugin_clear_tmp_dir() 保持一致）
+        // ponytail: PHP-FPM 多进程环境下，只清 tmp/ 不足以让其他 worker 进程丢弃旧字节码
+        // 若不清理 OPcache，worker 仍执行已包含禁用插件 hook 的旧字节码，导致循环崩溃
+        if(class_exists('CacheService', false)) {
+            try {
+                CacheService::clearByType(array('data', 'opcache'));
+            } catch(\Throwable $e) {
+                error_log('autoDisableCrashedPlugin clearByType(data,opcache) failed: '.$e->getMessage());
+            }
+        } else {
+            if(function_exists('opcache_reset')) { @opcache_reset(); }
+            if(function_exists('cache_truncate')) { @cache_truncate(); }
         }
 
         return $plugin_dir;

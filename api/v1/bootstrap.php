@@ -14,6 +14,13 @@ if (!interface_exists('DatabaseInterface')) {
     include APP_PATH . 'lib/DatabaseInterface.php';
 }
 include APP_PATH . 'lib/ApiResponse.php';
+// ponytail: API 模式不走 index.inc.php，需显式加载 EscapeService（forum_format/thread_format 等核心函数会调用 esc_attr/esc_html）
+// 但 nginx 未配置 /api/v1/ 专用 rewrite 时，请求会经根 index.php → index.inc.php（line 10 已 include EscapeService.php）
+// 再进入本文件，因此必须用 function_exists 兜底；class_exists('EscapeService') 永远为 false（该文件只定义全局函数，无类）
+// 误用 class_exists 会导致 EscapeService.php 被二次 include → "Cannot redeclare function esc_html()" Fatal（已违反 1 次）
+if (!function_exists('esc_html')) {
+    include APP_PATH . 'lib/EscapeService.php';
+}
 if (!class_exists('ApiAuthService')) {
     include APP_PATH . 'lib/ApiAuthService.php';
 }
@@ -34,7 +41,7 @@ if (!$db) {
     ApiResponse::error(500, 'Database not connected');
 }
 
-$apiAuth = new ApiAuthService($db, $conf['api_token_expire'] ?? 30, intval($conf['api_access_token_expire'] ?? 2));
+$apiAuth = new ApiAuthService($db, intval($conf['api_token_expire'] ?? 30), intval($conf['api_access_token_expire'] ?? 2), intval($conf['api_token_absolute_expire'] ?? 90));
 $userService = new UserService($db);
 $threadService = new ThreadService($db);
 $postService = new PostService($db);
@@ -226,6 +233,38 @@ if (preg_match('/^Bearer\s+(.+)$/i', $authHeader, $m)) {
 }
 $apiLogUid = $earlyAuthUser ? intval($earlyAuthUser['uid']) : 0;
 
+// === DEBUG: 临时诊断 POST/PUT/DELETE 401（定位后删除）===
+if (in_array($method, ['POST', 'PUT', 'DELETE'], true)) {
+    $_dbg_http_auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    $_dbg_redir_auth = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+    $_dbg_env_auth = getenv('HTTP_AUTHORIZATION') ?: '';
+    $_dbg_bearer = ApiAuthService::getBearerToken();
+    $_dbg_access_row = null;
+    $_dbg_refresh_row = null;
+    $_dbg_expire = 0;
+    $_dbg_now = time();
+    if (!empty($_dbg_bearer)) {
+        $_dbg_hash = hash('sha256', $_dbg_bearer);
+        try {
+            // ponytail: 与 validateAccessToken 一致，查 type=access；查不到再查 refresh 排查客户端误用
+            $_dbg_access_row = $db->findOne('api_token', ['token' => $_dbg_hash, 'type' => 'access']);
+            if (!$_dbg_access_row) {
+                $_dbg_refresh_row = $db->findOne('api_token', ['token' => $_dbg_hash, 'type' => 'refresh']);
+            }
+        } catch (Exception $e) {}
+        $_dbg_row = $_dbg_access_row ?: $_dbg_refresh_row;
+        if ($_dbg_row) { $_dbg_expire = intval($_dbg_row['expires_at']); }
+    }
+    xn_log("API401_DBG method=$method uri=$uri " .
+        "HTTP_AUTHORIZATION=" . (!empty($_dbg_http_auth) ? 'YES' : 'NO') . " " .
+        "REDIRECT_HTTP_AUTHORIZATION=" . (!empty($_dbg_redir_auth) ? 'YES' : 'NO') . " " .
+        "getenv_AUTH=" . (!empty($_dbg_env_auth) ? 'YES' : 'NO') . " " .
+        "bearer_extracted=" . (!empty($_dbg_bearer) ? 'YES(' . strlen($_dbg_bearer) . ')' : 'NO') . " " .
+        "early_auth_user=" . (!empty($earlyAuthUser) ? 'YES(uid=' . intval($earlyAuthUser['uid']) . ')' : 'NO') . " " .
+        "token_row=" . (!empty($_dbg_row) ? "type={$_dbg_row['type']} expires_at={$_dbg_expire} now={$_dbg_now} expired=" . ($_dbg_expire < $_dbg_now ? 'YES' : 'NO') : 'NOT_FOUND'), 'api_error_debug', 'ERROR');
+}
+// === END DEBUG ===
+
 // 设置全局 $uid/$gid/$user，与前端路由保持一致
 // 许多核心函数（PermissionService::check、CaptchaService::is_enabled 等）依赖 global $gid/$uid
 // API 模式下不写 session，必须显式注入这些变量，否则触发 "Undefined variable $gid"
@@ -374,7 +413,11 @@ if ($segments[0] === 'auth') {
 }
 
 if ($routeFile !== null) {
+    // === DEBUG: 确认路由文件被执行（定位后删除）===
+    xn_log("API_ROUTE_DBG routeFile={$routeFile} resource={$resource} segments=" . json_encode($segments, JSON_UNESCAPED_UNICODE), 'api_error_debug', 'ERROR');
     include __DIR__ . '/' . $routeFile;
+} else {
+    xn_log("API_ROUTE_DBG routeFile=NULL resource={$resource} segments=" . json_encode($segments, JSON_UNESCAPED_UNICODE), 'api_error_debug', 'ERROR');
 }
 
 /**
@@ -401,6 +444,12 @@ function api_attach_assoc_post($pid, $tid, $attach_keys, &$message) {
     }
 
     if(empty($keys)) return array('images' => 0, 'videos' => 0, 'files' => 0);
+
+    // ponytail: 读取 post 的 message_fmt，与 message 同步替换 URL
+    // post__create() 已调 post_message_fmt() 生成 message_fmt，其中含 upload/tmp/ 临时 URL
+    // 若只更新 message 不更新 message_fmt，前台显示用 message_fmt 会指向已移走的临时文件 → 图片 broken
+    $_post = post__read($pid);
+    $message_fmt = $_post ? ($_post['message_fmt'] ?? '') : '';
 
     $attach_dir_save_rule = array_value($conf, 'attach_dir_save_rule', 'Ym');
     $images = 0;
@@ -438,8 +487,16 @@ function api_attach_assoc_post($pid, $tid, $attach_keys, &$message) {
         $r = xn_copy($tmpfile, $destfile);
         !$r AND xn_log("api_attach_assoc: xn_copy($tmpfile, $destfile) failed, pid:$pid, tid:$tid", 'php_error');
 
+        // ponytail: xn_copy 失败保护（与核心 attach_assoc_post 一致）
+        // 目标文件不存在时跳过 attach_create，避免创建无物理文件的孤儿记录
+        if(!is_file($destfile)) {
+            xn_log("api_attach_assoc: skip attach_create due to xn_copy failure (dest not found), key:$key, pid:$pid", 'php_error');
+            @unlink($meta_file);
+            continue;
+        }
+
         // 复制成功后删除临时文件
-        if(is_file($destfile) && filesize($destfile) == filesize($tmpfile)) {
+        if(filesize($destfile) == filesize($tmpfile)) {
             @unlink($tmpfile);
         }
 
@@ -458,8 +515,9 @@ function api_attach_assoc_post($pid, $tid, $attach_keys, &$message) {
                 if($tr && is_file($thumb_dest_path) && filesize($thumb_dest_path) == filesize($thumb_src_path)) {
                     @unlink($thumb_src_path);
                 }
-                // 替换 message 中的缩略图 URL
+                // 替换 message 和 message_fmt 中的缩略图 URL
                 $message = str_replace($thumb_url, $thumb_dest_url, $message);
+                $message_fmt = str_replace($thumb_url, $thumb_dest_url, $message_fmt);
             }
         }
 
@@ -481,8 +539,9 @@ function api_attach_assoc_post($pid, $tid, $attach_keys, &$message) {
         );
         attach_create($arr);
 
-        // 替换 message 中的临时 URL 为正式 URL
+        // 替换 message 和 message_fmt 中的临时 URL 为正式 URL
         $message = str_replace($file['url'], $desturl, $message);
+        $message_fmt = str_replace($file['url'], $desturl, $message_fmt);
 
         // 计数
         if(!empty($file['isimage'])) {
@@ -497,19 +556,60 @@ function api_attach_assoc_post($pid, $tid, $attach_keys, &$message) {
         @unlink($meta_file);
     }
 
-    // 更新 post 的 message 和 images/videos/files
+    // ponytail: 同步更新 message 和 message_fmt（URL 已替换为正式地址）
+    // 前台显示用 message_fmt，不更新会导致图片/视频指向已移走的 upload/tmp/ 临时文件 → broken
     $post_update = array(
+        'message'     => $message,
+        'message_fmt' => $message_fmt,
         'images' => $images,
         'videos' => $videos,
         'files'  => $files,
     );
-    // 如果 message 中有 URL 替换，也更新 message
     post__update($pid, $post_update);
 
     // 如果是首帖，更新 thread 的 images/videos/files
     $post = post__read($pid);
     if(!empty($post) && $post['isfirst']) {
         thread__update($tid, array('images' => $images, 'videos' => $videos, 'files' => $files));
+    }
+
+    // ponytail: 孤儿附件清理（与核心 attach_assoc_post 一致）
+    // 删除 message 中未引用的图片/视频附件（API 客户端传了 attach_keys 但 message 未引用的场景）
+    list($attachlist, , ) = attach_find_by_pid($pid);
+    if(!empty($attachlist)) {
+        $orphan_aids = array();
+        $orphan_attaches = array();
+        foreach($attachlist as $attach) {
+            $is_image_or_video = !empty($attach['isimage']) || (isset($attach['filetype']) && $attach['filetype'] == 'video');
+            if(!$is_image_or_video) continue;
+            $attach_url = $conf['upload_url'].'attach/'.$attach['filename'];
+            if(strpos($message_fmt, $attach_url) === FALSE && strpos($message, $attach_url) === FALSE) {
+                $orphan_aids[] = $attach['aid'];
+                $orphan_attaches[] = $attach;
+            }
+        }
+        if(!empty($orphan_aids)) {
+            foreach($orphan_attaches as $attach) {
+                $_path = $conf['upload_path'].'attach/'.$attach['filename'];
+                is_file($_path) AND @unlink($_path);
+                $_thumb = attach_thumb_path($attach['filename']);
+                if($_thumb) {
+                    $_tp = $conf['upload_path'].'attach/'.$_thumb;
+                    is_file($_tp) AND @unlink($_tp);
+                }
+            }
+            db_delete('attach', array('aid'=>$orphan_aids));
+            // 重新计算计数
+            foreach($orphan_attaches as $attach) {
+                if(!empty($attach['isimage'])) $images = max(0, $images - 1);
+                elseif(isset($attach['filetype']) && $attach['filetype'] == 'video') $videos = max(0, $videos - 1);
+                else $files = max(0, $files - 1);
+            }
+            post__update($pid, array('images'=>$images, 'videos'=>$videos, 'files'=>$files));
+            if(!empty($post) && $post['isfirst']) {
+                thread__update($tid, array('images'=>$images, 'videos'=>$videos, 'files'=>$files));
+            }
+        }
     }
 
     return array('images' => $images, 'videos' => $videos, 'files' => $files);

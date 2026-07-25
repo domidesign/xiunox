@@ -72,30 +72,39 @@ class EditorService {
         $insertMarkdownInserted = addslashes(lang('insert_markdown_inserted'));
         $insertMarkdownConvertFail = addslashes(lang('insert_markdown_convert_fail'));
         $insertMarkdownEmpty = addslashes(lang('insert_markdown_empty'));
-        // 引用话题 / 隐藏内容按钮的语言包（仅主帖页注入）
+        // 引用话题按钮的语言包（核心功能，openExtRefModal 由 post.htm 提供）
         global $isfirst;
         $isFirstPost = !empty($isfirst);
-        $refThreadTip = lang('ref_thread_title');
-        $hiddenContentTip = lang('xnx_hidden_title');
+        $refThreadTip = addslashes(lang('ref_thread_title'));
         $refThreadModalMissingTip = addslashes(lang('ref_thread_modal_missing_tip'));
-        $hiddenModalMissingTip = addslashes(lang('xnx_hidden_modal_missing_tip'));
-        // 主帖页注入引用话题按钮；隐藏内容按钮需 xnx_hidden 插件启用
-        // 注意：前台 $plugins 未初始化（plugin_init() 仅在 admin/upgrade 调用），
-        // 直接读 conf.json 判断插件启用状态（与 plugin_paths_enabled 同源）
-        $_hidden_conf_file = APP_PATH . 'plugin/xnx_hidden/conf.json';
-        $hiddenEnabled = false;
-        if (is_file($_hidden_conf_file)) {
-            $_pconf = xn_json_decode(file_get_contents($_hidden_conf_file));
-            $hiddenEnabled = !empty($_pconf['enable']) && !empty($_pconf['installed']);
-        }
-        $firstPostBtns = [];
+
+        // 自定义按钮注入点：核心提供 refThreadBtn，插件通过 editor_custom_btns_end hook 追加
+        // ponytail: 核心代码禁止硬编码插件名/读插件 conf.json，插件按钮一律走 hook 机制
+        // 插件禁用/卸载后 hook 不执行，按钮自动消失，无需核心判断插件启用状态
+        $customBtns = array();
         if ($isFirstPost) {
-            $firstPostBtns[] = 'refThreadBtn';
-            if ($hiddenEnabled) {
-                $firstPostBtns[] = 'hiddenContentBtn';
-            }
+            // 引用话题按钮 SVG（Remix Icon file-list 图标，fill 模式）
+            $refThreadIconSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20 22H4C3.44772 22 3 21.5523 3 21V3C3 2.44772 3.44772 2 4 2H20C20.5523 2 21 2.44772 21 3V21C21 21.5523 20.5523 22 20 22ZM19 20V4H5V20H19ZM7 6H11V10H7V6ZM7 12H17V14H7V12ZM7 16H17V18H7V16ZM13 7H17V9H13V7Z"></path></svg>';
+            $customBtns[] = array(
+                'btn_var' => 'refThreadBtn',
+                'first_only' => true,
+                'js_def' => "var refThreadBtn = { icon: '" . $refThreadIconSvg . "', onClick: function(event, editor) { if (editor) editor.focus(); if (typeof openExtRefModal === 'function') { openExtRefModal(); } else if (typeof XN !== 'undefined' && XN.toast) { XN.toast('" . $refThreadModalMissingTip . "', 'warning'); } }, tip: '" . $refThreadTip . "' };",
+            );
         }
-        $firstPostBtnsJson = '[' . implode(',', $firstPostBtns) . ']';
+        // 插件 hook 注入自定义按钮（如 xnx_hidden 的隐藏内容按钮）
+        if (function_exists('plugin_hook')) {
+            plugin_hook('editor_custom_btns_end.php', $customBtns);
+        }
+        // 提取变量名和 JS 定义，注入到 heredoc
+        $customBtnVars = array();
+        $customBtnJsDefs = '';
+        foreach ($customBtns as $btn) {
+            if (!empty($btn['first_only']) && !$isFirstPost) continue;
+            if (empty($btn['btn_var']) || empty($btn['js_def'])) continue;
+            $customBtnVars[] = $btn['btn_var'];
+            $customBtnJsDefs .= $btn['js_def'] . "\n";
+        }
+        $firstPostBtnsJson = '[' . implode(',', $customBtnVars) . ']';
         $lang = $this->conf['lang'] ?? 'zh-cn';
         $aieditorLang = $this->mapLangCode($lang);
 
@@ -125,6 +134,11 @@ class EditorService {
 .editor-upload-progress.complete .progress-bar {background:var(--bs-success, #198754);width:100%;transition:width 0.3s ease;}
 .editor-upload-progress.error .progress-bar {background:var(--bs-danger, #dc3545);width:100%;}
 .aieditor-container.upload-drop-active {border-color:var(--bs-primary, #0d6efd) !important;box-shadow:0 0 0 3px rgba(13,110,253,0.15);transition:box-shadow 0.2s ease;}
+/* AIEditor tippy 弹层 z-index 降到 1020，低于 Bootstrap modal(1055)，避免工具栏弹层覆盖 Modal */
+.tippy-box {z-index:1020 !important;}
+/* AIEditor 全屏模式 aie-container 的 inline z-index(9999) 降到 1020，避免覆盖 Bootstrap Modal(1055) */
+/* ponytail: AIEditor 内部用 r.style.zIndex="9999" inline style，必须用 !important 覆盖 */
+.aie-container[style*="position: fixed"][style*="z-index: 9999"] {z-index:1020 !important;}
 .editor-attachment-list {margin-top:8px;padding:0;list-style:none;}
 .editor-attachment-item {display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border-color, #ddd);border-radius:4px;margin-bottom:4px;font-size:13px;background:var(--bs-body-bg, #fff);}
 .editor-attachment-item .att-icon {color:var(--bs-secondary, #6c757d);font-size:16px;}
@@ -722,42 +736,15 @@ class EditorService {
             tip: '{$insertMarkdownTip}'
         };
 
-        // 引用话题按钮：点击弹出搜索 Modal（Remix Icon file-list 图标，fill 模式）
-        // 仅主帖页注入；onClick 调用 openExtRefModal()，该函数由 post.htm 的引用话题 Modal JS 提供
-        var refThreadBtn = {
-            icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20 22H4C3.44772 22 3 21.5523 3 21V3C3 2.44772 3.44772 2 4 2H20C20.5523 2 21 2.44772 21 3V21C21 21.5523 20.5523 22 20 22ZM19 20V4H5V20H19ZM7 6H11V10H7V6ZM7 12H17V14H7V12ZM7 16H17V18H7V16ZM13 7H17V9H13V7Z"></path></svg>',
-            onClick: function(event, editor) {
-                if (editor) editor.focus();
-                if (typeof openExtRefModal === 'function') {
-                    openExtRefModal();
-                } else if (typeof XN !== 'undefined' && XN.toast) {
-                    XN.toast('{$refThreadModalMissingTip}', 'warning');
-                }
-            },
-            tip: '{$refThreadTip}'
-        };
-
-        // 隐藏内容按钮：点击触发隐藏内容 Modal（Remix Icon eye-off 图标，fill 模式）
-        // 仅主帖页注入；onClick 调用 openExtHiddenModal()，该函数由 xnx_hidden 插件提供
-        var hiddenContentBtn = {
-            icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M17.8827 19.2968C16.1814 20.3755 14.1638 21.0002 12.0003 21.0002C6.60812 21.0002 2.12215 17.1204 1.18164 12.0002C1.61832 9.62282 2.81932 7.5129 4.52047 5.93457L1.39366 2.80777L2.80788 1.39355L22.6069 21.1925L21.1927 22.6068L17.8827 19.2968ZM5.9356 7.3497C4.60673 8.56015 3.6378 10.1672 3.22278 12.0002C4.14022 16.0521 7.7646 19.0002 12.0003 19.0002C13.5997 19.0002 15.112 18.5798 16.4243 17.8384L14.396 15.8101C13.7023 16.2472 12.8808 16.5002 12.0003 16.5002C9.51498 16.5002 7.50026 14.4854 7.50026 12.0002C7.50026 11.1196 7.75317 10.2981 8.19031 9.60442L5.9356 7.3497ZM12.9139 14.328L9.67246 11.0866C9.5613 11.3696 9.50026 11.6777 9.50026 12.0002C9.50026 13.3809 10.6196 14.5002 12.0003 14.5002C12.3227 14.5002 12.6309 14.4391 12.9139 14.328ZM20.8068 16.5925L19.376 15.1617C20.0319 14.2268 20.5154 13.1586 20.7777 12.0002C19.8603 7.94818 16.2359 5.00016 12.0003 5.00016C11.1544 5.00016 10.3329 5.11773 9.55249 5.33818L7.97446 3.76015C9.22127 3.26959 10.5793 3.00016 12.0003 3.00016C17.3924 3.00016 21.8784 6.87992 22.8189 12.0002C22.5067 13.6998 21.8038 15.2628 20.8068 16.5925ZM11.7229 7.50857C11.8146 7.50299 11.9071 7.50016 12.0003 7.50016C14.4855 7.50016 16.5003 9.51488 16.5003 12.0002C16.5003 12.0933 16.4974 12.1858 16.4919 12.2775L11.7229 7.50857Z"></path></svg>',
-            onClick: function(event, editor) {
-                if (editor) editor.focus();
-                if (typeof openExtHiddenModal === 'function') {
-                    openExtHiddenModal();
-                } else if (typeof XN !== 'undefined' && XN.toast) {
-                    XN.toast('{$hiddenModalMissingTip}', 'warning');
-                }
-            },
-            tip: '{$hiddenContentTip}'
-        };
-
         // 构建工具栏：按 AIEditor 官方默认配置补齐所有按钮，分隔符为 '|'
         // 官方默认配置参考：https://aieditor.dev/docs/zh/config/toolbar.html
-        // 自定义按钮（@提及、外链媒体、引用话题、隐藏内容）放在 image/video/attachment 组之后
-        // 引用话题、隐藏内容按钮仅在主帖页注入（isfirst=1）
-        // 注意：$firstPostBtnsJson 由 PHP implode 生成 [refThreadBtn,hiddenContentBtn]（无引号）
+        // 自定义按钮（提及、外链媒体、插入 Markdown）放在 image/video/attachment 组之后
+        // 主帖页自定义按钮（引用话题、插件按钮）由 PHP 端注入：
+        //   - refThreadBtn 由核心提供（openExtRefModal 由 post.htm 提供）
+        //   - 插件按钮由 editor_custom_btns_end hook 注入（如 xnx_hidden 的 hiddenContentBtn）
+        // 注意：firstPostBtnsJson 由 PHP implode 生成 [refThreadBtn,hiddenContentBtn]（无引号）
         // JS 端直接作为变量引用，得到已定义的按钮对象数组
+        {$customBtnJsDefs}
         var firstPostBtns = {$firstPostBtnsJson};
         var mobileToolbar = [
             'undo', 'redo',
@@ -797,6 +784,11 @@ class EditorService {
             toolbarKeys: toolbar,
             theme: currentTheme,
             lang: '{$aieditorLang}',
+            // ponytail: 禁用 AIEditor 内置内容保留机制，草稿由 auto-save.js 统一管理
+            // AIEditor 默认 contentRetentionKey="ai-editor-content" 会自动保存/恢复内容，
+            // 与 auto-save.js 草稿系统冲突：发帖成功后 auto-save.js 清除了自己的 key，
+            // 但 AIEditor 仍从 ai-editor-content 恢复旧内容，导致"草稿未清除"假象
+            contentRetentionKey: '',
             image: {
                 uploadUrl: '{$uploadUrl}',
                 uploadHeaders: {'X-CSRF-Token': '{$csrfToken}'},

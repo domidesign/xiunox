@@ -27,7 +27,7 @@ if($_is_mobile) return;
 								foreach($_home_medals as $_hm) {
 									if(!empty($_hm['medal']['icon'])) {
 										echo '<a href="' . url('medal-' . intval($_hm['medal']['id'])) . '" title="' . esc_attr($_hm['medal']['name']) . '" style="display:flex;align-items:center">';
-										echo '<img src="' . esc_attr($_hm['medal']['icon']) . '" alt="' . esc_attr($_hm['medal']['name']) . '" style="width:16px;height:16px">';
+										echo '<img src="' . esc_attr($_hm['medal']['icon']) . '" alt="' . esc_attr($_hm['medal']['name']) . '" style="height:16px">';
 										echo '</a>';
 									}
 								}

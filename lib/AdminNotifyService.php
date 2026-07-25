@@ -68,14 +68,18 @@ class AdminNotifyService {
         }
 
         // 2. 防抖检查
-        $debounce_key = self::DEBOUNCE_PREFIX . $plugin . '_' . $audit_type;
         // ponytail: cache_get 在 MySQL 驱动键不存在返回 FALSE、Redis 驱动返回 NULL；
         // 原 `!== NULL` 在 MySQL 驱动下 FALSE!==NULL 恒为 true 导致防抖永远命中（第一次就不发）。
         // 改为同时排除 FALSE 和 NULL，两种驱动都兼容。
-        $debounce_val = cache_get($debounce_key);
-        if ($debounce_val !== FALSE && $debounce_val !== NULL) {
-            $result['reason'] = 'debounced';
-            return $result;
+        // v1.10.0: 支持 options['skip_debounce']=true 跳过防抖（xnx_appcenter 需每次提交都通知）
+        $skip_debounce = !empty($options['skip_debounce']);
+        $debounce_key = self::DEBOUNCE_PREFIX . $plugin . '_' . $audit_type;
+        if (!$skip_debounce) {
+            $debounce_val = cache_get($debounce_key);
+            if ($debounce_val !== FALSE && $debounce_val !== NULL) {
+                $result['reason'] = 'debounced';
+                return $result;
+            }
         }
 
         // 3. 站内通知接收人（options 覆盖 > 自动查 gid=1,2 且 ban_type=0）
@@ -174,7 +178,8 @@ class AdminNotifyService {
         }
 
         // 8. 写防抖标记（只在站内通知发出或主动跳过时才写，避免发送失败也写防抖导致后续不再尝试）
-        if ($sent_notify > 0 || $skip_notify) {
+        // v1.10.0: skip_debounce 时也不写防抖标记
+        if (!$skip_debounce && ($sent_notify > 0 || $skip_notify)) {
             cache_set($debounce_key, 1, self::DEBOUNCE_TTL);
         }
 

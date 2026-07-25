@@ -357,6 +357,59 @@
 <!--{hook admin_index_end.htm}-->
 
 <script>
+// ponytail: 原生 JS 辅助函数，替代 $.ajax（避免依赖 xiuno-modern.js shim）
+function buildQuery(data) {
+	var parts = [];
+	for (var k in data) {
+		if (Object.prototype.hasOwnProperty.call(data, k)) {
+			parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(data[k]));
+		}
+	}
+	return parts.join('&');
+}
+
+function ajax(opts) {
+	var url = opts.url;
+	var type = (opts.type || 'GET').toUpperCase();
+	var data = opts.data || null;
+	var dataType = opts.dataType || 'json';
+	var csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).getAttribute && document.querySelector('meta[name="csrf-token"]').getAttribute('content') || '';
+
+	var fetchOpts = {
+		method: type,
+		headers: {
+			'X-Requested-With': 'XMLHttpRequest',
+			'X-CSRF-Token': csrfToken
+		},
+		credentials: 'same-origin'
+	};
+
+	if (type === 'POST' && data) {
+		fetchOpts.headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+		fetchOpts.body = typeof data === 'object' ? buildQuery(data) : data;
+	} else if (data) {
+		var sep = url.indexOf('?') === -1 ? '?' : '&';
+		url += sep + buildQuery(data);
+	}
+
+	fetch(url, fetchOpts).then(function(response) {
+		return response.text().then(function(text) {
+			var xhrLike = { status: response.status, responseText: text };
+			if (!response.ok) throw xhrLike;
+			if (dataType === 'json') {
+				try { return JSON.parse(text); }
+				catch (e) { throw xhrLike; }
+			}
+			return text;
+		});
+	}).then(function(res) {
+		if (opts.success) opts.success(res);
+	}).catch(function(err) {
+		var xhr = err && err.responseText !== undefined ? err : { responseText: (err && err.message) ? err.message : String(err || '') };
+		if (opts.error) opts.error(xhr);
+	});
+}
+
 // 仪表盘版本检查：异步调用 ?online_upgrade-check.htm，localStorage 缓存 24 小时
 (function() {
 	var CACHE_KEY = 'xiunox_upgrade_check';
@@ -413,7 +466,7 @@
 
 	// 异步检查（不阻塞页面渲染）
 	setTimeout(function() {
-		$.ajax({
+		ajax({
 			url: '<?php echo url('online_upgrade-check');?>',
 			type: 'POST',
 			data: { csrf_token: <?php echo json_encode(CsrfService::getToken());?> },

@@ -213,26 +213,20 @@ if($action == 'local') {
 
 	admin_log_create('plugin_install', 'plugin', $dir, '安装插件：' . $name);
 
-	// 卸载同类插件，防止安装类似插件。
-	// 自动卸载掉其他已经安装的主题 / automatically unstall other theme plugin.
-	if(strpos($dir, '_theme_') !== FALSE) {
-		foreach($plugins as $_dir => $_plugin) {
-			if($dir == $_dir) continue;
-			if(strpos($_dir, '_theme_') !== FALSE) {
-				plugin_unstall($_dir);
-			}
-		}
-	} else {
-		// 卸载掉同类插件
-		$suffix = substr($dir, strpos($dir, '_'));
-		foreach($plugins as $_dir => $_plugin) {
-			if($dir == $_dir) continue;
-			$_suffix = substr($_dir, strpos($_dir, '_'));
-			if($suffix == $_suffix) {
-				plugin_unstall($_dir);
-			}
+	// 同类插件互斥：禁用其他已安装的同类插件（保留配置便于切换）。
+// 之前的实现用 plugin_unstall() 会执行 uninstall.php 清掉数据，过于激进；
+// 现统一改为 plugin_disable() 仅禁用，主题类与非主题类逻辑一致。
+// 匹配规则见 plugin_find_conflicts()：主题（第二段theme）全部互斥；基础功能（两段）按第二段互斥；扩展（三段+）不互斥。
+$conflicts = plugin_find_conflicts($dir);
+if(!empty($conflicts)) {
+	foreach($conflicts as $c) {
+		// 仅禁用处于启用状态的冲突插件，已禁用的跳过（避免无谓的 tmp 清理和重复日志）
+		if(!empty($c['enable'])) {
+			plugin_disable($c['dir']);
+			admin_log_create('plugin_disable', 'plugin', $c['dir'], '安装同类插件 ' . $name . ' 自动禁用：' . $c['name']);
 		}
 	}
+}
 	
 	$msg = lang('plugin_install_sucessfully', array('name'=>$name));
 	message(0, $msg, array('redirect_url' => admin_plugin_url()));
@@ -307,12 +301,15 @@ if($action == 'local') {
 	// 启用插件
 plugin_enable($dir);
 
-// 主题互斥：启用主题时自动禁用其他已启用的主题（保留配置，方便切换）
-if(strpos($dir, '_theme_') !== FALSE) {
-	foreach($plugins as $_dir => $_plugin) {
-		if($dir == $_dir) continue;
-		if(strpos($_dir, '_theme_') !== FALSE && !empty($_plugin['enable'])) {
-			plugin_disable($_dir);
+// 同类插件互斥：启用插件时自动禁用其他已启用的同类插件（保留配置，方便切换）
+// 与 install 分支使用相同的 plugin_find_conflicts() 规则：主题全部互斥；基础功能按第二段互斥；扩展不互斥
+// 之前的实现仅对 _theme_ 字符串包含判断做主题互斥，遗漏了非主题类同类插件的启用冲突
+$conflicts_on_enable = plugin_find_conflicts($dir);
+if(!empty($conflicts_on_enable)) {
+	foreach($conflicts_on_enable as $c) {
+		if(!empty($c['enable'])) {
+			plugin_disable($c['dir']);
+			admin_log_create('plugin_disable', 'plugin', $c['dir'], '启用同类插件 ' . $name . ' 自动禁用：' . $c['name']);
 		}
 	}
 }
@@ -400,7 +397,7 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 
 	$dir = param_word(2);
 	plugin_check_exists($dir);
-	// 检查插件是否已启用且已安装：未启用插件的 Service 类未合并到 model.min.php，
+	// 检查插件是否已启用且已安装：未启用插件的 Service 类不会被加载，
 	// 直接加载 setting.php 会触发 "Class XXXService not found" fatal error
 	if (empty($plugins[$dir]['installed']) || empty($plugins[$dir]['enable'])) {
 		message(-1, lang('plugin_not_enabled_or_installed'));

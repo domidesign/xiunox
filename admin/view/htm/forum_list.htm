@@ -262,32 +262,22 @@ if(!function_exists('forum_frontend_url')) {
 
 <script>
 (function() {
-	console.log('[forum_list] script start');
-	console.log('[forum_list] bootstrap:', typeof bootstrap);
-	console.log('[forum_list] xn:', typeof xn);
-	console.log('[forum_list] showToast:', typeof showToast);
-
 	// CSRF 令牌
 	var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
-	console.log('[forum_list] csrfToken:', csrfToken ? 'found' : 'NOT found');
 
 	// 删除弹窗实例
 	var deleteModalEl = document.getElementById('deleteModal');
-	console.log('[forum_list] deleteModalEl:', deleteModalEl);
 	var deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
-	console.log('[forum_list] deleteModal:', deleteModal);
 	var deleteFidInput = null;
 
 	// 删除按钮：弹出确认弹窗
 	document.addEventListener('click', function(e) {
 		var deleteBtn = e.target.closest('.row_delete');
 		if (deleteBtn) {
-			console.log('[forum_list] delete button clicked');
 			e.preventDefault();
 			var row = deleteBtn.closest('[rowid]');
 			if (!row) return;
 			var fid = row.getAttribute('rowid');
-			console.log('[forum_list] deleting fid:', fid);
 
 			// 系统保留版块不可删除
 			if (fid == '1') {
@@ -298,19 +288,16 @@ if(!function_exists('forum_frontend_url')) {
 			// 记录待删除的 fid，显示弹窗
 			deleteFidInput = fid;
 			if (deleteModal) deleteModal.show();
-			else console.log('[forum_list] deleteModal is null!');
 		}
 	});
 
 	// 确认删除：原生 fetch 请求
 	var confirmBtn = document.getElementById('confirmDeleteBtn');
-	console.log('[forum_list] confirmBtn:', confirmBtn);
 	if (confirmBtn) {
 		confirmBtn.addEventListener('click', function() {
 			if (!deleteFidInput) return;
 			var fid = deleteFidInput;
 			var url = xn.url('forum-delete-' + fid);
-			console.log('[forum_list] confirm delete, url:', url);
 			var postdata = new FormData();
 			postdata.append('csrf_token', csrfToken);
 
@@ -319,11 +306,10 @@ if(!function_exists('forum_frontend_url')) {
 				body: postdata,
 				headers: { 'X-Requested-With': 'XMLHttpRequest' }
 			})
-			.then(function(r) { console.log('[forum_list] fetch response status:', r.status); return r.text(); })
+			.then(function(r) { return r.text(); })
 			.then(function(text) {
-				console.log('[forum_list] fetch response:', text.substring(0, 200));
 				var res;
-				try { res = JSON.parse(text); } catch(e) { console.log('[forum_list] JSON parse error'); return; }
+				try { res = JSON.parse(text); } catch(e) { return; }
 				if (parseInt(res.code) == 0) {
 					if (deleteModal) deleteModal.hide();
 					window.location.href = window.location.href;
@@ -332,11 +318,9 @@ if(!function_exists('forum_frontend_url')) {
 				}
 			})
 			.catch(function(err) {
-				console.log('[forum_list] fetch error:', err);
 				showToast('<?php echo lang('admin_request_failed'); ?>', 'error');
 			});
 		});
 	}
-	console.log('[forum_list] script end');
 })();
 </script>

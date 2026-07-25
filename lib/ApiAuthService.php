@@ -9,16 +9,53 @@ class ApiAuthService {
     private DatabaseInterface $db;
     private int $tokenExpireDays;
     private int $accessTokenExpireHours;
+    private int $absoluteExpireDays;
 
     /**
      * 已注册的自定义 scope（供插件注册如 'lottery:participate' 等 scope）
      */
     private static $customScopes = [];
 
-    public function __construct(DatabaseInterface $db, int $tokenExpireDays = 30, int $accessTokenExpireHours = 2) {
+    /**
+     * @param int $tokenExpireDays      refresh_token 过期天数（滑动续期）
+     * @param int $accessTokenExpireHours access_token 过期小时数
+     * @param int $absoluteExpireDays   token 链绝对过期上限天数（无论刷新与否，超过强制重新登录）
+     */
+    public function __construct(DatabaseInterface $db, int $tokenExpireDays = 30, int $accessTokenExpireHours = 2, int $absoluteExpireDays = 90) {
         $this->db = $db;
         $this->tokenExpireDays = $tokenExpireDays;
         $this->accessTokenExpireHours = $accessTokenExpireHours;
+        $this->absoluteExpireDays = $absoluteExpireDays;
+    }
+
+    /**
+     * 检查 token 行是否已过绝对过期上限
+     * 兼容老数据：无 absolute_expires_at 字段时回退用 created_at
+     */
+    private function isAbsoluteExpired(array $row): bool {
+        if ($this->absoluteExpireDays <= 0) return false; // 0 = 不限制
+        if (!empty($row['absolute_expires_at'])) {
+            return $row['absolute_expires_at'] < time();
+        }
+        // 老数据回退（无 absolute_expires_at 字段）
+        if (!empty($row['created_at'])) {
+            return ($row['created_at'] + $this->absoluteExpireDays * 86400) < time();
+        }
+        return false;
+    }
+
+    /**
+     * 撤销指定用户的全部 token（改密码/封禁/退出全部设备场景使用）
+     * @param int $uid 用户ID
+     * @return int 删除的行数
+     */
+    public function revokeAllUserTokens(int $uid): int {
+        if ($uid <= 0) return 0;
+        try {
+            return $this->db->delete('api_token', ['uid' => $uid]);
+        } catch (Exception $e) {
+            return 0;
+        }
     }
 
     /**
@@ -96,6 +133,7 @@ class ApiAuthService {
         $refreshTokenHash = hash('sha256', $refreshToken);
         $accessExpiresAt = time() + ($this->accessTokenExpireHours * 3600);
         $refreshExpiresAt = time() + ($this->tokenExpireDays * 86400);
+        $absoluteExpiresAt = $this->absoluteExpireDays > 0 ? (time() + $this->absoluteExpireDays * 86400) : 0;
         $now = time();
 
         $this->db->insert('api_token', [
@@ -105,8 +143,15 @@ class ApiAuthService {
             'expires_at' => $refreshExpiresAt,
             'created_at' => $now,
             'related_id' => 0,
+            'absolute_expires_at' => $absoluteExpiresAt,
+            'used' => 0,
         ]);
         $refreshId = $this->db->lastInsertId();
+        // ponytail: db->insert 失败时返回 0 不抛异常（如 api_token 表缺字段触发 1054），
+        // 若不检查会静默失败并返回无效 token 给客户端，导致后续所有鉴权请求 401 且难以定位。
+        if ($refreshId <= 0) {
+            throw new RuntimeException('Failed to persist refresh token (api_token table schema mismatch?)');
+        }
 
         $this->db->insert('api_token', [
             'uid' => $uid,
@@ -115,8 +160,13 @@ class ApiAuthService {
             'expires_at' => $accessExpiresAt,
             'created_at' => $now,
             'related_id' => $refreshId,
+            'absolute_expires_at' => $absoluteExpiresAt,
+            'used' => 0,
         ]);
         $accessId = $this->db->lastInsertId();
+        if ($accessId <= 0) {
+            throw new RuntimeException('Failed to persist access token (api_token table schema mismatch?)');
+        }
 
         $this->db->update('api_token', ['id' => $refreshId], ['related_id' => $accessId]);
 
@@ -137,7 +187,7 @@ class ApiAuthService {
         $row = $this->db->findOne('api_token', ['token' => $tokenHash, 'type' => 'access']);
         if (!$row) return null;
 
-        if ($row['expires_at'] < time()) {
+        if ($row['expires_at'] < time() || $this->isAbsoluteExpired($row)) {
             $this->db->delete('api_token', ['id' => $row['id']]);
             return null;
         }
@@ -153,7 +203,7 @@ class ApiAuthService {
         $row = $this->db->findOne('api_token', ['token' => $tokenHash, 'type' => 'refresh']);
         if (!$row) return null;
 
-        if ($row['expires_at'] < time()) {
+        if ($row['expires_at'] < time() || $this->isAbsoluteExpired($row)) {
             $this->db->delete('api_token', ['id' => $row['id']]);
             return null;
         }
@@ -161,6 +211,12 @@ class ApiAuthService {
         return $row;
     }
 
+    /**
+     * 刷新 token 对（OAuth 2.1 严格重用检测）
+     * - 首次使用：标记 used=1（保留行用于重用检测），生成新对，继承 absolute_expires_at
+     * - 重用检测：refresh_token 已 used=1 时判定为重用 → 撤销该 uid 全部 token，返回 null
+     * - 过期/不存在：返回 null
+     */
     public function refreshTokens(string $refreshToken): ?array {
         $row = $this->validateRefreshToken($refreshToken);
         if (!$row) return null;
@@ -168,9 +224,26 @@ class ApiAuthService {
         $uid = $row['uid'];
         $relatedId = $row['related_id'];
 
-        $this->db->delete('api_token', ['id' => $row['id']]);
+        // OAuth 2.1 重用检测：used=1 说明此 refresh_token 已被使用过 → 攻击者重用，撤销整条 token 链
+        if (!empty($row['used'])) {
+            $this->revokeAllUserTokens($uid);
+            xn_log("ApiAuthService::refreshTokens(): refresh_token reuse detected for uid=$uid, all tokens revoked", 'security');
+            return null;
+        }
+
+        // 标记 used=1（保留行用于后续重用检测，不再删除）
+        $this->db->update('api_token', ['id' => $row['id']], ['used' => 1]);
+
+        // 删除关联的旧 access_token（已无价值，新对会生成新 access）
         if ($relatedId > 0) {
             $this->db->delete('api_token', ['id' => $relatedId]);
+        }
+
+        // 继承绝对过期时间（不从老 refresh 继承会被无限续期）
+        $absoluteExpiresAt = !empty($row['absolute_expires_at']) ? $row['absolute_expires_at'] : 0;
+        // 老数据无 absolute_expires_at 字段时回退计算（基于 created_at + absoluteExpireDays）
+        if ($absoluteExpiresAt === 0 && $this->absoluteExpireDays > 0 && !empty($row['created_at'])) {
+            $absoluteExpiresAt = $row['created_at'] + $this->absoluteExpireDays * 86400;
         }
 
         $newAccessToken = bin2hex(random_bytes(32));
@@ -188,8 +261,13 @@ class ApiAuthService {
             'expires_at' => $refreshExpiresAt,
             'created_at' => $now,
             'related_id' => 0,
+            'absolute_expires_at' => $absoluteExpiresAt,
+            'used' => 0,
         ]);
         $refreshId = $this->db->lastInsertId();
+        if ($refreshId <= 0) {
+            throw new RuntimeException('Failed to persist refreshed refresh token (api_token table schema mismatch?)');
+        }
 
         $this->db->insert('api_token', [
             'uid' => $uid,
@@ -198,8 +276,13 @@ class ApiAuthService {
             'expires_at' => $accessExpiresAt,
             'created_at' => $now,
             'related_id' => $refreshId,
+            'absolute_expires_at' => $absoluteExpiresAt,
+            'used' => 0,
         ]);
         $accessId = $this->db->lastInsertId();
+        if ($accessId <= 0) {
+            throw new RuntimeException('Failed to persist refreshed access token (api_token table schema mismatch?)');
+        }
 
         $this->db->update('api_token', ['id' => $refreshId], ['related_id' => $accessId]);
 

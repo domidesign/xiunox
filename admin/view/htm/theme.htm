@@ -90,10 +90,47 @@
 
 <script>
 var csrf_token = <?php echo json_encode($header['csrf_token'] ?? '');?>;
-var _currentBrand = <?php echo json_encode($current_brand ?? '');?>;
+var _currentBrand = <?php echo json_encode($current_brand ?? ''); ?>;
+
+function buildQuery(data) {
+	var parts = [];
+	for (var k in data) {
+		if (Object.prototype.hasOwnProperty.call(data, k)) {
+			parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(data[k]));
+		}
+	}
+	return parts.join('&');
+}
+
+function xpost(url, data, callback) {
+	var body = (data && typeof data === 'object') ? buildQuery(data) : (data || '');
+	fetch(url, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+			'X-Requested-With': 'XMLHttpRequest'
+		},
+		credentials: 'same-origin',
+		body: body
+	}).then(function(response) {
+		return response.text().then(function(text) {
+			if (!text) throw { code: -100, message: 'Server Response Empty' };
+			try { return JSON.parse(text); }
+			catch (e) { throw { code: -101, message: text }; }
+		});
+	}).then(function(json) {
+		if (json && json.code !== undefined) {
+			callback(json.code, json.message);
+		} else {
+			callback(0, json);
+		}
+	}).catch(function(err) {
+		callback(err.code || -1, err.message || 'Network error');
+	});
+}
 
 function setDefault(theme) {
-    $.xpost('<?php echo url("theme-default");?>', {theme: theme, csrf_token: csrf_token}, function(code, message) {
+    xpost('<?php echo url("theme-default");?>', {theme: theme, csrf_token: csrf_token}, function(code, message) {
         if(code == 0) {
             var label = theme === 'light' ? '<?php echo lang('admin_theme_light_label');?>' : '<?php echo lang('admin_theme_dark_label');?>';
             showToast('<?php echo lang('admin_theme_current');?>' + label + '<?php echo lang('admin_theme_default');?>', 'success');
@@ -119,7 +156,7 @@ function selectBrand(name) {
     });
     _currentBrand = name;
     // 同步保存到后台作为默认主题色
-    $.xpost('<?php echo url("theme-brand");?>', {theme_brand: name, csrf_token: csrf_token}, function(code, message) {
+    xpost('<?php echo url("theme-brand");?>', {theme_brand: name, csrf_token: csrf_token}, function(code, message) {
         if(code == 0) {
             showToast('<?php echo lang('admin_theme_brand_color');?>' + ' ' + name, 'success');
         } else {

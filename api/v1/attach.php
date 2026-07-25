@@ -1,5 +1,14 @@
 <?php
 
+// ponytail: 加载 $grouplist，PermissionService::check 对非管理员会回退查 $grouplist[$_gid]['allowattach']
+// 未加载时非管理员上传附件必然 403（与 post.php/thread.php/mod.php 一致）
+if (!function_exists('group_list_cache')) {
+    include_once APP_PATH . 'model/group.func.php';
+}
+if (empty($GLOBALS['grouplist'])) {
+    $GLOBALS['grouplist'] = group_list_cache();
+}
+
 $id = intval($segments[1] ?? 0);
 
 switch ($method) {
@@ -20,9 +29,17 @@ switch ($method) {
         if (!$authUser) {
             ApiResponse::unauthorized();
         }
-        // 检查上传附件权限
+        // ponytail: 同步全局 $uid/$gid/$user，bootstrap 早期认证可能因 try-catch 吞异常失败，
+        // 导致全局变量为 0；此处已通过 validateAccessToken 确认身份，必须回填全局变量
+        // 供 PermissionService::check 等 core 函数使用
+        $GLOBALS['uid'] = intval($authUser['uid']);
+        $GLOBALS['gid'] = intval($authUser['gid']);
+        $GLOBALS['user'] = $authUser;
+        global $uid, $gid, $user;
+
+        // 检查上传附件权限（显式传 uid，不依赖全局变量）
         include_once APP_PATH . 'lib/PermissionService.php';
-        if (!PermissionService::check('allowattach')) {
+        if (!PermissionService::check('allowattach', intval($authUser['uid']))) {
             ApiResponse::forbidden('您无权上传附件');
         }
         if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
@@ -80,6 +97,12 @@ switch ($method) {
         $tmpfile = $conf['upload_path'].'tmp/'.$tmpname;
         $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
 
+        // ponytail: 确保上传临时目录存在（与 route/attach.php 一致）
+        $tmpdir = $conf['upload_path'].'tmp/';
+        if(!is_dir($tmpdir)) {
+            @mkdir($tmpdir, 0755, TRUE);
+        }
+
         // 移动上传文件到临时目录
         if(!move_uploaded_file($tmp_name, $tmpfile)) {
             ApiResponse::error(500, '写入文件失败');
@@ -118,10 +141,11 @@ switch ($method) {
         $filesize = filesize($tmpfile);
 
         // 保存元数据到 JSON 文件，供发帖时关联
+        // ponytail: 不写 path 字段（物理路径），避免 .meta.json 被 web 访问时泄露服务器路径
+        // api_attach_assoc_post 通过 $conf['upload_path'].'tmp/'.$key 定位文件，无需 path
         $meta = array(
             'url'         => $tmpurl,
             'thumb_url'   => $thumb_url,
-            'path'        => $tmpfile,
             'orgfilename' => $name,
             'filetype'    => $filetype,
             'filesize'    => $filesize,

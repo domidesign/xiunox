@@ -18,7 +18,7 @@ if(!in_array($active_tab, array('current', 'recent'), true)) {
 	$active_tab = 'current';
 }
 
-// 加载依赖（生产环境走 tmp/model.min.php 合并加载，类加载顺序不可预测）
+// 加载依赖（lib 类不会自动加载，按需兜底 include）
 if(!class_exists('UserBanService')) { include_once APP_PATH.'lib/UserBanService.php'; }
 if(!function_exists('ban_log_find_recent_unbanned')) { include_once APP_PATH.'model/ban_log.func.php'; }
 if(!function_exists('user_find')) { include_once APP_PATH.'model/user.func.php'; }

@@ -5,7 +5,7 @@
             <!-- 头像 -->
             <div class="flex-shrink-0">
                 <a href="<?php echo user_url($thread['uid']);?>" tabindex="-1">
-                    <?php echo avatar_component_from_data($thread['user_avatar_url'], 'lg', isset($author_group['icon_class']) ? $author_group['icon_class'] : '', isset($author_group['color']) ? $author_group['color'] : '', isset($thread['gid']) ? $thread['gid'] : 0);?>
+                    <?php echo avatar_component_from_data($thread['user_avatar_url'], 'lg', isset($author_group['icon_class']) ? $author_group['icon_class'] : '', isset($author_group['color']) ? $author_group['color'] : '', isset($thread['gid']) ? $thread['gid'] : 0, array('_uid' => isset($thread['uid']) ? intval($thread['uid']) : 0));?>
                 </a>
             </div>
             <!-- 用户名+UID+用户组 -->

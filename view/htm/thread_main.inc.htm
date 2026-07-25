@@ -308,9 +308,8 @@ $_ban_is_admin = in_array($gid, array(1, 2));
                     <form id="quick_reply_form" class="block " hx-post="<?php echo post_create_url($tid, 1);?>"
                         hx-target="#postlist" hx-swap="beforeend"
                         hx-on:htmx:after:request="captchaRefresh('reply');"
-                        hx-on:htmx:response-error="captchaRefresh('reply');"
-                        hx-on:htmx:send-error="captchaRefresh('reply');"
-                        hx-confirm=" ">
+                        hx-confirm=" "
+                        data-autosave="post_create" data-autosave-context="<?php echo intval($tid);?>">
                         <?php echo CsrfService::input(); ?>
                         <div id="reply-msg"></div>
                         <input type="hidden" name="doctype" value="1" />

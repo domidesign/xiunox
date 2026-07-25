@@ -41,7 +41,7 @@ class PluginScanner {
     // ===== 公开 API =====
 
     /**
-     * 扫描所有已安装插件
+     * 扫描所有插件目录（已安装/未安装均扫描，installed/enable 字段以 db 为权威）
      */
     public function scanAll(): array {
         $pluginDirs = glob(APP_PATH . 'plugin/*', GLOB_ONLYDIR);
@@ -343,11 +343,11 @@ class PluginScanner {
                     ];
                 }
 
-                // bbs_version 校验
+                // bbs_version 校验：必须与当前核心主次版本完全一致（X.Y == X.Y），否则拒绝安装
                 if ($conf && !isset($conf['bbs_version'])) {
                     $issues[] = [
                         'file' => $shortPath, 'line' => 0, 'category' => 'conf_version',
-                        'match' => 'bbs_version: (missing)', 'suggestion' => '插件缺少 bbs_version 字段，必须声明兼容的核心主次版本（两位制，如 "1.0"）',
+                        'match' => 'bbs_version: (missing)', 'suggestion' => "插件缺少 bbs_version 字段，必须声明兼容的核心主次版本（两位制，必须等于当前核心版本前两位 \"{$coreMajorMinor}\"）",
                         'severity' => $confVersionSeverity, 'context' => 'bbs_version 字段缺失',
                     ];
                 } elseif ($conf && isset($conf['bbs_version'])) {
@@ -356,17 +356,34 @@ class PluginScanner {
                         // 格式校验：必须两位制
                         $issues[] = [
                             'file' => $shortPath, 'line' => 0, 'category' => 'conf_version',
-                            'match' => "bbs_version: {$bv}", 'suggestion' => "bbs_version 必须两位制（如 \"1.0\"），表示兼容核心 X.Y.0-X.Y.x 分支，当前值 \"{$bv}\" 格式不正确",
+                            'match' => "bbs_version: {$bv}", 'suggestion' => "bbs_version 必须两位制（如 \"{$coreMajorMinor}\"），当前值 \"{$bv}\" 格式不正确",
                             'severity' => $confVersionSeverity, 'context' => "bbs_version: {$bv}",
                         ];
-                    } elseif (version_compare($bv, $coreMajorMinor, '>')) {
-                        // 兼容性校验：插件声明的主次版本不能高于当前核心
+                    } elseif (version_compare($bv, $coreMajorMinor, '!=')) {
+                        // 兼容性校验：插件声明的主次版本必须与当前核心主次版本完全一致
                         $issues[] = [
                             'file' => $shortPath, 'line' => 0, 'category' => 'conf_version',
-                            'match' => "bbs_version: {$bv}", 'suggestion' => "插件要求核心版本 {$bv}，当前核心版本为 {$coreMajorMinor}（XIUNOX_VERSION=" . (defined('XIUNOX_VERSION') ? XIUNOX_VERSION : '?') . "），请降低 bbs_version 或升级核心",
-                            'severity' => $confVersionSeverity, 'context' => "bbs_version: {$bv} > core: {$coreMajorMinor}",
+                            'match' => "bbs_version: {$bv}", 'suggestion' => "插件 bbs_version 必须与当前系统版本前两位完全一致：插件声明 \"{$bv}\"，系统要求 \"{$coreMajorMinor}\"（XIUNOX_VERSION=" . (defined('XIUNOX_VERSION') ? XIUNOX_VERSION : '?') . "），请修改 bbs_version 或升级/降级核心",
+                            'severity' => $confVersionSeverity, 'context' => "bbs_version: {$bv} != core: {$coreMajorMinor}",
                         ];
                     }
+                }
+
+                // type 必填字段校验（fatal，不可跳过）：必须为 "plugin" 或 "theme"
+                if ($conf && (!isset($conf['type']) || !is_string($conf['type']) || trim($conf['type']) === '')) {
+                    $issues[] = [
+                        'file' => $shortPath, 'line' => 0, 'category' => 'conf_required_fields',
+                        'match' => 'type: (missing/empty)', 'suggestion' => '插件缺少 type 字段，conf.json 必须声明插件类型（"plugin" 或 "theme"）',
+                        'severity' => $this->severityLevels['conf_required_fields'] ?? 'fatal',
+                        'context' => 'type 字段缺失或为空',
+                    ];
+                } elseif ($conf && isset($conf['type']) && !in_array(strtolower($conf['type']), ['plugin', 'theme', 'template', 'skin'], true)) {
+                    $issues[] = [
+                        'file' => $shortPath, 'line' => 0, 'category' => 'conf_required_fields',
+                        'match' => "type: {$conf['type']}", 'suggestion' => 'type 字段值非法，必须为 "plugin" 或 "theme"（template/skin 视为 theme 的别名），当前值 "' . $conf['type'] . '" 不被识别',
+                        'severity' => $this->severityLevels['conf_required_fields'] ?? 'fatal',
+                        'context' => "type: {$conf['type']}",
+                    ];
                 }
 
                 // version 三位制格式校验（warning 级，可跳过）
@@ -734,13 +751,30 @@ class PluginScanner {
             if ($i['severity'] === 'warning') $warningCount++;
         }
 
+        // ponytail: installed/enable 唯一权威源为 db bbs_plugin 表
+        // 彻底不读 conf.json 的 enable/installed——db 不可用或 plugin_db_get 未加载时默认 false
+        // （存量 conf.json 带 enable=1/installed=1 是脏数据，回退读它会重现"禁用的插件被启用"bug）
+        $installed = false;
+        $enable = false;
+        if (function_exists('plugin_db_get')) {
+            try {
+                $dbRow = plugin_db_get($pluginName);
+                if (!empty($dbRow)) {
+                    $installed = !empty($dbRow['installed']);
+                    $enable    = !empty($dbRow['enable']);
+                }
+            } catch (\Throwable $e) {
+                // db 异常：保持 false（不回退 conf.json）
+            }
+        }
+
         return [
             'dir' => $pluginName,
             'name' => $conf['name'] ?? $pluginName,
             'version' => $conf['version'] ?? '?',
             'bbs_version' => $conf['bbs_version'] ?? '?',
-            'installed' => !empty($conf['installed']),
-            'enable' => !empty($conf['enable']),
+            'installed' => $installed,
+            'enable' => $enable,
             'issues' => $issues,
             'total' => count($issues),
             'fatal' => $fatalCount,

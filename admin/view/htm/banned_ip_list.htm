@@ -107,7 +107,7 @@
 <!--{hook admin_banned_ip_list_end.htm}-->
 
 <script>
-// data-confirm 表单：onsubmit confirm 改为 XN.confirm Bootstrap Modal
+// data-confirm 表单：onsubmit 用原生 confirm 确认
 document.querySelectorAll('form[data-confirm]').forEach(function(f) {
 	f.addEventListener('submit', function(e) {
 		if (f.dataset.confirmed === '1') {
@@ -115,10 +115,10 @@ document.querySelectorAll('form[data-confirm]').forEach(function(f) {
 			return;
 		}
 		e.preventDefault();
-		XN.confirm(f.dataset.confirm, function() {
+		if (confirm(f.dataset.confirm)) {
 			f.dataset.confirmed = '1';
 			HTMLFormElement.prototype.submit.call(f);
-		});
+		}
 	});
 });
 </script>

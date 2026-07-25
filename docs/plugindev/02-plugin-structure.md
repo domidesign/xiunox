@@ -1,6 +1,6 @@
 # 02 插件目录结构与 conf.json
 
-> 关键源码：`model/plugin.func.php`（`plugin_read_by_dir` 在 560-587）、`plugin/xnx_tag/`、`plugin/xnx_checkin/`
+> 关键源码：`model/plugin.func.php`（`plugin_read_by_dir` 约 L705 起）、`plugin/xnx_tag/`、`plugin/xnx_checkin/`
 
 ---
 
@@ -57,9 +57,7 @@ plugin/my_plugin/
     "name": "插件名称",
     "brief": "插件简介，支持 HTML",
     "version": "1.0.0",
-    "bbs_version": "1.0",
-    "installed": 0,
-    "enable": 0,
+    "bbs_version": "1.1",
     "hooks_rank": {
         "model_inc_file.php": 10,
         "thread_subject_after.htm": 10
@@ -71,8 +69,7 @@ plugin/my_plugin/
         "xn_search": "1.0"
     },
     "type": "plugin",
-    "author": "作者",
-    "id": "my_plugin"
+    "author": "作者"
 }
 ```
 
@@ -83,16 +80,15 @@ plugin/my_plugin/
 | `name` | string | ✅ | — | 显示名 |
 | `brief` | string | ✅ | — | 简介（允许 HTML） |
 | `version` | string | ✅ | `'1.0.0'` | 插件版本，必须三位制（X.Y.Z，如 "1.0.0"） |
-| `bbs_version` | string | ✅ | `'1.0'` | 兼容的核心主次版本，必须两位制（X.Y，如 "1.0"）。语义：声明兼容核心 X.Y.0-X.Y.x 分支。不能高于当前核心主次版本 |
-| `installed` | int | ✅ | `0` | 系统维护，勿手填 |
-| `enable` | int | ✅ | `0` | 系统维护，勿手填 |
+| `bbs_version` | string | ✅ | — | 兼容的核心主次版本，必须两位制（X.Y，如 "1.1"）。**必须与当前系统版本前两位完全一致**（`XIUNOX_VERSION` 取前两段，如 1.1.0 → 1.1），不一致一律拒绝安装。语义：插件与核心同分支绑定，避免跨分支兼容性陷阱 |
 | `hooks_rank` | object | ❌ | `{}` | hook 排序权重 |
 | `overwrites_rank` | object | ❌ | `{}` | 覆盖优先级 |
 | `dependencies` | object | ❌ | `{}` | 依赖（值是最低版本，但**实际不比较版本**，只看在不在/启没启） |
 | `capabilities` | array | ❌ | `[]` | 权限沙箱声明，扫描器已强制校验格式（要求 `lowercase.dots` 数组）。规则详见 06-ai-collaboration.md 第六节 `capabilities_format` |
-| `type` | string | ❌ | `"plugin"` | `"plugin"` 或 `"theme"` |
+| `type` | string | ✅ | — | 必须为 `"plugin"` 或 `"theme"`（`template`/`skin` 视为 `theme` 别名）。缺失或值非法一律拒绝安装。**插件唯一标识是目录名（dir），不需要也不读取 `id` 字段** |
 | `author` | string | ❌ | — | 作者 |
-| `id` | string | ❌ | — | 旧式 id |
+
+> ⚠️ **`installed` / `enable` 字段已彻底废弃，禁止写入 conf.json，代码层任何情况下都不读**：这两个字段是运行时状态，唯一权威源是数据库 `bbs_plugin` 表。`plugin_init()` 在 `xn_json_decode(conf.json)` 后立即 `unset` 丢弃；`plugin_paths_enabled()` / `PluginScanner::scanSingleByDir()` 只读 db，db 异常/无记录时默认 false，**不回退 conf.json**。历史插件 conf.json 中的这两个字段代码层彻底不读。
 
 ### hooks_rank 排序规则
 
@@ -194,7 +190,7 @@ foreach ($my_lang as $k => $v) {
 
 ### PHP hook 的 `<?php exit;` 守卫
 
-`.php` hook 文件**应该**以 `<?php exit;` 开头，防止被人通过 URL 直接访问触发执行。编译器会自动剥掉这行（`plugin.func.php:520-531`）：
+`.php` hook 文件**应该**以 `<?php exit;` 开头，防止被人通过 URL 直接访问触发执行。编译器会自动剥掉这行（`plugin.func.php:651-662`）：
 
 ```php
 <?php exit;
@@ -242,19 +238,6 @@ $check = db_sql_find_one("SHOW COLUMNS FROM {$tablepre}xnx_tag LIKE 'featured'")
 if (empty($check)) {
     db_exec("ALTER TABLE {$tablepre}xnx_tag ADD COLUMN featured TINYINT(1) NOT NULL DEFAULT 0 AFTER threads");
 }
-
-// 清理 model.min.php 编译缓存，确保本插件 Service 类被重新加载
-if (isset($conf['tmp_path']) && function_exists('xn_unlink')) {
-    @xn_unlink($conf['tmp_path'].'model.min.php');
-}
-```
-
-### 末尾必须清理 model.min.php
-
-每次 `upgrade.php` 执行末尾**必须**清理编译缓存，否则新增/变更的 Service 类不会生效：
-
-```php
-@xn_unlink($conf['tmp_path'].'model.min.php');
 ```
 
 ### 禁止模式
@@ -383,9 +366,8 @@ plugin/my_hello/
     "name": "Hello",
     "brief": "在帖子标题后加一句 hello",
     "version": "1.0.0",
-    "bbs_version": "1.0",
-    "installed": 0,
-    "enable": 0,
+    "bbs_version": "1.1",
+    "type": "plugin",
     "hooks_rank": {},
     "overwrites_rank": {},
     "dependencies": {}
@@ -404,6 +386,7 @@ plugin/my_hello/
 ## 小结
 
 - **`conf.json` 是唯一必需文件**，字段表照着填
+- **conf.json 禁止包含 `installed`/`enable` 字段**（运行时状态唯一权威源为 db `bbs_plugin` 表）
 - **hook 文件名含扩展名，必须和标记一模一样**
 - **`model_inc_file.php` / `index_route_case_end.php` / `lang_zh_cn_bbs.php` 是有特殊处理的固定 hook**
 - **PHP hook 以 `<?php exit;` 开头**
@@ -411,7 +394,7 @@ plugin/my_hello/
 
 ---
 
-## 3. zip 打包规范（发布插件必读）
+## 8. zip 打包规范（发布插件必读）
 
 后台「上传安装 / 升级插件」对 zip 包结构有严格检测，不符合规范会被拒绝并给出细分原因。打包时遵守以下规则：
 
@@ -442,7 +425,9 @@ my_plugin.zip
 | macOS Finder 右键「压缩」生成 `__MACOSX/` 目录 | 后台会自动忽略 `__MACOSX`，但若同时打包了多个目录仍会被拒 | 用命令行 `zip -r -X my_plugin.zip my_plugin/` 跳过扩展属性 |
 | conf.json 带 UTF-8 BOM 头（`EF BB BF`） | `json_decode` 返回 null，提示「BOM 头」 | 用 VS Code / Sublime，编码切到「UTF-8 无 BOM」保存 |
 | conf.json 不是合法 JSON | 拒绝安装，提示「不是合法的 JSON」 | 用 [jsonlint.com](https://jsonlint.com/) 校验语法 |
-| conf.json 为空文件或 `{}` | 拒绝安装，提示「内容为空」 | 至少包含 `name / version / bbs_version` 三个字段 |
+| conf.json 为空文件或 `{}` | 拒绝安装，提示「内容为空」 | 至少包含 `name / version / bbs_version / type` 四个必填字段 |
+| `bbs_version` 与系统版本前两位不一致 | 拒绝安装，提示「必须与当前系统版本前两位完全一致」 | 修改 `bbs_version` 与当前 `XIUNOX_VERSION` 前两段对齐（如同为 1.1） |
+| 缺少 `type` 字段或值非法 | 拒绝安装（fatal，不可被 `force=1` 跳过） | 显式声明 `"type": "plugin"` 或 `"type": "theme"` |
 
 ### 3.3 推荐打包命令
 
@@ -473,6 +458,50 @@ Compress-Archive -Path my_plugin -DestinationPath my_plugin.zip
 | `zip 包中缺少有效的 conf.json...：conf.json 文件带 UTF-8 BOM 头（EF BB BF）` | 编辑器默认加了 BOM | 切到「UTF-8 无 BOM」保存 |
 | `zip 包中缺少有效的 conf.json...：conf.json 文件不是合法的 JSON` | JSON 语法错误（缺逗号、多余逗号、引号未闭合等） | jsonlint.com 校验 |
 | `zip 包中缺少有效的 conf.json...：conf.json 文件内容为空或不是 JSON 对象` | conf.json 是空文件或 `[]` | 至少写 `{}` + 必需字段 |
+
+---
+## 9. 插件目录命名规范与同类互斥机制
+
+XIUNOX 继承了 Xiuno4 的**同类插件互斥**机制：同类功能只允许一个插件处于启用状态，安装/启用新插件时会自动禁用已有的同类插件（保留配置便于切换，不执行卸载脚本）。
+
+### 8.1 互斥判定规则
+
+通过目录名下划线分段判定：目录名格式为 `作者_功能标识`，功能标识可含下划线（如 `ad_selfbuy`、`ai_reply`）。
+
+| 类型 | 命名格式 | 互斥规则 | 示例 |
+|---|---|---|---|
+| 主题类 | `<作者>_theme[_变体]`（第二段为 `theme`） | 所有主题互相互斥（同一时间只能启用一个主题） | `xnx_theme` 与 `xnx_theme_moments` 互斥 |
+| 功能插件 | `<作者>_<功能标识>`（功能标识可含下划线） | 功能标识相同才互斥 | `xnx_checkin` 与 `jack_checkin` 互斥（同 `checkin`）；`xnx_ad_selfbuy` 与 `xnx_ad_banner` 不互斥（`ad_selfbuy` ≠ `ad_banner`） |
+
+**功能标识** = 第二段及以后的所有段用下划线拼接。段数不同则功能标识必然不同，自然不互斥。
+
+| 插件 A | 插件 B | 功能标识 A | 功能标识 B | 互斥 |
+|---|---|---|---|---|
+| `xnx_checkin` | `jack_checkin` | `checkin` | `checkin` | ✅ 互斥 |
+| `xnx_ad_selfbuy` | `jack_ad_selfbuy` | `ad_selfbuy` | `ad_selfbuy` | ✅ 互斥 |
+| `xnx_ad_selfbuy` | `xnx_ad_banner` | `ad_selfbuy` | `ad_banner` | ❌ 不互斥 |
+| `xnx_checkin` | `xnx_checkin_pro` | `checkin` | `checkin_pro` | ❌ 不互斥（基础与扩展可共存）|
+
+单段目录名（如 `myplugin`、`xnx`）无第二段，不参与互斥匹配。
+
+> 主题类判断优先：`xnx_theme_moments`（第二段 theme）归入主题互斥组，即使它是三段。
+
+### 8.2 行为
+
+- **安装时**：前端的预扫描弹窗展示将被禁用的同类插件列表（含名称、目录名、当前启用状态）
+- **启用时**：同样调用 `plugin_find_conflicts()` 查找并禁用同类已启用插件
+- **禁用/卸载时**：不触发互斥检查
+- **保留配置**：使用 `plugin_disable()` 而非 `plugin_unstall()`，被禁用的同类插件保留数据库表、设置、语言包等所有配置
+
+### 8.3 命名建议
+
+- **插件目录名至少两段**（如 `my_plugin`），避免单段不参与互斥
+- 功能标识（第二段及以后）应准确描述功能：`checkin`、`ad_selfbuy`、`ai_reply`、`avatar_ai` 等
+- **主题类插件第二段必须为 `theme`**（如 `xnx_theme`、`xnx_theme_moments`），所有主题互相禁用
+- 想让插件与已有插件共存（如扩展包），用不同的功能标识命名（如 `checkin` 与 `checkin_pro`）
+- 官方预留前缀 `xn_`、`xnx_` 仅供核心/官方插件使用
+
+> 实现源码：`model/plugin.func.php` 的 `plugin_find_conflicts()` + `plugin_mutex_category()`、`admin/route/plugin.php` install/enable 分支、`admin/route/plugin_scanner.php` preinstall 分支。
 
 ---
 

@@ -48,7 +48,7 @@
 					<label class="form-label" style="width:25%"><?php echo lang('modify_avatar');?>：</label>
 					<div style="width:75%">
 						<div class="d-flex align-items-center gap-3">
-							<img src="<?php echo esc_attr($input['avatar_url'] ?? '');?>" class="rounded-circle" width="48" height="48" alt="avatar" />
+							<?php echo avatar_component_from_data($input['avatar_url'] ?? '', 'lg', '', '', 0, array('show_hooks' => false, 'show_group_icon' => false)); ?>
 							<div class="form-check">
 								<input type="checkbox" class="form-check-input" name="reset_avatar" id="reset_avatar" value="1" <?php echo $input['avatar_val'] == 0 ? 'disabled' : '';?>>
 								<label class="form-check-label" for="reset_avatar"><?php echo lang('confirm_reset_avatar');?></label>
@@ -228,55 +228,93 @@
 
 
 <script>
-// 清空内容表单：confirm 改为 XN.confirm Bootstrap Modal
+// ponytail: 原生 JS 改造，移除对 $/XN. 的依赖
+var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
+function xpost(url, data, callback) {
+	var body = data;
+	var headers = {'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': csrfToken};
+	if (typeof data === 'object' && !(data instanceof FormData)) {
+		var params = new URLSearchParams();
+		for (var k in data) { if (Object.prototype.hasOwnProperty.call(data, k)) params.append(k, data[k]); }
+		body = params.toString();
+	}
+	if (typeof body === 'string') headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+	fetch(url, {method: 'POST', headers: headers, body: body, credentials: 'same-origin'})
+		.then(function(r) { return r.json(); })
+		.then(function(json) { callback(json.code, json.message); })
+		.catch(function(err) { callback(-1, err.message || 'Request failed'); });
+}
+function fieldError(el, message) {
+	if (!el) return;
+	var parent = el.closest('.form-group');
+	if (parent) parent.classList.add('has-danger');
+	el.classList.add('form-control-danger');
+	el.setAttribute('title', message);
+	var tip = el.nextElementSibling;
+	if (tip && tip.classList.contains('xn-field-tip')) {
+		tip.textContent = message;
+		tip.style.display = '';
+	} else {
+		tip = document.createElement('span');
+		tip.className = 'xn-field-tip text-danger small';
+		tip.textContent = message;
+		el.parentNode.insertBefore(tip, el.nextSibling);
+	}
+	el.focus();
+}
+// 清空内容表单：原生 confirm
 (function(){
 	var f = document.getElementById('form-clear-content');
 	if (f) {
 		f.addEventListener('submit', function(e) {
 			e.preventDefault();
-			XN.confirm('<?php echo lang('user_clear_content_confirm');?>', function() {
+			if (confirm('<?php echo lang('user_clear_content_confirm');?>')) {
 				HTMLFormElement.prototype.submit.call(f);
-			});
+			}
 		});
 	}
 })();
-var jform = $('#form');
-var jsubmit = $('#submit');
+var form = document.getElementById('form');
+var submitBtn = document.getElementById('submit');
 var langCreditsReasonRequired = <?php echo json_encode(lang('admin_credits_reason_required'));?>;
-jform.on('submit', function(e) {
-	// ponytail: jQuery shim 的 on() 底层是 addEventListener，return false 不会阻止默认提交，
-	// 必须显式 preventDefault，否则表单会同时发起 AJAX + 原生 POST 两次请求（积分双倍 bug 根因）
+form.addEventListener('submit', function(e) {
+	// ponytail: 显式 preventDefault 双保险，避免 AJAX + 原生 POST 两次请求（积分双倍 bug 根因）
 	e.preventDefault();
-	setBtnLoading(jsubmit, true);
+	setBtnLoading(submitBtn, true);
 	// 积分调整时必须填写理由
 	var hasCreditsChange = false;
 	['credits', 'golds', 'rmbs'].forEach(function(k) {
-		var act = parseInt(jform.find('[name="'+k+'_action"]').val(), 10) || 0;
-		var amt = parseInt(jform.find('[name="'+k+'_amount"]').val(), 10) || 0;
+		var actEl = form.querySelector('[name="'+k+'_action"]');
+		var amtEl = form.querySelector('[name="'+k+'_amount"]');
+		var act = parseInt(actEl ? actEl.value : '', 10) || 0;
+		var amt = parseInt(amtEl ? amtEl.value : '', 10) || 0;
 		if(act !== 0 && amt > 0) hasCreditsChange = true;
 	});
-	if(hasCreditsChange && !jform.find('[name="credits_reason"]').val().trim()) {
+	var reasonEl = form.querySelector('[name="credits_reason"]');
+	if(hasCreditsChange && !(reasonEl && reasonEl.value.trim())) {
 		showToast(langCreditsReasonRequired, 'error');
-		jform.find('[name="credits_reason"]').addClass('is-invalid').focus();
-		setBtnLoading(jsubmit, false);
-		return false;
+		if (reasonEl) {
+			reasonEl.classList.add('is-invalid');
+			reasonEl.focus();
+		}
+		setBtnLoading(submitBtn, false);
+		return;
 	}
-	jform.find('[name="credits_reason"]').removeClass('is-invalid');
-	var postdata = jform.serialize();
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
+	if (reasonEl) reasonEl.classList.remove('is-invalid');
+	var postdata = new URLSearchParams(new FormData(form)).toString();
+	xpost(form.getAttribute('action'), postdata, function(code, message) {
 		if(code == 0) {
 			showToast(message, 'success');
 			setTimeout(function(){ window.location.reload(); }, 1000);
 		} else if(xn.is_number(code)) {
 			showToast(message, 'error');
-			setBtnLoading(jsubmit, false);
+			setBtnLoading(submitBtn, false);
 		} else {
 			showToast(message, 'error');
-			jform.find('[name="'+code+'"]').fieldError(message).focus();
-			setBtnLoading(jsubmit, false);
+			fieldError(form.querySelector('[name="'+code+'"]'), message);
+			setBtnLoading(submitBtn, false);
 		}
 	});
-	return false;
 });
 </script>
 

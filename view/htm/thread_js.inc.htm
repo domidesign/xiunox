@@ -40,31 +40,31 @@
 
 <script>
     function resize_image() {
-        var jmessagelist = $('div.message');
-        var first_width = jmessagelist.width();
-        jmessagelist.each(function () {
-            var jdiv = $(this);
-            var maxwidth = jdiv.attr('isfirst') ? first_width : jdiv.width();
-            var jmessage_width = Math.min(jdiv.width(), maxwidth);
-            jdiv.find('img, embed, iframe, video').each(function () {
-                var jimg = $(this);
-                var img_width = this.org_width;
-                var img_height = this.org_height;
+        var jmessagelist = document.querySelectorAll('div.message');
+        var first_width = jmessagelist.length ? jmessagelist[0].getBoundingClientRect().width : 0;
+        jmessagelist.forEach(function (jdiv) {
+            var maxwidth = jdiv.getAttribute('isfirst') ? first_width : jdiv.getBoundingClientRect().width;
+            var jmessage_width = Math.min(jdiv.getBoundingClientRect().width, maxwidth);
+            jdiv.querySelectorAll('img, embed, iframe, video').forEach(function (jimg) {
+                var img_width = jimg.org_width;
+                var img_height = jimg.org_height;
                 if (!img_width) {
-                    var img_width = jimg.attr('width');
-                    var img_height = jimg.attr('height');
-                    this.org_width = img_width;
-                    this.org_height = img_height;
+                    img_width = jimg.getAttribute('width');
+                    img_height = jimg.getAttribute('height');
+                    jimg.org_width = img_width;
+                    jimg.org_height = img_height;
                 }
+                img_width = parseInt(img_width, 10) || 0;
+                img_height = parseInt(img_height, 10) || 0;
                 if (img_width > jmessage_width) {
-                    if (this.tagName == 'IMG') {
-                        jimg.width(jmessage_width);
-                        jimg.css('height', 'auto');
-                        jimg.css('cursor', 'pointer');
+                    if (jimg.tagName == 'IMG') {
+                        jimg.style.width = jmessage_width + 'px';
+                        jimg.style.height = 'auto';
+                        jimg.style.cursor = 'pointer';
                     } else {
-                        jimg.width(jmessage_width);
-                        var height = (img_height / img_width) * jimg.width();
-                        jimg.height(height);
+                        jimg.style.width = jmessage_width + 'px';
+                        var height = (img_height / img_width) * jmessage_width;
+                        jimg.style.height = height + 'px';
                     }
                 }
             });
@@ -72,21 +72,31 @@
     }
 
     function resize_table() {
-        $('div.message').each(function () {
-            var jdiv = $(this);
-            jdiv.find('table').addClass('table').wrap('<div class="overflow-x-auto"></div>');
+        document.querySelectorAll('div.message').forEach(function (jdiv) {
+            jdiv.querySelectorAll('table').forEach(function (table) {
+                // 避免重复包裹
+                if (table.parentElement && table.parentElement.classList.contains('overflow-x-auto')) return;
+                table.classList.add('table');
+                var wrapper = document.createElement('div');
+                wrapper.className = 'overflow-x-auto';
+                table.parentNode.insertBefore(wrapper, table);
+                wrapper.appendChild(table);
+            });
         });
     }
 
-    $(function () {
+    document.addEventListener('DOMContentLoaded', function () {
         resize_image();
         resize_table();
-        $(window).on('resize', resize_image);
     });
+    window.addEventListener('resize', resize_image);
 
-    var jmessage = $('#message');
-    jmessage.on('focus', function () { if (jmessage.t) { clearTimeout(jmessage.t); jmessage.t = null; } jmessage.css('height', '8rem'); });
-    jmessage.on('blur', function () { jmessage.t = setTimeout(function () { jmessage.css('height', '2.5rem'); }, 1000); });
+    var jmessage = document.getElementById('message');
+    if (jmessage) {
+        var jmessageTimer = null;
+        jmessage.addEventListener('focus', function () { if (jmessageTimer) { clearTimeout(jmessageTimer); jmessageTimer = null; } jmessage.style.height = '8rem'; });
+        jmessage.addEventListener('blur', function () { jmessageTimer = setTimeout(function () { jmessage.style.height = '2.5rem'; }, 1000); });
+    }
 
     // 管理按钮事件委托
     document.addEventListener('click', function(e) {
@@ -131,21 +141,37 @@
         });
     });
 
-    $('.thread-announcement').on('click', function () {
-        var el = $(this);
-        var tid = el.data('tid');
-        $.xpost(xn.url('thread-announcement-' + tid), {}, function (code, message) {
-            if (code == 0) {
-                if (message.action == 'set') {
-                    el.html('<i class="ti ti-megaphone"></i> <?php echo lang('cancel_announcement');?>');
-                    $.alert('<?php echo lang('set_announcement');?><?php echo lang('success_label');?>');
+    document.querySelectorAll('.thread-announcement').forEach(function(el) {
+        el.addEventListener('click', function () {
+            var tid = el.getAttribute('data-tid');
+            var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            var body = new URLSearchParams();
+            if (csrfMeta) body.append('csrf_token', csrfMeta.getAttribute('content'));
+            fetch(xn.url('thread-announcement-' + tid), {
+                method: 'POST',
+                body: body,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+                },
+                credentials: 'same-origin'
+            }).then(function(r) { return r.json(); }).then(function(res) {
+                var code = res.code || 0;
+                var message = res.message || '';
+                if (code == 0) {
+                    if (message && message.action == 'set') {
+                        el.innerHTML = '<i class="ti ti-megaphone"></i> <?php echo lang('cancel_announcement');?>';
+                        alert('<?php echo lang('set_announcement');?><?php echo lang('success_label');?>');
+                    } else {
+                        el.innerHTML = '<i class="ti ti-megaphone"></i> <?php echo lang('set_announcement');?>';
+                        alert('<?php echo lang('cancel_announcement');?><?php echo lang('success_label');?>');
+                    }
                 } else {
-                    el.html('<i class="ti ti-megaphone"></i> <?php echo lang('set_announcement');?>');
-                    $.alert('<?php echo lang('cancel_announcement');?><?php echo lang('success_label');?>');
+                    alert(typeof message === 'string' ? message : '<?php echo lang('operation_failed');?>');
                 }
-            } else {
-                $.alert(message);
-            }
+            }).catch(function() {
+                alert('<?php echo lang('operation_failed');?>');
+            });
         });
     });
 
@@ -310,7 +336,7 @@
 })();
 </script>
 
-<!-- 快速回复：submit 同步防抖 + 成功清空表单 + 失败保留内容（htmx 4 事件名带冒号） -->
+<!-- 快速回复：submit 同步防抖 + 成功清空表单 + 失败保留内容 + 超时兜底 + 错误事件处理（htmx 4 事件名带冒号） -->
 <script>
 (function() {
     var form = document.getElementById('quick_reply_form');
@@ -319,9 +345,30 @@
     var replyBtn = document.getElementById('submit');
     var replyOriginalText = replyBtn ? replyBtn.textContent.trim() : '';
     var isSubmitting = false;  // 防抖标志位
+    // ponytail: 超时定时器句柄，30s 网络无响应时中止请求并恢复按钮
+    var replyTimeoutTimer = null;
+    var REPLY_TIMEOUT_MS = 30000;
+    // ponytail: 避免 after:swap 和 after:request 重复 toast 的标志位
+    var errorToastShown = false;
+
+    // 统一错误提示（toast 优先，不可用时 alert 兜底，确保 xiuno-modern.js 加载失败仍可反馈）
+    function replyShowError(msg) {
+        if (errorToastShown) return;
+        errorToastShown = true;
+        if (typeof XN !== 'undefined' && typeof XN.toast === 'function') {
+            XN.toast(msg, 'danger');
+        } else {
+            alert(msg);
+        }
+    }
 
     window.resetReplySubmit = function() {
         isSubmitting = false;
+        errorToastShown = false;
+        if (replyTimeoutTimer) {
+            clearTimeout(replyTimeoutTimer);
+            replyTimeoutTimer = null;
+        }
         if (replyBtn) {
             replyBtn.disabled = false;
             if (replyOriginalText) replyBtn.textContent = replyOriginalText;
@@ -331,6 +378,14 @@
     // 关键：submit 事件 capture 阶段同步防抖，先于 htmx 的冒泡监听器执行
     // htmx:before:request 是异步的，无法拦截快速双击产生的两次 submit 事件
     form.addEventListener('submit', function(e) {
+        // ponytail: htmx 未加载时阻止普通提交，避免浏览器跳转到 post-create.htm
+        // 退化成展示 message.htm 错误页（与 post.htm 同类问题）
+        if (typeof htmx === 'undefined') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            replyShowError('<?php echo lang('server_response_error');?>');
+            return false;
+        }
         if (isSubmitting) {
             e.preventDefault();
             e.stopImmediatePropagation();
@@ -345,25 +400,84 @@
         }
     }, true);  // capture: true，确保在 htmx 之前拦截
 
+    // ponytail: htmx 请求前启动 30s 超时定时器，服务器卡死/网络无响应时恢复按钮
+    form.addEventListener('htmx:before:request', function(event) {
+        if (replyTimeoutTimer) clearTimeout(replyTimeoutTimer);
+        replyTimeoutTimer = setTimeout(function() {
+            try { htmx.trigger(form, 'htmx:abort'); } catch(e) {}
+            window.resetReplySubmit();
+            replyShowError('<?php echo lang('request_timeout');?>');
+        }, REPLY_TIMEOUT_MS);
+    });
+
+    // ponytail: 网络层错误（DNS/连接超时/服务器无响应）专用监听
+    // htmx 4 事件名为 htmx:response:error（冒号分隔），旧 2.x 的 htmx:response-error 已废弃不触发
+    form.addEventListener('htmx:response:error', function(e) {
+        window.resetReplySubmit();
+        replyShowError('<?php echo lang('network_request_failed');?>');
+    });
+
+    // ponytail: htmx 请求完成后处理 HTTP 4xx/5xx 错误（仅处理真正的 HTTP 错误状态码）
+    // 业务错误（发帖失败/频率限制）由 htmx:after:swap 检查 data-code 处理，不在此判断
+    // htmx 4 中 event.detail.ctx.response 是 {raw, status} 包装对象，无 .ok 属性，
+    // 正确访问 HTTP 状态码用 ctx.response.status
+    form.addEventListener('htmx:after:request', function(event) {
+        var ctxResponse = event.detail && event.detail.ctx && event.detail.ctx.response;
+        if (ctxResponse && typeof ctxResponse.status === 'number' && ctxResponse.status >= 400) {
+            var errMsg = '<?php echo lang('server_response_error');?>';
+            errMsg += ' (' + ctxResponse.status + ')';
+            replyShowError(errMsg);
+        }
+    });
+
     // htmx 4：htmx:after:swap（swap 成功后处理）
     // 后端响应：成功=回帖HTML+OOB，待审=alert-warning，失败(message)=alert-danger
     // 由于 hx-swap="beforeend"，所有响应都追加到 #postlist 末尾，需检查 lastElementChild 区分
     form.addEventListener('htmx:after:swap', function(event) {
         window.resetReplySubmit();
 
+        // ponytail: PHP fatal 时返回整页 <html>，swap 进 #postlist 会破坏评论列表
+        // 检测到则移除并提示
         var postlist = document.getElementById('postlist');
         if (!postlist) return;
 
         var lastChild = postlist.lastElementChild;
+        // 检测整页 HTML（PHP fatal / 服务器返回错误页面）
+        if (lastChild) {
+            var html = lastChild.innerHTML || '';
+            if (/<html[\s>]|<head[\s>]|<!doctype/i.test(html)) {
+                lastChild.remove();
+                replyShowError('<?php echo lang('server_response_error');?>');
+                return;
+            }
+        }
+
         // 失败/待审：swap 进来的是 alert 提示，需移除以免破坏评论列表
         if (lastChild && lastChild.classList.contains('alert')) {
             var msg = lastChild.textContent.trim();
             var isDanger = lastChild.classList.contains('alert-danger');
+            var errCode = parseInt(lastChild.getAttribute('data-code')) || 0;
+            var waitSeconds = parseInt(lastChild.getAttribute('data-wait')) || 0;
             // 延迟移除提示元素
             setTimeout(function() { lastChild.remove(); }, 50);
             // toast 提示用户
             if (typeof XN !== 'undefined' && XN.toast && msg) {
                 XN.toast(msg, isDanger ? 'danger' : 'info');
+            }
+            // 频率限制 (code -1002)：禁用提交按钮并倒计时，与 post.htm 逻辑一致
+            if (isDanger && errCode === -1002 && waitSeconds > 0 && replyBtn) {
+                replyBtn.disabled = true;
+                var timer = setInterval(function() {
+                    waitSeconds--;
+                    if(waitSeconds <= 0) {
+                        clearInterval(timer);
+                        replyBtn.disabled = false;
+                        replyBtn.textContent = replyOriginalText;
+                    } else {
+                        replyBtn.textContent = replyOriginalText + ' (' + waitSeconds + 's)';
+                    }
+                }, 1000);
+                return;
             }
             // 失败（alert-danger）：保留 form 内容，用户可修改后重试
             if (isDanger) return;
@@ -406,14 +520,6 @@
         form.reset();
         var quoteBar = document.getElementById('reply-quote-bar');
         if (quoteBar) quoteBar.classList.add('d-none');
-    });
-
-    // 兜底：htmx 4 请求出错（网络错误等）时恢复按钮
-    form.addEventListener('htmx:response-error', function(e) {
-        window.resetReplySubmit();
-    });
-    form.addEventListener('htmx:send-error', function(e) {
-        window.resetReplySubmit();
     });
 })();
 </script>

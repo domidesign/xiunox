@@ -8,7 +8,7 @@
 
 | 函数 | 签名 | 说明 |
 |---|---|---|
-| `param()` | `param($key, $defval = '', $htmlspecialchars = TRUE, $addslashes = FALSE)` | 读 `$_REQUEST`；`param(0)` = URL 第一段（路由），`param(1)` = 第二段。**$defval 类型决定返回类型**（`0`→int，`''`→string，`[]`→array） |
+| `param()` | `param($key, $defval = '', $htmlspecialchars = TRUE, $addslashes = FALSE)` | 读 `$_REQUEST`；`param(0)` = URL 第一段（路由），`param(1)` = URL 第二段，`param(2)` = URL 第三段。**$defval 类型决定返回类型**（`0`→int，`''`→string，`[]`→array） |
 | `param_word()` | `param_word($key, $len = 32)` | 仅字母数字下划线，超长截断 |
 | `param_base64()` | `param_base64($key, $len = 0)` | Base64 解码 |
 | `param_json()` | `param_json($key)` | JSON 解码 |
@@ -76,7 +76,7 @@ message(1, '参数错误');
 ## 3. 数据库（db_* 系列）
 
 > 驱动：**仅 `pdo_mysql`**。全局 `$db = $_SERVER['db']`。表前缀 `$tablepre`（默认 `bbs_`）自动加。
-> ⚠️ **没有 PDO 参数绑定**，用**条件数组**代替。
+> ⚠️ 默认 CRUD 函数（`db_insert/db_find` 等）不走 PDO 预编译，用条件数组语法；如需 PDO 参数绑定，可使用 `db_exec_prepared()` / `db_sql_find_prepared()` / `db_sql_find_one_prepared()`。
 
 ### 条件数组语法（`$cond`）
 
@@ -152,7 +152,7 @@ $pagination = pagination(url('myroute-list-{page}'), $total, $page, $pagesize);
 | 层级 | 命名 | 特点 | 示例 |
 |---|---|---|---|
 | 原始层 | `model__create` / `model__read` | 纯 DB，无缓存/计数/通知 | `thread__create($arr)` |
-| 业务层 | `model_create` / `model_read` | 调原始层 + 更新缓存/计数/通知 | `thread_create($arr, &$pid)` |
+| 业务层 | `model_create` / `model_read` | 调原始层 + 更新缓存/计数/通知 | `thread_create($arr, &$pid, $options = array())` |
 | 格式化 | `model_format(&$row)` | 装饰显示字段（`*_fmt`, `url`, `username`） | `thread_format(&$thread)` |
 
 ### Thread 模型
@@ -160,7 +160,7 @@ $pagination = pagination(url('myroute-list-{page}'), $total, $page, $pagesize);
 | 函数 | 签名 | 说明 |
 |---|---|---|
 | `thread__create` | `thread__create($arr)` | 原始创建 |
-| `thread_create` | `thread_create($arr, &$pid)` | ✅ 业务创建（含首帖、计数、通知） |
+| `thread_create` | `thread_create($arr, &$pid, $options = array())` | ✅ 业务创建（含首帖、计数、通知） |
 | `thread_read` | `thread_read($tid)` | 读取 + format |
 | `thread_read_cache` | `thread_read_cache($tid)` | 带请求级缓存的读取 |
 | `thread_update` | `thread_update($tid, $arr)` | 更新 |
@@ -172,9 +172,9 @@ $pagination = pagination(url('myroute-list-{page}'), $total, $page, $pagesize);
 | 函数 | 签名 | 说明 |
 |---|---|---|
 | `post__create` | `post__create($arr, $gid)` | 原始创建 |
-| `post_create` | `post_create($arr, $fid, $gid)` | ✅ 业务创建 |
+| `post_create` | `post_create($arr, $fid, $gid, $options = array())` | ✅ 业务创建 |
 | `post_read` | `post_read($pid)` | 读取 |
-| `post_update` | `post_update($pid, $arr, $tid = 0)` | 更新 |
+| `post_update` | `post_update($pid, $arr, $tid = 0, $options = array())` | 更新 |
 | `post_delete` | `post_delete($pid)` | 删除 |
 | `post_format` | `post_format(&$post)` | 格式化 |
 

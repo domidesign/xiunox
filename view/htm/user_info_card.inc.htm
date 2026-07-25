@@ -17,7 +17,7 @@ if(intval($_user['threads']) == 0 && intval($_user['posts']) == 0) {
 ?>
 <div class="x-card card">
 	<div class="card-body d-flex align-items-center gap-2 flex-wrap">
-		<?php echo avatar_component_from_data($_user['avatar_url'], 'xl', isset($_user['group_icon_class']) ? $_user['group_icon_class'] : '', isset($_user['group_color']) ? $_user['group_color'] : '', isset($_user['gid']) ? $_user['gid'] : 0);?>
+		<?php echo avatar_component_from_data($_user['avatar_url'], 'xl', isset($_user['group_icon_class']) ? $_user['group_icon_class'] : '', isset($_user['group_color']) ? $_user['group_color'] : '', isset($_user['gid']) ? $_user['gid'] : 0, array('_uid' => isset($_uid) ? intval($_uid) : 0));?>
 		<div class="flex-fill" style="min-width:0">
 			<h5 class="fw-bold mb-1">
 			<span class="text-truncate"><?php echo esc_html($_user['display_name'] ?? $_user['username']);?></span>

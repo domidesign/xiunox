@@ -58,20 +58,32 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-var jform = $('form');
-var jsubmit = jform.find('button[type="submit"]');
-jform.on('submit', function() {
-	setBtnLoading(jsubmit, true);
-	var postdata = jform.serialize();
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
+var form = document.querySelector('form');
+var submitBtn = form.querySelector('button[type="submit"]');
+form.addEventListener('submit', function(e) {
+	e.preventDefault();
+	setBtnLoading(submitBtn, true);
+	var formData = new FormData(form);
+	fetch(form.getAttribute('action'), {
+		method: 'POST',
+		body: formData,
+		credentials: 'same-origin',
+		headers: {'X-Requested-With': 'XMLHttpRequest'}
+	}).then(function(res) { return res.text(); }).then(function(text) {
+		var s = null;
+		try { s = text ? JSON.parse(text) : null; } catch(e) {}
+		var code = s && s.code !== undefined ? s.code : -1;
+		var message = s && s.message !== undefined ? s.message : (text || '');
 		if(code == 0) {
 			showToast(message, 'success');
 			setTimeout(function(){ window.location.reload(); }, 1000);
 		} else {
 			showToast(message, 'error');
-			setBtnLoading(jsubmit, false);
+			setBtnLoading(submitBtn, false);
 		}
+	}).catch(function() {
+		showToast('<?php echo lang('admin_request_failed');?>', 'error');
+		setBtnLoading(submitBtn, false);
 	});
-	return false;
 });
 </script>

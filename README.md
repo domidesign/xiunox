@@ -1,7 +1,6 @@
 # XIUNOX
 
-<img width="3686" height="auto" alt="shotEasy-screencapture-xiuno-xcxgy-cn" src="https://github.com/user-attachments/assets/2cad8e3e-87f3-4fa9-ae46-c4bc1e08d349" />
-
+> **当前版本：v1.1.0**
 
 基于 [Xiuno BBS 4.0.4](xiunobbs4.0.4.md) 原版打造的现代化重构版本 XIUNOX。
 （项目前期曾使用 Xiuno BBS v4.5+、Xiuno Next 作为项目名称，现已更名为 XIUNOX）
@@ -103,16 +102,16 @@ MIT 协议，附加版权保留要求条款。可自由修改、派生版本、�
 
 | 库 | 版本 | 说明 |
 |----|------|------|
-| Bootstrap | 5.3.3 | UI 框架 |
-| htmx | 4.1.1 | 无刷新交互（含 hx-live / hx-optimistic 扩展） |
-| Tabler Icons | 2.1.0 | 图标库 |
+| Bootstrap | 5.2.3 | UI 框架 |
+| htmx |4.0.0| 无刷新交互（含 hx-live / hx-optimistic 扩展） |
+| Tabler Icons | v3.45.0 | 图标库 |
 | AIEditor | - | 富文本编辑器，内置 AI 能力 |
 | anime.js | - | 轻量动画库 |
 | Chart.js | - | 数据可视化图表 |
 | Cropper.js | - | 图片裁剪 |
 | highlight.js | - | 代码高亮（仅帖子页加载） |
 | qrcode.js | - | 二维码生成 |
-| jQuery | 3.7.1 | 兼容遗留（正在逐步弃用） |
+| jQuery | 3.7.1 | 兼容遗留（1.1.4 版本开始弃用） |
 | PHPMailer | - | 邮件发送（内置 `lib/`） |
 | HTMLPurifier | - | HTML 净化（内置 `lib/`） |
 

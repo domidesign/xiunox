@@ -534,19 +534,22 @@ switch ($action) {
             ApiResponse::error(405, 'Method not allowed');
         }
         // 复用 FeedsService（plugin/xnx_feeds/），插件未启用时返回空
+        // ponytail: 插件启用状态唯一权威源为 db bbs_plugin 表，禁止读 conf.json 的 enable/installed
+        // （conf.json 彻底废弃，代码层任何情况下都不读；存量 conf.json 带 enable=1/installed=1 是脏数据会导致已禁用插件被误判启用）
         $feed_enabled = false;
         $feeds = array();
         if (is_file(APP_PATH . 'plugin/xnx_feeds/model/FeedsService.php')) {
-            // 检查插件是否启用（前台兼容方式：读 conf.json）
-            $conf_json = APP_PATH . 'plugin/xnx_feeds/conf.json';
-            if (is_file($conf_json)) {
-                $conf_data = json_decode(file_get_contents($conf_json), true);
-                if (!empty($conf_data['installed']) && !empty($conf_data['enable'])) {
-                    if (!class_exists('FeedsService')) {
-                        include_once APP_PATH . 'plugin/xnx_feeds/model/FeedsService.php';
-                    }
-                    $feed_enabled = true;
+            if (!function_exists('plugin_db_get')) {
+                include APP_PATH . 'model/plugin.func.php';
+            }
+            // 直接查 db 判断插件启用状态（db 异常时返回空数组，默认未启用）
+            $plugin_row = plugin_db_get('xnx_feeds');
+            $xnx_feeds_enabled = !empty($plugin_row['installed']) && !empty($plugin_row['enable']);
+            if ($xnx_feeds_enabled) {
+                if (!class_exists('FeedsService')) {
+                    include_once APP_PATH . 'plugin/xnx_feeds/model/FeedsService.php';
                 }
+                $feed_enabled = true;
             }
         }
 

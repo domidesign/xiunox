@@ -102,6 +102,8 @@ class NavService {
      * - '?xxx.htm' / 'xxx.htm' / 'xxx.html' / '/xxx.htm' / '/xxx' → 'xxx'
      * - 其他（'xxx'、'thread-create-0'）原样返回
      * ponytail: 不处理 mailto:/tel:/javascript: 等冷门协议，留给 href() 兜底
+     * ponytail: 必须先 ltrim / 再剥离 ? 再 ltrim /，否则 '/?duel.htm' 会漏剥离前导 ?
+     *          产生 '?duel'，url('?duel') 会生成 '/??duel.htm'（两个 ?）
      */
     public static function normalize($url) {
         if($url === null) return '';
@@ -111,9 +113,11 @@ class NavService {
         if(strpos($url, 'http://') === 0 || strpos($url, 'https://') === 0 || strpos($url, '//') === 0) return $url;
         // 首页
         if($url === '/') return '/';
+        // 剥离前导 /（先剥离 /，否则 '/?xxx' 中的 ? 不在位置 0 无法被剥离）
+        $url = ltrim($url, '/');
         // 剥离前导 ?
         if(strpos($url, '?') === 0) $url = substr($url, 1);
-        // 剥离前导 /
+        // 再次剥离前导 /（防止 ? 后还有 /，如 '/?/xxx'）
         $url = ltrim($url, '/');
         // 剥离 .htm / .html 后缀
         $url = preg_replace('/\.(html?)$/', '', $url);
@@ -206,7 +210,7 @@ class NavService {
         self::ensureRegistered();
 
         $items = array();
-        // plugin_paths_enabled() 直接读 conf.json 检测 enable+installed，无需 plugin_init()
+        // plugin_paths_enabled() 以 db 为权威读启用列表（db 异常时返回空数组，不回退 conf.json），无需 plugin_init()
         // ponytail: 曾用 kv_get('plugins')，但项目从未 kv_set 该键，恒返回 NULL 导致插件项全部丢失
         $enabled_paths = plugin_paths_enabled();
 

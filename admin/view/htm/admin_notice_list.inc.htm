@@ -10,7 +10,7 @@
 	$_recv_username = $_recv_user ? (!empty($_recv_user['display_name']) ? $_recv_user['display_name'] : $_recv_user['username']) : lang('system');
 ?>
 <li class="list-group-item list-group-item-action p-3 d-flex align-items-start gap-3 <?php echo $is_read_val == 1 ? '' : 'list-group-item-primary';?>">
-	<img class="rounded-circle flex-shrink-0" src="<?php echo $_notice['from_avatar_url'] ?? $conf['view_url'].'img/avatar.png';?>" alt="" style="width:2rem;height:2rem" onerror="this.onerror=null;this.src='<?php echo $conf['view_url']; ?>img/avatar.png'">
+	<?php echo avatar_component_from_data($_notice['from_avatar_url'] ?? '', 'sm', '', '', 0, array('show_hooks' => false, 'show_group_icon' => false, 'extra_class' => 'flex-shrink-0', '_uid' => isset($_notice['from_uid']) ? $_notice['from_uid'] : 0)); ?>
 	<div class="flex-fill" style="min-width:0">
 		<div class="d-flex align-items-center gap-2 mb-1">
 			<?php echo $type_badge;?>

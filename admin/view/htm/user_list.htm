@@ -6,7 +6,7 @@
 
 <div class="x-card  card">
 	<div class="card-body">
-		<div class="d-flex flex-wrap gap-2 mb-4">
+		<div class="d-flex flex-wrap gap-2 mb-4 user-search-bar">
 			<div>
 <select id="srchtype" value="<?php echo $srchtype; ?>" class="form-select form-select-sm flex-shrink-0" style="min-width:120px">
 				<option value=""><?php echo lang('search_type');?></option>
@@ -95,7 +95,7 @@
 		</div>
 
 		 
-		<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+		<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 user-list-footer">
 			<div class="d-flex gap-2 flex-wrap">
 				<button class="btn btn-danger btn-sm" id="confirm"><i class="ti ti-trash"></i> <?php echo lang('delete');?></button>
 				<button class="btn btn-warning btn-sm" id="batchBanBtn"><i class="ti ti-ban"></i> <?php echo lang('admin_user_batch_ban');?></button>
@@ -180,72 +180,139 @@
 
 <!--{hook admin_user_list_end.htm}-->
 
+<style>
+/* 用户列表搜索栏移动端优化：2x2 grid 布局，紧凑且保持视觉顺序 */
+@media (max-width: 767.98px) {
+	.user-search-bar {
+		display: grid !important;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem;
+	}
+	/* 第 1 行：搜索类型 | 关键词 */
+	.user-search-bar > div:nth-child(1) { grid-column: 1; grid-row: 1; }
+	.user-search-bar > div:nth-child(2) { grid-column: 2; grid-row: 1; }
+	/* 第 2 行：状态筛选 | 搜索按钮 */
+	.user-search-bar > div:nth-child(3) { grid-column: 1; grid-row: 2; }
+	.user-search-bar > button {
+		grid-column: 2;
+		grid-row: 2;
+		justify-self: end;
+		min-width: 5rem;
+	}
+	/* 覆盖内联 min-width，让控件填满 grid 单元格 */
+	.user-search-bar .form-select,
+	.user-search-bar .form-control {
+		min-width: 0 !important;
+		width: 100% !important;
+	}
+}
+
+/* 底部操作栏移动端优化：按钮组与分页垂直堆叠居中 */
+@media (max-width: 767.98px) {
+	.user-list-footer {
+		flex-direction: column !important;
+		align-items: stretch !important;
+	}
+	.user-list-footer > div:first-child {
+		justify-content: center;
+	}
+	.user-list-footer > nav {
+		margin-top: 0.5rem;
+	}
+	.user-list-footer .pagination {
+		justify-content: center;
+	}
+}
+</style>
+
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-var jbody = $("#userbody");
-var jcreate = $('#create');
-var jconfirm = $("#confirm");
-var jsearch = $("#search");
-var jsrchtype = $("#srchtype");
-var jkeyword = $('#keyword');
-var juserlist = $('#userlist');
-var jbanTypeFilter = $('#banTypeFilter');
-jsrchtype.val(jsrchtype.attr('value'));
+// ponytail: 原生 JS 改造，移除对 $/XN. 的依赖
+var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
+function xpost(url, data, callback) {
+	var body = data;
+	var headers = {'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': csrfToken};
+	if (typeof data === 'object' && !(data instanceof FormData)) {
+		var params = new URLSearchParams();
+		for (var k in data) { if (Object.prototype.hasOwnProperty.call(data, k)) params.append(k, data[k]); }
+		body = params.toString();
+	}
+	if (typeof body === 'string') headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+	fetch(url, {method: 'POST', headers: headers, body: body, credentials: 'same-origin'})
+		.then(function(r) { return r.json(); })
+		.then(function(json) { callback(json.code, json.message); })
+		.catch(function(err) { callback(-1, err.message || 'Request failed'); });
+}
+// 获取已勾选的用户行 checkbox 数组
+function getCheckedUsers() {
+	return Array.prototype.filter.call(document.querySelectorAll('#userlist input[name="delete"]'), function(cb) { return cb.checked; });
+}
 
-jcreate.on('click', function(event) {
-	window.location = xn.url('user-create');
-});
+var userbody = document.getElementById('userbody');
+var createBtn = document.getElementById('create');
+var confirmBtn = document.getElementById('confirm');
+var searchBtn = document.getElementById('search');
+var srchtypeEl = document.getElementById('srchtype');
+var keywordEl = document.getElementById('keyword');
+var userlistEl = document.getElementById('userlist');
+var banTypeFilterEl = document.getElementById('banTypeFilter');
+if (srchtypeEl && srchtypeEl.getAttribute('value')) srchtypeEl.value = srchtypeEl.getAttribute('value');
+
+// ponytail: createBtn 可能为 null（页面无创建用户按钮时），必须判空避免 TypeError 中断整个脚本
+if (createBtn) {
+	createBtn.addEventListener('click', function(event) {
+		window.location = xn.url('user-create');
+	});
+}
 
 function buildSearchUrl() {
-	var srchtype = jsrchtype.val();
+	var srchtype = srchtypeEl.value;
 	srchtype = srchtype ? srchtype : 'uid';
-	var keyword = $("#keyword").val();
-	var banType = jbanTypeFilter.val();
+	var keyword = keywordEl.value;
+	var banType = banTypeFilterEl.value;
 	var url = xn.url('user-list-'+srchtype+'-'+xn.urlencode(keyword)+'-1');
 	if(banType !== '') url += '?ban_type=' + banType;
 	return url;
 }
 
-jsearch.on('click', function(){
+searchBtn.addEventListener('click', function(){
 	window.location = buildSearchUrl();
 });
-jkeyword.on('keydown', function(e) {
-	if(e.keyCode == 13) jsearch.trigger('click');
+keywordEl.addEventListener('keydown', function(e) {
+	if(e.keyCode == 13) searchBtn.click();
 });
-jbanTypeFilter.on('change', function(){
+banTypeFilterEl.addEventListener('change', function(){
 	window.location = buildSearchUrl();
 });
 
 var deleteModalEl = document.getElementById('confirmDeleteModal');
 var deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
 var pendingDeleteChecked = null;
-// CSRF token 提前声明，供删除/封禁等批量操作复用
-var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
 
-jconfirm.on('click', function(){
-	var jchecked = juserlist.find('input[name="delete"]').filter(function(){ return this.checked; });
-	if(jchecked.length < 1) return showToast("<?php echo lang('please_check_delete_user');?>", 'error');
-	pendingDeleteChecked = jchecked;
+confirmBtn.addEventListener('click', function(){
+	var checkedArr = getCheckedUsers();
+	if(checkedArr.length < 1) return showToast("<?php echo lang('please_check_delete_user');?>", 'error');
+	pendingDeleteChecked = checkedArr;
 	if(deleteModal) {
 		deleteModal.show();
 	} else {
-		XN.confirm("<?php echo lang('user_delete_confirm');?>", function() {
-			executeDelete(jchecked);
-		});
+		if (confirm("<?php echo lang('user_delete_confirm');?>")) {
+			executeDelete(checkedArr);
+		}
 	}
 });
 
-function executeDelete(jchecked, action) {
+function executeDelete(checkedArr, action) {
 	// action: 'delete'（匿名化）或 'purge'（彻底删除）
 	action = action || 'delete';
-	var successCount = 0, failCount = 0, total = jchecked.length;
-	jchecked.each(function() {
-		jtr = $(this).closest('tr');
-		var uid = jtr.attr('uid');
+	var successCount = 0, failCount = 0, total = checkedArr.length;
+	checkedArr.forEach(function(cb) {
+		var tr = cb.closest('tr');
+		var uid = tr.getAttribute('uid');
 		if(uid == 1) { failCount++; showToast('<?php echo lang('user_admin_cant_be_deleted');?>', 'error'); return; }
-		$.xpost(xn.url('user-' + action), {uid:uid, csrf_token: csrfToken}, function(code, message) {
-			if(code == 0) { successCount++; jtr.remove(); } else { failCount++; showToast(message, 'error'); }
+		xpost(xn.url('user-' + action), {uid:uid, csrf_token: csrfToken}, function(code, message) {
+			if(code == 0) { successCount++; tr.remove(); } else { failCount++; showToast(message, 'error'); }
 			if(successCount + failCount >= total) {
 				var msg = action === 'purge' ? '<?php echo lang('admin_user_batch_purge_done');?>' : '<?php echo lang('admin_user_batch_anonymize_done');?>';
 				showToast(msg + successCount + '/' + total, successCount > 0 ? 'success' : 'error');
@@ -287,13 +354,13 @@ if(checkAll) {
 document.querySelectorAll('.quick-ban-btn').forEach(function(btn) {
 	btn.addEventListener('click', function() {
 		var uid = this.getAttribute('data-uid');
-		XN.confirm('<?php echo lang('admin_user_quick_silence_7d_confirm');?>', function() {
-			$.xpost(xn.url('user-ban'), {
+		if (confirm('<?php echo lang('admin_user_quick_silence_7d_confirm');?>')) {
+			xpost(xn.url('user-ban'), {
 				uid: uid,
 				ban_type: 1,
 				duration: 604800,
 				reason: '<?php echo lang('user_ban_quick_silence_reason');?>',
-			 csrf_token: csrfToken
+				csrf_token: csrfToken
 			}, function(code, message) {
 				if(code == 0) {
 					showToast(message, 'success');
@@ -302,7 +369,7 @@ document.querySelectorAll('.quick-ban-btn').forEach(function(btn) {
 					showToast(message, 'error');
 				}
 			});
-		});
+		}
 	});
 });
 
@@ -310,21 +377,21 @@ document.querySelectorAll('.quick-ban-btn').forEach(function(btn) {
 var batchBanModalEl = document.getElementById('batchBanModal');
 var batchBanModal = batchBanModalEl ? new bootstrap.Modal(batchBanModalEl) : null;
 document.getElementById('batchBanBtn').addEventListener('click', function() {
-	var jchecked = juserlist.find('input[name="delete"]').filter(function(){ return this.checked; });
-	if(jchecked.length < 1) return showToast('<?php echo lang('admin_user_batch_select_users');?>', 'error');
+	var checkedArr = getCheckedUsers();
+	if(checkedArr.length < 1) return showToast('<?php echo lang('admin_user_batch_select_users');?>', 'error');
 	if(batchBanModal) batchBanModal.show();
 });
 
 document.getElementById('batchBanConfirmBtn').addEventListener('click', function() {
-	var jchecked = juserlist.find('input[name="delete"]').filter(function(){ return this.checked; });
+	var checkedArr = getCheckedUsers();
 	var ban_type = document.querySelector('#batchBanForm [name="ban_type"]').value;
 	var duration = document.querySelector('#batchBanForm [name="duration"]').value;
 	var reason = document.querySelector('#batchBanForm [name="reason"]').value;
-	var successCount = 0, failCount = 0, total = jchecked.length;
-	jchecked.each(function() {
-		var jtr = $(this).closest('tr');
-		var uid = jtr.attr('uid');
-		$.xpost(xn.url('user-ban'), {
+	var successCount = 0, failCount = 0, total = checkedArr.length;
+	checkedArr.forEach(function(cb) {
+		var tr = cb.closest('tr');
+		var uid = tr.getAttribute('uid');
+		xpost(xn.url('user-ban'), {
 			uid: uid, ban_type: ban_type, duration: duration, reason: reason, csrf_token: csrfToken
 		}, function(code, message) {
 			if(code == 0) { successCount++; } else { failCount++; }
@@ -339,14 +406,14 @@ document.getElementById('batchBanConfirmBtn').addEventListener('click', function
 
 // 批量解禁
 document.getElementById('batchUnbanBtn').addEventListener('click', function() {
-	var jchecked = juserlist.find('input[name="delete"]').filter(function(){ return this.checked; });
-	if(jchecked.length < 1) return showToast('<?php echo lang('admin_user_batch_select_users');?>', 'error');
-	XN.confirm('<?php echo lang('admin_user_batch_unban_confirm');?>', function() {
-		var successCount = 0, failCount = 0, total = jchecked.length;
-		jchecked.each(function() {
-			var jtr = $(this).closest('tr');
-			var uid = jtr.attr('uid');
-			$.xpost(xn.url('user-unban'), {uid: uid, csrf_token: csrfToken}, function(code, message) {
+	var checkedArr = getCheckedUsers();
+	if(checkedArr.length < 1) return showToast('<?php echo lang('admin_user_batch_select_users');?>', 'error');
+	if (confirm('<?php echo lang('admin_user_batch_unban_confirm');?>')) {
+		var successCount = 0, failCount = 0, total = checkedArr.length;
+		checkedArr.forEach(function(cb) {
+			var tr = cb.closest('tr');
+			var uid = tr.getAttribute('uid');
+			xpost(xn.url('user-unban'), {uid: uid, csrf_token: csrfToken}, function(code, message) {
 				if(code == 0) { successCount++; } else { failCount++; }
 				if(successCount + failCount >= total) {
 					showToast('<?php echo lang('admin_user_batch_unban_done');?>' + successCount + '/' + total, successCount > 0 ? 'success' : 'error');
@@ -354,7 +421,7 @@ document.getElementById('batchUnbanBtn').addEventListener('click', function() {
 				}
 			});
 		});
-	});
+	}
 });
 
 </script>

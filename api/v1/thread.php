@@ -397,7 +397,21 @@ if ($seg1 === 'hot') {
 
             // ===== 审核能力开关（Task 2.5）=====
             $skipAudit = $apiAppServerAuth && $apiAuth->checkAppCapability($apiApp, 'skip_audit');
-            $auditStatus = $skipAudit ? 1 : (in_array(intval($authUser['gid']), [1, 2]) ? 1 : 0);
+            if ($skipAudit) {
+                $auditStatus = 1;
+            } else {
+                // 使用 AuditService 三级审核规则（版块级 + 用户组级 + 敏感词）
+                // 设置全局 $gid 供 PermissionService 使用
+                $GLOBALS['gid'] = intval($authUser['gid']);
+                if (!class_exists('AuditService')) {
+                    include_once APP_PATH . 'lib/security/AuditService.php';
+                }
+                if (!class_exists('PermissionService')) {
+                    include_once APP_PATH . 'lib/PermissionService.php';
+                }
+                $needAudit = AuditService::need_audit($fid, intval($authUser['gid']), $subject, $message);
+                $auditStatus = $needAudit ? 0 : 1;
+            }
 
             // 使用 Xiuno 原始的 thread_create 函数
             $arr = [
@@ -411,20 +425,18 @@ if ($seg1 === 'hot') {
                 'audit_status' => $auditStatus,
             ];
             $pid = 0;
-            $tid = thread_create($arr, $pid);
+            // ponytail: API 发帖是程序构造内容场景，传 skip_attach_assoc=true 跳过 thread_create 内部的 attach_assoc_post
+            // （内部调 sess_save 会触发 session_encode 警告，且 API 模式 session 可能未启动；附件由下方 api_attach_assoc_post 处理）
+            $tid = thread_create($arr, $pid, array('skip_attach_assoc' => true));
             if ($tid === FALSE || $tid <= 0) {
                 ApiResponse::error(500, 'Failed to create thread');
             }
 
             // 关联附件（如果有 attach_keys）
+            // ponytail: api_attach_assoc_post 内部已同步更新 message/message_fmt/images/videos/files
             $attach_info = array('images' => 0, 'videos' => 0, 'files' => 0);
             if (!empty($attach_keys)) {
                 $attach_info = api_attach_assoc_post($pid, $tid, $attach_keys, $message);
-                // 如果 message 中的 URL 被替换了，更新 post 的 message
-                $original_message = param('message', '', false);
-                if ($message !== $original_message) {
-                    post__update($pid, array('message' => $message));
-                }
             }
 
             ApiResponse::success([

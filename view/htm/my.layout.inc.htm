@@ -131,7 +131,7 @@
 		<!-- 用户信息卡片 -->
 		<div class="x-card card ">
 			<div class="card-body d-flex align-items-center gap-3">
-				<?php echo avatar_component_from_data($user['avatar_url'], 'xl', isset($user['group_icon_class']) ? $user['group_icon_class'] : '', isset($user['group_color']) ? $user['group_color'] : '', isset($user['gid']) ? $user['gid'] : 0);?>
+				<?php echo avatar_component_from_data($user['avatar_url'], 'xl', isset($user['group_icon_class']) ? $user['group_icon_class'] : '', isset($user['group_color']) ? $user['group_color'] : '', isset($user['gid']) ? $user['gid'] : 0, array('_uid' => isset($uid) ? intval($uid) : 0));?>
 				<div class="flex-fill" style="min-width:0">
 					<h5 class="fw-bold mb-1">
 						<span class="text-truncate"><?php echo esc_html($user['display_name'] ?? $user['username']);?></span>

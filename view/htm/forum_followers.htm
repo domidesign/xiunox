@@ -16,7 +16,7 @@
 					<div class="col-6 col-md-4 col-xl-3">
 						<div class="d-flex align-items-center gap-2 p-2 rounded-1" style="background:var(--bs-tertiary-bg)">
 							<a href="<?php echo user_url($_m['uid']);?>" class="flex-shrink-0" tabindex="-1">
-							<img src="<?php echo $_m['avatar_url'];?>" class="rounded-circle" width="40" height="40" alt="<?php echo esc_html($_m['display_name']);?>" onerror="this.onerror=null;this.src='<?php echo $conf['view_url']; ?>img/avatar.png'">
+							<?php echo avatar_component_from_data($_m['avatar_url'], 'md', isset($_m['group_icon_class']) ? $_m['group_icon_class'] : '', isset($_m['group_color']) ? $_m['group_color'] : '', isset($_m['gid']) ? $_m['gid'] : 0, array('_uid' => isset($_m['uid']) ? $_m['uid'] : 0)); ?>
 						</a>
 						<div class="flex-fill" style="min-width:0">
 							<a href="<?php echo user_url($_m['uid']);?>" class="text-body text-decoration-none fw-semibold small text-truncate d-block"><?php echo esc_html($_m['display_name']);?></a>

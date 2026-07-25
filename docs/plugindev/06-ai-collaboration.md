@@ -11,7 +11,7 @@
 
 | 规则 | 说明 | 后果 |
 |---|---|---|
-| **禁止 jQuery** | 新代码不准出现 `$(...)`、`.on()`、`.ajax()` 等 | 扫描器 fatal，后续迁移困难 |
+| **禁止 jQuery** | **已于 2026-07-24 系统性移除全部 jQuery 依赖**，所有页面（含旧插件残留代码）禁止出现 `$(...)`、`.on()`、`.ajax()`、`$.fn.*` 等。新代码用 htmx 4 属性 + `XN.*` API + 原生 JS（`fetch`/`querySelectorAll`/`addEventListener`）。迁移指南见 [10-jquery-removal-guide.md](10-jquery-removal-guide.md) | 扫描器 fatal；关键修复页面依赖 `$` 会导致「网站坏→修复页面也坏」死循环 |
 | **禁止 Alpine.js** | 不准出现 `x-data`、`x-show`、`x-bind`、`x-text`、`x-on`、`x-model`、`x-if`、`x-for`、`x-cloak` | 扫描器 fatal |
 | **禁止 idiomorph / alpine-morph** | 不准出现 `hx-swap="morph:idom"` 或 `alpine-morph` 扩展 | htmx 4 内置 morph |
 | **禁止 `htmlspecialchars` 裸写** | 必须用 `esc_html()` / `esc_attr()` / `esc_js()` | XSS 风险 |
@@ -22,7 +22,6 @@
 | **禁止 `window.__xxxData`** | 状态放 DOM（`data-*`、hidden input），不放全局 JS 变量 | 违反 htmx 架构 |
 | **禁止非 pdo_mysql 驱动** | 只用 `pdo_mysql` | 架构约束 |
 | **禁止用 `db_find('user', ...)` 取用户信息后直接取 `username` 字段显示** | `db_find` 不调用 `user_format()`，返回数据**不含** `display_name` 字段。`$u['display_name'] ?? $u['username']` fallback 写法无效（`display_name` 键根本不存在，始终落到 `username` 登录名）。必须改用 `user_find_by_uids('1,2,3')` / `user_read()` / `user_read_cache()` 等核心函数（自动 format），模板取 `$user['display_name']` | 显示登录用户名而非昵称，已违反 1 次影响 5 个插件 |
-| **禁止改核心 `model/*.func.php` 后不清 `tmp/model.min.php`** | 生产环境走 `model.min.php` 合并加载，只在不存在时生成；改了核心函数必须删 `tmp/model.min.php` 让核心重编译，否则修改不生效（已违反 2 次，最高频违规）。详见 [01-architecture.md](01-architecture.md)「model.min.php 合并加载机制」 | 修改不生效，调试误判 |
 | **禁止密码/token/API key 用 `param()` 默认 `htmlspecialchars`** | `param($key, $defval, $htmlspecialchars=TRUE)` 第 3 参默认 TRUE 会转义特殊字符，导致密码比对失败；敏感字段必须传第 3 参 `FALSE`（已违反 1 次）。详见 [04-api-cheatsheet.md](04-api-cheatsheet.md) 第 1 节「请求输入」 | 密码比对失败，登录/找回密码失效 |
 
 ### ✅ 必须做
@@ -30,7 +29,7 @@
 | 规则 | 正确做法 |
 |---|---|
 | **新代码用 htmx 4 属性** | `hx-get`/`hx-post`/`hx-target`/`hx-optimistic`/`hx-live`/`hx-on` |
-| **JS 交互用 `XN.*` API** | `XN.toast()`、`XN.ajax()`、`XN.confirm()`、`XN.alert()` |
+| **JS 交互用 `XN.*` API 或原生 JS** | 非关键页面可用 `XN.toast()`/`XN.ajax()`/`XN.confirm()`；关键修复页面必须用原生 `fetch`+`confirm`+`addEventListener`，不依赖 `xiuno-modern.js` |
 | **UI 用 Bootstrap 5** | `.container` 居中，Light Theme，Tabler Icons |
 | **所有输出用 `esc_*`** | `esc_html()`、`esc_attr()`、`esc_js()`（来自 `lib/EscapeService.php`） |
 | **模板用 `_include()`** | `include _include(APP_PATH.'view/htm/xxx.htm');` |
@@ -119,7 +118,7 @@ plugin_hook('my_custom_event.php', $data);
 
 1. **检测逻辑**（`admin/route/plugin.php` 第 44-55 行）：对比 `conf.json.version` 与数据库 `bbs_plugin.version`，不一致且存在 `upgrade.php` 时标记 `need_upgrade`，后台显示升级按钮。
 2. **执行流程**（`admin/route/plugin.php` 第 339-368 行 `upgrade` 动作）：用户点升级 → `plugin_install()` 同步 `db.version` → 执行 `upgrade.php` 迁移脚本。
-3. **版本同步**：`plugin_db_set_version()`（`model/plugin.func.php` 第 672 行）将 `conf.json.version` 写入 `bbs_plugin.version`，升级后两者一致。
+3. **版本同步**：`plugin_db_set_version()`（`model/plugin.func.php` 第 813 行）将 `conf.json.version` 写入 `bbs_plugin.version`，升级后两者一致。
 4. **幂等要求**：`upgrade.php` 中字段迁移用 `SHOW COLUMNS` + `ALTER TABLE ADD COLUMN`（可重复执行），递增 `conf.json.version` 版本号触发升级提示。
 
 ---
@@ -128,7 +127,7 @@ plugin_hook('my_custom_event.php', $data);
 
 | 坑 | 说明 | 正确做法 |
 |---|---|---|
-| **用 `$()` 写新代码** | jQuery 虽在页面上但不该用 | htmx 属性 + `XN.*` API |
+| **用 `$()` 写新代码** | jQuery 已于 2026-07-24 系统性移除，所有页面禁止 | htmx 属性 + `XN.*` API + 原生 JS（见 [10-jquery-removal-guide.md](10-jquery-removal-guide.md)） |
 | **用 `onclick="..."` 写复杂逻辑** | 难维护 | htmx 属性 或 `hx-on="click: ..."` |
 | **CSS 路径写绝对路径** | `APP_PATH` 是 PHP 变量不是 URL | `plugin/my_plugin/view/css/x.css`（相对路径） |
 | **忽略暗色模式** | 自定义颜色在暗色主题下异常 | 用 `[data-bs-theme="dark"]` 覆盖 |
@@ -158,12 +157,13 @@ plugin_hook('my_custom_event.php', $data);
 | **heredoc_php_tag** | HEREDOC 块内含 `<?php` 标签（应用 `{$var}` 语法） |
 | **hook_htm_header** | `.htm` hook 文件以 `<?php exit;` 开头（会白屏，只能用 `<?php` 开头） |
 | **app_path_in_url** | `<script>`/`<link>` 的 `src`/`href` 用 `APP_PATH`（浏览器无法访问，应用 `$conf['view_url']`） |
+| **conf_required_fields** | `conf.json` 必填字段缺失或非法：`name`（非空字符串）、`type`（必须为 `"plugin"`/`"theme"`，`template`/`skin` 视为 `theme` 别名）。缺失或值非法一律 fatal 阻止安装。**插件唯一标识是目录名（dir），不需要也不读取 `id` 字段** |
 
 ### Error（阻止安装，`?force=1` 不可跳过）
 
 | 分类 | 拦截内容 |
 |---|---|
-| **conf_version** | `bbs_version` 兼容性校验：必须两位制（X.Y，如 "1.0"），且不能高于当前核心主次版本（`XIUNOX_VERSION` 取前两段，如 1.0.9 → 1.0）。语义：声明兼容核心 X.Y.0-X.Y.x 分支。当前核心版本可通过 `version.php` 中的 `XIUNOX_VERSION` 查看。此分类严重级别为 `error`，在 `getForceCategories()` 中，`?force=1` 不可跳过。格式不符或高于核心版本均阻止安装。 |
+| **conf_version** | `bbs_version` 兼容性校验：必须两位制（X.Y，如 "1.1"），且**必须与当前核心主次版本完全一致**（`XIUNOX_VERSION` 取前两段，如 1.1.0 → 1.1）。语义：插件与核心同分支绑定，避免跨分支兼容性陷阱。当前核心版本可通过 `version.php` 中的 `XIUNOX_VERSION` 查看。此分类严重级别为 `error`，在 `getForceCategories()` 中，`?force=1` 不可跳过。缺失/格式不符/与核心前两位不一致均阻止安装。 |
 
 ### Warning（提示，可跳过）
 
@@ -233,9 +233,10 @@ plugin_hook('my_custom_event.php', $data);
 
 ### 前端
 
-- [ ] 无 jQuery 代码（`$()`、`.on()`、`.ajax()`）
+- [ ] 无 jQuery 代码（`$()`、`.on()`、`.ajax()`、`$.fn.*`）— 已于 2026-07-24 系统性移除，见 [10-jquery-removal-guide.md](10-jquery-removal-guide.md)
 - [ ] 无 Alpine.js 属性（`x-data`、`x-show` 等）
-- [ ] 交互使用 htmx 4 属性或 `XN.*` API
+- [ ] 交互使用 htmx 4 属性、`XN.*` API 或原生 JS（关键修复页面必须原生 JS）
+- [ ] 关键修复页面（在线升级/数据库升级/后台登录/系统工具）不依赖 `xiuno-modern.js`
 - [ ] 图标使用 Tabler Icons（`ti ti-xxx`）
 - [ ] CSS/JS 路径使用相对路径 `plugin/<dir>/...`
 - [ ] 暗色模式支持（如需）

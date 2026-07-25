@@ -35,5 +35,6 @@
 </template>
 
 <script>
-$('a[data-active="user-post"]').addClass('active');
+var el = document.querySelector('a[data-active="user-post"]');
+if (el) el.classList.add('active');
 </script>

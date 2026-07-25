@@ -75,6 +75,65 @@ var steps = <?php echo json_encode($steps);?>;
 var currentStep = 0;
 var csrfToken = <?php echo json_encode($csrfToken);?>;
 
+// ponytail: 数据库升级页面是关键修复页面，必须独立于 xiuno-modern.js
+// （旧版本站点可能没有 xiuno-modern.js，导致 $ is not defined 死循环），全程使用原生 JS
+function escapeHtml(s) {
+	if (s === null || s === undefined) return '';
+	return String(s).replace(/[&<>"']/g, function(c) {
+		return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+	});
+}
+function buildQuery(data) {
+	var parts = [];
+	for (var k in data) {
+		if (Object.prototype.hasOwnProperty.call(data, k)) {
+			parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(data[k]));
+		}
+	}
+	return parts.join('&');
+}
+
+function ajax(opts) {
+	var url = opts.url;
+	var type = (opts.type || 'GET').toUpperCase();
+	var data = opts.data || null;
+	var dataType = opts.dataType || 'json';
+
+	var fetchOpts = {
+		method: type,
+		headers: {
+			'X-Requested-With': 'XMLHttpRequest',
+			'X-CSRF-Token': csrfToken
+		},
+		credentials: 'same-origin'
+	};
+
+	if (type === 'POST' && data) {
+		fetchOpts.headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+		fetchOpts.body = typeof data === 'object' ? buildQuery(data) : data;
+	} else if (data) {
+		var sep = url.indexOf('?') === -1 ? '?' : '&';
+		url += sep + buildQuery(data);
+	}
+
+	fetch(url, fetchOpts).then(function(response) {
+		return response.text().then(function(text) {
+			var xhrLike = { status: response.status, responseText: text };
+			if (!response.ok) throw xhrLike;
+			if (dataType === 'json') {
+				try { return JSON.parse(text); }
+				catch (e) { throw xhrLike; }
+			}
+			return text;
+		});
+	}).then(function(res) {
+		if (opts.success) opts.success(res);
+	}).catch(function(err) {
+		var xhr = err && err.responseText !== undefined ? err : { responseText: (err && err.message) ? err.message : String(err || '') };
+		if (opts.error) opts.error(xhr);
+	});
+}
+
 function startUpgrade() {
 	var btn = document.getElementById('startBtn');
 	btn.disabled = true;
@@ -102,7 +161,7 @@ function runNextStep() {
 	statusEl.innerHTML = '<span class="text-primary fs-6"><?php echo lang('admin_upgrade_executing');?></span>';
 	resultEl.innerHTML = '';
 
-	$.ajax({
+	ajax({
 		url: '<?php echo admin_upgrade_url();?>',
 		type: 'POST',
 		data: { step: step.id, csrf_token: csrfToken },
@@ -112,12 +171,12 @@ function runNextStep() {
 			iconEl.style.background = res.ok ? 'var(--bs-success, #198754)' : 'var(--bs-danger, #dc3545)';
 			statusEl.innerHTML = res.ok ? '<span class="text-success fs-6"><?php echo lang('admin_upgrade_complete');?></span>' : '<span class="text-danger fs-6"><?php echo lang('admin_upgrade_failed');?></span>';
 
-			var detailHtml = res.message || '';
+			var detailHtml = escapeHtml(res.message) || '';
 			if(res.results && res.results.length > 0) {
 				detailHtml += '<div class="mt-1" style="font-size:0.75rem">';
-				$.each(res.results, function(i, r) {
+				res.results.forEach(function(r) {
 					var icon = r.ok ? '<i class="ti ti-check text-success"></i>' : '<i class="ti ti-x text-danger"></i>';
-					detailHtml += '<div>' + icon + ' ' + (r.name || '') + ' — ' + r.message + '</div>';
+					detailHtml += '<div>' + icon + ' ' + escapeHtml(r.name || '') + ' — ' + escapeHtml(r.message) + '</div>';
 				});
 				detailHtml += '</div>';
 			}
@@ -137,7 +196,7 @@ function runNextStep() {
 			statusEl.innerHTML = '<span class="text-danger fs-6"><?php echo lang('admin_upgrade_failed');?></span>';
 			var errMsg = '<?php echo lang('admin_upgrade_request_failed');?>';
 			if(xhr.responseText) {
-				errMsg += '<?php echo lang('admin_upgrade_server_returned');?>' + xhr.responseText.substring(0, 200) + '<?php echo lang('admin_upgrade_close_bracket');?>';
+				errMsg += '<?php echo lang('admin_upgrade_server_returned');?>' + escapeHtml(xhr.responseText.substring(0, 200)) + '<?php echo lang('admin_upgrade_close_bracket');?>';
 			}
 			resultEl.innerHTML = errMsg;
 			showUpgradeError(errMsg);
@@ -162,6 +221,6 @@ function showUpgradeError(msg) {
 	btn.disabled = false;
 
 	var logArea = document.getElementById('logArea');
-	logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + msg + '</div>';
+	logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + escapeHtml(msg) + '</div>';
 }
 </script>

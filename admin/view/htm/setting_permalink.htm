@@ -306,11 +306,11 @@ function showCopyFeedback(elementId) {
 }
 
 // 表单提交
-var jform = $('#form');
-var jsubmit = $('#submit');
+var form = document.querySelector('#form');
+var submitBtn = document.querySelector('#submit');
 var current_rewrite_on = <?php echo intval($url_rewrite_on); ?>;
 
-jform.on('submit', function(e) {
+form.addEventListener('submit', function(e) {
 	e.preventDefault();
 
 	var new_val = parseInt(document.querySelector('input[name="url_rewrite_on"]:checked').value);
@@ -328,20 +328,52 @@ jform.on('submit', function(e) {
 });
 
 function doSubmitForm() {
-	setBtnLoading(jsubmit, true);
-	var postdata = jform.serialize();
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
+	setBtnLoading(submitBtn, true);
+	var formData = new FormData(form);
+	fetch(form.getAttribute('action'), {
+		method: 'POST',
+		body: formData,
+		credentials: 'same-origin',
+		headers: {'X-Requested-With': 'XMLHttpRequest'}
+	}).then(function(res) { return res.text(); }).then(function(text) {
+		var s = null;
+		try { s = text ? JSON.parse(text) : null; } catch(e) {}
+		var code = s && s.code !== undefined ? s.code : -1;
+		var message = s && s.message !== undefined ? s.message : (text || '');
 		if(code == 0) {
 			showToast(message, 'success');
 			setTimeout(function(){ window.location.reload(); }, 1000);
 		} else if(xn.is_number(code)) {
 			showToast(message, 'error');
-			setBtnLoading(jsubmit, false);
+			setBtnLoading(submitBtn, false);
 		} else {
-			jform.find('[name="'+code+'"]').fieldError(message).focus();
-			setBtnLoading(jsubmit, false);
+			fieldError(form.querySelector('[name="'+code+'"]'), message);
+			setBtnLoading(submitBtn, false);
 		}
+	}).catch(function() {
+		showToast('<?php echo lang('admin_request_failed');?>', 'error');
+		setBtnLoading(submitBtn, false);
 	});
+}
+
+// ponytail: 替代 $.fn.fieldError（原生实现，保持与 jQuery 版本一致的行为）
+function fieldError(el, message) {
+	if(!el) return;
+	var parent = el.closest('.form-group');
+	if(parent) parent.classList.add('has-danger');
+	el.classList.add('form-control-danger');
+	el.setAttribute('title', message);
+	var tip = el.nextElementSibling;
+	if(tip && tip.classList.contains('xn-field-tip')) {
+		tip.textContent = message;
+		tip.style.display = '';
+	} else {
+		tip = document.createElement('span');
+		tip.className = 'xn-field-tip text-danger small';
+		tip.textContent = message;
+		el.after(tip);
+	}
+	el.focus();
 }
 
 function showRewriteConfirmModal(onConfirm) {

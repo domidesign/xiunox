@@ -37,6 +37,18 @@ function index_list_cache_delete() {
 	cache_set('core_index_v', $v, 0); // 0 = 永不过期
 }
 
+// 清除排行榜缓存（rank_hot_threads_/rank_active_users_/rank_credits_）
+// 帖子删除/软删除/恢复时调用，确保已删除帖子立即从热帖排行消失
+function rank_cache_delete() {
+	if(!class_exists('CacheHelper', false)) return;
+	// ponytail: RankService::getHotThreads/getActiveUsers/getCredits 通过 CacheHelper::remember($cacheKey, ...)
+	// 写入，$cacheKey 以 'rank_' 开头，CacheHelper::pluginKey() 会自动加 core_ 前缀，
+	// 实际缓存键为 core_rank_hot_threads_/core_rank_active_users_/core_rank_credits_。
+	// 之前误用 deleteByPrefix('rank_') 缺 core_ 前缀，导致删不掉缓存，
+	// 已删除帖子最长 5 分钟内仍残留在热帖排行（已违反 1 次）
+	CacheHelper::deleteByPrefix('core_rank_');
+}
+
 // ------------> 积分事件中文名称映射
 
 function credits_event_name($event) {
@@ -235,6 +247,7 @@ function thread_create($arr, &$pid, $options = array()) {
 	thread_forum_list_cache_delete($fid);
 	// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
 	index_list_cache_delete();
+	rank_cache_delete();
 
 	// 仅审核通过的帖子才通知关注者（待审帖子审核通过后在 AuditService::approve 中补发）
 	if($audit_status == 1) {
@@ -272,6 +285,7 @@ function thread_update($tid, $arr) {
 		thread_forum_list_cache_delete($thread['fid']);
 		// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
 		index_list_cache_delete();
+	rank_cache_delete();
 		// 清除全局置顶帖列表缓存（移动置顶帖时 thread_top 表 fid 已更新，旧缓存仍指向原版块）
 		thread_top_cache_delete();
 	}
@@ -342,6 +356,7 @@ function thread_delete($tid) {
 	thread_forum_list_cache_delete($fid);
 	// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
 	index_list_cache_delete();
+	rank_cache_delete();
 
 	$r = thread__delete($tid);
 	if($r === FALSE) return FALSE;
@@ -439,6 +454,7 @@ function thread_delete_batch($tids) {
 	}
 	// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
 	index_list_cache_delete();
+	rank_cache_delete();
 
 	// hook model_thread_delete_batch_end.php
 
@@ -499,6 +515,7 @@ function thread_soft_delete($tid, $deleted_by) {
 	thread_forum_list_cache_delete($fid);
 	// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
 	index_list_cache_delete();
+	rank_cache_delete();
 
 	// hook model_thread_soft_delete_end.php
 	return TRUE;
@@ -590,6 +607,7 @@ function thread_soft_delete_batch($tids, $deleted_by) {
 	}
 	// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
 	index_list_cache_delete();
+	rank_cache_delete();
 
 	// hook model_thread_soft_delete_batch_end.php
 	return count($valid_tids);
@@ -648,6 +666,7 @@ function thread_restore($tid) {
 	thread_forum_list_cache_delete($fid);
 	// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
 	index_list_cache_delete();
+	rank_cache_delete();
 
 	// hook model_thread_restore_end.php
 	return TRUE;
@@ -742,6 +761,7 @@ function thread_restore_batch($tids) {
 	}
 	// 清除首页帖子列表缓存（首页含多个版块聚合，无法按 fid 删除）
 	index_list_cache_delete();
+	rank_cache_delete();
 
 	// hook model_thread_restore_batch_end.php
 	return count($valid_tids);

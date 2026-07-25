@@ -60,6 +60,8 @@ if($action == 'doc') {
 	$errorCodes = ApiDocService::getErrorCodes();
 	$baseUrl = rtrim(str_replace('/admin/', '/', http_url_path()), '/') . '/';
 	$tokenExpire = $conf['api_token_expire'] ?? 30;
+	$accessTokenExpire = intval($conf['api_access_token_expire'] ?? 2);
+	$tokenAbsoluteExpire = intval($conf['api_token_absolute_expire'] ?? 90);
 
 	include _include(ADMIN_PATH.'view/htm/api_doc.htm');
 
@@ -89,7 +91,7 @@ if($action == 'doc') {
 			if(!$user) message(-1, lang('user_not_exists'));
 
 			include APP_PATH . 'lib/ApiAuthService.php';
-			$apiAuth = new ApiAuthService($db, $conf['api_token_expire'] ?? 30);
+			$apiAuth = new ApiAuthService($db, intval($conf['api_token_expire'] ?? 30), intval($conf['api_access_token_expire'] ?? 2), intval($conf['api_token_absolute_expire'] ?? 90));
 			$tokenData = $apiAuth->generateTokens($uid);
 		message(0, $tokenData);
 
@@ -242,7 +244,7 @@ if($action == 'doc') {
 	// hook admin_api_settings_start.php
 
 	include APP_PATH . 'lib/ApiAuthService.php';
-	$apiAuthService = new ApiAuthService($db, $conf['api_token_expire'] ?? 30);
+	$apiAuthService = new ApiAuthService($db, intval($conf['api_token_expire'] ?? 30), intval($conf['api_access_token_expire'] ?? 2), intval($conf['api_token_absolute_expire'] ?? 90));
 
 	if($method == 'GET') {
 		$apps = $apiAuthService->listApps();
@@ -253,6 +255,8 @@ if($action == 'doc') {
 		$api_rate_limit_window = intval($conf['api_rate_limit_window'] ?? 60);
 		$api_cors_origin = $conf['api_cors_origin'] ?? '*';
 		$api_token_expire = intval($conf['api_token_expire'] ?? 30);
+		$api_access_token_expire = intval($conf['api_access_token_expire'] ?? 2);
+		$api_token_absolute_expire = intval($conf['api_token_absolute_expire'] ?? 90);
 		include _include(ADMIN_PATH.'view/htm/api_settings.htm');
 	}
 
@@ -262,7 +266,7 @@ if($action == 'doc') {
 	if($method != 'POST') message(-1, 'Method not allowed');
 
 	include APP_PATH . 'lib/ApiAuthService.php';
-	$apiAuthService = new ApiAuthService($db, $conf['api_token_expire'] ?? 30);
+	$apiAuthService = new ApiAuthService($db, intval($conf['api_token_expire'] ?? 30), intval($conf['api_access_token_expire'] ?? 2), intval($conf['api_token_absolute_expire'] ?? 90));
 
 	$name = param('name', '');
 	$description = param('description', '');
@@ -284,7 +288,7 @@ if($action == 'doc') {
 	if($method != 'POST') message(-1, 'Method not allowed');
 
 	include APP_PATH . 'lib/ApiAuthService.php';
-	$apiAuthService = new ApiAuthService($db, $conf['api_token_expire'] ?? 30);
+	$apiAuthService = new ApiAuthService($db, intval($conf['api_token_expire'] ?? 30), intval($conf['api_access_token_expire'] ?? 2), intval($conf['api_token_absolute_expire'] ?? 90));
 
 	$id = param('id', 0);
 	if($id <= 0) message(-1, '应用ID无效');
@@ -314,7 +318,7 @@ if($action == 'doc') {
 	if($method != 'POST') message(-1, 'Method not allowed');
 
 	include APP_PATH . 'lib/ApiAuthService.php';
-	$apiAuthService = new ApiAuthService($db, $conf['api_token_expire'] ?? 30);
+	$apiAuthService = new ApiAuthService($db, intval($conf['api_token_expire'] ?? 30), intval($conf['api_access_token_expire'] ?? 2), intval($conf['api_token_absolute_expire'] ?? 90));
 
 	$id = param('id', 0);
 	if($id <= 0) message(-1, '应用ID无效');
@@ -328,7 +332,7 @@ if($action == 'doc') {
 	if($method != 'POST') message(-1, 'Method not allowed');
 
 	include APP_PATH . 'lib/ApiAuthService.php';
-	$apiAuthService = new ApiAuthService($db, $conf['api_token_expire'] ?? 30);
+	$apiAuthService = new ApiAuthService($db, intval($conf['api_token_expire'] ?? 30), intval($conf['api_access_token_expire'] ?? 2), intval($conf['api_token_absolute_expire'] ?? 90));
 
 	$id = param('id', 0);
 	if($id <= 0) message(-1, '应用ID无效');
@@ -348,6 +352,8 @@ if($action == 'doc') {
 	$api_rate_limit_window = param('api_rate_limit_window', 60);
 	$api_cors_origin = param('api_cors_origin', '*');
 	$api_token_expire = param('api_token_expire', 30);
+	$api_access_token_expire = param('api_access_token_expire', 2);
+	$api_token_absolute_expire = param('api_token_absolute_expire', 90);
 
 	$changes = [
 		'api_enabled' => intval($api_enabled),
@@ -357,6 +363,8 @@ if($action == 'doc') {
 		'api_rate_limit_window' => intval($api_rate_limit_window),
 		'api_cors_origin' => $api_cors_origin,
 		'api_token_expire' => intval($api_token_expire),
+		'api_access_token_expire' => max(1, intval($api_access_token_expire)),
+		'api_token_absolute_expire' => max(0, intval($api_token_absolute_expire)),
 	];
 
 	$r = file_replace_var(APP_PATH . 'conf/conf.php', $changes);

@@ -12,7 +12,7 @@
 			<?php foreach($_forum_members as $_member) { ?>
 			<div class="text-center">
 				<a href="<?php echo user_url($_member['uid']);?>">
-				<img src="<?php echo $_member['avatar_url'];?>" class="rounded-circle" width="32" height="32" alt="<?php echo esc_html($_member['display_name']);?>" onerror="this.onerror=null;this.src='<?php echo default_avatar_url();?>'">
+				<?php echo avatar_component_from_data($_member['avatar_url'], 'sm', isset($_member['group_icon_class']) ? $_member['group_icon_class'] : '', isset($_member['group_color']) ? $_member['group_color'] : '', isset($_member['gid']) ? $_member['gid'] : 0, array('_uid' => isset($_member['uid']) ? $_member['uid'] : 0)); ?>
 			</a><br>
 			<a href="<?php echo user_url($_member['uid']);?>" class="small text-body-secondary text-nowrap text-decoration-none"><?php echo esc_html($_member['display_name']);?></a>
 			</div>

@@ -77,7 +77,6 @@
                 }
             }
             if (hasImage) {
-                console.log('[Editor Paste] 检测到图片，放行给内置逻辑处理');
                 return;
             }
 
@@ -86,11 +85,9 @@
             var textLen = text ? text.length : 0;
             var htmlLen = html ? html.length : 0;
             var ratio = textLen > 0 ? htmlLen / textLen : 0;
-            console.log('[Editor Paste] text/plain 长度:', textLen, 'text/html 长度:', htmlLen, '比例:', ratio.toFixed(2));
 
             // 没有纯文本时不拦截
             if (!text) {
-                console.log('[Editor Paste] 无 text/plain，放行');
                 return;
             }
 
@@ -103,23 +100,15 @@
             var shouldConvert = false;
             if (isMarkdownCodeBlock) {
                 shouldConvert = true;
-                console.log('[Editor Paste] 检测到 markdown 代码块 HTML 包装，强制走 insertMarkdown');
             } else if (isIdeMarkdownPaste) {
                 shouldConvert = true;
-                console.log('[Editor Paste] 检测到 IDE 样式 HTML + Markdown 源码，强制走 insertMarkdown');
             } else if (!html) {
                 if (isMarkdown) {
                     shouldConvert = true;
-                    console.log('[Editor Paste] 仅 text/plain 且像 Markdown，走 insertMarkdown');
-                } else {
-                    console.log('[Editor Paste] 仅 text/plain 但非 Markdown，放行');
                 }
             } else {
                 if (ratio < 2 && isMarkdown) {
                     shouldConvert = true;
-                    console.log('[Editor Paste] HTML 比例低 + 像 Markdown，走 insertMarkdown');
-                } else {
-                    console.log('[Editor Paste] HTML 比例高或非 Markdown，放行给内置逻辑处理');
                 }
             }
 
@@ -138,7 +127,6 @@
             try {
                 editor.insertMarkdown(text);
                 if (typeof syncFn === 'function') syncFn();
-                console.log('[Editor Paste] 已通过 insertMarkdown 插入，长度:', text.length);
             } catch(err) {
                 console.error('[Editor Paste] insertMarkdown 失败，回退到纯文本插入:', err);
                 try {

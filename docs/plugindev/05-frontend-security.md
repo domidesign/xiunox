@@ -26,19 +26,18 @@ header.inc.htm（head 尾部）与 footer.inc.htm（footer_js_before.htm 之后�
  3. vendor/htmx/ext/hx-optimistic.min.js          ← hx-optimistic 扩展（header）
  4. vendor/animejs/anime.umd.min.js               ← anime.js 动画（header）
  5. lang/{conf['lang']}/bbs.js                    ← 语言包 JSON（footer）
- 6. vendor/jquery-3.7.1.min.js                    ← jQuery 3.7.1（旧代码残留，新代码勿用）
- 7. vendor/bootstrap/js/bootstrap.bundle.min.js   ← Bootstrap JS
- 8. view/js/xiuno.js                              ← 旧版 JS 工具
- 9. view/js/bootstrap-plugin.js                   ← Bootstrap 增强
-10. view/js/xiuno-modern.js                       ← ✅ 现代兼容层（XN.* API）
-11. 内联全局变量（debug, url_rewrite_on, forumarr, uid, gid, bbs_lang, ...）
-12. view/js/bbs.js                               ← BBS 业务逻辑
-13. <!--{hook footer_js_after.htm}-->             ← ✅ 插件 JS 注入点
-14. Flash toast 读取 PRG cookie 后显示并清除         ← footer 内联脚本
-15. cron_run()                                    ← 后台计划任务触发（footer 末尾）
+ 6. vendor/bootstrap/js/bootstrap.bundle.min.js   ← Bootstrap JS
+ 7. view/js/xiuno-modern.js                       ← ✅ 现代兼容层（XN.* API）
+ 8. 内联全局变量（debug, url_rewrite_on, forumarr, uid, gid, bbs_lang, ...）
+ 9. view/js/bbs.js                               ← BBS 业务逻辑
+10. <!--{hook footer_js_after.htm}-->             ← ✅ 插件 JS 注入点
+11. view/js/auto-save.js                          ← 表单自动保存（草稿箱）
+12. view/js/lightbox.js                           ← 全局图片放大（Bootstrap Modal + 原生 JS）
+13. Flash toast 读取 PRG cookie 后显示并清除         ← footer 内联脚本
+14. cron_run()                                    ← 后台计划任务触发（footer 末尾）
 ```
 
-> ⚠️ jQuery 虽然在页面上，但**新插件代码禁止使用**。用 `xiuno-modern.js` 的 `XN.*` API 或原生 JS + htmx。
+> ⚠️ **jQuery 已于 2026-07-24 系统性移除**，所有页面禁止使用 `$`/`jQuery`/`$.fn.*`。用 `xiuno-modern.js` 的 `XN.*` API、htmx 4 属性或原生 JS（`fetch`/`querySelectorAll`/`addEventListener`）。迁移指南见 [10-jquery-removal-guide.md](10-jquery-removal-guide.md)。
 
 ### 后台不使用 htmx
 
@@ -540,7 +539,7 @@ localStorage.getItem('theme') === 'dark'
 
 - **CSS 注入** → `header_link_after.htm`（全局）或模板内（局部）
 - **JS 注入** → `footer_js_after.htm`（全局）或模板内（局部）
-- **JS API** → `XN.toast()` / `XN.ajax()` / `XN.confirm()` / `XN.alert()`
+- **JS API** → `XN.toast()` / `XN.ajax()` / `XN.confirm()` / `XN.alert()`（非关键页面）或原生 `fetch`+`confirm`（关键修复页面）
 - **交互** → htmx 4 属性（`hx-get`/`hx-post`/`hx-target`/`hx-optimistic`）
 - **安全** → `CsrfService::input()` + `CsrfService::check()` + `esc_html()`
-- **禁止** → jQuery / Alpine.js / idiomorph / `window.__xxxData`
+- **禁止** → jQuery（已移除）/ Alpine.js / idiomorph / `window.__xxxData`

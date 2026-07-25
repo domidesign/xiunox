@@ -17,5 +17,6 @@
 </template>
 
 <script>
-$('a[data-active="my-feed"]').addClass('active');
+var el = document.querySelector('a[data-active="my-feed"]');
+if (el) el.classList.add('active');
 </script>

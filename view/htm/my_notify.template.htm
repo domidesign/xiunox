@@ -20,7 +20,7 @@
 				<?php foreach($notifylist as $notify) { ?>
 				<div class="notice-item card-0 rounded-1 overflow-hidden <?php echo empty($notify['is_read']) ? 'notice-unread' : '';?>" data-nid="<?php echo $notify['nid'];?>" data-type="<?php echo $notify['type'];?>">
 					<div class="card-body p-3 d-flex align-items-start gap-3">
-						<?php echo avatar_component_from_data($notify['from_avatar_url'], 'sm', '', '', isset($notify['from_gid']) ? $notify['from_gid'] : 0);?>
+						<?php echo avatar_component_from_data($notify['from_avatar_url'], 'sm', '', '', isset($notify['from_gid']) ? $notify['from_gid'] : 0, array('_uid' => isset($notify['from_uid']) ? intval($notify['from_uid']) : 0));?>
 						<div class="flex-fill" style="min-width:0">
 							<div class="d-flex align-items-start justify-content-between gap-2">
 								<div class="small <?php echo empty($notify['is_read']) ? 'fw-semibold' : 'text-body-secondary';?>">
@@ -65,7 +65,7 @@
 				<?php foreach($notify_groups[$tab_type] as $notify) { ?>
 				<div class="notice-item card-0 rounded-1 overflow-hidden <?php echo empty($notify['is_read']) ? 'notice-unread' : '';?>" data-nid="<?php echo $notify['nid'];?>" data-type="<?php echo $notify['type'];?>">
 					<div class="card-body p-3 d-flex align-items-start gap-3">
-						<?php echo avatar_component_from_data($notify['from_avatar_url'], 'sm', '', '', isset($notify['from_gid']) ? $notify['from_gid'] : 0);?>
+						<?php echo avatar_component_from_data($notify['from_avatar_url'], 'sm', '', '', isset($notify['from_gid']) ? $notify['from_gid'] : 0, array('_uid' => isset($notify['from_uid']) ? intval($notify['from_uid']) : 0));?>
 						<div class="flex-fill" style="min-width:0">
 							<div class="d-flex align-items-start justify-content-between gap-2">
 								<div class="small <?php echo empty($notify['is_read']) ? 'fw-semibold' : 'text-body-secondary';?>">

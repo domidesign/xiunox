@@ -1109,7 +1109,9 @@ function xn_url_parse($request_url) {
 	$_script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/index.php';
 	$is_admin_path = (strpos($_script_name, '/admin') !== false);
 	// 检测 URL 是否以 .html/.htm 结尾（非路径风格的旧格式 URL）
+	// ponytail: PHP 8.1+ 弃用 null 参数，parse_url 对 // 开头的协议相对 URL 会返回 null path（如 //frame-shop.htm）
 	$_uri_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+	$_uri_path === null AND $_uri_path = '';
 	$_has_html_suffix = ($_uri_path && (substr($_uri_path, -5) === '.html' || substr($_uri_path, -4) === '.htm'));
 	// 检测是否为真正的路径风格格式：路径中除根 / 外还包含 / 分隔符
 	// 如 /forum/4 是路径风格，/forum-4 是旧格式（用 - 连接）

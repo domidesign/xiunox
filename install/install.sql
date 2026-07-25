@@ -632,6 +632,8 @@ CREATE TABLE bbs_api_token (
   related_id bigint(16) unsigned NOT NULL DEFAULT 0 COMMENT '关联令牌ID',
   token char(64) NOT NULL DEFAULT '',
   expires_at int(11) unsigned NOT NULL DEFAULT 0,
+  absolute_expires_at int(11) unsigned NOT NULL DEFAULT 0 COMMENT '绝对过期时间戳，0=不限制',
+  used tinyint(1) NOT NULL DEFAULT 0 COMMENT 'refresh 是否已用过：0=未用，1=已用',
   created_at int(11) unsigned NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   UNIQUE KEY token (token),

@@ -423,7 +423,7 @@
 			if(!img) return;
 			var idx = img.getAttribute('data-index');
 			if(!idx) return;
-			XN.confirm('<?php echo lang('confirm_use_avatar');?>', function() {
+			if (confirm('<?php echo lang('confirm_use_avatar');?>')) {
 				presetIndexInput.value = idx;
 				var btn = document.createElement('button');
 				btn.type = 'submit';
@@ -431,7 +431,7 @@
 				presetForm.appendChild(btn);
 				btn.click();
 				btn.remove();
-			});
+			}
 		});
 	}
 
@@ -440,14 +440,14 @@
 	var resetForm = document.getElementById('reset_form');
 	if(resetBtn && resetForm) {
 		resetBtn.addEventListener('click', function() {
-			XN.confirm('<?php echo lang('confirm_reset_avatar');?>', function() {
+			if (confirm('<?php echo lang('confirm_reset_avatar');?>')) {
 				var btn = document.createElement('button');
 				btn.type = 'submit';
 				btn.name = 'submit';
 				resetForm.appendChild(btn);
 				btn.click();
 				btn.remove();
-			});
+			}
 		});
 	}
 })();

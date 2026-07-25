@@ -830,10 +830,24 @@ function post_find_by_pids($pids, $order = array('pid'=>-1)) {
 		$uids = arrlist_values($postlist, 'uid');
 		user_preload($uids);
 
+		// 批量预加载 thread 数据，消除 post_format 中 thread_read_cache 的逐条查询
+		// 参考 post_find 的做法：调用 thread_read_cache 预填充 static 缓存
+		$tids = arrlist_values($postlist, 'tid');
+		$tids = array_unique($tids);
+		foreach($tids as $tid) {
+			thread_read_cache($tid);
+		}
+
 		// 批量预加载点赞状态
 		if(!empty($uid) && !isset($g_preloaded_post_likes)) {
 			$pidlist = arrlist_values($postlist, 'pid');
 			$g_preloaded_post_likes = post_like_read_batch($uid, $pidlist);
+		}
+
+		// 批量预加载 xnx_hidden 隐藏内容，消除 model_post_format_end hook 内的 N+1 查询
+		// class_exists 守卫：核心函数不依赖插件，插件未启用时跳过
+		if(class_exists('HiddenService', false)) {
+			HiddenService::preloadHiddenByPostIds(arrlist_values($postlist, 'pid'));
 		}
 
 		foreach($postlist as &$post) post_format($post);

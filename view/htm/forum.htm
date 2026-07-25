@@ -108,7 +108,7 @@
 					<?php foreach ($forum['modlist'] as $mod) { ?>
 					<div class="text-center">
 						<a href="<?php echo url("user-$mod[uid]");?>">
-							<img src="<?php echo !empty($mod['avatar_url']) ? $mod['avatar_url'] : $conf['view_url'].'img/avatar.png';?>" class="rounded-circle" width="32" height="32" alt="<?php echo esc_html(!empty($mod['display_name']) ? $mod['display_name'] : $mod['username']);?>" onerror="this.onerror=null;this.src='<?php echo $conf['view_url']; ?>img/avatar.png'">
+							<?php echo avatar_component_from_data(!empty($mod['avatar_url']) ? $mod['avatar_url'] : '', 'sm', isset($mod['group_icon_class']) ? $mod['group_icon_class'] : '', isset($mod['group_color']) ? $mod['group_color'] : '', isset($mod['gid']) ? $mod['gid'] : 0, array('_uid' => isset($mod['uid']) ? $mod['uid'] : 0)); ?>
 						</a><br>
 						<a href="<?php echo url("user-$mod[uid]");?>" class="small text-body-secondary text-nowrap text-decoration-none"><?php echo esc_html(!empty($mod['display_name']) ? $mod['display_name'] : $mod['username']);?></a>
 					</div>

@@ -29,7 +29,7 @@
 					?>
 					<div class="me-3 flex-shrink-0">
 							<a href="<?php echo user_url($_post['uid']);?>" tabindex="-1">
-								<?php echo avatar_component_from_data($_post['user_avatar_url'], 'md', isset($_post['group_icon_class']) ? $_post['group_icon_class'] : '', isset($_post['group_color']) ? $_post['group_color'] : '', isset($_post['gid']) ? $_post['gid'] : 0);?>
+								<?php echo avatar_component_from_data($_post['user_avatar_url'], 'md', isset($_post['group_icon_class']) ? $_post['group_icon_class'] : '', isset($_post['group_color']) ? $_post['group_color'] : '', isset($_post['gid']) ? $_post['gid'] : 0, array('_uid' => isset($_post['uid']) ? intval($_post['uid']) : 0));?>
 							</a>
 						</div>
 						<!--{hook post_list_inc_avatar_after.htm}-->
@@ -211,7 +211,7 @@
 									?>
 									<div class="me-2 flex-shrink-0">
 										<a href="<?php echo user_url($_reply['uid']);?>" tabindex="-1">
-											<?php echo avatar_component_from_data($_reply['user_avatar_url'], 'sm', isset($_reply['group_icon_class']) ? $_reply['group_icon_class'] : '', isset($_reply['group_color']) ? $_reply['group_color'] : '', isset($_reply['gid']) ? $_reply['gid'] : 0);?>
+											<?php echo avatar_component_from_data($_reply['user_avatar_url'], 'sm', isset($_reply['group_icon_class']) ? $_reply['group_icon_class'] : '', isset($_reply['group_color']) ? $_reply['group_color'] : '', isset($_reply['gid']) ? $_reply['gid'] : 0, array('_uid' => isset($_reply['uid']) ? intval($_reply['uid']) : 0));?>
 										</a>
 									</div>
 									<div class="flex-fill" style="min-width:0">

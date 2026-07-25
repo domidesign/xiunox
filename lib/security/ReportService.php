@@ -272,7 +272,7 @@ class ReportService {
                 'report_trigger',
                 lang('report_notify_admin_subject'),
                 lang('report_notify_admin_body', array('count' => $count, 'reason' => $reason)),
-                url('plugin-setting-xnx_report-list-pending')
+                admin_url('plugin-setting-xnx_report-list-pending')
             );
         } catch (\Throwable $e) {
             error_log('[xnx_report] handleAutoAudit notify exception: target_type=' . $target_type . ' target_id=' . $target_id . ' count=' . $count . ' ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());

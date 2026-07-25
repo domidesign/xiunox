@@ -17,7 +17,8 @@ function runtime_init() {
 		// 仅统计未软删且已审核通过的帖子，与 thread_create/soft_delete 的统计口径一致
 		$runtime['threads'] = thread_count(array('is_deleted'=>0, 'audit_status'=>1));
 		// 评论数 = 非首帖且未软删且已审核通过的 post 数，口径与 threads 完全一致，避免相减出现负数
-		$runtime['posts'] = post_count(array('is_deleted'=>0, 'audit_status'=>1, 'is_first'=>0));
+		// ponytail: bbs_post 字段名是 isfirst（无下划线），不是 is_first；用错会触发 1054 Unknown column 'is_first'
+		$runtime['posts'] = post_count(array('is_deleted'=>0, 'audit_status'=>1, 'isfirst'=>0));
 		$runtime['todayusers'] = 0;
 		$runtime['todayposts'] = 0;
 		$runtime['todaythreads'] = 0;

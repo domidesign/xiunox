@@ -1,92 +1,234 @@
-# AI 代码生成对照流程
+# AI 协作规则速查
 
-> 规则详情见 [SKILL.md](../SKILL.md) 的「硬规则（不可违反）」与「交付检查表」。本文件只列**生成代码时必须逐项对照的检查流程**，避免与 SKILL.md 重复维护。
+> 本文件为 AI 协作规则速查，详细说明见 [plugindev/06-ai-collaboration.md](../../plugindev/06-ai-collaboration.md)
 
----
+## 目录
 
-## 使用方式
-
-每写完一段插件代码（hook / route / model / 模板 / JS / CSS），按下面 7 个阶段对照检查。每项对应 SKILL.md 中具体规则，点击跳转。
-
-## 1. PHP 入口（hook / route / setting）
-
-- [ ] PHP hook 文件以 `<?php exit;` 开头（[SKILL.md §Hook 类型](../SKILL.md#step-5-hook-文件两种类型开头写法不同写错会白屏)）
-- [ ] **hook 中无 `return;`**（[SKILL.md §所有 hook 禁止 return](../SKILL.md#硬规则不可违反)）→ 用 `if (条件) { ... }` 包裹，例外：终止性 `exit;` 必须加 `// ponytail:` 注释
-- [ ] `include` 用 `_include()`，禁止裸 `include`（除非 `include_once APP_PATH.'lib/xxx.php'` 加载 lib 类）
-- [ ] 调用核心 Service 前 `if (!class_exists('X')) { include_once ... }` 守卫，访问静态属性/常量前确保类已加载
-- [ ] 数据库结构变更走 `upgrade.php` 幂等迁移，禁止在 `install.php`/`setting.php` 加字段自愈代码
-- [ ] `install.php` 末尾清 `tmp/model.min.php`（防 Service 类未加载白屏）
-- [ ] 卸载脚本文件名用 `uninstall.php`（不是 `unstall.php`）
-
-## 2. 表单 / 安全
-
-- [ ] 所有 POST 表单含 `CsrfService::input()` + handler 首行 `CsrfService::check()`
-- [ ] 后台 `setting.php` 开头有 `$gid != 1 && $gid != 2 AND message(-1, '无权限');`
-- [ ] 密码/Token/Secret 用 `param($name, $default, FALSE)` 关闭 htmlspecialchars
-- [ ] 所有 HTML 输出 `esc_html()` / `esc_attr()`，JS 字符串 `esc_js()`
-- [ ] SQL 用户输入 `intval()` 转义，优先 `db_find*` 而非 `db_sql_find*`
-- [ ] 保留复杂 SQL（JOIN/系统表）加 `// 保留 db_sql_find` 或 `// 保留 db_exec` 注释（扫描器据此跳过）
-
-## 3. 模型 / 用户显示
-
-- [ ] 调用单下划线业务层（`thread_create` 非 `thread__create`）
-- [ ] 改密码用 `user_change_password()`（不是 `user_update`）
-- [ ] 改用户组用 `user_change_group()`
-- [ ] 获取用户显示名用 `user_find_by_uids()` / `user_read()` / `user_read_cache()`，禁止 `db_find('user')` 后直接取 `username`
-- [ ] 模板显示用户名统一取 `$user['display_name']`
-- [ ] 写操作后清缓存：`CacheHelper::pluginDeletePrefix($plugin)` 或自定义 `clearCache()`
-
-## 4. URL / 路由
-
-- [ ] URL 用命名快捷函数（`thread_url($tid)`）或 `route_url()` 通用入口，禁止 `url("thread-$tid")` 字符串拼接
-- [ ] 插件自定义路由通过 `hook/model_route_table_end.php` 注册到 `$routes` 数组
-- [ ] 分页用 `route_url('xxx_page', [])`（保留 `{page}` 占位符给 `pagination()` 函数）
-- [ ] 缓存刷新/跳转 URL 用 `$site_url . url("xxx")`，禁止 `$site_url . '/xxx.htm'`
-- [ ] 修改核心路由格式后同步更新 `.htaccess` / nginx 伪静态规则
-
-## 5. 缓存 / 设置
-
-- [ ] 数据缓存用 `CacheHelper::remember()` 代替裸 `cache_get/cache_set`
-- [ ] 清除插件缓存用 `CacheHelper::pluginDeletePrefix()` 而非枚举 limit 值逐个 `cache_delete`
-- [ ] 缓存键通过 `CacheHelper::pluginKey()` 生成（`p_{plugin}_` 前缀）
-- [ ] Service 类构造函数调 `CacheHelper::registerKeys()` 注册缓存键
-- [ ] 列表类缓存用版本号机制（数据变更时递增版本号使旧缓存失效）
-- [ ] `setting_set/get` 直接存取数组，不用 `xn_json_encode/decode` 中转
-- [ ] 跨插件共享配置的保存和读取使用同一个存储键
-
-## 6. 前端（JS / CSS / 模板）
-
-- [ ] 无 jQuery / Alpine.js / idiomorph（用 `XN.toast()` / `XN.ajax()` / `XN.confirm()`）
-- [ ] 命名带插件前缀（变量 `__myPluginXxx` / CSS class `.my-plugin-xxx`）
-- [ ] 静态资源放 `plugin/<dir>/static/js/` 和 `static/css/`（禁止放 `view/htm/`）
-- [ ] `<script src>` / `<link href>` 用 `$conf['view_url']` 而非 `APP_PATH` 或相对路径
-- [ ] 引用插件资源：`$conf['view_url'] . '../plugin/<dir>/static/js/xxx.js'`
-- [ ] 引用核心资源：`$conf['view_url']js/xxx.js`
-- [ ] Card 组件加 `x-card` class，禁止裸用 `border` / `border-*`（包括列表项 border-bottom）
-- [ ] `.htm` hook 文件以 `<?php` 开头（不是 `<?php exit;`，否则白屏）
-- [ ] 发帖/回复共用 `post.htm` 的 hook 按场景区分：`if ($route == 'thread' && $action == 'create')`
-- [ ] AIEditor 工具栏配置用 `toolbarKeys`（不是 `toolbar`），自定义按钮以对象形式进入数组，SVG 用 fill 模式（禁用 stroke 模式）
-
-## 7. 命名 / 跨插件
-
-- [ ] 所有命名带插件前缀（表 / 变量 / 语言键 / JS / CSS / setting）
-- [ ] 第三方插件禁止用 `xn_` 或 `xnx_` 前缀（官方预留）
-- [ ] `conf.json` 的 `hooks_rank` 键名与 hook 文件名（含扩展名）完全一致
-- [ ] 跨插件共享配置的保存和读取使用同一个存储键
-- [ ] 注册表/默认配置中的文本用 `lang()` 多语言键，不硬编码中文
+- [一、硬规则：禁止项](#一硬规则禁止项)
+- [二、硬规则：必须项](#二硬规则必须项)
+- [三、命名前缀隔离规范](#三命名前缀隔离规范)
+- [四、hook 文件常见坑](#四hook-文件常见坑)
+- [五、数据库常见坑](#五数据库常见坑)
+- [六、前端常见坑](#六前端常见坑)
+- [七、扫描器规则分级](#七扫描器规则分级pluginscanner)
+- [八、交付前检查表](#八交付前检查表)
 
 ---
 
-## 单行注释陷阱（高频踩坑）
+## 一、硬规则：禁止项
 
-PHP 单行注释 `//` 和 `#` 中**禁止包含 `?>`**：
+| 规则 | 后果 |
+|---|---|
+| 禁止 jQuery（`$()`、`.on()`、`.ajax()`、`$.fn.*`）—— 已于 2026-07-24 系统性移除 | 扫描器 fatal；关键修复页面依赖 `$` 会陷入「网站坏→修复页也坏」死循环 |
+| 禁止 Alpine.js（`x-data`/`x-show`/`x-bind`/`x-text`/`x-on`/`x-model`/`x-if`/`x-for`/`x-cloak`） | 扫描器 fatal |
+| 禁止 `idiomorph` / `alpine-morph`（`hx-swap="morph:idom"`） | htmx 4 内置 morph |
+| 禁止裸 `htmlspecialchars`，必须用 `esc_html()`/`esc_attr()`/`esc_js()` | XSS 风险 |
+| 禁止 POST 表单不带 CSRF（必须含 `CsrfService::input()`） | CSRF 漏洞 |
+| 禁止 POST 处理不校验 CSRF（开头必须 `CsrfService::check()`） | CSRF 漏洞 |
+| 禁止裸 `include`（必须走 `_include()`，否则 hook 不生效） | 插件失效 |
+| 禁止覆盖核心路径（`conf/`、`xiunophp/`、`lib/`、`admin/`、`api/`、`cli/`、`tool/`、`install/`、`log/`、`tmp/`、`upload/`、`index.php`、`model.inc.php`、`index.inc.php`） | 静默跳过 + 记 `plugin_overwrite_error` |
+| 禁止 `window.__xxxData` 全局状态 | 违反 htmx 架构，状态放 DOM（`data-*`/hidden input） |
+| 禁止非 `pdo_mysql` 驱动 | 架构约束 |
+| 禁止 `db_find('user', ...)` 后直接取 `username` 字段显示（不含 `display_name`，fallback 写法无效） | 显示登录名而非昵称 |
+| 禁止密码/token/API key 用 `param()` 默认转义（第 3 参必须传 `FALSE`） | 密码比对失败，登录/找回密码失效 |
+| 禁止 hook 文件用 `return`（会从宿主函数/路由/模板返回跳过后续逻辑）—— 终止性操作用 `exit` + `if` 包裹 | 已违反 5 次，影响多个插件 |
+| 禁止 `overwrites_rank` 覆盖模板放在 `plugin/<dir>/view/htm/`（必须放 `overwrite/` 子目录） | 覆盖不生效 |
+| 禁止 `esc_textarea()`（项目中不存在，用 `esc_html()`） | 后台设置页白屏 |
 
-```php
-// ❌ 错误：会触发 headers already sent，页面直接显示代码
-// 模板中调用：<?php echo thread_url($tid);?>
+## 二、硬规则：必须项
 
-// ✅ 正确：去掉 <?php 和 ?>
-// 模板中调用示例：echo thread_url($tid);
-```
+| 规则 | 正确做法 |
+|---|---|
+| 新代码用 htmx 4 属性 | `hx-get`/`hx-post`/`hx-target`/`hx-optimistic`/`hx-live`/`hx-on` |
+| JS 交互用 `XN.*` API 或原生 JS | 关键修复页面（在线升级/数据库升级/后台登录/系统工具）必须原生 `fetch`+`confirm`+`addEventListener`，不依赖 `xiuno-modern.js` |
+| UI 用 Bootstrap 5 + Tabler Icons | `.container` 居中，Light Theme，`ti ti-xxx` |
+| 所有输出用 `esc_*` | `esc_html()`/`esc_attr()`/`esc_js()`（来自 `lib/EscapeService.php`） |
+| 模板用 `_include()` | `include _include(APP_PATH.'view/htm/xxx.htm');` |
+| 改 hook/conf.json 后清 `tmp/` | `plugin_clear_tmp_dir()` 或手动删除；含 OPcache 时调 `CacheService::clearByType(['data','opcache'])` |
+| 命名带插件前缀 | 表/变量/语言键/JS 全局/setting 键/CSS class 全部前缀隔离 |
+| PHP hook 以 `<?php exit;` 开头 | 编译器剥掉，防直接访问（`.htm` hook 只用 `<?php`，不能 `exit`） |
+| 后台页不用 htmx | `admin/` 模板只用原生 JS + Bootstrap |
+| 取用户信息用于显示用核心函数 | `user_find_by_uids('1,2,3')`/`user_read($uid)`/`user_read_cache($uid)`（自动 `user_format()` 生成 `display_name`）；模板取 `$user['display_name']` |
+| htmx 事件名用 4.x 冒号格式 | `htmx:config:request`/`htmx:after:swap` 等，禁止 `htmx:configRequest`/`htmx:afterSettle`（2.x 旧名静默失效） |
+| Admin 路径检测用 `$_SERVER['SCRIPT_NAME']` | 禁止用 `REQUEST_URI`/`PHP_SELF`（被伪静态 URL 误导） |
+| 从前台生成 admin URL 用 `admin_url()` | `url()`/`admin_plugin_setting_url()` 前台调用不带 `admin/` 前缀 |
+| `db_*` 函数传表名禁止含前缀 | 内部已拼 `$d->tablepre . $table`，传 `'xnx_oauth_bind'` 而非 `'bbs_xnx_oauth_bind'`（例外：`install.php`/`uninstall.php`/`upgrade.php` 原生 SQL 需手动拼 `$db->tablepre`） |
+| API 层写操作调核心 `post_create()`/`post_update()`/`thread_create()` | 禁止用 `PostService::createPost()` 等薄封装（跳过 `message_fmt`/计数/缓存失效） |
 
-块注释 `/* */` 中可以包含 `?>`，不受影响。
+---
+
+## 三、命名前缀隔离规范
+
+参考 `xnx_tag`、`xnx_checkin` 模式，所有符号带插件前缀：
+
+| 符号类型 | 示例 |
+|---|---|
+| 数据库表 | `{$db->tablepre}my_plugin` |
+| 语言键 | `$lang['my_plugin_title'] = '标题';` |
+| PHP 全局变量 | `$my_plugin_settings` |
+| JS 全局 | `var __myPluginConfig = ...;` |
+| Setting 键 | `setting_get('my_plugin')` / `setting_set('my_plugin', $settings)` |
+| CSS class | `.my-plugin-badge` |
+
+---
+
+## 四、hook 文件常见坑
+
+| 坑 | 正确做法 |
+|---|---|
+| 扩展名写错（`.php` ≠ `.htm`） | 与源标记**一模一样** |
+| 忘记 `<?php exit;` | PHP hook 以 `<?php exit;` 开头（`.htm` hook 只用 `<?php`） |
+| 改 hook 不清缓存 | 改完清 `tmp/`（含 OPcache） |
+| hook 名拼错 | 对照 [03-hooks-catalog.md](../../plugindev/03-hooks-catalog.md) 核对 |
+| lang hook 格式错 | 每行严格 `$lang['my_prefix_xxx'] = 'xxx';` |
+| `model_inc_file.php` 忘逗号 | 每行 `APP_PATH.'plugin/...',` 以逗号结尾 |
+| hook 内 `return` | 用 `if` 包裹 + `ob_start/ob_get_clean` 暂存输出，UA 检测分支尤其警惕 |
+| Service 内 `// hook xxx.php` 注释直接 `include_once` 加载 | 必须通过 `hook/model_inc_file.php` 注册到 model 加载列表走 `_include()` 编译 |
+| `plugin_hook()` 运行时分发访问调用方局部变量 | 通过第二参数 `$data` 传关联数组，内部 `extract($data, EXTR_SKIP)` 注入 |
+
+### 运行时 hook 分发：`plugin_hook()`
+
+除编译期内联外，`plugin_hook('xxx.php', $data)`（`model/plugin.func.php` 第 742 行）提供运行时分发：带 try/catch 错误隔离、仅支持 `.php` hook、按 `hooks_rank` 降序、兼容旧版 `xn_hook()`。
+
+---
+
+## 五、数据库常见坑
+
+| 坑 | 正确做法 |
+|---|---|
+| 建表忘加 `$tablepre` | `{$db->tablepre}my_plugin` |
+| 用 PDO `bindValue` | 用**条件数组**语法（见 [04-api-cheatsheet.md](../../plugindev/04-api-cheatsheet.md)） |
+| `user_update()` 改密码/组 | 用 `user_change_password()`/`user_change_group()`（受保护字段会被剥离） |
+| 直接调 `__` 层（`thread__create`） | 调单下划线业务层（`thread_create`） |
+| `install.php` 无幂等保护 | `CREATE TABLE IF NOT EXISTS` / `IF NOT EXISTS` 判断 |
+| `uninstall.php` 忘删 setting | `kv_delete('my_plugin')` 或 `setting_delete` |
+| 数据库结构变更写进 `install.php` | 走 `upgrade.php` 幂等迁移（`SHOW COLUMNS` + `ALTER TABLE`） |
+| `install.php` 与 `upgrade.php` 字段清单不一致 | install 必须是 upgrade 的超集（首次安装不跑 upgrade） |
+| `CacheHelper::remember` 写入的缓存键删除时缺前缀 | 删除键必须带 `core_` 前缀（核心）或 `p_{plugin}_` 前缀（插件） |
+
+### 数据库升级机制：`upgrade.php`
+
+1. 后台对比 `conf.json.version` 与 `bbs_plugin.version`，不一致且存在 `upgrade.php` 时显示升级按钮
+2. 用户点升级 → `plugin_install()` 同步 db.version → 执行 `upgrade.php`
+3. 字段迁移用 `SHOW COLUMNS` + `ALTER TABLE ADD COLUMN`（可重复执行），递增 `conf.json.version` 触发升级提示
+
+---
+
+## 六、前端常见坑
+
+| 坑 | 正确做法 |
+|---|---|
+| 用 `$()` 写新代码 | htmx 属性 + `XN.*` API + 原生 JS |
+| 用 `onclick="..."` 写复杂逻辑 | htmx 属性 或 `hx-on="click: ..."` |
+| CSS/JS 路径写绝对路径 | `plugin/my_plugin/view/css/x.css`（相对路径） |
+| 忽略暗色模式 | 用 `[data-bs-theme="dark"]` 覆盖 |
+| 后台模板加 htmx | 只用原生 JS + Bootstrap |
+| JS 全局变量名冲突 | `var __myPluginData = ...;` |
+| `avatar_component_from_data()` 不传 `_uid` | 第 6 参数必须含 `array('_uid' => intval($uid))`，否则头像框/角标 hook 全部失效 |
+| 头像直接用 `<img>` 标签 | 用 `avatar_component_from_data()` 统一渲染 |
+| PC/移动端双模板用相同 `id` | 移动端加 `-mobile` 后缀（`id="xxx-mobile"`） |
+| `response.ok` 判断 htmx 请求成败 | htmx 4 中 `ctx.response` 无 `.ok` 属性，用 `ctx.response.status >= 400` |
+| 关键修复页面依赖 `xiuno-modern.js` 的 `$`/`XN` shim | 必须原生 `fetch` + `querySelectorAll` + `confirm` |
+
+---
+
+## 七、扫描器规则分级（PluginScanner）
+
+安装前自动运行（`lib/PluginScanner.php` + `lib/PluginScannerRules.php`），按严重性分级。
+
+### Fatal（阻止安装，`?force=1` 不可跳过）
+
+| 分类 | 拦截内容 |
+|---|---|
+| `php_deprecated_functions` | PHP 7.x 移除函数：`mysql_*`、`each()`、`create_function()`、`split()`、`ereg*()` 等 |
+| `php8_syntax` | PHP 8 不兼容：`&new`、`preg_replace /e` |
+| `curly_brace_access` | `$arr{0}` 花括号数组访问（改用 `$arr[0]`） |
+| `http_post_vars` | `HTTP_POST_VARS`/`HTTP_GET_VARS`/`HTTP_SESSION_VARS` |
+| `dangerous_functions` | `eval`/`assert`/`system`/`exec`/`passthru`/`shell_exec`/`popen`/`proc_open`/`pcntl_exec` |
+| `php8_deprecated` | `get_magic_quotes_gpc`、`utf8_encode`/`utf8_decode`、`money_format`、`is_resource`（对 PDO） |
+| `php_comment_close_tag` | 单行注释 `//`/`#` 中含 `?>`（headers already sent） |
+| `service_undefined_var` | Service 类 SQL 用未定义 `$tableName`/`$tablePrefix`（应用 `$this->tablepre`） |
+| `heredoc_php_tag` | HEREDOC 块内含 `<?php`（应用 `{$var}`） |
+| `hook_htm_header` | `.htm` hook 以 `<?php exit;` 开头（白屏，只能 `<?php`） |
+| `app_path_in_url` | `<script>`/`<link>` 的 `src`/`href` 用 `APP_PATH`（应用 `$conf['view_url']`） |
+| `conf_required_fields` | `conf.json` 缺 `name`/`type`（必须 `"plugin"`/`"theme"`）。插件唯一标识是目录名（dir），不读 `id` |
+
+### Error（阻止安装，`?force=1` 不可跳过）
+
+| 分类 | 拦截内容 |
+|---|---|
+| `conf_version` | `bbs_version` 必须两位制 X.Y，且与当前 `XIUNOX_VERSION` 前两段完全一致（同分支绑定） |
+
+### Warning（提示，可跳过）
+
+| 分类 | 拦截内容 |
+|---|---|
+| `plugin_version_format` | 插件 `version` 必须三位制 X.Y.Z（如 `1.0.0`） |
+| `permission_security` | `user_update()` 修改 `password`/`gid`/`salt`/`password_hash` |
+| `bs_js_api` | jQuery 调 BS 插件：`$().modal()`/`.dropdown()` 等 |
+| `frontend_md5` | 前端 MD5 `hex_md5()`/`md5_hex()`（密码明文提交，服务端 `password_md5()`） |
+| `md5js_global_load` | 全局加载 `md5.js` |
+| `password_update_api` | `user_update()` 改 password（找回密码应用 `user__update()`） |
+| `db_charset` | 数据库字符集 `utf8`（应 `utf8mb4`） |
+| `raw_htmlspecialchars` | 裸 `htmlspecialchars()` |
+| `bs_tab_navigation` | `data-bs-toggle="tab"` + `href="*.htm"` |
+| `db_find_col_string` | `db_find_one()` 第 4 参数传字符串（应数组） |
+| `install_non_idempotent` | `CREATE TABLE` 缺 `IF NOT EXISTS` |
+| `capabilities_format` | `capabilities` 必须 `lowercase.dots` 数组（如 `["thread.post.create"]`） |
+| `php_superglobal_output` | 直接 `echo`/`print` `$_GET`/`$_POST`（反射型 XSS） |
+| `js_eval_call` | JS `eval()` |
+| `js_dom_xss` | `document.write()`/`innerHTML =`/`outerHTML =`/`insertAdjacentHTML()` |
+| `jquery_html_xss` | jQuery `.html()` |
+
+### Medium（兼容建议）
+
+| 分类 | 拦截内容 |
+|---|---|
+| `bs4_classes` | BS4 旧类：`ml-`→`ms-`、`mr-`→`me-`、`form-group`→`mb-3` 等 |
+| `bs4_data_attrs` | BS4 旧 data：`data-toggle`→`data-bs-toggle` 等 |
+| `bs3_classes` | BS3 旧类：`panel-*`→`card-*`、`well`、`glyphicon`、`pull-left`→`float-start` 等 |
+| `fontello_icons` | Fontello 旧图标：`icon-lock`→`ti-lock` 等 |
+| `icon_libraries` | 非 Tabler Icons：`fa-*`/`bi-*`/`glyphicon glyphicon-*` |
+| `jquery_usage` | `$.ajax()`/`$.each()`/`$.fn.`/`jQuery()`/`$(document).ready` 等 |
+
+### Info（仅提示）
+
+| 分类 | 拦截内容 |
+|---|---|
+| `missing_csrf` | POST 表单缺 `CsrfService::input()` 或 `csrf_token`（不阻止安装） |
+| `direct_db` | 原始 SQL `db_exec()`/`db_sql_find()`（仅 `model/` 检测） |
+
+> **关于 `?force=1`**：可跳过 fatal/error 之外的拦截，但 `getForceCategories()` 中的分类（所有 fatal + `conf_version`）即使带 `?force=1` 也阻止安装。
+
+---
+
+## 八、交付前检查表
+
+### 结构与安全
+
+- [ ] `conf.json` 必填字段完整（`name`/`bbs_version`/`type`/`version`/`brief`），不含 `id`/`installed`/`enable`
+- [ ] `install.php` 建表含 `IF NOT EXISTS`，字段清单是 `upgrade.php` 的超集
+- [ ] `uninstall.php` 删表 + 删 KV/setting
+- [ ] 数据库结构变更走 `upgrade.php` 幂等迁移，递增 `conf.json.version`
+- [ ] 所有 PHP hook 以 `<?php exit;` 开头；hook 文件名（含扩展名）与源标记完全匹配
+- [ ] `model_inc_file.php` 每行以逗号结尾
+- [ ] 所有 `<form method="post">` 含 `CsrfService::input()`，POST 处理以 `CsrfService::check()` 开头
+- [ ] 所有输出用 `esc_html()`/`esc_attr()`/`esc_js()`
+- [ ] `setting.php`/`install.php`/`uninstall.php` 有 `!defined('DEBUG') AND exit('Access Denied');` + 权限检查
+- [ ] `.htm` hook 不含危险函数（编译期 `_include_scan_dangerous_php()` 检测 `eval`/`assert`/`system` 等）
+
+### 前端与命名
+
+- [ ] 无 jQuery（`$()`/`.on()`/`.ajax()`/`$.fn.*`）、无 Alpine.js 属性
+- [ ] 交互用 htmx 4 属性、`XN.*` API 或原生 JS（关键修复页面必须原生 JS）
+- [ ] 图标用 Tabler Icons（`ti ti-xxx`），CSS/JS 用相对路径 `plugin/<dir>/...`
+- [ ] 数据库表/语言键/PHP 全局/JS 全局/setting 键/CSS class 全部带插件前缀
+- [ ] `avatar_component_from_data()` 调用传 `_uid`
+
+### 功能
+
+- [ ] 改 hook 后清 `tmp/` 缓存（含 OPcache）
+- [ ] 帖子删除有级联清理
+- [ ] `message()` 返回正确（0=成功，非 0=错误）
+- [ ] 分页 URL 首个分隔符根据 `url()` 返回值是否含 `?` 动态决定（`&` 或 `?`）
+- [ ] 用户名显示统一取 `display_name`，禁止 `db_find('user', ...)` 后取 `username`

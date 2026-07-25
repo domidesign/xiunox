@@ -163,11 +163,11 @@ if($keyword_safe) {
             $has_fulltext = !$is_ascii_keyword && search_ensure_fulltext('thread', 'subject', 'ft_subject');
 
             if($has_fulltext) {
-                $suggestlist = db_sql_find_prepared("SELECT tid, subject FROM {$db->tablepre}thread WHERE MATCH(subject) AGAINST(? IN BOOLEAN MODE) ORDER BY tid DESC LIMIT 5", array($keyword_boolean));
+                $suggestlist = db_sql_find_prepared("SELECT tid, subject FROM {$db->tablepre}thread WHERE is_deleted=0 AND MATCH(subject) AGAINST(? IN BOOLEAN MODE) ORDER BY tid DESC LIMIT 5", array($keyword_boolean));
             }
             // FULLTEXT 失败或纯 ASCII 时回退到 LIKE
             if(empty($suggestlist)) {
-                $suggestlist = db_find('thread', array('subject' => array('LIKE' => $kw_like)), array('tid' => -1), 1, 5, 'tid', array('tid', 'subject'));
+                $suggestlist = db_find('thread', array('subject' => array('LIKE' => $kw_like), 'is_deleted' => 0), array('tid' => -1), 1, 5, 'tid', array('tid', 'subject'));
             }
             if($suggestlist) {
                 foreach($suggestlist as &$s) {
@@ -190,10 +190,10 @@ if($keyword_safe) {
             $has_fulltext = !$is_ascii_keyword && search_ensure_fulltext('thread', 'subject', 'ft_subject');
             $reflist = array();
             if($has_fulltext) {
-                $reflist = db_sql_find_prepared("SELECT tid, subject FROM {$db->tablepre}thread WHERE MATCH(subject) AGAINST(? IN BOOLEAN MODE) ORDER BY tid DESC LIMIT 10", array($keyword_boolean));
+                $reflist = db_sql_find_prepared("SELECT tid, subject FROM {$db->tablepre}thread WHERE is_deleted=0 AND MATCH(subject) AGAINST(? IN BOOLEAN MODE) ORDER BY tid DESC LIMIT 10", array($keyword_boolean));
             }
             if(empty($reflist)) {
-                $reflist = db_find('thread', array('subject' => array('LIKE' => $kw_like)), array('tid' => -1), 1, 10, 'tid', array('tid', 'subject'));
+                $reflist = db_find('thread', array('subject' => array('LIKE' => $kw_like), 'is_deleted' => 0), array('tid' => -1), 1, 10, 'tid', array('tid', 'subject'));
             }
             $result = array();
             if($reflist) {
@@ -216,6 +216,9 @@ if($keyword_safe) {
         $audit_filter_sql = '';
         $fid_filter_sql_t = '';   // 带 t. 前缀的版本，用于 JOIN 查询
         $audit_filter_sql_t = '';
+        // 始终过滤已删除帖子（含管理员，管理员有后台单独管理入口，前台不应搜到已删除帖子）
+        $is_deleted_filter = ' AND is_deleted = 0';
+        $is_deleted_filter_t = ' AND t.is_deleted = 0';
         if($gid != 1 && $gid != 2) {
             // 非管理员：加入版块权限过滤
             if(!isset($forumlist)) forum_list_cache();
@@ -246,13 +249,13 @@ if($keyword_safe) {
         if($use_fulltext) {
             // FULLTEXT 搜索：BOOLEAN MODE + 双引号实现精确短语匹配
             // 搜索标题（加入权限/审核过滤，LIMIT 限制避免无分页查询返回过多数据）
-            $thread_ids_from_subject = db_sql_find_prepared("SELECT tid, MATCH(subject) AGAINST(? IN BOOLEAN MODE) AS relevance FROM {$db->tablepre}thread WHERE MATCH(subject) AGAINST(? IN BOOLEAN MODE)" . $fid_filter_sql . $audit_filter_sql . " LIMIT 100", array($keyword_boolean, $keyword_boolean));
+            $thread_ids_from_subject = db_sql_find_prepared("SELECT tid, MATCH(subject) AGAINST(? IN BOOLEAN MODE) AS relevance FROM {$db->tablepre}thread WHERE MATCH(subject) AGAINST(? IN BOOLEAN MODE)" . $fid_filter_sql . $audit_filter_sql . $is_deleted_filter . " LIMIT 100", array($keyword_boolean, $keyword_boolean));
 
             // 搜索内容（只搜主帖 isfirst=1，JOIN thread 表过滤权限/审核，字段需加 t. 前缀避免歧义）
             if($fid_filter_sql_t || $audit_filter_sql_t) {
-                $thread_ids_from_content = db_sql_find_prepared("SELECT p.tid, MAX(MATCH(p.message) AGAINST(? IN BOOLEAN MODE)) AS relevance FROM {$db->tablepre}post p JOIN {$db->tablepre}thread t ON p.tid = t.tid WHERE MATCH(p.message) AGAINST(? IN BOOLEAN MODE) AND p.isfirst=1" . $fid_filter_sql_t . $audit_filter_sql_t . " GROUP BY p.tid LIMIT 100", array($keyword_boolean, $keyword_boolean));
+                $thread_ids_from_content = db_sql_find_prepared("SELECT p.tid, MAX(MATCH(p.message) AGAINST(? IN BOOLEAN MODE)) AS relevance FROM {$db->tablepre}post p JOIN {$db->tablepre}thread t ON p.tid = t.tid WHERE MATCH(p.message) AGAINST(? IN BOOLEAN MODE) AND p.isfirst=1" . $fid_filter_sql_t . $audit_filter_sql_t . $is_deleted_filter_t . " GROUP BY p.tid LIMIT 100", array($keyword_boolean, $keyword_boolean));
             } else {
-                $thread_ids_from_content = db_sql_find_prepared("SELECT tid, MAX(MATCH(message) AGAINST(? IN BOOLEAN MODE)) AS relevance FROM {$db->tablepre}post WHERE MATCH(message) AGAINST(? IN BOOLEAN MODE) AND isfirst=1 GROUP BY tid LIMIT 100", array($keyword_boolean, $keyword_boolean));
+                $thread_ids_from_content = db_sql_find_prepared("SELECT tid, MAX(MATCH(message) AGAINST(? IN BOOLEAN MODE)) AS relevance FROM {$db->tablepre}post WHERE MATCH(message) AGAINST(? IN BOOLEAN MODE) AND isfirst=1 AND is_deleted=0 GROUP BY tid LIMIT 100", array($keyword_boolean, $keyword_boolean));
             }
 
             // 合并结果，取最高相关度
@@ -296,12 +299,12 @@ if($keyword_safe) {
                     $fid_in = implode(',', $accessible_fids);
                     if($uid > 0) {
                         // 已登录：已审核帖子（可访问版块）+ 自己的待审帖（可访问版块）
-                        $subject_perm_sql = " AND ((audit_status=1 AND fid IN ({$fid_in})) OR (audit_status=0 AND uid=" . intval($uid) . " AND fid IN ({$fid_in})))";
-                        $post_perm_sql = " AND ((t.audit_status=1 AND t.fid IN ({$fid_in})) OR (t.audit_status=0 AND t.uid=" . intval($uid) . " AND t.fid IN ({$fid_in})))";
+                        $subject_perm_sql = " AND is_deleted=0 AND ((audit_status=1 AND fid IN ({$fid_in})) OR (audit_status=0 AND uid=" . intval($uid) . " AND fid IN ({$fid_in})))";
+                        $post_perm_sql = " AND t.is_deleted=0 AND ((t.audit_status=1 AND t.fid IN ({$fid_in})) OR (t.audit_status=0 AND t.uid=" . intval($uid) . " AND t.fid IN ({$fid_in})))";
                     } else {
                         // 游客：只看已审核帖子（可访问版块）
-                        $subject_perm_sql = " AND audit_status=1 AND fid IN ({$fid_in})";
-                        $post_perm_sql = " AND t.audit_status=1 AND t.fid IN ({$fid_in})";
+                        $subject_perm_sql = " AND is_deleted=0 AND audit_status=1 AND fid IN ({$fid_in})";
+                        $post_perm_sql = " AND t.is_deleted=0 AND t.audit_status=1 AND t.fid IN ({$fid_in})";
                     }
                 } else {
                     // 没有可访问版块：无可见帖子
@@ -309,8 +312,8 @@ if($keyword_safe) {
                     $post_perm_sql = " AND 1=0";
                 }
             } else {
-                // 管理员：post 查询保持原逻辑（audit_status=1），subject 无限制
-                $post_perm_sql = " AND t.audit_status=1";
+                // 管理员：post 查询保持原逻辑（audit_status=1），subject 无限制；但都要过滤已删除帖子
+                $post_perm_sql = " AND t.audit_status=1 AND t.is_deleted=0";
             }
 
             // 合并查询 1：subject LIKE（含自己待审帖子，OR 条件合并）

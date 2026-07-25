@@ -20,7 +20,7 @@ view/htm/thread.htm 里的  <!--{hook thread_subject_after.htm}-->
 tmp/<hash>.php  ←─── 编译缓存，后续请求直接用
 ```
 
-**没有** `add_hook()` / `register_hook()` 这类函数，Hook 注册完全靠**文件放置**：文件在 `plugin/<dir>/hook/<hook名>`，就等于注册了。编译期内联是主机制；此外也提供运行时分发 `plugin_hook($hookname, &$data)`（`plugin.func.php:742`，带 try/catch 错误隔离，单 hook 抛异常不阻断主流程）和向后兼容的 `xn_hook()`（`plugin.func.php:803`），仅支持 `.php` 类型 hook，`.htm` hook 走编译期内联。
+**没有** `add_hook()` / `register_hook()` 这类函数，Hook 注册完全靠**文件放置**：文件在 `plugin/<dir>/hook/<hook名>`，就等于注册了。编译期内联是主机制；此外也提供运行时分发 `plugin_hook($hookname, &$data)`（`plugin.func.php:883`，带 try/catch 错误隔离，单 hook 抛异常不阻断主流程）和向后兼容的 `xn_hook()`（`plugin.func.php:949`），仅支持 `.php` 类型 hook，`.htm` hook 走编译期内联。
 
 ### 标记语法（两种等价写法）
 
@@ -32,7 +32,7 @@ tmp/<hash>.php  ←─── 编译缓存，后续请求直接用
 <!--{hook thread_subject_after.htm}-->
 ```
 
-编译时，`<!--{hook xxx}-->` 会被正则归一化成 `// hook xxx`（`plugin.func.php:427`），再用 `plugin_compile_srcfile_callback()` 把所有匹配的 hook 文件内容按 `hooks_rank` 排序后拼进去。hook 文件若以 `<?php exit;` 开头防直接访问，编译期会剥离首尾 PHP 标签（`plugin.func.php:520-531`），与裸 `<?php` 开头的 hook 文件分别走两个剥离分支，避免末尾换行被吞导致多 hook 拼接时注释相互吞噬。
+编译时，`<!--{hook xxx}-->` 会被正则归一化成 `// hook xxx`（`plugin.func.php:613`），再用 `plugin_compile_srcfile_callback()` 把所有匹配的 hook 文件内容按 `hooks_rank` 排序后拼进去。hook 文件若以 `<?php exit;` 开头防直接访问，编译期会剥离首尾 PHP 标签（`plugin.func.php:651-662`），与裸 `<?php` 开头的 hook 文件分别走两个剥离分支，避免末尾换行被吞导致多 hook 拼接时注释相互吞噬。
 
 ---
 
@@ -45,7 +45,7 @@ tmp/<hash>.php  ←─── 编译缓存，后续请求直接用
 
 **Hook 是默认选择。** Overwrite 会和其它插件冲突，且让后续维护困难（原文件更新你感知不到）。
 
-> ⚠️ **核心路径受 `protected_paths` 白名单保护**（`plugin.func.php:455-471`）：`conf/`、`xiunophp/`、`lib/`、`admin/`、`api/`、`cli/`、`tool/`、`install/`、`log/`、`tmp/`、`upload/`、`index.php`、`model.inc.php`、`index.inc.php` 命中即记日志 `plugin_overwrite_error` 并跳过该覆盖，防止插件劫持核心骨架。
+> ⚠️ **核心路径受 `protected_paths` 白名单保护**（`plugin.func.php:586-602`）：`conf/`、`xiunophp/`、`lib/`、`admin/`、`api/`、`cli/`、`tool/`、`install/`、`log/`、`tmp/`、`upload/`、`index.php`、`model.inc.php`、`index.inc.php` 命中即记日志 `plugin_overwrite_error` 并跳过该覆盖，防止插件劫持核心骨架。
 
 ---
 
@@ -83,7 +83,7 @@ include _include(APP_PATH.'plugin/xnx_tag/setting.php');
 - 文件名：源文件路径扁平化后的 hash
 - 失效时机：
   - `DEBUG > 1`：每次请求都重编译
-  - 手动清 `tmp/`：`plugin_clear_tmp_dir()`（递归删 + 删 `tmp/model.min.php`）
+  - 手动清 `tmp/`：`plugin_clear_tmp_dir()`（递归清空 tmp 目录）
   - 安装/卸载/启用/禁用插件时：自动清
 
 ### 什么时候要手动清缓存
@@ -98,27 +98,24 @@ include _include(APP_PATH.'plugin/xnx_tag/setting.php');
 
 > 工作流硬性约定（见 `AGENTS.md`）：**修改模板 → 清理 `tmp/` 缓存**。
 
-### model.min.php 合并加载机制
+### model 文件加载机制
 
-`model.inc.php:54-96` 对 model 文件有两条加载路径：
+`model.inc.php:54-57` 统一逐文件加载 model：
 
-- **DEBUG > 0 或 `cache_disable=1`**：逐个 `include _include($model_files)`，走标准编译缓存
-- **生产环境（DEBUG=0 且 `cache_disable` 未启用）**：走 `tmp/model.min.php` 合并加载——把所有 model 文件内容拼到一起一次性 include，减少 IO
+```php
+foreach ($include_model_files as $model_files) {
+    include _include($model_files);
+}
+```
 
-合并文件的生成规则（`model.inc.php:60-94`）：
+加载说明：
 
-1. 只在 `tmp/model.min.php` **不存在**时重新生成（`is_file()` 检查，**不比较 mtime**）
-2. 逐个读取 `_include($model_files)` 编译后的内容，剥离首尾 `<?php` / `?>` 标签后拼接
-3. **插件 model 文件做语法预检**（核心 model 信任不检查）：路径含 `/plugin/` 的文件用 `token_get_all($raw, TOKEN_PARSE)` 检查**原始文件**（不是 `_include()` 编译后的 tmp 文件，因为编译后含 hook 注入的数组元素片段，不是完整 PHP 文件会误报）
-4. `ParseError` 时跳过该文件并记日志 `plugin_syntax_error`，防止单个插件 Service 类语法错误导致整个 `model.min.php` 解析失败全站白屏
+- 所有环境（DEBUG / 生产）统一走相同逻辑：按数组顺序逐个 `include _include()`
+- `_include()` 会把编译结果缓存到 `tmp/` 目录，修改源文件后需清对应缓存
+- `plugin_clear_tmp_dir()` 会递归清空 `tmp/` 目录，安装/卸载/启用/禁用插件时自动调用
+- PHP 8 + OPcache 热身后，逐文件 include 的性能与合并加载无感知差异
 
-> ⚠️ **修改 `model/*.func.php` 后必须同步处理 `tmp/model.min.php`**（高频违规，已违反 2 次）：
->
-> - 生产环境走合并加载，`tmp/model.min.php` 已存在就不会重新生成，**改了核心 model 函数也不会生效**
-> - 解决方案二选一：① 直接删除 `tmp/model.min.php` 让核心重编译；② 手动编辑 `tmp/model.min.php` 同步改动
-> - `plugin_clear_tmp_dir()` 会额外 `xn_unlink($conf['tmp_path'].'model.min.php')`（`plugin.func.php:282`），所以安装/卸载/启用/禁用插件时会自动清
-
-> 💡 **与 hook 语法预检的区别**：`model.min.php` 的 `token_get_all` 预检**仍在使用**（检查的是完整 PHP 文件），与 `plugin_compile_srcfile_callback` 中已废弃的 hook 语法预检不同。hook 预检废弃原因详见 [07-runtime-safety.md](07-runtime-safety.md) 第 3.4 节。
+> 💡 **历史沿革**：v1.1.3 及之前版本使用 `tmp/model.min.php` 合并加载机制（把所有 model 文件拼成一个文件以减少 I/O）。v1.1.4 起彻底废弃，原因是 PHP 8 + OPcache 时代合并收益可忽略，但带来了加载顺序不确定、单插件语法错误全站白屏、并发重建文件损坏、缓存陈旧等大量稳定性问题。
 
 ---
 
@@ -144,24 +141,24 @@ include _include(APP_PATH.'plugin/xnx_tag/setting.php');
 2. **并发锁**：`plugin_lock_start()`（基于 `xn_lock_start`，防止同插件并发安装/卸载）
 3. **预扫描拦截**：`PluginScanner::scanBeforeInstall($dir)` 跑兼容性扫描，Fatal 级问题拦截安装（除非 URL 带 `?force=1`），Warning 级仅提示
 4. **依赖检查**：`plugin_check_dependency($dir, 'install')`，缺依赖则拦截
-5. **写状态**：`plugin_install($dir)`（`plugin.func.php:332`）—— 写 `conf.json` 的 `installed=1, enable=1`（`file_replace_var()`），写 `bbs_plugin` 表（`plugin_db_init()` + `plugin_db_set_installed(1)` + `plugin_db_set_enable(1)` + `plugin_db_set_version()` 同步 conf.json.version 到 db.version），最后 `plugin_clear_tmp_dir()` 清缓存
+5. **写状态**：`plugin_install($dir)`（`plugin.func.php:449`）—— 写 `bbs_plugin` 表（`plugin_db_init()` + `plugin_db_set_installed(1)` + `plugin_db_set_enable(1)` + `plugin_db_set_version()` 同步 conf.json.version 到 db.version），最后 `plugin_clear_tmp_dir()` 清缓存。**conf.json 不再被运行时改写**，`installed`/`enable` 唯一权威源为 db `bbs_plugin` 表
 6. **执行 install.php**：若 `plugin/<dir>/install.php` 存在，`require_once lib/xn_safe_io.php` 注入安全 IO 包装并注入 `$plugin_dir` 变量后，`include _include($installfile)`（走编译）—— 这是**插件自己建表/写默认设置**的地方
 7. **释放锁**：`plugin_lock_end()`
-8. **同类互斥清理**：安装完成后，对 `_theme_` 目录名的插件自动卸载其它 `_theme_` 插件；非主题插件按目录名首 `_` 之后的部分作为 suffix，自动卸载同 suffix 的其它插件（`admin/route/plugin.php:203-222`）
+8. **同类插件互斥**：安装完成后，调用 `plugin_find_conflicts($dir)` 查找已安装的同类插件，对其中的启用状态插件调用 `plugin_disable()` 自动禁用（保留配置便于切换）。互斥规则：① 第二段为 `theme` → 主题类，所有主题互相互斥（同一时间只能启用一个主题）；② 非主题插件 → 取第二段及以后所有段拼接为「功能标识」，功能标识相同才互斥（`xnx_checkin` 与 `jack_checkin` 功能标识都是 `checkin` → 互斥；`xnx_ad_selfbuy` 与 `xnx_ad_banner` 功能标识 `ad_selfbuy` ≠ `ad_banner` → 不互斥；`xnx_checkin` 与 `xnx_checkin_pro` 功能标识 `checkin` ≠ `checkin_pro` → 不互斥，基础与扩展可共存）。前端安装前弹窗会预先展示冲突列表（`admin/route/plugin.php:216-229`，详见 `plugin.func.php:plugin_find_conflicts/plugin_mutex_category`）
 
 ### uninstall（卸载）
 
-`plugin_unstall($dir)`（`plugin.func.php:364`，函数名 `unstall` 是历史遗留拼写，仍在 `plugin.func.php` 中未改名）：镜像 install，flags 归零 + 执行卸载脚本。**插件文件名必须用 `uninstall.php`**（标准拼写），核心 `admin/route/plugin.php:251-255` 卸载入口已改为优先找 `uninstall.php`，找不到才回退旧拼写 `unstall.php`（向后兼容旧插件）。**新插件禁止用 `unstall.php`**。同样走 `plugin_lock_start/end` + CSRF + `xn_safe_io.php` 安全包装。
+`plugin_unstall($dir)`（`plugin.func.php:478`，函数名 `unstall` 是历史遗留拼写，仍在 `plugin.func.php` 中未改名）：镜像 install，flags 归零 + 执行卸载脚本。**插件文件名必须用 `uninstall.php`**（标准拼写），核心 `admin/route/plugin.php:251-255` 卸载入口已改为优先找 `uninstall.php`，找不到才回退旧拼写 `unstall.php`（向后兼容旧插件）。**新插件禁止用 `unstall.php`**。同样走 `plugin_lock_start/end` + CSRF + `xn_safe_io.php` 安全包装。
 
 ### enable / disable（启用/禁用）
 
-只切 `enable` flag，不执行 install/uninstall 脚本，但仍走 CSRF + 并发锁 + 依赖检查（禁用时若被别人依赖会拦截）。
+只切 `enable` flag，不执行 install/uninstall 脚本，但仍走 CSRF + 并发锁 + 依赖检查（禁用时若被别人依赖会拦截）。**启用时同样执行同类互斥**：`plugin_find_conflicts($dir)` 找到同类已启用插件后自动 `plugin_disable()`（保留配置，与 install 分支行为一致）。
 
 ### upgrade（升级）
 
 检测机制（`admin/route/plugin.php:44-55`）：列表页对每个已安装插件检测 `has_upgrade_file`（是否存在 `upgrade.php`）和 `need_upgrade`（`conf.json.version` 与 `db.version` 不一致），不一致则显示"需升级"按钮。
 
-执行流程（`admin/route/plugin.php:339-374`）：CSRF → 并发锁 → 依赖检查 → `plugin_install($dir)`（重置 installed/enable 并通过 `plugin_db_set_version()`（`plugin.func.php:672`）同步版本）→ `include _include($upgradefile)` 执行 `upgrade.php`（同样注入 `xn_safe_io.php` 和 `$plugin_dir`）→ 释放锁。
+执行流程（`admin/route/plugin.php:339-374`）：CSRF → 并发锁 → 依赖检查 → `plugin_install($dir)`（重置 installed/enable 并通过 `plugin_db_set_version()`（`plugin.func.php:813`）同步版本）→ `include _include($upgradefile)` 执行 `upgrade.php`（同样注入 `xn_safe_io.php` 和 `$plugin_dir`）→ 释放锁。
 
 > 上传 zip 升级走 `action=upload`（`admin/route/plugin.php:394-671`）：自动判断全新安装还是升级，升级前自动禁用 + 备份旧版本到 `plugin/{dir}.bak/`，执行 `upgrade.php` 失败则回滚备份。
 
@@ -170,7 +167,7 @@ include _include(APP_PATH.'plugin/xnx_tag/setting.php');
 ### 安装前扫描（`PluginScanner`）
 
 `lib/PluginScanner.php` 的 `scanBeforeInstall($dir)` 在安装前跑：
-- 检测 jQuery API、缺失 CSRF、Alpine.js、`bbs_version < 4.5`
+- 检测 jQuery API（已全部移除，新代码禁用）、缺失 CSRF、Alpine.js、`bbs_version < 4.5`
 - **Fatal 级问题会拦截安装**（除非 URL 带 `?force=1`）
 - Warning 级仅提示
 
@@ -202,8 +199,8 @@ include _include(APP_PATH.'plugin/xnx_tag/setting.php');
 }
 ```
 
-- `plugin_dependencies($dir)`：检查依赖是否**存在、启用、版本满足约束**（`plugin.func.php:173`）
-- **版本号会被语义化比较**：`plugin_version_satisfies($dep_version, $constraint)`（`plugin.func.php:204`）支持 npm 风格约束 `>=`、`<=`、`>`、`<`、`=`、`^`（兼容主版本）、`~`（兼容次版本）、`*`（任意）；`"1.0"` 被当作精确版本用 `version_compare()` 比较。无法解析的约束默认通过。
+- `plugin_dependencies($dir)`：检查依赖是否**存在、启用、版本满足约束**（`plugin.func.php:209`）
+- **版本号会被语义化比较**：`plugin_version_satisfies($dep_version, $constraint)`（`plugin.func.php:240`）支持 npm 风格约束 `>=`、`<=`、`>`、`<`、`=`、`^`（兼容主版本）、`~`（兼容次版本）、`*`（任意）；`"1.0"` 被当作精确版本用 `version_compare()` 比较。无法解析的约束默认通过。
 - `plugin_check_dependency()`：安装/启用时缺依赖或版本不满足会拦截；卸载/禁用时若被别人依赖也会拦截。
 
 实践中本仓库内置插件**都没有声明依赖**，机制可用但极少用。
@@ -212,14 +209,25 @@ include _include(APP_PATH.'plugin/xnx_tag/setting.php');
 
 ## 7. 数据库持久化
 
-状态存两处（冗余但一致）：
+**db `bbs_plugin` 表是插件状态（`installed`/`enable`/`version`）的唯一权威源**，`conf.json` 是静态清单文件，不参与运行时状态判断。
 
 | 位置 | 内容 |
 |---|---|
-| `plugin/<dir>/conf.json` | `installed`、`enable`、`version` 字段 |
-| `bbs_plugin` 表 | `dir, name, type, installed, enable, version, install_time, enable_time, ...` |
+| `bbs_plugin` 表 | `dir, name, type, installed, enable, version, install_time, enable_time, ...`（**状态权威源**） |
+| `plugin/<dir>/conf.json` | `name / version / bbs_version / hooks_rank / overwrites_rank / dependencies` 等静态清单字段 |
 
 表结构见 `install/install.sql:469`。`type`：0=plugin，1=theme。`version` 字段记录已安装版本号，用于升级检测（`conf.json.version` 与 `bbs_plugin.version` 不一致即"需升级"）。
+
+> ⚠️ **db 为唯一权威源，conf.json 不再存运行时状态**（2026-07-23 重构，2026-07-24 彻底切断读取链路）：
+> - `plugin_init()` 在 `xn_json_decode(conf.json)` 后立即 `unset` 掉 `enable`/`installed`，从源头丢弃脏数据
+> - `plugin_init()` db 异常时跳过整个 db 覆盖 foreach（避免 `plugin_db_init()` fatal），插件保持默认 `installed=0/enable=0`
+> - `plugin_paths_enabled()` 只读 db（`plugin_db_get_all()`），db 异常/无记录时默认 false，**不回退 conf.json**
+> - `PluginScanner::scanSingleByDir()` 只读 db（`plugin_db_get($dir)`），db 异常/未加载时默认 false，**不回退 conf.json**
+> - `plugin_install/unstall/enable/disable` 全部只写 db，不改 conf.json
+> - `ErrorHandler::autoDisableCrashedPlugin()` 崩溃自愈禁用也只写 db，不再 `file_replace_var` 改 conf.json
+> - 历史 conf.json 中的 `installed`/`enable` 字段代码层彻底不读（`unset` 丢弃 + 不回退兜底）
+>
+> 重构背景：原版存在插件状态双数据源冲突缺陷（conf.json 与 db 互相干扰，引发插件包分发污染、Git 协作状态错乱、db 记录丢失后状态自动回退、状态修改逻辑割裂 4 大类故障），2026-07-23 重构确立 db 为唯一权威源后从根源解决。
 
 > ⚠️ **`plugin_init()` 启动时幂等检测 `bbs_plugin.version` 字段**（`plugin.func.php:129-137`）：用 `cache_get('plugin_version_field_checked')` 缓存 24h，缓存失效时 `SHOW COLUMNS` 检测，缺失则 `ALTER TABLE ADD COLUMN version varchar(32)` 自动补齐，保证存量数据库平滑升级。
 

@@ -22,6 +22,8 @@
 | 后台管理（admin） | [后台管理](#10-后台管理-admin) |
 | 侧边栏/导航 | [侧边栏与导航](#11-侧边栏与导航-sidebar) |
 | 模型/业务层（PHP） | [模型层 PHP](#12-模型层-php-model) |
+| 编辑器工具栏加按钮 | [编辑器工具栏](#125-编辑器工具栏-editor) |
+| 头像组件加角标/头像框 | [头像组件](#13-头像组件-avatar-component) |
 | 搜索/错误/消息/分页/封禁 | [其它页面](#13-其它页面) |
 | 路由分发/入口 | [入口与路由](#14-入口与路由-indexincphp) |
 
@@ -1033,6 +1035,29 @@
 
 ---
 
+## 12.5 编辑器工具栏（Editor）
+
+> `lib/EditorService.php` 的 `renderEditorHtml()` 方法内，用于插件向 AIEditor 工具栏注入自定义按钮。
+> 完整教程见 [11-editor-toolbar-integration.md](11-editor-toolbar-integration.md)。
+
+| Hook | 触发位置 | 典型用途 |
+|---|---|---|
+| `editor_custom_btns_end.php` | AIEditor `toolbarKeys` 配置组装时（`plugin_hook` 第二参数 `$data` 传按钮配置数组引用） | ✅ **常用**：插件向编辑器工具栏注入自定义按钮（如隐藏内容、插入投票等），插件禁用/卸载后按钮自动消失 |
+
+**hook 数据传递：** 核心调用 `plugin_hook('editor_custom_btns_end.php', $customBtns)`，hook 内用 `$data` 变量（`plugin_hook` 第二参数固定变量名）追加按钮配置：
+
+```php
+<?php exit;
+if (!isset($data) || !is_array($data)) $data = array();
+$data[] = array(
+    'btn_var'    => 'myBtn',        // JS 变量名
+    'js_def'     => "var myBtn = { icon: '...', onClick: fn, tip: '...' };",
+    'first_only' => true,           // 可选：仅主帖页显示
+);
+```
+
+---
+
 ## 13. 其它页面
 
 ### 搜索（`view/htm/search.htm`、`route/search.php`）
@@ -1184,7 +1209,7 @@
 | `index_inc_route_before.php` | 路由分发前 | |
 | `index_route_case_start.php` | switch 最前 | 优先路由拦截 |
 | `index_route_case_end.php` | ✅ **固定**：switch 最后 | 注册新路由（`case 'xxx': include ...`） |
-| `index_route_case_default.php` | switch `default:` 分支内、`http_404()` 前（index.inc.php 第 467 行） | 在未匹配任何 case 的路由处理前注入代码，用于自定义未匹配路由的逻辑 |
+| `index_route_case_default.php` | switch `default:` 分支内、`http_404()` 前（index.inc.php:504） | 在未匹配任何 case 的路由处理前注入代码，用于自定义未匹配路由的逻辑 |
 | `index_inc_end.php` | 入口结束 | 全局后处理 |
 
 ---
@@ -1229,6 +1254,8 @@
 │   └─ model_user_format_end.php（用户）
 ├─ 自定义 URL 格式
 │   └─ model_url_start.php / model_url_end.php
+├─ 编辑器工具栏加按钮（隐藏内容/投票/附件等）
+│   └─ editor_custom_btns_end.php（详见 11-editor-toolbar-integration.md）
 └─ 在后台加管理页
     ├─ admin_index_route_case_end.php（注册 admin 路由）
     └─ admin_*_after.htm（各后台页注入）
@@ -1237,3 +1264,19 @@
 ---
 
 > **提示**：本文档基于源码 `// hook` 标记扫描生成。模板中的 `<!--{hook xxx}-->` 会在编译时被 `preg_replace` 归一化为 `// hook xxx`（见 `model/plugin.func.php`）。如需查找特定 hook，可在 `view/htm/`、`route/`、`model/` 目录中搜索 `hook` 关键词。
+
+---
+
+## 13. 头像组件（Avatar Component）
+
+> 来源：`lib/avatar_component.php` 的 `avatar_component_from_data()` 函数内的 `plugin_hook()` 调用。
+> 两个 hook 点都通过 `plugin_hook($name, $data)` 触发，`$data` 为引用传递。
+
+| Hook | 注入位置 | 模式 | 典型用途 |
+|---|---|---|---|
+| `avatar_component_badges.php` | L2 内，`avatar-group-icon` 之后 | 累加（`$data['badges_html'] .=`） | 认证对勾、勋章图标、在线状态 |
+| `avatar_component_frame.php` | L1 内，L2 之后 | 覆盖（`$data['frame_html'] =`） | 装饰性头像框（节日/VIP） |
+
+**`$data` 字段**：`uid` / `gid` / `size` / `avatar_url` / `badge_position`（仅 badges）/ `badges_html`（仅 badges）/ `frame_html`（仅 frame）
+
+详见 [12-avatar-component.md](12-avatar-component.md)。

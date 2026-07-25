@@ -311,25 +311,57 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-var jform = $('#protection-form');
-var jsubmit = jform.find('button[type="submit"]');
-jform.on('submit', function() {
-	setBtnLoading(jsubmit, true);
-	var postdata = jform.serialize();
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
+var form = document.querySelector('#protection-form');
+var submitBtn = form.querySelector('button[type="submit"]');
+form.addEventListener('submit', function(e) {
+	e.preventDefault();
+	setBtnLoading(submitBtn, true);
+	var formData = new FormData(form);
+	fetch(form.getAttribute('action'), {
+		method: 'POST',
+		body: formData,
+		credentials: 'same-origin',
+		headers: {'X-Requested-With': 'XMLHttpRequest'}
+	}).then(function(res) { return res.text(); }).then(function(text) {
+		var s = null;
+		try { s = text ? JSON.parse(text) : null; } catch(e) {}
+		var code = s && s.code !== undefined ? s.code : -1;
+		var message = s && s.message !== undefined ? s.message : (text || '');
 		if(code == 0) {
 			showToast(message, 'success');
 			setTimeout(function(){ window.location.reload(); }, 1000);
 		} else if(xn.is_number(code)) {
 			showToast(message, 'error');
-			setBtnLoading(jsubmit, false);
+			setBtnLoading(submitBtn, false);
 		} else {
-			jform.find('[name="'+code+'"]').fieldError(message).focus();
-			setBtnLoading(jsubmit, false);
+			fieldError(form.querySelector('[name="'+code+'"]'), message);
+			setBtnLoading(submitBtn, false);
 		}
+	}).catch(function() {
+		showToast('<?php echo lang('admin_request_failed');?>', 'error');
+		setBtnLoading(submitBtn, false);
 	});
-	return false;
 });
+
+// ponytail: 替代 $.fn.fieldError（原生实现，保持与 jQuery 版本一致的行为）
+function fieldError(el, message) {
+	if(!el) return;
+	var parent = el.closest('.form-group');
+	if(parent) parent.classList.add('has-danger');
+	el.classList.add('form-control-danger');
+	el.setAttribute('title', message);
+	var tip = el.nextElementSibling;
+	if(tip && tip.classList.contains('xn-field-tip')) {
+		tip.textContent = message;
+		tip.style.display = '';
+	} else {
+		tip = document.createElement('span');
+		tip.className = 'xn-field-tip text-danger small';
+		tip.textContent = message;
+		el.after(tip);
+	}
+	el.focus();
+}
 
 // 预设域名按钮交互
 document.querySelectorAll('.domain-preset-btn').forEach(function(btn) {

@@ -103,7 +103,13 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 
 <!--{hook post_start.htm}-->
 
-<form hx-post="<?php echo $form_action;?>" hx-target="#post-msg" hx-swap="innerHTML" hx-encoding="multipart/form-data" hx-confirm=" " id="form">
+<?php
+// ponytail: 自动保存草稿的表单类型和上下文标识
+// thread_create → context=fid | post_create → context=tid | post_update → context=pid
+$_autosave_type = ($route == 'thread' && $action == 'create') ? 'thread_create' : (($route == 'post' && $action == 'update') ? 'post_update' : 'post_create');
+$_autosave_ctx = ($route == 'thread' && $action == 'create') ? intval($fid) : (($route == 'post' && $action == 'update') ? intval($pid) : intval($tid));
+?>
+<form hx-post="<?php echo $form_action;?>" hx-target="#post-msg" hx-swap="innerHTML" hx-encoding="multipart/form-data" hx-confirm=" " id="form" data-autosave="<?php echo $_autosave_type; ?>" data-autosave-context="<?php echo $_autosave_ctx; ?>">
 <div class="row g-3 g-lg-4">
 	<div class="col-12 col-lg post-form-wrap">
 		<div class="x-card card">
@@ -348,12 +354,33 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 
 
 <script>
-var jform = $('#form');
+var jform = document.getElementById('form');
 
 // 防抖：submit 事件触发瞬间立即禁用按钮，防止快速连点重复提交
 var postSubmitting = false;
 var postSubmitBtn = document.getElementById('submit');
+// ponytail: 超时定时器句柄，30s 网络无响应时中止请求并恢复按钮
+var postTimeoutTimer = null;
+var POST_TIMEOUT_MS = 30000;
+
+// 统一错误提示（toast 优先，不可用时 alert 兜底，确保 xiuno-modern.js 加载失败仍可反馈）
+function postShowError(msg) {
+	if (typeof XN !== 'undefined' && typeof XN.toast === 'function') {
+		XN.toast(msg, 'danger');
+	} else {
+		alert(msg);
+	}
+}
+
 document.getElementById('form').addEventListener('submit', function(e) {
+	// ponytail: htmx 未加载时阻止普通提交，避免浏览器跳转到 thread-create.htm
+	// 退化成展示 message.htm 错误页（用户反馈"跳转到错误提示页面"的根因）
+	if (typeof htmx === 'undefined') {
+		e.preventDefault();
+		e.stopImmediatePropagation();
+		postShowError('<?php echo lang('server_response_error');?>');
+		return false;
+	}
 	if (postSubmitting) {
 		e.preventDefault();
 		e.stopImmediatePropagation();
@@ -366,9 +393,13 @@ document.getElementById('form').addEventListener('submit', function(e) {
 		postSubmitBtn.textContent = postSubmitBtn.getAttribute('data-loading-text') || postSubmitBtn.textContent;
 	}
 }, true);
-// 恢复防抖状态（供 htmx:after:request 和积分确认取消时调用）
+// 恢复防抖状态（供 htmx:after:request / responseError / 超时 / 积分确认取消时调用）
 window.resetPostSubmit = function() {
 	postSubmitting = false;
+	if (postTimeoutTimer) {
+		clearTimeout(postTimeoutTimer);
+		postTimeoutTimer = null;
+	}
 	if (postSubmitBtn) {
 		postSubmitBtn.disabled = false;
 		var orig = postSubmitBtn.getAttribute('data-original-text');
@@ -390,53 +421,162 @@ document.getElementById('form').addEventListener('htmx:confirm', function(evt) {
 	}, 0);
 });
 
-// htmx 请求前：设置按钮为 loading 状态
+// htmx 请求前：仅启动 30s 超时定时器（按钮 loading 状态已在 submit 捕获阶段设置）
+// ponytail: 禁止在此处重复 setAttribute('data-original-text', btn.textContent.trim())，
+// 因为 submit 阶段已把 textContent 改成 "正在提交..."，此处 trim() 会把 original-text
+// 覆盖成 "正在提交..."，后续 resetPostSubmit 恢复按钮时显示错误文本，频率限制倒计时
+// 也因 originalText 错误而显示 "正在提交... (43s)" 而非 "发布 (43s)"
 document.getElementById('form').addEventListener('htmx:before:request', function(event) {
-	$('#submit').button('loading');
+	var btn = document.getElementById('submit');
+	if (btn) btn.disabled = true;
+	// ponytail: 30s 超时兜底——服务器卡死/网络无响应时按钮不会永久卡在 loading
+	if (postTimeoutTimer) clearTimeout(postTimeoutTimer);
+	postTimeoutTimer = setTimeout(function() {
+		// 中止 htmx 当前请求（会触发 htmx:after:request，但保险起见同步恢复按钮）
+		try { htmx.trigger(document.getElementById('form'), 'htmx:abort'); } catch(e) {}
+		window.resetPostSubmit();
+		postShowError('<?php echo lang('request_timeout');?>');
+	}, POST_TIMEOUT_MS);
 });
 
-// htmx 请求后：恢复按钮 + 刷新验证码 + 处理特殊错误
+// ponytail: 网络层错误（DNS 解析失败/连接超时/服务器无响应）专用监听
+// htmx 4 中事件名为冒号分隔格式（htmx:response:error），旧 2.x 的 htmx:responseError 已废弃
+// 此事件在 fetch reject 时触发，早于 htmx:after:request，立即恢复按钮 + 提示
+document.getElementById('form').addEventListener('htmx:response:error', function(event) {
+	window.resetPostSubmit();
+	postShowError('<?php echo lang('network_request_failed');?>');
+});
+
+// ponytail: 频率限制倒计时句柄（跨事件共享，避免重复启动）
+var postRateLimitTimer = null;
+// ponytail: 标志位——本次响应为频率限制（-1002），用于 htmx:before:swap 阻止 alert 框 swap
+var postRateLimited = false;
+
+// htmx 请求后：恢复按钮 + 清除超时定时器 + 刷新验证码 + 处理 HTTP 错误 + 频率限制倒计时
+// ponytail: htmx 4 中 event.detail.ctx.text 是响应文本（after:request 时已设置），
+// event.detail.ctx.response 是 {raw: Response, status: number} 包装对象（无 .ok 属性）
+// 频率限制（-1002）检测从 htmx:after:swap 移到此处：
+//   1. htmx:after:request 一定会触发（即使 swap 失败），更可靠
+//   2. 可在 swap 前通过 htmx:before:swap 阻止 alert 框渲染
+//   3. 避免与 htmx:after:swap 中的 target.innerHTML='' 清空逻辑产生时序问题
 document.getElementById('form').addEventListener('htmx:after:request', function(event) {
-	$('#submit').button('reset');
+	// ponytail: 读取响应文本（htmx 4 存在 event.detail.ctx.text）
+	var ctxText = '';
+	var ctxStatus = 0;
+	try {
+		ctxText = (event.detail && event.detail.ctx && event.detail.ctx.text) || '';
+		ctxStatus = (event.detail && event.detail.ctx && event.detail.ctx.response && event.detail.ctx.response.status) || 0;
+	} catch(e) {}
+
+	// ponytail: 频率限制（-1002）优先处理——不调用 resetPostSubmit（按钮保持禁用 + 倒计时）
+	// 后端返回 HTTP 200 + alert-danger HTML + data-code="-1002" + data-wait="秒数"
+	postRateLimited = false;
+	if (ctxText.indexOf('data-code="-1002"') !== -1) {
+		postRateLimited = true;
+		// 清除超时定时器（请求已完成，不需要超时兜底）
+		if (postTimeoutTimer) { clearTimeout(postTimeoutTimer); postTimeoutTimer = null; }
+		postSubmitting = false;
+		// 提取倒计时秒数（data-wait="44"）
+		var waitMatch = ctxText.match(/data-wait="(\d+)"/);
+		var waitSeconds = waitMatch ? parseInt(waitMatch[1], 10) : 30;
+		// 提取错误消息文本（用于 toast）
+		var msgMatch = ctxText.match(/data-code="-1002"[^>]*>([^<]+)</);
+		var waitMsg = msgMatch ? msgMatch[1].trim() : '';
+		if (waitMsg) postShowError(waitMsg);
+		// 启动按钮倒计时
+		var submitBtn = document.getElementById('submit');
+		if (submitBtn) {
+			submitBtn.disabled = true;
+			var origText = submitBtn.getAttribute('data-original-text') || submitBtn.textContent.trim() || '<?php echo $form_submit_txt;?>';
+			// 清理旧倒计时（避免多个 setInterval 叠加）
+			if (postRateLimitTimer) clearInterval(postRateLimitTimer);
+			postRateLimitTimer = setInterval(function() {
+				waitSeconds--;
+				if (waitSeconds <= 0) {
+					clearInterval(postRateLimitTimer);
+					postRateLimitTimer = null;
+					submitBtn.disabled = false;
+					submitBtn.textContent = origText;
+				} else {
+					submitBtn.textContent = origText + ' (' + waitSeconds + 's)';
+				}
+			}, 1000);
+		}
+		// 刷新验证码
+		if(typeof captchaRefresh === 'function') captchaRefresh('<?php echo $captcha_scene;?>');
+		return;  // 频率限制处理完毕，不执行后续 resetPostSubmit
+	}
+
+	// 非频率限制：恢复正常流程
 	window.resetPostSubmit();
 
 	// 每次提交后刷新验证码
 	if(typeof captchaRefresh === 'function') captchaRefresh('<?php echo $captcha_scene;?>');
 
-	var response = event.detail && event.detail.ctx && event.detail.ctx.response;
-	if(!response || !response.ok) return;
+	// ponytail: 仅处理真正的 HTTP 4xx/5xx 错误（服务器返回非 200 状态码）
+	if (ctxStatus >= 400) {
+		var errMsg = '<?php echo lang('server_response_error');?>';
+		errMsg += ' (' + ctxStatus + ')';
+		postShowError(errMsg);
+	}
+});
 
-	// 检查 target 中是否有错误消息（htmx 已 swap 进去）
-	setTimeout(function() {
-		var msgEl = document.getElementById('post-msg');
-		if(!msgEl) return;
-		var errDiv = msgEl.querySelector('[data-code]') || msgEl;
-		var errCode = parseInt(errDiv.getAttribute('data-code')) || 0;
-		// 验证码错误 (code -1001)
-		if(errCode === -1001) {
-			var captchaErr = document.getElementById('captcha-error-<?php echo $captcha_scene;?>');
-			if(captchaErr) captchaErr.textContent = msgEl.textContent || '';
-		}
-		// 频率限制 (code -1002)：禁用提交按钮并倒计时
-		if(errCode === -1002) {
-			var submitBtn = document.getElementById('submit');
-			if(submitBtn) {
-				submitBtn.disabled = true;
-				var seconds = parseInt(errDiv.getAttribute('data-wait')) || 30;
-				var originalText = submitBtn.textContent.trim();
-				var timer = setInterval(function() {
-					seconds--;
-					if(seconds <= 0) {
-						clearInterval(timer);
-						submitBtn.disabled = false;
-						submitBtn.textContent = originalText;
-					} else {
-						submitBtn.textContent = originalText + ' (' + seconds + 's)';
-					}
-				}, 1000);
-			}
-		}
-	}, 50);
+// ponytail: 频率限制时阻止 alert 框 swap（避免 #post-msg 区域显示红色 alert）
+// htmx 4 中 htmx:before:swap 的 event.detail = {ctx, tasks}，无 serverResponse 字段
+// 通过 postRateLimited 标志位判断（由 htmx:after:request 设置）
+document.getElementById('form').addEventListener('htmx:before:swap', function(event) {
+	if (postRateLimited) {
+		event.preventDefault();
+	}
+});
+
+// ponytail: swap 后统一处理业务错误（后端 message() 返回 HTTP 200 + alert-danger HTML + data-code）
+// 后端响应类型：
+//   - 成功（code=0）→ HX-Trigger 跳转头 + 空 span（无 data-code，走默认流程不处理）
+//   - 业务错误（code=-1）→ alert-danger + data-code="-1"（如"内容太短"/"权限不足"）
+//   - 验证码错误（code=-1001）→ alert-danger + data-code="-1001"
+//   - 频率限制（code=-1002）→ 已在 htmx:after:request 处理 + htmx:before:swap 阻止 swap，此处不会收到
+//   - 待审（code=0 + alert-warning）→ 由原有跳转逻辑处理
+//   - PHP fatal → 整页 <html>（检测后替换为友好提示）
+document.getElementById('form').addEventListener('htmx:after:swap', function(event) {
+	// ponytail: htmx 4 中 htmx:after:swap 的 event.detail 只有 {ctx}，没有 target 属性
+	// 直接用 getElementById 获取目标元素（swap 已完成，DOM 已更新）
+	var target = document.getElementById('post-msg');
+	if (!target) return;
+
+	var html = target.innerHTML || '';
+
+	// 1. PHP fatal / 服务器返回整页 HTML 错误页
+	if (/<html[\s>]|<head[\s>]|<!doctype/i.test(html)) {
+		target.innerHTML = '<div class="alert alert-danger py-2 small mb-2" data-code="-1"><?php echo htmlspecialchars(lang('server_response_error'), ENT_QUOTES, 'UTF-8');?></div>';
+		postShowError('<?php echo lang('server_response_error');?>');
+		return;
+	}
+
+	// 2. 检查业务错误码（data-code 属性）
+	var errDiv = target.querySelector('[data-code]');
+	if (!errDiv) return;  // 无 data-code = 成功或待审，不处理
+
+	var errCode = parseInt(errDiv.getAttribute('data-code')) || 0;
+	// 成功（code=0）不处理
+	if (errCode === 0) return;
+
+	// ponytail: 频率限制（-1002）兜底——正常情况下 htmx:before:swap 已 preventDefault，
+	// 不会进入此分支。但若 before:swap 监听器异常未执行，此处兜底清空 alert 框避免重复 toast
+	if (errCode === -1002) {
+		target.innerHTML = '';
+		return;
+	}
+
+	// 业务错误（code=-1 或其他负数）：toast 显示具体错误信息
+	var errMsg = (errDiv.textContent || '').trim();
+	if (errMsg) postShowError(errMsg);
+
+	// 验证码错误 (code=-1001)：同步显示到验证码错误位置
+	if (errCode === -1001) {
+		var captchaErr = document.getElementById('captcha-error-<?php echo $captcha_scene;?>');
+		if (captchaErr) captchaErr.textContent = errMsg;
+	}
 });
 
 // 初始化 UploadService
@@ -445,15 +585,22 @@ var uploadService = new UploadService({
     csrfToken: '<?php echo CsrfService::getToken(); ?>',
     onProgress: function(file, percent) {
         var fileId = 'progress-' + file.name.replace(/[^a-zA-Z0-9]/g, '_') + '-' + file.size;
-        var progressBar = $('#' + fileId);
-        if (progressBar.length) {
-            progressBar.css('width', percent + '%').text(percent + '%');
+        var progressBar = document.getElementById(fileId);
+        if (progressBar) {
+            progressBar.style.width = percent + '%';
+            progressBar.textContent = percent + '%';
         }
     },
     onComplete: function(file, response) {
         var msg = response.message;
         var fileId = 'progress-' + file.name.replace(/[^a-zA-Z0-9]/g, '_') + '-' + file.size;
-        $('#' + fileId).closest('.progress').fadeOut(300, function() { $(this).remove(); });
+        var progressBar = document.getElementById(fileId);
+        var progressContainer = progressBar ? progressBar.closest('.progress') : null;
+        if (progressContainer) {
+            progressContainer.style.transition = 'opacity 0.3s';
+            progressContainer.style.opacity = '0';
+            setTimeout(function() { progressContainer.remove(); }, 300);
+        }
         refreshProgressArea();
 
         if (msg.isimage || UploadService.isImageFile(file)) {
@@ -464,22 +611,25 @@ var uploadService = new UploadService({
     },
     onError: function(file, error) {
         var fileId = 'progress-' + file.name.replace(/[^a-zA-Z0-9]/g, '_') + '-' + file.size;
-        var progressBar = $('#' + fileId);
-        if (progressBar.length) {
-            progressBar.closest('.progress').find('.progress-bar')
-                .removeClass('bg-primary').addClass('bg-danger')
-                .text('<?php echo lang('failed_label');?>');
+        var progressBar = document.getElementById(fileId);
+        if (progressBar) {
+            var bar = progressBar.closest('.progress').querySelector('.progress-bar');
+            if (bar) {
+                bar.classList.remove('bg-primary');
+                bar.classList.add('bg-danger');
+                bar.textContent = '<?php echo lang('failed_label');?>';
+            }
         }
-        $.alert(error || '<?php echo lang('upload_failed');?>');
+        alert(error || '<?php echo lang('upload_failed');?>');
     },
     onPreview: function(file, dataUrl) {
         addLocalPreview(dataUrl, file);
     },
     onDragOver: function() {
-        $('#upload-drop-zone').show();
+        document.getElementById('upload-drop-zone').style.display = '';
     },
     onDragLeave: function() {
-        $('#upload-drop-zone').hide();
+        document.getElementById('upload-drop-zone').style.display = 'none';
     }
 });
 
@@ -502,28 +652,32 @@ function addProgressBar(file) {
             '<div class="progress-bar bg-primary upload-progress-bar" id="' + fileId + '" style="width:0%;"></div>' +
         '</div>' +
     '</div>';
-    $('#upload-progress-area').append(html).show();
+    var progressArea = document.getElementById('upload-progress-area');
+    progressArea.insertAdjacentHTML('beforeend', html);
+    progressArea.style.display = '';
 }
 
 // 刷新进度区域显示状态
 function refreshProgressArea() {
-    var remaining = $('#upload-progress-area').find('.progress').length;
+    var progressArea = document.getElementById('upload-progress-area');
+    var remaining = progressArea.querySelectorAll('.progress').length;
     if (remaining === 0) {
-        $('#upload-progress-area').hide().empty();
+        progressArea.style.display = 'none';
+        progressArea.innerHTML = '';
     }
 }
 
 // 添加本地图片预览（上传中）
 function addLocalPreview(dataUrl, file) {
     var previewId = 'local-preview-' + file.name.replace(/[^a-zA-Z0-9]/g, '_') + '-' + file.size;
-    if ($('#' + previewId).length) return;
+    if (document.getElementById(previewId)) return;
     var html = '<div class="col-4 col-sm-3 col-md-2" id="' + previewId + '">' +
         '<div class="x-card card upload-preview-card">' +
             '<img src="' + dataUrl + '" class="card-img-top" style="height:80px;object-fit:cover;" alt="<?php echo lang('preview');?>">' +
             '<div class="card-body p-1 text-center"><small class="text-muted text-truncate d-block"><?php echo lang('uploading');?></small></div>' +
         '</div>' +
     '</div>';
-    $('#upload-preview-grid').append(html);
+    document.getElementById('upload-preview-grid').insertAdjacentHTML('beforeend', html);
 }
 
 // 添加上传完成的图片预览
@@ -535,8 +689,7 @@ function addImagePreview(msg) {
             '<div class="card-body p-1 text-center"><small class="text-muted text-truncate d-block">' + msg.orgfilename + '</small></div>' +
         '</div>' +
     '</div>';
-    var el = $(html);
-    $('#upload-preview-grid').append(el);
+    document.getElementById('upload-preview-grid').insertAdjacentHTML('beforeend', html);
 }
 
 // 添加附件卡片
@@ -558,15 +711,15 @@ function addAttachmentCard(msg) {
             '<button type="button" class="btn btn-sm btn-outline-danger rounded-pill btn-delete-attach attach-delete-btn" title="<?php echo lang('delete');?>" onclick="deleteAttach(this, \''+msg.aid+'\')"><i class="ti ti-trash"></i></button>' +
         '</div>' +
     '</div>';
-    var el = $(html);
-    $('#upload-attachment-list').append(el);
+    document.getElementById('upload-attachment-list').insertAdjacentHTML('beforeend', html);
 }
 
 <?php if (isset($fid) && $fid): ?>
 <?php if(empty($show_two_level)): ?>
-jform.find('[name="fid"]').val(<?php echo $fid;?>);
+var _fidSelect = jform.querySelector('[name="fid"]');
+if (_fidSelect) _fidSelect.value = <?php echo $fid;?>;
 <?php endif; ?>
-$('li[data-active="fid-<?php echo $fid;?>"]').addClass('active');
+document.querySelectorAll('li[data-active="fid-<?php echo $fid;?>"]').forEach(function(li) { li.classList.add('active'); });
 <?php endif; ?>
 
 <?php if(!empty($show_two_level)): ?>
@@ -804,12 +957,33 @@ function openExtRefModal() {
 	}
 
 	// 发帖/回复表单积分确认（通过 htmx:confirm 事件拦截）
+	// ponytail: XN.confirmCreditsDeduct 内部是异步（fetch + Bootstrap Modal），
+	// 必须设置 window._htmxConfirmAsync=true 阻止 htmx:confirm 的 setTimeout(0) 提前恢复按钮
 	form.addEventListener('htmx:confirm', function(e) {
 		e.preventDefault();
 		var fid = fidSelect ? fidSelect.value : defaultFid;
-		XN.confirmCreditsDeduct(creditsEvent, fid, function() {
+		// ponytail: 兜底保护——若 XN 或 confirmCreditsDeduct 不可用（xiuno-modern.js 加载失败等），
+		// 直接放行请求，避免 _htmxConfirmAsync 卡在 true 导致按钮永久禁用
+		if (typeof XN === 'undefined' || typeof XN.confirmCreditsDeduct !== 'function') {
 			e.detail.issueRequest();
-		}, { onCancel: function() { e.detail.dropRequest(); if (window.resetPostSubmit) window.resetPostSubmit(); } });
+			return;
+		}
+		window._htmxConfirmAsync = true;
+		try {
+			XN.confirmCreditsDeduct(creditsEvent, fid, function() {
+				window._htmxConfirmAsync = false;
+				e.detail.issueRequest();
+			}, { onCancel: function() {
+				window._htmxConfirmAsync = false;
+				e.detail.dropRequest();
+				if (window.resetPostSubmit) window.resetPostSubmit();
+			} });
+		} catch(err) {
+			// ponytail: confirmCreditsDeduct 抛异常时必须重置标志并恢复按钮，否则卡死
+			window._htmxConfirmAsync = false;
+			if (window.resetPostSubmit) window.resetPostSubmit();
+			if (typeof console !== 'undefined' && console.error) console.error('confirmCreditsDeduct failed:', err);
+		}
 	});
 })();
 <?php endif; ?>

@@ -61,7 +61,9 @@
 		operation_failed: <?php echo json_encode(lang('operation_failed'));?>,
 		network_request_failed: <?php echo json_encode(lang('network_request_failed'));?>,
 		all_marked_as_read: <?php echo json_encode(lang('all_marked_as_read'));?>,
-		no_notify: <?php echo json_encode(lang('no_notify'));?>
+		no_notify: <?php echo json_encode(lang('no_notify'));?>,
+		draft_restored: <?php echo json_encode(lang('draft_restored'));?>,
+		discard_draft: <?php echo json_encode(lang('discard_draft'));?>
 	};
 	// 通知相关 URL
 	var bbs_notify_urls = {
@@ -80,6 +82,9 @@
 	</script>
 	<script src="<?php echo $conf['view_url'];?>js/bbs.js<?php echo $static_version;?>"></script>
 	<!--{hook footer_js_after.htm}-->
+	<!-- 表单自动保存（草稿箱）：原生 JS，在 xiuno-modern.js + bbs.js 之后加载，复用已暴露的 var uid -->
+	<script src="<?php echo $conf['view_url'];?>js/auto-save.js<?php echo $static_version;?>"></script>
+	<script>if (typeof AutoSave !== 'undefined') AutoSave.init();</script>
 
 	<!-- 全局图片放大 lightbox(Bootstrap 5 Modal + 原生 JS,零依赖) -->
 	<div class="modal fade" id="xnLightbox" tabindex="-1" aria-hidden="true" data-bs-backdrop="true">

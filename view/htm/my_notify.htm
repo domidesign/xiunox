@@ -73,7 +73,7 @@ function _notice_action_text($type, $notify) {
 				<?php } elseif($_from_uid == 0) { ?>
 				<span class="avatar avatar-md rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"><i class="ti ti-bell text-primary"></i></span>
 				<?php } else { ?>
-				<?php echo avatar_component_from_data($_notice['from_user_avatar_url'], 'md', '', '', $_from_gid);?>
+				<?php echo avatar_component_from_data($_notice['from_user_avatar_url'], 'md', '', '', $_from_gid, array('_uid' => isset($_notice['from_uid']) ? intval($_notice['from_uid']) : 0));?>
 				<?php } ?>
 				</div>
 				<!-- 右侧内容区 -->

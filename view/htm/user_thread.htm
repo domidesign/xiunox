@@ -20,5 +20,6 @@
 </template>
 
 <script>
-$('a[data-active="user-thread"]').addClass('active');
+var el = document.querySelector('a[data-active="user-thread"]');
+if (el) el.classList.add('active');
 </script>

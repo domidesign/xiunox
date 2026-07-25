@@ -389,7 +389,11 @@ function message($code, $message, $extra = array()) {
 	}
 
 	// API 请求检测：Accept: application/json 或 X-API-Request 或 X-Requested-With header
-	$is_api = (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+	// ponytail: /api/v1/ 路由通过 API_MODE 常量标识，API 客户端（curl/Postman/自定义 SDK）
+	// 可能不设传统 AJAX header，若不在此检测会让 message() 渲染 HTML 错误页，
+	// 客户端 JSON 解析失败后可能从 HTML 中误提取字符串当 token，导致后续请求 401
+	$is_api = defined('API_MODE') && API_MODE
+		|| (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
 		|| !empty($_SERVER['HTTP_X_API_REQUEST'])
 		|| (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower(trim($_SERVER['HTTP_X_REQUESTED_WITH'])) == 'xmlhttprequest');
 	if($is_api) {

@@ -144,7 +144,8 @@ class AILogService {
             $start = strtotime(date('Y-m-d 00:00:00', $time));
         }
         // 联表查询，db_find 不支持 GROUP BY，保留 db_sql_find
-        $tablepre = $GLOBALS['conf']['db']['tablepre'] ?? 'bbs_';
+        global $db;
+        $tablepre = $db->tablepre;
         $sql = "SELECT source,
                     COUNT(*) as cnt,
                     SUM(CASE WHEN status=1 THEN 1 ELSE 0 END) as success,

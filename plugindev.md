@@ -20,11 +20,13 @@ XIUNOX（Xiuno BBS X 重构版）插件开发文档入口。XIUNOX 在 Xiuno BBS
 - Tabler Icons（图标库）
   - 替代 FontAwesome，统一图标风格
 - htmx 4.x（前端交互框架，事件名必须用冒号格式）
-  - 替代 jQuery AJAX，事件名规范见速查表第 1 条与 [05-frontend-security.md](docs/plugindev/05-frontend-security.md)
+  - 前端交互首选，事件名规范见速查表第 1 条与 [05-frontend-security.md](docs/plugindev/05-frontend-security.md)
 - xiuno-modern.js（XN 命名空间 API，原生 JS 兼容层）
-  - 提供 `XN.url` / `XN.param` 等工具函数
-- jQuery 3.7.1 仍存在但新代码禁用
-  - 仅用于兼容旧插件，新代码用原生 JS 或 htmx
+  - 提供 `XN.toast` / `XN.ajax` / `XN.confirm` / `XN.alert` 等高层 API（前后台 footer 已全局加载）
+- 原生 JS（fetch / querySelectorAll / addEventListener）
+  - **jQuery 已于 2026-07-24 系统性移除**，所有页面禁止使用 `$`/`jQuery`/`$.fn.*`
+  - 关键修复页面（在线升级/数据库升级/后台登录）零外部依赖，必须用原生 fetch + confirm
+  - 迁移指南见 [10-jquery-removal-guide.md](docs/plugindev/10-jquery-removal-guide.md)
 
 ## 核心硬规则速查表（高频违规项）
 
@@ -58,3 +60,4 @@ XIUNOX（Xiuno BBS X 重构版）插件开发文档入口。XIUNOX 在 Xiuno BBS
 | [06-ai-collaboration.md](docs/plugindev/06-ai-collaboration.md) | AI 协作规范（硬规则、扫描器、检查表） |
 | [07-runtime-safety.md](docs/plugindev/07-runtime-safety.md) | 运行时安全（ErrorHandler、崩溃自动禁用、`plugin_hook`） |
 | [08-login-security.md](docs/plugindev/08-login-security.md) | 登录安全（运维指南、`LoginSecurityService` API） |
+| [10-jquery-removal-guide.md](docs/plugindev/10-jquery-removal-guide.md) | jQuery 移除与原生 JS 迁移指南（关键修复页面规范、API 对照表） |

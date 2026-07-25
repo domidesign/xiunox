@@ -908,87 +908,154 @@ function updateSignatureDisplay(form) {
 
 // ========== 原有 bbs.js 功能 ==========
 
+// 辅助函数：获取 CSRF token（替代 $('input[name="csrf_token"]').val() 等链式调用）
+function getCsrfToken() {
+	if (typeof XN !== 'undefined' && XN.csrfToken) return XN.csrfToken;
+	var input = document.querySelector('input[name="csrf_token"]');
+	if (input && input.value) return input.value;
+	var meta = document.querySelector('meta[name="csrf-token"]');
+	if (meta) return meta.getAttribute('content') || '';
+	return '';
+}
+
+// 辅助函数：原生 fetch 实现的 POST 请求（替代 $.xpost）
+// callback 签名：callback(code, message)，code=0 表示成功
+function xpost(url, data, callback) {
+	if (typeof data === 'function') {
+		callback = data;
+		data = null;
+	}
+	var csrfToken = getCsrfToken();
+	var body = '';
+	if (data) {
+		var params = new URLSearchParams();
+		Object.keys(data).forEach(function(k) {
+			params.append(k, data[k]);
+		});
+		if (!data.csrf_token) {
+			params.append('csrf_token', csrfToken);
+		}
+		body = params.toString();
+	}
+	fetch(url, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+			'X-Requested-With': 'XMLHttpRequest',
+			'X-CSRF-Token': csrfToken
+		},
+		body: body,
+		credentials: 'same-origin'
+	}).then(function(r) {
+		return r.json();
+	}).then(function(res) {
+		if (callback) callback(res.code || 0, res.message);
+	}).catch(function(err) {
+		if (callback) callback(-1, err.message || 'Network error');
+	});
+}
+
 // 表单快捷键提交 CTRL+ENTER   / form quick submit
 // 兼容 htmx：如果表单有 hx-post，使用 htmx 触发提交
-$('form').keyup(function(e) {
-	var jthis = $(this);
-	if((e.ctrlKey && (e.which == 13 || e.which == 10)) || (e.altKey && e.which == 83)) {
-		var formEl = jthis[0];
-		if(formEl && formEl.hasAttribute('hx-post') && typeof htmx !== 'undefined') {
-			htmx.trigger(formEl, 'submit');
-		} else {
-			jthis.trigger('submit');
+document.querySelectorAll('form').forEach(function(formEl) {
+	formEl.addEventListener('keyup', function(e) {
+		if((e.ctrlKey && (e.which == 13 || e.which == 10)) || (e.altKey && e.which == 83)) {
+			if(formEl && formEl.hasAttribute('hx-post') && typeof htmx !== 'undefined') {
+				htmx.trigger(formEl, 'submit');
+			} else {
+				var event = new Event('submit', {bubbles: true, cancelable: true});
+				if(formEl.dispatchEvent(event)) {
+					formEl.submit();
+				}
+			}
+			e.preventDefault();
+			return false;
 		}
-		return false;
-	}
+	});
 });
 
 // 点击响应整行：方便手机浏览  / check response line
-$('.tap').on('click', function(e) {
-	var href = $(this).attr('href') || $(this).data('href');
-	if(e.target.nodeName == 'INPUT') return true;
-	if($(window).width() > 992) return;
-	if(e.ctrlKey) {
-		window.open(href);
-		return false;
-	} else {
-		window.location = href;
-	}
+document.querySelectorAll('.tap').forEach(function(el) {
+	el.addEventListener('click', function(e) {
+		var href = this.getAttribute('href') || this.getAttribute('data-href');
+		if(e.target.nodeName == 'INPUT') return true;
+		if(window.innerWidth > 992) return;
+		if(e.ctrlKey) {
+			window.open(href);
+			e.preventDefault();
+			return false;
+		} else {
+			window.location = href;
+		}
+	});
 });
 // 点击响应整行：导航栏下拉菜单   / check response line
-$('ul.nav > li').on('click', function(e) {
-	var jthis = $(this);
-	var href = jthis.children('a').attr('href');
-	if(e.ctrlKey) {
-		window.open(href);
-		return false;
-	}
+document.querySelectorAll('ul.nav > li').forEach(function(el) {
+	el.addEventListener('click', function(e) {
+		var a = this.querySelector(':scope > a');
+		var href = a ? a.getAttribute('href') : null;
+		if(e.ctrlKey) {
+			window.open(href);
+			e.preventDefault();
+			return false;
+		}
+	});
 });
 // 点击响应整行：，但是不响应 checkbox 的点击  / check response line, without checkbox
-$('.thread input[type="checkbox"]').parents('td').on('click', function(e) {
-	e.stopPropagation();
-})
+document.querySelectorAll('.thread input[type="checkbox"]').forEach(function(el) {
+	var td = el.closest('td');
+	if(td) {
+		td.addEventListener('click', function(e) {
+			e.stopPropagation();
+		});
+	}
+});
 
 // 确定框 / confirm / GET / POST
 // <a href="1.php" data-confirm-text="确定删除？" class="confirm">删除</a>
 // <a href="1.php" data-method="post" data-confirm-text="确定删除？" class="confirm">删除</a>
-$('a.confirm').on('click', function() {
-	var jthis = $(this);
-	var text = jthis.data('confirm-text');
-	$.confirm(text, function() {
-		var method = xn.strtolower(jthis.data('method'));
-		var href = jthis.data('href') || jthis.attr('href');
-		if(method == 'post') {
-			$.xpost(href, function(code, message) {
-				if(code == 0) {
-					window.location.reload();
-				} else {
-					XN.alert(message);
-				}
-			});
-		} else {
-			//window.location = jthis.attr('href');
+document.querySelectorAll('a.confirm').forEach(function(el) {
+	el.addEventListener('click', function(e) {
+		var jthis = this;
+		var text = jthis.getAttribute('data-confirm-text');
+		e.preventDefault();
+		if(confirm(text)) {
+			var method = xn.strtolower(jthis.getAttribute('data-method') || '');
+			var href = jthis.getAttribute('data-href') || jthis.getAttribute('href');
+			if(method == 'post') {
+				xpost(href, function(code, message) {
+					if(code == 0) {
+						window.location.reload();
+					} else {
+						XN.alert(message);
+					}
+				});
+			} else {
+				//window.location = jthis.getAttribute('href');
+			}
 		}
-	})
-	return false;
+		return false;
+	});
 });
 
 // _confirm 确认删除（POST 方式，用于帖子/回帖删除按钮）
-$(document).on('click', 'a._confirm', function() {
-	var jthis = $(this);
-	var text = jthis.data('confirm-text') || bbs_lang.confirm_delete;
-	var href = jthis.data('href');
-	if(!href) return false;
+document.addEventListener('click', function(e) {
+	var jthis = e.target.closest('a._confirm');
+	if(!jthis) return;
+	var text = jthis.getAttribute('data-confirm-text') || bbs_lang.confirm_delete;
+	var href = jthis.getAttribute('data-href');
+	if(!href) { e.preventDefault(); return; }
 
-	var csrfToken = (typeof XN !== 'undefined' && XN.csrfToken) || $('input[name="csrf_token"]').first().val() || $('meta[name="csrf-token"]').attr('content') || '';
+	var csrfToken = getCsrfToken();
 	if(!csrfToken) {
 		XN.toast('CSRF token 缺失，请刷新页面', 'danger');
-		return false;
+		e.preventDefault();
+		return;
 	}
 	var postData = {csrf_token: csrfToken};
 
 	function doDelete() {
-		$.xpost(href, postData, function(code, message) {
+		xpost(href, postData, function(code, message) {
 			if(parseInt(code) === 0) {
 				window.location.reload();
 			} else {
@@ -998,8 +1065,8 @@ $(document).on('click', 'a._confirm', function() {
 	}
 
 	// 删除操作：先确认删除意图，再检查积分扣减
-	var isDelete = jthis.hasClass('post_delete');
-	var isfirst = jthis.attr('isfirst') === '1' || jthis.attr('isfirst') === 1;
+	var isDelete = jthis.classList.contains('post_delete');
+	var isfirst = jthis.getAttribute('isfirst') === '1' || jthis.getAttribute('isfirst') === 1;
 	var creditsEvent = isfirst ? 'thread_delete' : 'reply_delete';
 	// 管理员/版主（gid<5）删除时不弹积分确认窗：扣的是作者积分，不应拿操作者余额做预检查
 	var isModDelete = (typeof gid !== 'undefined' && parseInt(gid) > 0 && parseInt(gid) < 5);
@@ -1012,20 +1079,23 @@ $(document).on('click', 'a._confirm', function() {
 			doDelete();
 		}
 	});
-	return false;
+	e.preventDefault();
 });
 
 // 评论置顶/取消置顶
-$(document).on('click', 'a.post_top_btn', function() {
-	var jthis = $(this);
-	var pid = jthis.data('pid');
-	var tid = jthis.data('tid');
-	var isTop = jthis.data('is-top');
+document.addEventListener('click', function(e) {
+	var jthis = e.target.closest('a.post_top_btn');
+	if(!jthis) return;
+	var pid = jthis.getAttribute('data-pid');
+	var tid = jthis.getAttribute('data-tid');
+	// jQuery data() 会自动类型转换（"1"→1, "0"→0），原生 getAttribute 返回字符串需手动处理
+	var isTopRaw = jthis.getAttribute('data-is-top');
+	var isTop = isTopRaw === '1' || isTopRaw === 'true' || isTopRaw === 1 || isTopRaw === true;
 	var newTop = isTop ? 0 : 1;
-	var csrfToken = (typeof XN !== 'undefined' && XN.csrfToken) || $('input[name="csrf_token"]').first().val() || $('meta[name="csrf-token"]').attr('content') || '';
-	var modUrl = jthis.data('mod-url') || xn.url('mod-top_post');
+	var csrfToken = getCsrfToken();
+	var modUrl = jthis.getAttribute('data-mod-url') || xn.url('mod-top_post');
 
-	$.xpost(modUrl, {pid: pid, tid: tid, is_top: newTop, csrf_token: csrfToken}, function(code, message) {
+	xpost(modUrl, {pid: pid, tid: tid, is_top: newTop, csrf_token: csrfToken}, function(code, message) {
 		if(parseInt(code) === 0) {
 			if(typeof XN.toast === 'function') XN.toast(message, 'success');
 			window.location.reload();
@@ -1034,16 +1104,19 @@ $(document).on('click', 'a.post_top_btn', function() {
 			else XN.alert(message);
 		}
 	});
-	return false;
+	e.preventDefault();
 });
 
 // 选中所有 / check all
 // <input class="checkall" data-target=".tid" />
-$('input.checkall').on('click', function() {
-	var jthis = $(this);
-	var target = jthis.data('target');
-	jtarget = $(target);
-	jtarget.prop('checked', this.checked);
+document.querySelectorAll('input.checkall').forEach(function(el) {
+	el.addEventListener('click', function() {
+		var target = this.getAttribute('data-target');
+		var checked = this.checked;
+		document.querySelectorAll(target).forEach(function(cb) {
+			cb.checked = checked;
+		});
+	});
 });
 
 // ========== form.js 功能 ==========
@@ -1052,7 +1125,9 @@ xn.form_radio = function(name, arr, checked) {
 	var checked = checked || 0;
 	if(xn.empty(arr)) arr = [lang.no, lang.yes];
 	var s = '';
-	$.each(arr, function(k, v) {
+	// jQuery $.each(arr, function(k, v)) 对数组/对象均适用，这里用 Object.keys 兼容两种情况
+	Object.keys(arr).forEach(function(k) {
+		var v = arr[k];
 		var add = k == checked ? ' checked="checked"' : '';
 		s += "<label class=\"custom-input custom-radio\"><input type=\"radio\" name=\""+name+"\" value=\""+k+"\""+add+" />"+v+"</label> &nbsp; \r\n";
 	});
@@ -1062,7 +1137,8 @@ xn.form_radio = function(name, arr, checked) {
 xn.form_options = function(arr, checked) {
 	var checked = checked || 0;
 	var s = '';
-	$.each(arr, function(k, v) {
+	Object.keys(arr).forEach(function(k) {
+		var v = arr[k];
 		var add = k == checked ? ' selected="selected"' : '';
 		s += "<option value=\""+k+"\""+add+">"+v+"</option> \r\n";
 	});

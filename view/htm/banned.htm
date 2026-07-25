@@ -72,12 +72,13 @@
 							<li class="d-flex align-items-start gap-3 py-3">
 								<a href="<?php echo $_user_url;?>" class="flex-shrink-0" tabindex="-1">
 									<?php echo avatar_component_from_data(
-										isset($_user['avatar_url']) ? $_user['avatar_url'] : default_avatar_url(),
-										'md',
-										isset($_user['group_icon_class']) ? $_user['group_icon_class'] : '',
-										isset($_user['group_color']) ? $_user['group_color'] : '',
-										isset($_user['gid']) ? $_user['gid'] : 0
-									);?>
+									isset($_user['avatar_url']) ? $_user['avatar_url'] : default_avatar_url(),
+									'md',
+									isset($_user['group_icon_class']) ? $_user['group_icon_class'] : '',
+									isset($_user['group_color']) ? $_user['group_color'] : '',
+									isset($_user['gid']) ? $_user['gid'] : 0,
+									array('_uid' => isset($_user['uid']) ? intval($_user['uid']) : 0)
+								);?>
 								</a>
 								<div class="flex-fill" style="min-width:0">
 									<div class="d-flex align-items-center gap-2 flex-wrap mb-1">
@@ -139,12 +140,13 @@
 								<?php if(!empty($_log_user)) { ?>
 								<a href="<?php echo $_log_url;?>" class="flex-shrink-0" tabindex="-1">
 									<?php echo avatar_component_from_data(
-										isset($_log_user['avatar_url']) ? $_log_user['avatar_url'] : default_avatar_url(),
-										'md',
-										isset($_log_user['group_icon_class']) ? $_log_user['group_icon_class'] : '',
-										isset($_log_user['group_color']) ? $_log_user['group_color'] : '',
-										isset($_log_user['gid']) ? $_log_user['gid'] : 0
-									);?>
+									isset($_log_user['avatar_url']) ? $_log_user['avatar_url'] : default_avatar_url(),
+									'md',
+									isset($_log_user['group_icon_class']) ? $_log_user['group_icon_class'] : '',
+									isset($_log_user['group_color']) ? $_log_user['group_color'] : '',
+									isset($_log_user['gid']) ? $_log_user['gid'] : 0,
+									array('_uid' => isset($_log_user['uid']) ? intval($_log_user['uid']) : 0)
+								);?>
 								</a>
 								<?php } else { ?>
 								<span class="flex-shrink-0 text-body-tertiary">

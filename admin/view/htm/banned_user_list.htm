@@ -71,12 +71,13 @@
 				<td>
 					<div class="d-flex align-items-center gap-2">
 						<?php echo avatar_component_from_data(
-							isset($_user['avatar_url']) ? $_user['avatar_url'] : default_avatar_url(),
-							'sm',
-							isset($_user['group_icon_class']) ? $_user['group_icon_class'] : '',
-							isset($_user['group_color']) ? $_user['group_color'] : '',
-							isset($_user['gid']) ? $_user['gid'] : 0
-						);?>
+						isset($_user['avatar_url']) ? $_user['avatar_url'] : default_avatar_url(),
+						'sm',
+						isset($_user['group_icon_class']) ? $_user['group_icon_class'] : '',
+						isset($_user['group_color']) ? $_user['group_color'] : '',
+						isset($_user['gid']) ? $_user['gid'] : 0,
+						array('_uid' => isset($_user['uid']) ? intval($_user['uid']) : 0)
+					);?>
 						<div>
 							<a href="<?php echo $_user_url;?>" class="fw-medium text-decoration-none"><?php echo $_display_name;?></a>
 							<div class="small text-body-secondary">UID: <?php echo intval($_user['uid']);?></div>
@@ -115,7 +116,7 @@
 <!--{hook admin_banned_user_list_end.htm}-->
 
 <script>
-// data-confirm 表单：onsubmit confirm 改为 XN.confirm Bootstrap Modal
+// data-confirm 表单：onsubmit 用原生 confirm 确认
 document.querySelectorAll('form[data-confirm]').forEach(function(f) {
 	f.addEventListener('submit', function(e) {
 		if (f.dataset.confirmed === '1') {
@@ -123,10 +124,10 @@ document.querySelectorAll('form[data-confirm]').forEach(function(f) {
 			return;
 		}
 		e.preventDefault();
-		XN.confirm(f.dataset.confirm, function() {
+		if (confirm(f.dataset.confirm)) {
 			f.dataset.confirmed = '1';
 			HTMLFormElement.prototype.submit.call(f);
-		});
+		}
 	});
 });
 // 搜索表单：构造路径风格 URL 跳转，与 admin/route/user.php 风格一致

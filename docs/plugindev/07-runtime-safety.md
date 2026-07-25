@@ -7,7 +7,7 @@
 ## 本章覆盖
 
 - **ErrorHandler 全局错误处理器**：`register()` 一次性注册三类处理器（`handleError` / `handleException` / `handleShutdown`），分别承接 PHP 常规错误、未捕获异常、致命错误
-- **autoDisableCrashedPlugin 崩溃自动禁用**：1 小时滚动窗口内同插件崩溃 3 次即写 `conf.json` + 写 `bbs_plugin` 表 + 清 `tmp/`，避免反复白屏
+- **autoDisableCrashedPlugin 崩溃自动禁用**：1 小时滚动窗口内同插件崩溃 3 次即写 `bbs_plugin` 表 + 清 `tmp/` + 清 OPcache，避免反复白屏
 - **plugin-compile 注释归因**：编译期向 `tmp/` 缓存注入 `// plugin-compile: {dir}  {path}` 注释，fatal error 时从错误行号往前扫描定位插件目录
 - **tmp/ 缓存损坏自愈**：检测到 fatal error 文件位于 `tmp/` 时自动 `unlink` 损坏缓存文件，提示用户刷新重建
 - **plugin_hook 运行时分发**：与编译时合并互补，带 `try/catch Throwable` 错误隔离，单 hook 抛异常不阻断其他 hook 和主流程
@@ -248,17 +248,10 @@ if (empty($plugin_dir)) return null;
 达到阈值后，禁用一个插件需要同步三处状态：
 
 ```php
-$plugin_path = APP_PATH . 'plugin/' . $plugin_dir;
-$conf_file = $plugin_path . '/conf.json';
+// ponytail: conf.json 的 enable/installed 已彻底废弃（代码层任何情况下都不读）
+// 禁用只写 db bbs_plugin 表（唯一权威源），不再 file_replace_var 改 conf.json
 
-// 1. 写 conf.json enable=0
-if (is_file($conf_file) && function_exists('file_replace_var')) {
-    try {
-        file_replace_var($conf_file, array('enable' => 0), TRUE);
-    } catch (\Throwable $e) { /* 忽略，继续尝试 db */ }
-}
-
-// 2. 写数据库 enable=0
+// 1. 写数据库 enable=0
 global $db, $tablepre, $time;
 if (is_object($db) && function_exists('db_update') && isset($tablepre)) {
     try {
@@ -266,30 +259,35 @@ if (is_object($db) && function_exists('db_update') && isset($tablepre)) {
     } catch (\Throwable $e) { /* 忽略数据库错误 */ }
 }
 
-// 3. 清 tmp 目录，触发下次请求重新编译（已禁用插件的 hook 不会被编译进去）
+// 2. 清 tmp 目录，触发下次请求重新编译（已禁用插件的 hook 不会被编译进去）
 global $conf;
 if (isset($conf['tmp_path'])) {
     $tmp_path = $conf['tmp_path'];
     if (function_exists('rmdir_recusive')) {
         @rmdir_recusive($tmp_path, TRUE);
     }
-    if (function_exists('xn_unlink')) {
-        @xn_unlink($tmp_path . 'model.min.php');
-    }
 }
+
+// 3. 清 OPcache（PHP-FPM 多 worker 下旧字节码不自动失效）
+if (class_exists('CacheService', false)) {
+    try { CacheService::clearByType(array('data', 'opcache')); } catch (\Throwable $e) {}
+} elseif (function_exists('opcache_reset')) { @opcache_reset(); }
 
 return $plugin_dir;
 ```
 
 | 步骤 | 操作 | 目的 |
 |---|---|---|
-| 1 | `file_replace_var($conf_file, ['enable'=>0], TRUE)` | 写 `conf.json`，下次 `plugin_paths_enabled()` 读不到它 |
-| 2 | `db_update('plugin', ['dir'=>$dir], ['enable'=>0, 'update_time'=>$time])` | 写 `bbs_plugin` 表，后台插件列表显示已禁用 |
-| 3 | `rmdir_recusive($tmp_path, TRUE)` + `xn_unlink($tmp_path.'model.min.php')` | 清 `tmp/` 缓存，确保下次请求重新编译（不再包含已禁用插件的 hook） |
+| 1 | `db_update('plugin', ['dir'=>$dir], ['enable'=>0, 'update_time'=>$time])` | 写 `bbs_plugin` 表，后台插件列表显示已禁用，下次 `plugin_init()`/`plugin_paths_enabled()` 读 db 即生效 |
+| 2 | `rmdir_recusive($tmp_path, TRUE)` | 清 `tmp/` 编译缓存，确保下次请求重新编译（不再包含已禁用插件的 hook） |
+| 3 | `CacheService::clearByType(['data','opcache'])` | 清 OPcache（CacheService 已加载时），确保 PHP-FPM 其他 worker 丢弃旧字节码（否则仍执行含禁用插件 hook 的旧字节码循环崩溃） |
+| 4 | `opcache_reset()` | 兜底清 OPcache（CacheService 未加载时） |
 
-> ⚠️ **不调 `plugin_disable()`**：`plugin_disable()` 依赖 `global $plugins`（在 `plugin_init()` 里初始化），但前台请求路径并不走 `plugin_init()`（它只在 admin/upgrade 调用），`$plugins` 未初始化会导致禁用失败。直接操作 `conf.json` + `db_update` 是更底层的等价操作，不依赖运行时上下文。`ponytail:` 注释明确标注了这一取舍。
+> ⚠️ **不调 `plugin_disable()`**：`plugin_disable()` 依赖 `global $plugins`（在 `plugin_init()` 里初始化），但前台请求路径并不走 `plugin_init()`（它只在 admin/upgrade 调用），`$plugins` 未初始化会导致禁用失败。直接操作 `db_update` 是更底层的等价操作，不依赖运行时上下文。`ponytail:` 注释明确标注了这一取舍。
 
-> ⚠️ **每一步都 `try/catch` 吞错**：禁用流程发生在 fatal error 之后，此时系统状态可能已经不稳定（数据库连接断开、文件系统异常），任何一步失败都不应阻断后续步骤。`conf.json` 写失败也要尝试 `db_update`，反之亦然。
+> ⚠️ **不再写 `conf.json`**：2026-07-24 彻底切断 conf.json enable/installed 读取链路后，`file_replace_var($conf_file, ['enable'=>0], TRUE)` 已无意义（无人读它）。禁用只写 db 即可，`plugin_init()`/`plugin_paths_enabled()` 下次读 db 就会看到 `enable=0`。
+
+> ⚠️ **每一步都 `try/catch` 吞错**：禁用流程发生在 fatal error 之后，此时系统状态可能已经不稳定（数据库连接断开、文件系统异常），任何一步失败都不应阻断后续步骤。
 
 ### 2.5 完整流程图
 
@@ -310,7 +308,7 @@ cache_get('plugin_crash_xxx') + 1
         │
         ├─ count < 3 ──► return null（记录日志，等下次）
         │
-        └─ count >= 3 ──► 写 conf.json + db_update + 清 tmp/
+        └─ count >= 3 ──► db_update + 清 tmp/ + 清 OPcache
                               │
                               ▼
                           return plugin_dir
@@ -422,7 +420,7 @@ $errorFile = str_replace('\\', '/', $error['file']);
 $isCacheCorruption = (strpos($errorFile, '/tmp/') !== false);
 ```
 
-`tmp/` 目录下存放的都是编译缓存（`tmp/<hash>.php`、`tmp/model.min.php`），属于「可重建」的产物。一旦它们 fatal error，基本都是编译产物损坏（并发写入冲突、磁盘满、opcode cache 失效等），不是源码问题。
+`tmp/` 目录下存放的都是编译缓存（`tmp/model_*.func.php`、`tmp/route_*.php`、`tmp/view_htm_*.htm` 等），属于「可重建」的产物。一旦它们 fatal error，基本都是编译产物损坏（并发写入冲突、磁盘满、opcode cache 失效等），不是源码问题。
 
 ### 4.2 自愈操作
 
@@ -647,7 +645,7 @@ function xn_hook($hookname, &$data = NULL) {
 ## 小结
 
 - **ErrorHandler 三路接管**：`handleError`（Warning/Notice）→ `handleException`（Throwable）→ `handleShutdown`（Fatal Error），覆盖 PHP 所有错误通道
-- **崩溃计数 3 次/小时自动禁用**：`autoDisableCrashedPlugin` 用 cache 滚动窗口计数，达阈值写 `conf.json` + 写 `bbs_plugin` 表 + 清 `tmp/`，不依赖 `plugin_disable()` 的运行时上下文
+- **崩溃计数 3 次/小时自动禁用**：`autoDisableCrashedPlugin` 用 cache 滚动窗口计数，达阈值写 `bbs_plugin` 表 + 清 `tmp/` + 清 OPcache，不依赖 `plugin_disable()` 的运行时上下文
 - **plugin-compile 注释是归因信标**：编译期注入到 `tmp/` 文件，fatal error 时从错误行号往前扫描定位插件目录，解决「合并文件崩溃怎么找具体插件」难题
 - **token_get_all 语法预检已废弃**：上下文依赖型 hook 片段会误报，改为崩溃计数兜底
 - **tmp/ 缓存损坏自愈**：检测到 `tmp/` 路径 fatal error 自动 `unlink` 损坏文件 + 提示刷新，与插件归因串行协作

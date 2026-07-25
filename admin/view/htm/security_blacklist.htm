@@ -286,7 +286,7 @@ function addIpBlacklist() {
 function removeIpBlacklist(btn) {
     var el = btn.closest('[data-ip]');
     var ip = el.getAttribute('data-ip');
-    XN.confirm('<?php echo lang('admin_confirm_remove_ip_blacklist')?>' + ip + '？', function() {
+    if (confirm('<?php echo lang('admin_confirm_remove_ip_blacklist')?>' + ip + '？')) {
     XN.post('<?php echo admin_security_url('blacklist');?>/ip_blacklist_remove', { ip: ip }, function(code, message) {
         if (code == 0) {
             el.remove();
@@ -296,7 +296,7 @@ function removeIpBlacklist(btn) {
             showToast(message, 'error');
         }
     });
-    });
+    }
 }
 
 // 更新 IP 白名单 UI
@@ -344,7 +344,7 @@ function addIpWhitelist() {
 function removeIpWhitelist(btn) {
     var el = btn.closest('[data-ip]');
     var ip = el.getAttribute('data-ip');
-    XN.confirm('<?php echo lang('admin_confirm_remove_ip_whitelist')?>' + ip + '？', function() {
+    if (confirm('<?php echo lang('admin_confirm_remove_ip_whitelist')?>' + ip + '？')) {
     XN.post('<?php echo admin_security_url('blacklist');?>/ip_whitelist_remove', { ip: ip }, function(code, message) {
         if (code == 0) {
             el.remove();
@@ -354,7 +354,7 @@ function removeIpWhitelist(btn) {
             showToast(message, 'error');
         }
     });
-    });
+    }
 }
 
 // 更新邮箱域名 UI
@@ -399,7 +399,7 @@ function addDomain() {
 function removeDomain(btn) {
     var el = btn.closest('[data-domain]');
     var domain = el.getAttribute('data-domain');
-    XN.confirm('<?php echo lang('admin_confirm_remove_domain')?>' + domain + '？', function() {
+    if (confirm('<?php echo lang('admin_confirm_remove_domain')?>' + domain + '？')) {
     XN.post('<?php echo admin_security_url('blacklist');?>/email_remove', { domain: domain }, function(code, message) {
         if (code == 0) {
             el.remove();
@@ -409,7 +409,7 @@ function removeDomain(btn) {
             showToast(message, 'error');
         }
     });
-    });
+    }
 }
 
 // 批量导入

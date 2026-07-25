@@ -8,15 +8,16 @@ XIUNOX（XIUNO BBS X 重构版）插件开发规范与速查文档。文档面�
 
 | 文件 | 内容 | 何时读 |
 |---|---|---|
-| [SKILL.md](SKILL.md) | **主文档**：核心架构 + 硬规则 + 工作流 + 进阶用法 | 完整理解插件机制时通读 |
-| [references/ai-rules.md](references/ai-rules.md) | AI 代码生成对照流程（7 阶段检查清单） | 写完一段代码后对照检查 |
-| [references/api-cheatsheet.md](references/api-cheatsheet.md) | 基础 API 速查（DB / 输入输出 / 安全 / 缓存 / 全局变量） | 忘记函数签名时查 |
-| [references/hooks-catalog.md](references/hooks-catalog.md) | Hook 点全量目录（按页面分类） | 找注入点时查 |
+| [SKILL.md](SKILL.md) | **主文档**：YAML frontmatter + When/How/What + 硬规则 + 工作流 + 失败策略 | 完整理解插件机制时通读 |
+| [references/ai-rules.md](references/ai-rules.md) | AI 协作规则速查（禁止项/必须项/命名前缀/扫描器分级/交付检查表） | 写代码时对照检查 |
+| [references/api-cheatsheet.md](references/api-cheatsheet.md) | API 速查（param/URL/DB CRUD/model/权限/KV/安全/全局变量） | 查函数签名 |
+| [references/hooks-catalog.md](references/hooks-catalog.md) | Hook 点速查（280+ hook，按页面分类，已核对源码真实存在） | 查 hook 注入点 |
+| [references/frontend-patterns.md](references/frontend-patterns.md) | 前端模式速查（CSS/JS 加载顺序/htmx 4 事件/XN.* API/lightbox/CSRF） | 查前端模式 |
 
 ### 配套完整手册（plugindev/，深入细节时查）
 
-> **下载地址**：https://github.com/domidesign/xiunox/tree/main/docs/plugindev
-> 本项目 `docs/plugindev/` 目录不存在时，从该 GitHub 仓库下载后放到 `docs/plugindev/` 即可使用全部交叉引用。未下载时，本目录 `references/` 下 3 个速查文档仍可独立使用，覆盖 80% 日常开发需求。
+> `docs/plugindev/` 是项目自带目录，包含完整开发手册，可直接使用全部交叉引用。所有深入参考请查阅 `../plugindev/` 对应分册。
+> GitHub 镜像地址（可选）：https://github.com/domidesign/xiunox/tree/main/docs/plugindev
 
 | 文件 | 内容 |
 |---|---|
@@ -29,16 +30,32 @@ XIUNOX（XIUNO BBS X 重构版）插件开发规范与速查文档。文档面�
 | [plugindev/06-ai-collaboration.md](../plugindev/06-ai-collaboration.md) | AI 协作规范（规则详情） |
 | [plugindev/07-runtime-safety.md](../plugindev/07-runtime-safety.md) | 运行时安全 / 崩溃自动禁用 |
 | [plugindev/08-login-security.md](../plugindev/08-login-security.md) | 登录安全 / 账号锁定 |
+| [plugindev/09-model-loading-refactor.md](../plugindev/09-model-loading-refactor.md) | 模型加载重构（废弃 model.min.php 合并加载，改为逐文件 include） |
+| [plugindev/10-jquery-removal-guide.md](../plugindev/10-jquery-removal-guide.md) | jQuery 移除指南（迁移到原生 JS + htmx 4） |
+| [plugindev/11-editor-toolbar-integration.md](../plugindev/11-editor-toolbar-integration.md) | 编辑器工具栏集成 |
+| [plugindev/12-avatar-component.md](../plugindev/12-avatar-component.md) | 头像组件（三层嵌套结构 + 2 个 hook 点 + avatar_shape 配置） |
+| [plugindev/plugin-mutex-guide.md](../plugindev/plugin-mutex-guide.md) | 插件互斥指南 |
 
 ### 何时读哪个
 
-- **写代码时对照检查** → 本目录 [references/ai-rules.md](references/ai-rules.md)
-- **查 API 签名** → 本目录 [references/api-cheatsheet.md](references/api-cheatsheet.md) 或 plugindev/04（完整版）
-- **查 hook 注入点** → 本目录 [references/hooks-catalog.md](references/hooks-catalog.md) 或 plugindev/03（完整版）
-- **理解架构原理** → plugindev/01
-- **查 conf.json 字段** → plugindev/02
-- **不确定某条规则** → plugindev/06（规则详情）
-- **前端/htmx/安全** → plugindev/05
+**速查（本目录 references/，覆盖 80% 日常开发）**：
+- **写代码时对照检查** → [references/ai-rules.md](references/ai-rules.md)
+- **查 API 签名** → [references/api-cheatsheet.md](references/api-cheatsheet.md)
+- **查 hook 注入点** → [references/hooks-catalog.md](references/hooks-catalog.md)
+- **前端/htmx 4/安全速查** → [references/frontend-patterns.md](references/frontend-patterns.md)
+
+**深入细节（plugindev/，速查不够时查）**：
+- **理解架构原理** → [plugindev/01-architecture.md](../plugindev/01-architecture.md)
+- **查 conf.json 字段 / zip 打包** → [plugindev/02-plugin-structure.md](../plugindev/02-plugin-structure.md)
+- **查完整 Hook 目录** → [plugindev/03-hooks-catalog.md](../plugindev/03-hooks-catalog.md)
+- **查完整 API 速查** → [plugindev/04-api-cheatsheet.md](../plugindev/04-api-cheatsheet.md)
+- **不确定某条规则** → [plugindev/06-ai-collaboration.md](../plugindev/06-ai-collaboration.md)（规则详情）
+- **前端/htmx/安全详解** → [plugindev/05-frontend-security.md](../plugindev/05-frontend-security.md)
+- **运行时安全/崩溃自动禁用** → [plugindev/07-runtime-safety.md](../plugindev/07-runtime-safety.md)
+- **登录安全/账号锁定** → [plugindev/08-login-security.md](../plugindev/08-login-security.md)
+- **头像渲染/头像角标/头像框扩展** → [plugindev/12-avatar-component.md](../plugindev/12-avatar-component.md)
+- **jQuery 移除迁移** → [plugindev/10-jquery-removal-guide.md](../plugindev/10-jquery-removal-guide.md)
+- **插件互斥/目录命名** → [plugindev/plugin-mutex-guide.md](../plugindev/plugin-mutex-guide.md)
 
 ## 5 分钟快速上手
 
@@ -49,13 +66,14 @@ XIUNOX 插件 = `plugin/<dir>/` 下的文件集合 + 编译期合并到核心代
 1. **编译时合并**：把 hook 文件放到 `plugin/<dir>/hook/<hook名>` 就等于注册了 hook，没有 `add_hook()` 函数。`_include()` 把 hook 内容物理拼进源文件，缓存到 `tmp/`。
 2. **模型三层命名**：`__` 原始层（纯 DB）→ 单 `_` 业务层（缓存/计数/通知）→ `_format` 装饰层。**插件永远调单下划线业务层。**
 3. **修改源文件后必须清 tmp**：`_include()` 不比较 mtime，批量清理 `rm -f tmp/route_*.php tmp/model_*.php tmp/view_htm_*.htm`。
+4. **插件状态唯一权威源为 db，conf.json 彻底废弃**：`installed`/`enable` 只存在于 `bbs_plugin` 表，conf.json 禁止包含这两个字段，**代码层任何情况下都不读**（`plugin_init()` 在 `xn_json_decode(conf.json)` 后立即 `unset` 丢弃，db 异常时不回退 conf.json）。前台判断插件启用用 `plugin_paths_enabled()`（只读 db）。
 
 ### 最小插件骨架
 
 ```
 plugin/my_plugin/
 ├── conf.json              # 元信息（name/version/hooks_rank/...）
-├── install.php            # 建表 + 默认配置 + 清 model.min.php
+├── install.php            # 建表 + 默认配置
 ├── uninstall.php          # 镜像清理（DROP TABLE + kv_delete）
 ├── upgrade.php            # 结构变更幂等迁移（可选，结构变更时必备）
 ├── hook/
@@ -95,12 +113,38 @@ plugin/my_plugin/
 
 ## 更新日志
 
+- 2026-07-25：
+  - **按 Skill 最佳实践重写 SKILL.md**：从 1254 行精简到 263 行，添加 YAML frontmatter（`name`/`description`），明确 When/How/What 结构，补充失败策略表和交付检查表，遵循「渐进式披露」原则将细节下沉到 references/
+  - **恢复 references/ 目录**：从 plugindev/ 同步正确内容重建 4 个速查文件，作为 SKILL.md 的渐进式披露参考：
+    - [references/ai-rules.md](references/ai-rules.md)：AI 协作规则速查（禁止项/必须项/命名前缀/扫描器分级/交付检查表）
+    - [references/api-cheatsheet.md](references/api-cheatsheet.md)：API 速查（param/URL/DB CRUD/model/权限/KV/安全/全局变量）
+    - [references/hooks-catalog.md](references/hooks-catalog.md)：Hook 点速查（280+ hook，按页面分类，已核对源码真实存在）
+    - [references/frontend-patterns.md](references/frontend-patterns.md)：前端模式速查（CSS/JS 加载顺序/htmx 4 事件/XN.* API/lightbox/CSRF）
+  - **修复 references/ 内容错误**：
+    - hooks-catalog.md：删除 16+ 个不存在的 hook 名（如 `my_nav_before/after.htm`），全部 hook 名已核对源码
+    - api-cheatsheet.md：补全函数签名（`thread_create`/`post_create`/`post_update` 补 `$options`，`http_location` 补 `$allow_external`）
+    - frontend-patterns.md：修复 htmx 事件 API（`evt.detail.ctx.request.body` → `evt.detail.parameters`）
+  - **更新 README.md 文档结构**：本目录新增 references/ 4 个速查文件列表；「何时读哪个」拆分为速查（references/）和深入（plugindev/）两层
+- 2026-07-24（第二次）：
+  - **同步插件开发相关新规则到 SKILL.md**：从 `bugfix_rules.md` 高频违规清单和 `project_memory.md` 硬约束中筛选与插件开发直接相关的规则（不同步纯 bug 修复流程类规则），共新增约 30 条到禁止清单 + 32 条到交付检查表
+  - **新增规则覆盖范围**：
+    - 模板/前端：PC/移动端双模板 id 命名规范、`jform.reset()` 禁止、`post.htm` form 边界、`overwrites_rank` 子目录、`esc_textarea` 不存在、早期 `esc_*` 兜底、PHP 8.x `isset` 兜底、语言键同步 `lang_*_bbs.php`、`static_version` 递增
+    - 缓存：`CacheHelper::set()` 哨兵格式、`cache_truncate` 用 `deleteByPrefix`、缓存键长度、写操作后清缓存
+    - API：禁用薄封装（用核心 `post_create`/`post_update`）、操作型端点 POST+PUT、`validateAccessToken` nullable、API 加载 `$grouplist`/`$forumlist`、附件关联同步 `message_fmt`
+    - 路由/URL：`db_*` 表名不含前缀、`$db->tablepre` 取前缀、`display_name` 虚拟字段、`bbs_user` 无 `status` 字段、`http_url_path()` 上下文敏感、前台生成 admin URL 用 `admin_url()`、分页 URL 分隔符动态决定
+    - 数据完整性：`thread_create`/`post_create` 的 `skip_attach_assoc`、`attach_assoc_post` pageToken、统计字段禁相减、`is_deleted=0` 过滤
+    - 插件机制：`admin_url()` 加 `function_exists` 守卫、`model_inc_file.php` 重复加载 `class_exists` 守卫、`plugin_hook()` 传 `$data` 数组、插件升级流程顺序、`plugin_clear_tmp_dir` 清 OPcache
+  - **修复 references/ 路径错误**：`api-cheatsheet.md` 和 `hooks-catalog.md` 中 `docs/0x-xxx.md` 修正为 `docs/plugindev/0x-xxx.md`
+- 2026-07-24：
+  - **废弃 model.min.php 合并加载机制，改为逐文件 include**：彻底解决加载顺序不确定、单插件语法错误全站白屏、并发重建文件损坏等稳定性问题。PHP 8 + OPcache 热身后性能无差异。
+  - 同步更新所有文档：SKILL.md 中删除「install.php 末尾清 model.min.php」规则，替换为「修改核心文件后清 tmp/ 编译缓存」；所有「生产环境走 min.php」的描述统一改为「项目无 spl_autoload，lib 类不会自动加载」
+  - 新增架构变更文档：[plugindev/09-model-loading-refactor.md](../plugindev/09-model-loading-refactor.md)
 - 2026-07-18（第三次）：
   - **补充 plugindev 完整手册的 GitHub 下载地址**：https://github.com/domidesign/xiunox/tree/main/docs/plugindev
   - SKILL.md 顶部、底部「何时读 References / plugindev」表前，README.md「配套完整手册」章节均加上下载地址与使用说明
   - 明确「未下载 plugindev 时，本目录 references/ 下 3 个速查文档仍可独立使用，覆盖 80% 日常开发需求」，避免文档缺失导致 AI 无法工作
 - 2026-07-18（第二次）：
   - **修复 SKILL.md conf.json 示例字段类型错误**：`overwrites_rank` 从 `[]`（数组）改为 `{}`（对象）；`dependencies` 从 `[]`（数组）改为 `{}`（对象）；`version` 从 `"1.0"` 改为 `"1.0.0"`（三位制）；`bbs_version` 从 `"1.1"` 改为 `"1.0"`（两位制）；补充缺失字段 `capabilities` / `type` / `author` / `id`；新增「字段类型陷阱」表
-  - **建立 plugindev 完整手册指针**：SKILL.md 顶部添加配套手册说明，底部「何时读 References / plugindev」表新增 8 个分册的导航，避免 AI 在精简版找不到细节时反复摸索
-  - README.md 新增「配套完整手册」章节，列出 plugindev/ 下 8 个分册的内容与何时读哪个的决策树
+  - **建立 plugindev 完整手册指针**：SKILL.md 顶部添加配套手册说明，底部「何时读 References / plugindev」表新增 12 个分册的导航，避免 AI 在精简版找不到细节时反复摸索
+  - README.md 新增「配套完整手册」章节，列出 plugindev/ 下 12 个分册的内容与何时读哪个的决策树
 - 2026-07-18（第一次）：补充 hook return 规则（覆盖 model 层，新增 07-18 pid 丢失事故案例）；精简 SKILL.md「快速 API 参考」章节（下沉到 references/api-cheatsheet.md，去重 100+ 行）；重写 references/ai-rules.md 为对照检查流程（避免与 SKILL.md 重复维护）；新增 README.md 文档导航
