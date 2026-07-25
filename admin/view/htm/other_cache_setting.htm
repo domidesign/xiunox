@@ -365,8 +365,6 @@ $runtimeStats = $pluginStats['runtime_stats'];
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-console.log('[cache_setting] JS 脚本开始执行');
-
 // 驱动选择联动
 document.querySelectorAll('.cache-driver-radio').forEach(function(radio) {
     radio.addEventListener('change', function() {
@@ -381,7 +379,6 @@ document.querySelectorAll('.cache-driver-radio').forEach(function(radio) {
 
 // 测试连接
 var btnTestConn = document.getElementById('btn-test-conn');
-console.log('[cache_setting] btn-test-conn 元素:', btnTestConn);
 if(btnTestConn) btnTestConn.addEventListener('click', function() {
     var form = document.getElementById('cache-setting-form');
     var formData = new FormData(form);
@@ -421,21 +418,11 @@ if(btnTestConn) btnTestConn.addEventListener('click', function() {
 
 // 表单提交
 var formEl = document.getElementById('cache-setting-form');
-console.log('[cache_setting] cache-setting-form 元素:', formEl);
 if(formEl) formEl.addEventListener('submit', function(e) {
     e.preventDefault();
     var form = this;
     var formData = new FormData(form);
-    
-    // 调试：检查 type 字段
-    var selectedType = document.querySelector('input[name="type"]:checked');
-    console.log('[cache_setting] 选中的驱动类型:', selectedType ? selectedType.value : '无');
-    console.log('[cache_setting] FormData 中的 type:', formData.get('type'));
-    console.log('[cache_setting] FormData 中的所有字段:');
-    for (var pair of formData.entries()) {
-        console.log('   ', pair[0], ':', pair[1]);
-    }
-    
+
     var btn = document.getElementById('btn-save');
     btn.disabled = true;
     btn.innerHTML = '<i class="ti ti-loader me-1"></i><?php echo lang('submiting');?>...';
@@ -466,7 +453,6 @@ if(formEl) formEl.addEventListener('submit', function(e) {
 
 // 缓存预热
 var btnWarmup = document.getElementById('btn-warmup');
-console.log('[cache_setting] btn-warmup 元素:', btnWarmup);
 if(btnWarmup) btnWarmup.addEventListener('click', function() {
     var btn = this;
     btn.disabled = true;
@@ -498,12 +484,11 @@ if(btnWarmup) btnWarmup.addEventListener('click', function() {
 });
 
 // 清除单个插件缓存
-console.log('[cache_setting] btn-clear-plugin 数量:', document.querySelectorAll('.btn-clear-plugin').length);
 document.querySelectorAll('.btn-clear-plugin').forEach(function(btn) {
     btn.addEventListener('click', function() {
         var plugin = this.dataset.plugin;
         var confirmMsg = '<?php echo lang('admin_cache_clear_plugin_confirm');?>'.replace('%s', plugin);
-        XN.confirm(confirmMsg, function() {
+        if (confirm(confirmMsg)) {
             btn.disabled = true;
             fetch(btn.dataset.url, {
                 method: 'POST',
@@ -518,18 +503,19 @@ document.querySelectorAll('.btn-clear-plugin').forEach(function(btn) {
                 var type = parseInt(data.code) === 0 ? 'success' : 'error';
                 if(typeof showToast === 'function') {
                     showToast(data.message, type);
-                } else {
+                } else if (typeof XN !== 'undefined' && typeof XN.alert === 'function') {
                     XN.alert(data.message, {type:'danger'});
+                } else {
+                    alert(data.message);
                 }
                 btn.disabled = false;
             })
             .catch(function(err) {
                 btn.disabled = false;
             });
-        });
+        }
     });
 });
-console.log('[cache_setting] JS 脚本执行完成');
 </script>
 
 <!--{hook admin_other_cache_setting_js.htm}-->

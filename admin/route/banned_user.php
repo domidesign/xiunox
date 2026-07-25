@@ -7,7 +7,7 @@ $action = param(1);
 
 // hook admin_banned_user_start.php
 
-// 加载依赖（生产环境走 tmp/model.min.php 合并加载，类加载顺序不可预测）
+// 加载依赖（lib 类不会自动加载，按需兜底 include）
 if(!class_exists('UserBanService')) {
 	include_once APP_PATH.'lib/UserBanService.php';
 }

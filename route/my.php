@@ -983,14 +983,15 @@ if(empty($action)) {
 		$tablepre = $db->tablepre;
 		$offset = ($page - 1) * $pagesize;
 		// 联表查询，db_find 不支持 JOIN，保留 db_sql_find
-		$sql = "SELECT pl.tid, MAX(pl.create_date) AS last_like_time FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$uid' GROUP BY pl.tid ORDER BY last_like_time DESC LIMIT $offset, $pagesize";
+		// INNER JOIN 只过滤硬删除，必须显式 AND t.is_deleted=0 排除软删除帖子
+		$sql = "SELECT pl.tid, MAX(pl.create_date) AS last_like_time FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$uid' AND t.is_deleted=0 GROUP BY pl.tid ORDER BY last_like_time DESC LIMIT $offset, $pagesize";
 		$tid_rows = db_sql_find($sql);
 		if($tid_rows) {
 			$like_tids = array_column($tid_rows, 'tid');
 			$threadlist = thread_find_by_tids($like_tids);
 		}
 		// 去重后的总数（仅统计帖子仍存在的），保留 db_sql_find_one
-		$totalnum = db_sql_find_one("SELECT COUNT(DISTINCT pl.tid) AS cnt FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$uid'");
+		$totalnum = db_sql_find_one("SELECT COUNT(DISTINCT pl.tid) AS cnt FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$uid' AND t.is_deleted=0");
 		$totalnum = !empty($totalnum['cnt']) ? intval($totalnum['cnt']) : 0;
 		thread_list_access_filter($threadlist, $gid);
 	} elseif($subtab == 'favorite') {
@@ -1080,7 +1081,8 @@ if(empty($action)) {
 	$offset = ($page - 1) * $pagesize;
 
 	// 按帖子去重查询点赞列表，JOIN thread 表过滤已删除帖子
-	$sql = "SELECT pl.tid, MAX(pl.create_date) AS last_like_time FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$uid' GROUP BY pl.tid ORDER BY last_like_time DESC LIMIT $offset, $pagesize";
+	// INNER JOIN 只过滤硬删除，必须显式 AND t.is_deleted=0 排除软删除帖子
+	$sql = "SELECT pl.tid, MAX(pl.create_date) AS last_like_time FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$uid' AND t.is_deleted=0 GROUP BY pl.tid ORDER BY last_like_time DESC LIMIT $offset, $pagesize";
 	$tid_rows = db_sql_find($sql);
 	$threadlist = array();
 	if($tid_rows) {
@@ -1089,7 +1091,7 @@ if(empty($action)) {
 	}
 
 	// 去重后的总数（仅统计帖子仍存在的）
-	$totalnum = db_sql_find_one("SELECT COUNT(DISTINCT pl.tid) AS cnt FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$uid'");
+	$totalnum = db_sql_find_one("SELECT COUNT(DISTINCT pl.tid) AS cnt FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$uid' AND t.is_deleted=0");
 	$totalnum = !empty($totalnum['cnt']) ? intval($totalnum['cnt']) : 0;
 
 	$pagination = pagination(route_url('my_like_page'), $totalnum, $page, $pagesize);

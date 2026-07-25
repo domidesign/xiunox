@@ -277,6 +277,38 @@ function route_url($name, $args = array(), $query = array()) {
 	return url($template, $query);
 }
 
+/**
+ * 从前台生成指向 admin 后台的 URL
+ *
+ * ponytail: url() 函数根据 $_SERVER['SCRIPT_NAME'] 检测当前是否在 admin 路径，
+ * 前台调用时 $is_admin=false，生成的 URL 不带 admin/ 前缀，跳转后会落入前台路由
+ * 导致找不到对应处理逻辑。AdminNotifyService::audit() 等从前台触发的通知场景
+ * 必须用此函数生成正确的后台 URL，否则管理员点击通知链接会跳到前台首页或 404。
+ *
+ * admin 后台强制使用 ? 格式（url_rewrite_on=0），不受前台伪静态设置影响，
+ * 与 url() 中 $is_admin 分支行为一致。
+ *
+ * @param string $url 路由（如 'plugin-setting-xnx_verify-pending'，不带 .htm 后缀）
+ * @param array  $extra 附加 query 参数
+ * @return string 形如 '/admin/?plugin-setting-xnx_verify-pending.htm'（子目录安装时含 base_path 前缀）
+ */
+function admin_url($url, $extra = array()) {
+	$conf = _SERVER('conf');
+	$_base_path = isset($conf['base_path']) ? $conf['base_path'] : '';
+
+	// admin 后台强制 ? 格式（与 url() 中 $is_admin 分支一致）
+	$r = '?' . $url . '.htm';
+
+	// 附加参数
+	if ($extra) {
+		$args = http_build_query($extra);
+		$sep = strpos($r, '?') === FALSE ? '?' : '&';
+		$r .= $sep . $args;
+	}
+
+	return $_base_path . '/admin/' . ltrim($r, '/');
+}
+
 // hook model_route_func_end.php
 
 

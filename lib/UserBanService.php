@@ -7,7 +7,7 @@
  * 设计要点：
  * 1. 静态调用，与 CacheHelper/LoginSecurityService 风格一致
  * 2. 通过 XnEvent 事件机制支持插件扩展（beforeBan/afterBan/beforeUnban/afterUnban/beforeClearContent/afterClearContent）
- * 3. 调用 model 函数前 include_once（生产环境走 tmp/model.min.php 合并加载，类加载顺序不可预测）
+ * 3. 调用 model 函数前 include_once（lib 类不会自动加载，按需兜底 include）
  * 4. 不在代码中硬编码中文，全部通过 lang() 引用语言包（key 命名 user_ban_xxx，由 Task 17 同步 zh-cn/zh-tw/en-us）
  * 5. XnEvent 已在 xiunophp.php/min.php 中加载，无需 include
  *

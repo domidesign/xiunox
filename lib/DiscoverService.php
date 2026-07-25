@@ -67,9 +67,12 @@ class DiscoverService {
             if (empty($config[$plugin_id]['enabled'])) continue;
 
             // 后台调用时用 NavService::url_frontend 生成前台固定链接格式（绕过 admin 强制 ?xxx.htm）
+            // 前台调用时保留原始路由名（如 'duel'），由 more.htm 的 NavService::href() 统一转换
+            // ponytail: 之前前台也调 url() 预转换，导致 more.htm 中 href() 双重转换，
+            //          当 normalize() 对 '/?duel.htm' 处理有 bug 时产生 '/??duel.htm'（两个 ?）
             $url = ($for_admin && class_exists('NavService', false))
                 ? NavService::url_frontend($defaults['url'])
-                : url($defaults['url']);
+                : $defaults['url'];
 
             $item = array(
                 'icon' => !empty($config[$plugin_id]['icon']) ? $config[$plugin_id]['icon'] : $defaults['icon'],

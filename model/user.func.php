@@ -850,13 +850,17 @@ function user_change_password($uid, $new_password, $old_password = '', $is_admin
 		// 清除用户 token，强制重新登录
 		user_token_clear();
 
+		// ponytail: 改密后撤销该用户所有 API access/refresh token，防止旧 token 继续可用（OAuth 2.1 最佳实践）
+		// 直接 db_delete 避免对 ApiAuthService 类的硬依赖（model 层不应依赖 lib）
+		db_delete('api_token', array('uid' => $uid));
+
 		// 更新静态缓存
 		isset($g_static_users[$uid]) AND $g_static_users[$uid] = array_merge($g_static_users[$uid], $update);
 
 		// 清除其他缓存
 		!in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
 
-		xn_log("user_change_password(): Password changed for uid=$uid" . ($is_admin ? " (by admin)" : ""), 'security');
+		xn_log("user_change_password(): Password changed for uid=$uid, all API tokens revoked" . ($is_admin ? " (by admin)" : ""), 'security');
 	}
 
 	// hook model_user_change_password_end.php

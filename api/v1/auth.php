@@ -11,18 +11,34 @@ if (!class_exists('LoginSecurityService')) {
 
 $action = $segments[1] ?? '';
 
+// === DEBUG: 确认 auth.php被执行 + action值（定位后删除）===
+xn_log("API_AUTH_DBG file_loaded=YES action=" . var_export($action, true) . " segments=" . json_encode($segments, JSON_UNESCAPED_UNICODE) . " method={$method}", 'api_error_debug', 'ERROR');
+// === END DEBUG ===
+
 switch ($action) {
     case 'login':
         // ===== 验证码能力开关（Task 2.4）=====
         global $apiApp, $apiAppServerAuth, $apiAuth, $longip;
         $skipCaptcha = $apiAppServerAuth && $apiAuth->checkAppCapability($apiApp, 'skip_captcha');
+        // === DEBUG: 诊断登录失败原因（定位后删除）===
+        $_dbg_email = param('email', '');
+        $_dbg_has_pwd = !empty(param('password', '')) ? 'YES' : 'NO';
+        $_dbg_server_auth = $apiAppServerAuth ? 'YES' : 'NO';
+        $_dbg_skip_captcha = $skipCaptcha ? 'YES' : 'NO';
+        $_dbg_captcha_enabled = 'N/A';
         if (!$skipCaptcha) {
             if (!class_exists('CaptchaService')) {
                 include_once APP_PATH . 'lib/security/CaptchaService.php';
             }
+            $_dbg_captcha_enabled = CaptchaService::is_enabled('login', 0) ? 'YES' : 'NO';
+        }
+        xn_log("API_LOGIN_DBG step=start email={$_dbg_email} has_pwd={$_dbg_has_pwd} server_auth={$_dbg_server_auth} skip_captcha={$_dbg_skip_captcha} captcha_enabled={$_dbg_captcha_enabled}", 'api_error_debug', 'ERROR');
+        // === END DEBUG ===
+        if (!$skipCaptcha) {
             if (CaptchaService::is_enabled('login', 0)) {
                 $captchaCode = param('captcha_code', '', false);
                 if (!CaptchaService::verify('login', $captchaCode, 0)) {
+                    xn_log("API_LOGIN_DBG step=captcha_fail captcha_code_empty=" . (empty($captchaCode) ? 'YES' : 'NO'), 'api_error_debug', 'ERROR');
                     ApiResponse::error(422, lang('captcha_error'));
                 }
             }
@@ -39,6 +55,7 @@ switch ($action) {
             $errors['password'] = 'Password is required';
         }
         if (!empty($errors)) {
+            xn_log("API_LOGIN_DBG step=validation_fail errors=" . json_encode($errors, JSON_UNESCAPED_UNICODE), 'api_error_debug', 'ERROR');
             // ponytail: validationError 第 1 参为 string，传数组会触发 TypeError fatal
             ApiResponse::validationError('Validation Error', $errors);
         }
@@ -53,6 +70,7 @@ switch ($action) {
 
         // 用户不存在时记录 IP 维度失败尝试，纳入 IP 限流统计
         if (empty($user)) {
+            xn_log("API_LOGIN_DBG step=user_not_found email={$_dbg_email}", 'api_error_debug', 'ERROR');
             LoginSecurityService::recordIpAttempt($longip, FALSE, $_SERVER['HTTP_USER_AGENT']);
             ApiResponse::error(401, 'Invalid credentials');
         }
@@ -61,6 +79,7 @@ switch ($action) {
         LoginSecurityService::checkBan($user['uid']);
 
         if (!user_login_verify($password, $user)) {
+            xn_log("API_LOGIN_DBG step=password_fail uid={$user['uid']}", 'api_error_debug', 'ERROR');
             // 登录失败时记录 uid 维度失败尝试
             LoginSecurityService::recordAttempt($user['uid'], FALSE, $longip, $_SERVER['HTTP_USER_AGENT']);
             ApiResponse::error(401, 'Invalid credentials');
@@ -68,8 +87,16 @@ switch ($action) {
 
         // 登录成功时清空失败计数
         LoginSecurityService::recordAttempt($user['uid'], TRUE, $longip, $_SERVER['HTTP_USER_AGENT']);
+        xn_log("API_LOGIN_DBG step=login_ok uid={$user['uid']} proceeding_to_generateTokens", 'api_error_debug', 'ERROR');
 
-        $tokenData = $apiAuth->generateTokens($user['uid']);
+        // ponytail: generateTokens 失败时抛 RuntimeException（如 api_token 表缺字段），
+        // 必须捕获返回 500，否则会冒泡成 fatal error，且客户端可能误处理拿到无效 token。
+        try {
+            $tokenData = $apiAuth->generateTokens($user['uid']);
+        } catch (RuntimeException $e) {
+            xn_log('API login generateTokens failed: ' . $e->getMessage(), 'api_error_debug', 'ERROR');
+            ApiResponse::error(500, 'Token generation failed, please contact administrator');
+        }
         unset($tokenData['user']['password'], $tokenData['user']['salt']);
 
         ApiResponse::success([
@@ -144,7 +171,12 @@ switch ($action) {
             'create_date' => time(),
         ]);
 
-        $tokenData = $apiAuth->generateTokens($uid);
+        try {
+            $tokenData = $apiAuth->generateTokens($uid);
+        } catch (RuntimeException $e) {
+            xn_log('API register generateTokens failed: ' . $e->getMessage(), 'api_error_debug', 'ERROR');
+            ApiResponse::error(500, 'Token generation failed, please contact administrator');
+        }
 
         ApiResponse::success([
             'uid' => $uid,
@@ -158,7 +190,12 @@ switch ($action) {
         $jsonInput = json_decode(file_get_contents('php://input'), true) ?? [];
         $refreshToken = param('refresh_token', '') ?: ($jsonInput['refresh_token'] ?? '');
 
-        $result = $apiAuth->refreshTokens($refreshToken);
+        try {
+            $result = $apiAuth->refreshTokens($refreshToken);
+        } catch (RuntimeException $e) {
+            xn_log('API refresh refreshTokens failed: ' . $e->getMessage(), 'api_error_debug', 'ERROR');
+            ApiResponse::error(500, 'Token refresh failed, please contact administrator');
+        }
         if (empty($result)) {
             ApiResponse::unauthorized('Invalid or expired refresh token');
         }

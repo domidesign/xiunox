@@ -144,6 +144,9 @@ function plugin_init() {
 			if(!is_file($conffile)) continue;
 			$arr = xn_json_decode(file_get_contents($conffile));
 			if(empty($arr)) continue;
+			// ponytail: 彻底丢弃 conf.json 的 enable/installed——这俩字段是运行时状态，唯一权威源为 db bbs_plugin 表
+			// 存量 conf.json 带 enable=1/installed=1 是脏数据，不 unset 会在 db 异常时残留导致禁用的插件被误判为启用
+			unset($arr['enable'], $arr['installed']);
 			$plugins[$dir] = $arr;
 
 			// 额外的信息
@@ -161,32 +164,36 @@ function plugin_init() {
 		}
 	}
 
-	// db 为权威：用 bbs_plugin 表覆盖 enable/installed，无记录的老插件平移 conf.json 状态
-	// ponytail: 兜底——db 异常时跳过，保留 conf.json 值，避免后台白屏
+	// db 为唯一权威：用 bbs_plugin 表覆盖 enable/installed
+	// ponytail: 彻底不读 conf.json 的 enable/installed——db 异常时跳过整个覆盖逻辑，所有插件保持默认 installed=0/enable=0
+	// （不回退 conf.json 脏数据，不调 plugin_db_init 避免 fatal 导致后台白屏）
 	if (!empty($plugins)) {
 		$db_list = array();
+		$db_available = TRUE;
 		try {
 			$db_list = plugin_db_get_all();
 		} catch (\Throwable $e) {
 			$db_list = array();
+			$db_available = FALSE;
 		}
-		foreach ($plugins as $dir => $unused) {
-			if (isset($db_list[$dir])) {
-				// db 权威覆盖
-				$plugins[$dir]['installed'] = isset($db_list[$dir]['installed']) ? (int)$db_list[$dir]['installed'] : 0;
-				$plugins[$dir]['enable']    = isset($db_list[$dir]['enable'])    ? (int)$db_list[$dir]['enable']    : 0;
-				if (isset($db_list[$dir]['version']) && $db_list[$dir]['version'] !== '') {
-					$plugins[$dir]['db_version'] = $db_list[$dir]['version'];
+		if ($db_available) {
+			foreach ($plugins as $dir => $unused) {
+				if (isset($db_list[$dir])) {
+					// db 权威覆盖
+					$plugins[$dir]['installed'] = isset($db_list[$dir]['installed']) ? (int)$db_list[$dir]['installed'] : 0;
+					$plugins[$dir]['enable']    = isset($db_list[$dir]['enable'])    ? (int)$db_list[$dir]['enable']    : 0;
+					if (isset($db_list[$dir]['version']) && $db_list[$dir]['version'] !== '') {
+						$plugins[$dir]['db_version'] = $db_list[$dir]['version'];
+					}
+				} else {
+					// db 无记录：首次发现该插件，默认未安装未启用
+					// ponytail: 不读 conf.json 的 enable/installed（已在 L149 unset），只以 db 为准
+					$plugins[$dir]['installed'] = 0;
+					$plugins[$dir]['enable'] = 0;
+					plugin_db_init($dir, $plugins[$dir]);
+					if (!empty($plugins[$dir]['version'])) plugin_db_set_version($dir, $plugins[$dir]['version']);
 				}
-			} else {
-			// db 无记录：首次发现该插件，默认未安装未启用
-			// ponytail: conf.json 是静态配置，installed/enable 是运行时状态，只以 db 为准
-			// 旧代码用 conf.json 的 enable=1 平移到 db，导致未安装的插件自动"已启用"（已违反 1 次）
-			$plugins[$dir]['installed'] = 0;
-			$plugins[$dir]['enable'] = 0;
-			plugin_db_init($dir, $plugins[$dir]);
-			if (!empty($plugins[$dir]['version'])) plugin_db_set_version($dir, $plugins[$dir]['version']);
-		}
+			}
 		}
 	}
 }
@@ -271,7 +278,7 @@ function plugin_version_satisfies($version, $constraint) {
 */
 function plugin_by_dependencies($dir) {
 	global $plugins;
-	
+
 	$arr = array();
 	foreach($plugins as $_dir=>$plugin) {
 		if(isset($plugin['dependencies'][$dir]) && $plugin['enable']) {
@@ -279,6 +286,75 @@ function plugin_by_dependencies($dir) {
 		}
 	}
 	return $arr;
+}
+
+/**
+ * 查找与指定插件互斥的"同类已安装"插件列表。
+ *
+ * 命名规范：作者缩写_功能标识  （功能标识可含下划线，如 ad_selfbuy、ai_reply）
+ *
+ * 互斥判定规则：
+ *   1. 第二段 === 'theme' → 主题类，所有主题互相互斥（同一时间只能启用一个主题）
+ *      (xnx_theme 与 xnx_theme_moments 互斥；无论变体多少，主题之间都互斥)
+ *   2. 非主题插件 → 取第二段及以后的所有段拼接为「功能标识」，功能标识相同才互斥
+ *      - xnx_checkin 与 jack_checkin → 功能标识都是 checkin → 互斥
+ *      - xnx_ad_selfbuy 与 jack_ad_selfbuy → 功能标识都是 ad_selfbuy → 互斥
+ *      - xnx_ad_selfbuy 与 xnx_ad_banner → 功能标识 ad_selfbuy ≠ ad_banner → 不互斥
+ *      - xnx_checkin 与 xnx_checkin_pro → 功能标识 checkin ≠ checkin_pro → 不互斥（基础与扩展可共存）
+ *
+ * 单段目录名（无第二段）不参与互斥匹配。
+ *
+ * @param  string $dir 待安装/启用的插件目录名
+ * @return array  同类已安装插件列表 [['dir'=>..,'name'=>..,'enable'=>bool], ...]（不含自身）
+ */
+function plugin_find_conflicts($dir) {
+	global $plugins;
+
+	if(!isset($plugins[$dir])) return array();
+
+	// 计算自身的互斥分组标识：主题用固定 __theme__，其他用第二段及以后拼接的功能标识
+	$category = plugin_mutex_category($dir);
+	if($category === '') return array();
+
+	$conflicts = array();
+	foreach($plugins as $_dir => $_plugin) {
+		if($dir === $_dir) continue;
+		// 仅已安装的插件才会被自动禁用（避免列出从未安装的插件造成困惑）
+		if(empty($_plugin['installed'])) continue;
+
+		$_category = plugin_mutex_category($_dir);
+
+		if($category === $_category && $_category !== '') {
+			$conflicts[] = array(
+				'dir'    => $_dir,
+				'name'   => isset($_plugin['name']) ? $_plugin['name'] : $_dir,
+				'enable' => !empty($_plugin['enable']),
+			);
+		}
+	}
+	return $conflicts;
+}
+
+/**
+ * 计算插件的互斥分组标识。
+ * - 主题类（第二段为 theme）→ '__theme__'（所有主题互相禁用）
+ * - 非主题 → 第二段及以后的所有段用下划线拼接为功能标识（如 ad_selfbuy、ai_reply、checkin）
+ *   段数不同则功能标识必然不同，自然不互斥（覆盖"基础与扩展不互斥"场景）
+ * - 单段目录名（无第二段）→ ''（不参与互斥）
+ *
+ * @param  string $dir 插件目录名
+ * @return string 互斥分组标识，空字符串表示不参与互斥
+ */
+function plugin_mutex_category($dir) {
+	$parts = explode('_', $dir);
+	if(!isset($parts[1]) || $parts[1] === '') return '';
+
+	// 主题类：第二段为 theme，无论后续有几段变体，统一归入主题互斥组
+	if($parts[1] === 'theme') return '__theme__';
+
+	// 非主题：第二段及以后拼接为功能标识
+	// 例：xnx_checkin → checkin；xnx_ad_selfbuy → ad_selfbuy；xnx_checkin_pro → checkin_pro
+	return implode('_', array_slice($parts, 1));
 }
 
 function plugin_enable($dir) {
@@ -307,7 +383,6 @@ function plugin_enable($dir) {
 function plugin_clear_tmp_dir() {
 	global $conf;
 	rmdir_recusive($conf['tmp_path'], TRUE);
-	xn_unlink($conf['tmp_path'].'model.min.php');
 	// 整站数据缓存 + OPcache 清理
 	// - 数据缓存：Redis/Memcached 驱动下尤其必要（file 驱动下 tmp/cache 已被上面 rmdir_recusive 删除）
 	// - OPcache：validate_timestamps=1 + revalidate_freq 较大或多 worker 时，旧字节码不会自动重载
@@ -433,15 +508,14 @@ function plugin_paths_enabled() {
 		$plugin_paths = glob(APP_PATH.'plugin/*', GLOB_ONLYDIR);
 		if(empty($plugin_paths)) return array();
 
-		// db 为权威：批量取 enable/installed
-		// ponytail: 兜底——db 异常或表不存在(install 阶段)回退读 conf.json
+		// db 为唯一权威：批量取 enable/installed
+		// ponytail: 彻底不读 conf.json 的 enable/installed——这俩字段是运行时状态，唯一权威源为 db bbs_plugin 表
+		// db 异常或表不存在（install 阶段）时所有插件默认未启用未安装，不回退 conf.json（存量 conf.json 带 enable=1/installed=1 的脏数据会重现"禁用的插件被启用"bug）
 		$db_list = array();
-		$db_available = TRUE;
 		try {
 			$db_list = plugin_db_get_all();
 		} catch (\Throwable $e) {
 			$db_list = array();
-			$db_available = FALSE;
 		}
 
 		foreach($plugin_paths as $path) {
@@ -451,19 +525,9 @@ function plugin_paths_enabled() {
 			if(empty($pconf)) continue;
 
 			$dir = file_name($path);
-			if (isset($db_list[$dir])) {
-				// db 权威
-				$enable    = !empty($db_list[$dir]['enable']);
-				$installed = !empty($db_list[$dir]['installed']);
-			} elseif (!$db_available) {
-				// db 不可用（install 阶段/异常）：回退 conf.json
-				$enable    = !empty($pconf['enable']);
-				$installed = !empty($pconf['installed']);
-			} else {
-				// db 可用但无记录：默认未安装未启用（忽略 conf.json 的 installed/enable）
-				$enable    = FALSE;
-				$installed = FALSE;
-			}
+			// 只以 db 为准：db 有记录读 db，无记录默认未安装未启用，不读 conf.json 的 enable/installed
+			$enable    = !empty($db_list[$dir]['enable']);
+			$installed = !empty($db_list[$dir]['installed']);
 			if(!$enable || !$installed) continue;
 			$pconf['enable'] = 1;
 			$pconf['installed'] = 1;

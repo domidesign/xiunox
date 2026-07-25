@@ -48,6 +48,10 @@ class CacheHelper {
     // 持久化注册表的缓存键与 TTL（注册表跨请求共享，TTL 设为 0 表示永久）
     private static $persistedKeysKey = 'core_cache_registered_keys';
     private static $persistedKeysTTL = 0;
+    // ponytail: 同请求内持久化注册表的 static 缓存
+    // 根因：每个插件 registerKeys 都会 cache_get 一次 registered_keys，N 个插件 = N 次相同 SELECT
+    // registerKeys/unregisterPlugin 写入后同步刷新本缓存，确保后续 loadPersistedKeys 读到最新数据
+    private static $persistedKeysCache = null;
 
     // 核心缓存键清单（后台 TTL 配置页展示用，支持通配符 * 匹配动态键）
     // 只包含走 CacheHelper::remember 的核心缓存键，model 层直接 cache_set 的不列入
@@ -312,14 +316,19 @@ class CacheHelper {
 
     /**
      * 从缓存读取持久化的注册表
-     * 不做 static 缓存，确保 registerKeys/unregisterPlugin 后立即读到最新数据
+     * 走 static 缓存，同请求内只读一次（registerKeys/unregisterPlugin 写入时会同步刷新）
      */
     private static function loadPersistedKeys() {
         if(!function_exists('cache_get') || empty($_SERVER['cache'])) {
             return array();
         }
+        // ponytail: static 缓存命中直接返回，避免每个插件 registerKeys 重复 cache_get
+        if(self::$persistedKeysCache !== null) {
+            return self::$persistedKeysCache;
+        }
         $data = cache_get(self::$persistedKeysKey);
-        return is_array($data) ? $data : array();
+        self::$persistedKeysCache = is_array($data) ? $data : array();
+        return self::$persistedKeysCache;
     }
 
     /**
@@ -329,8 +338,8 @@ class CacheHelper {
     private static function persistRegisteredKeys($plugin) {
         if(!function_exists('cache_set') || empty($_SERVER['cache'])) return;
         if(!isset(self::$registeredKeys[$plugin])) return;
-        // 读取已有持久化数据（不走 static 缓存，确保拿到最新）
-        $persisted = is_array($persistedRaw = cache_get(self::$persistedKeysKey)) ? $persistedRaw : array();
+        // 读取已有持久化数据（走 static 缓存，同请求内只查一次库）
+        $persisted = self::loadPersistedKeys();
         // ponytail: 若内存中注册与持久化完全相同则跳过 cache_set
         // 根因：每个插件每次请求都调用 registerKeys，不检查是否变化就 cache_set，
         // 导致每请求产生一次 REPLACE INTO bbs_cache 写入相同 JSON（db_exec.php 日志爆炸 745KB）
@@ -339,6 +348,8 @@ class CacheHelper {
         }
         $persisted[$plugin] = self::$registeredKeys[$plugin];
         cache_set(self::$persistedKeysKey, $persisted, self::$persistedKeysTTL);
+        // 同步刷新 static 缓存，确保后续 loadPersistedKeys 读到最新数据
+        self::$persistedKeysCache = $persisted;
     }
 
     /**
@@ -348,10 +359,12 @@ class CacheHelper {
     public static function unregisterPlugin($plugin) {
         unset(self::$registeredKeys[$plugin]);
         if(!function_exists('cache_get') || empty($_SERVER['cache'])) return;
-        $persisted = is_array($persistedRaw = cache_get(self::$persistedKeysKey)) ? $persistedRaw : array();
+        $persisted = self::loadPersistedKeys();
         if(isset($persisted[$plugin])) {
             unset($persisted[$plugin]);
             cache_set(self::$persistedKeysKey, $persisted, self::$persistedKeysTTL);
+            // 同步刷新 static 缓存
+            self::$persistedKeysCache = $persisted;
         }
     }
 
@@ -361,6 +374,7 @@ class CacheHelper {
      */
     public static function clearRegisteredKeys() {
         self::$registeredKeys = array();
+        self::$persistedKeysCache = null;
         if(function_exists('cache_delete') && !empty($_SERVER['cache'])) {
             cache_delete(self::$persistedKeysKey);
         }

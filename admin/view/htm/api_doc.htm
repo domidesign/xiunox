@@ -75,7 +75,7 @@
             <tr><td><?php echo lang('api_auth_method');?></td><td><code>X-App-Id: &lt;appid&gt;</code>（应用标识，所有请求必需，可公开）<br><code>X-App-Secret: &lt;secret&gt;</code>（应用密钥，仅服务端调用时携带，<strong class="text-danger">不可暴露给浏览器</strong>）<br><code>Authorization: Bearer &lt;token&gt;</code>（用户认证，Authenticated/Admin 级别必需）</td></tr>
             <tr><td>认证模式</td><td><span class="badge bg-info">客户端模式</span> 仅 X-App-Id（浏览器/UniApp），限流30次/分 &nbsp; <span class="badge bg-primary">服务端模式</span> X-App-Id + X-App-Secret，限流按应用配置</td></tr>
             <tr><td>权限级别</td><td><span class="badge bg-success">Public</span> 仅需应用凭证 &nbsp; <span class="badge bg-warning text-dark">Authenticated</span> 应用+用户令牌 &nbsp; <span class="badge bg-danger">Admin</span> 应用+管理员令牌</td></tr>
-            <tr><td><?php echo lang('api_token_expire');?></td><td><?php echo $tokenExpire;?> <?php echo lang('day');?></td></tr>
+            <tr><td><?php echo lang('api_token_expire');?></td><td>Access Token <?php echo $accessTokenExpire;?> 小时 / Refresh Token <?php echo $tokenExpire;?> 天（滑动续期） / 绝对过期上限 <?php echo $tokenAbsoluteExpire > 0 ? $tokenAbsoluteExpire.' 天' : '不限';?></td></tr>
         </table>
 
         <?php foreach($apiGroups as $key => $group): ?>

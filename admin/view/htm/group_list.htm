@@ -8,23 +8,25 @@
 	<div class="card-body">
 		<form action="<?php echo admin_group_list_url();?>" method="post" id="form">
 			<?php echo CsrfService::input(); ?>
-			<div class="arrlist space-y-3">
-				<div class="d-none d-md-grid gap-2 text-center text-body-secondary text-sm font-medium" style="grid-template-columns:48px 80px 1fr 60px 100px 100px 40px 40px;">
-					<div><?php echo lang('admin_col_icon')?></div>
-					<div><?php echo lang('group_id');?></div>
-					<div><?php echo lang('group_name');?></div>
-					<div><?php echo lang('admin_col_color')?></div>
-					<div><?php echo lang('group_credits_from');?></div>
-					<div><?php echo lang('group_credits_to');?></div>
-					<div><?php echo lang('edit');?></div>
-					<div><?php echo lang('delete');?></div>
-				</div>
-				<?php foreach($grouplist as $_gid=>$_group) { ?>
+		<div class="group-list-wrap">
+		<div class="arrlist space-y-3">
+			<div class="d-none d-md-grid gap-2 text-center text-body-secondary text-sm font-medium group-header" style="grid-template-columns:48px 80px 1fr 60px 100px 100px 40px 40px;">
+				<div><?php echo lang('admin_col_icon')?></div>
+				<div><?php echo lang('group_id');?></div>
+				<div><?php echo lang('group_name');?></div>
+				<div><?php echo lang('admin_col_color')?></div>
+				<div><?php echo lang('group_credits_from');?></div>
+				<div><?php echo lang('group_credits_to');?></div>
+				<div><?php echo lang('edit');?></div>
+				<div><?php echo lang('delete');?></div>
+			</div>
+
+			<?php foreach($grouplist as $_gid=>$_group) { ?>
 				<div class="group-item d-flex flex-wrap align-items-center gap-2 py-3  rounded-3" rowid="<?php echo $_gid; ?>" style="display:grid !important; gap:8px; grid-template-columns:48px 80px 1fr 60px 100px 100px 40px 40px;">
 					<div class="text-center icon-preview-span">
 						<span style="font-size:1.5rem"><?php echo !empty($_group['icon']) ? '<i class="'.$_group['icon'].'"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>'; ?></span>
 					</div>
-					<input type="text" class="form-control form-control-sm" name="_gid[<?php echo $_gid;?>]" value="<?php echo $_group['gid']; ?>" placeholder="<?php echo lang('group_id');?>" style="width:80px;" />
+					<input type="text" class="form-control form-control-sm bg-light text-body-secondary" name="_gid[<?php echo $_gid;?>]" value="<?php echo $_group['gid']; ?>" placeholder="<?php echo lang('group_id');?>" style="width:80px;" readonly title="<?php echo lang('group_id_tip');?>" />
 					<input type="text" class="form-control form-control-sm" name="name[<?php echo $_gid;?>]" value="<?php echo $_group['name']; ?>" placeholder="<?php echo lang('group_name');?>" />
 					<input type="color" class="form-control form-control-color p-0" name="color[<?php echo $_gid;?>]" value="<?php echo isset($_group['color']) && $_group['color'] ? $_group['color'] : '#6c757d';?>" style="width:40px;height:30px" title="<?php echo isset($_group['color']) ? $_group['color'] : '';?>" />
 					<input type="text" class="form-control form-control-sm" name="creditsfrom[<?php echo $_gid;?>]" value="<?php echo $_group['creditsfrom']; ?>" placeholder="<?php echo lang('group_credits_from');?>" style="width:100px;" />
@@ -37,33 +39,60 @@
 					<?php } ?>
 				</div>
 				<?php } ?>
-			</div>
-			<div class="mt-4">
-				<a role="button" class="row_add text-primary"><i class="ti ti-plus"></i> <?php echo lang('add_new_line');?></a>
-			</div>
+		</div>
+		</div>
+		<div class="mt-4">
+			<a role="button" class="row_add text-primary"><i class="ti ti-plus"></i> <?php echo lang('add_new_line');?></a>
+		</div>
 			<div class="mt-4 text-center">
 				<button type="submit" class="btn btn-primary" id="submit" data-loading-text="<?php echo lang('submiting');?>..." style="width: 10rem;"><?php echo lang('confirm');?></button>
 			</div>
 		</form>
+			<div class="alert alert-info py-2 small mb-0 d-flex align-items-center gap-2">
+					<i class="ti ti-info-circle"></i>
+					<span><?php echo lang('group_id_tip');?></span>
+				</div>
 		<p class="text-secondary mt-3" style="font-size:0.75rem"><?php echo lang('tips');?>：<?php echo lang('forum_edit_tip');?></p>
 	</div>
 </div>
 
 <!--{hook admin_group_list_end.htm}-->
 
+<style>
+/* 用户组列表横向滚动容器（移动端防溢出） */
+.group-list-wrap {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+.group-list-wrap::-webkit-scrollbar { height: 6px; }
+.group-list-wrap::-webkit-scrollbar-track { background: transparent; }
+.group-list-wrap::-webkit-scrollbar-thumb {
+	background: rgba(0, 0, 0, 0.15);
+	border-radius: 3px;
+}
+[data-bs-theme="dark"] .group-list-wrap::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.15);
+}
+/* 列表最小宽度：保证 grid 列宽不被过度压缩，窄屏触发横向滚动 */
+.group-list-wrap .arrlist { min-width: 600px; }
+
+/* 移动端：行项目垂直间距更紧凑，输入框尺寸微调 */
+@media (max-width: 767.98px) {
+	.group-list-wrap .group-item { padding: 0.5rem 0.25rem !important; }
+	.group-list-wrap .group-item .form-control-sm { font-size: 0.8rem; }
+}
+</style>
+
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-
-console.log('[group_list] script start');
-console.log('[group_list] xn:', typeof xn);
-console.log('[group_list] showToast:', typeof showToast);
 
 var maxgid = <?php echo $maxgid;?>;
 
 var jform = document.getElementById('form');
 var jsubmit = document.getElementById('submit');
-console.log('[group_list] form:', jform, 'submit:', jsubmit);
 
 jform.addEventListener('submit', function(e) {
 	e.preventDefault();
@@ -76,11 +105,10 @@ jform.addEventListener('submit', function(e) {
 		body: postdata,
 		headers: { 'X-Requested-With': 'XMLHttpRequest' }
 	})
-	.then(function(r) { console.log('[group_list] submit response status:', r.status); return r.text(); })
+	.then(function(r) { return r.text(); })
 	.then(function(text) {
-		console.log('[group_list] submit response:', text.substring(0, 200));
 		var res;
-		try { res = JSON.parse(text); } catch(e) { console.log('[group_list] JSON parse error'); return; }
+		try { res = JSON.parse(text); } catch(e) { return; }
 		if (parseInt(res.code) == 0) {
 			showToast(res.message, 'success');
 			setTimeout(function() { window.location.href = window.location.href; }, 1500);
@@ -91,7 +119,6 @@ jform.addEventListener('submit', function(e) {
 		}
 	})
 	.catch(function(err) {
-		console.log('[group_list] submit error:', err);
 		showToast('请求失败', 'error');
 		jsubmit.disabled = false;
 		jsubmit.textContent = '<?php echo lang('confirm');?>';
@@ -102,7 +129,6 @@ jform.addEventListener('submit', function(e) {
 document.querySelector('.arrlist').addEventListener('click', function(e) {
 	var deleteBtn = e.target.closest('a.row_delete');
 	if (deleteBtn) {
-		console.log('[group_list] delete button clicked');
 		var row = deleteBtn.closest('.group-item');
 		if (row) row.remove();
 	}
@@ -111,7 +137,6 @@ document.querySelector('.arrlist').addEventListener('click', function(e) {
 // 添加行
 document.querySelector('a.row_add').addEventListener('click', function(e) {
 	e.preventDefault();
-	console.log('[group_list] add row clicked');
 	var arrlist = document.querySelector('.arrlist');
 	var lastItem = arrlist.querySelector('.group-item:last-child');
 	var clone = lastItem.cloneNode(true);
@@ -125,13 +150,16 @@ document.querySelector('a.row_add').addEventListener('click', function(e) {
 	var iconSpan = clone.querySelector('.icon-preview-span');
 	if (iconSpan) iconSpan.innerHTML = '<i class="ti ti-circle-dot text-body-secondary"></i>';
 
-	// 清空输入框
+	// 清空输入框（gid 输入框保持 readonly，由后端自动分配）
 	var inputs = clone.querySelectorAll('input');
 	inputs.forEach(function(inp) {
 		if (inp.name && inp.name.indexOf('_gid') !== -1) {
 			inp.value = rowid;
+			inp.setAttribute('readonly', 'readonly');
+			inp.classList.add('bg-light', 'text-body-secondary');
 		} else {
 			inp.value = '';
+			inp.classList.remove('bg-light', 'text-body-secondary');
 		}
 		// 更新 name 属性中的索引
 		var match = inp.name.match(/\[(\d+)\]/);
@@ -140,9 +168,6 @@ document.querySelector('a.row_add').addEventListener('click', function(e) {
 		}
 	});
 });
-
-console.log('[group_list] script end');
-
 
 </script>
 

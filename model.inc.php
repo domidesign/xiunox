@@ -51,51 +51,9 @@ $include_model_files = array (
 
 // hook model_inc_include_before.php
 
-if(DEBUG || !empty($conf['cache_disable'])) {
-	foreach ($include_model_files as $model_files) {
-		include _include($model_files);
-	}
-} else {
-	
-	$model_min_file = $conf['tmp_path'].'model.min.php';
-	$isfile = is_file($model_min_file);
-	if(!$isfile) {
-		$s = '';
-		foreach($include_model_files as $model_files) {
-
-			// 压缩后不利于调试，有时候碰到未结束的 php 标签，会暴 500 错误
-			//$s .= php_strip_whitespace(_include($model_files));
-
-			$t = file_get_contents(_include($model_files));
-			$t = trim($t);
-			$t = ltrim($t, '<?php');
-			$t = rtrim($t, '?>');
-
-			// 插件 model 文件做语法预检，核心 model 信任不检查
-			// 防止单个插件 Service 类语法错误导致整个 model.min.php 解析失败全站白屏
-			// ponytail: 必须检查原始文件 $model_files，不是 _include() 编译后的 tmp 文件
-			// 因为编译后的内容含 hook 注入的数组元素片段，不是完整 PHP 文件，token_get_all 会误报
-			// TOKEN_PARSE 自 PHP 7.3 起会抛 ParseError，纯 PHP 实现零开销
-			if(strpos($model_files, '/plugin/') !== false && is_file($model_files)) {
-				$raw = file_get_contents($model_files);
-				try {
-					@token_get_all($raw, TOKEN_PARSE);
-				} catch(\Throwable $e) {
-					xn_log("Plugin model file syntax error, skipped: $model_files - ".$e->getMessage(), 'plugin_syntax_error');
-					continue;
-				}
-			}
-
-			$s .= "<?php\r\n".$t."\r\n?>";
-
-		}
-		$r = file_put_contents($model_min_file, $s);
-		unset($s);
-	}
-	include $model_min_file;
+foreach ($include_model_files as $model_files) {
+	include _include($model_files);
 }
-
-// 通知系统模型（notify.func.php 已在上方 model_min_file 中加载，notice 系统已合并删除）
 
 // hook model_inc_end.php
 

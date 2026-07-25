@@ -28,7 +28,7 @@
 
 						<div class="me-2 flex-shrink-0">
 							<a href="<?php echo url("user-$_thread[uid]");?>" tabindex="-1">
-								<?php echo avatar_component_from_data($_thread['user_avatar_url'], 'md', isset($_thread['group_icon_class']) ? $_thread['group_icon_class'] : '', isset($_thread['group_color']) ? $_thread['group_color'] : '', isset($_thread['gid']) ? $_thread['gid'] : 0);?>
+								<?php echo avatar_component_from_data($_thread['user_avatar_url'], 'md', isset($_thread['group_icon_class']) ? $_thread['group_icon_class'] : '', isset($_thread['group_color']) ? $_thread['group_color'] : '', isset($_thread['gid']) ? $_thread['gid'] : 0, array('_uid' => isset($_thread['uid']) ? intval($_thread['uid']) : 0));?>
 							</a>
 						</div>
 						<!--{hook thread_list_inc_avatar_after.htm}-->

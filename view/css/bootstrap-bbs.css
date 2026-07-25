@@ -463,6 +463,8 @@ body.keyboard-active .floating-actions {
 }
 
 /* ===== Avatar ===== */
+/* 尺寸 class（保留 border-radius: 50% 作为默认值，向后兼容旧调用；
+   新的 .avatar-shape-* 通过更高优先级覆盖默认形状） */
 .avatar-xs {
     width: 20px;
     height: 20px;
@@ -498,6 +500,36 @@ body.keyboard-active .floating-actions {
     object-fit: cover;
 }
 
+.avatar-xxl {
+    width: 128px;
+    height: 128px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+/* 外层容器（L1）：avatar-wrap 基础样式 */
+.avatar-wrap {
+    position: relative;
+    display: inline-block;
+    line-height: 0;  /* 消除 inline-block 底部间隙 */
+    vertical-align: middle;
+}
+
+/* 尺寸容器（用于 frame absolute 定位参考） */
+.avatar-wrap-xs  { width: 24px; height: 24px; }
+.avatar-wrap-sm  { width: 32px; height: 32px; }
+.avatar-wrap-md  { width: 40px; height: 40px; }
+.avatar-wrap-lg  { width: 52px; height: 52px; }
+.avatar-wrap-xl  { width: 96px; height: 96px; }
+.avatar-wrap-xxl { width: 128px; height: 128px; }
+
+/* 形状切换（覆盖 .avatar-* 默认 border-radius）
+   优先级 (0,0,2,0) > .avatar-md (0,0,1,0)，可正确覆盖 */
+.avatar-shape-rounded img { border-radius: 6px; }
+.avatar-shape-circle  img { border-radius: 50%; }
+.avatar-shape-square  img { border-radius: 0; }
+
+/* 用户组角标（保留原有样式，不变） */
 .avatar-group-icon {
     position: absolute;
     bottom: -2px;
@@ -506,6 +538,7 @@ body.keyboard-active .floating-actions {
     height: 16px;
     border-radius: 50%;
     border: 2px solid #fff;
+    z-index: 10;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -533,6 +566,44 @@ body.keyboard-active .floating-actions {
     bottom: -6px;
     right: -6px;
     border-width: 4px;
+}
+
+/* 插件角标（由 avatar_component_badges.php hook 注入到 L2 内） */
+.avatar-badge {
+    position: absolute;
+    background: #fff;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    box-shadow: 0 1px 3px rgba(0,0,0,.15);
+    z-index: 2;
+}
+
+/* 四角位置 */
+.avatar-badge-top-left     { top: -2px; left: -2px; }
+.avatar-badge-top-right    { top: -2px; right: -2px; }
+.avatar-badge-bottom-left  { bottom: -2px; left: -2px; }
+.avatar-badge-bottom-right { bottom: -2px; right: -2px; }
+
+/* 按头像尺寸调整角标大小（基于 L1 的 data-size 属性，可靠不依赖兄弟选择器） */
+.avatar-wrap[data-size="xs"]  .avatar-badge { width: 12px; height: 12px; font-size: 8px;  border-width: 1px; }
+.avatar-wrap[data-size="sm"]  .avatar-badge { width: 14px; height: 14px; font-size: 9px;  border-width: 1px; }
+.avatar-wrap[data-size="md"]  .avatar-badge { width: 16px; height: 16px; font-size: 10px; }
+.avatar-wrap[data-size="lg"]  .avatar-badge { width: 20px; height: 20px; font-size: 12px; }
+.avatar-wrap[data-size="xl"]  .avatar-badge { width: 28px; height: 28px; font-size: 16px; border-width: 3px; }
+.avatar-wrap[data-size="xxl"] .avatar-badge { width: 36px; height: 36px; font-size: 20px; border-width: 4px; }
+
+/* 头像框（由 avatar_component_frame.php hook 注入到 L1 内、L2 之后） */
+.avatar-frame {
+    position: absolute;
+    inset: 0;  /* 铺满 L1 */
+    pointer-events: none;  /* 不挡住头像点击 */
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    z-index: 1;  /* 在 img 之上、badge 之下 */
 }
 
 .forum-icon {

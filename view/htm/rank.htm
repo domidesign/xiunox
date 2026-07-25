@@ -109,7 +109,7 @@
 						</div>
 						<div class="me-2 flex-shrink-0">
 						<a href="<?php echo user_url($_item['uid']);?>" tabindex="-1">
-							<?php echo avatar_component_from_data($_item['avatar_url'], 'md', isset($_item['group_icon_class']) ? $_item['group_icon_class'] : '', isset($_item['group_color']) ? $_item['group_color'] : '', isset($_item['gid']) ? $_item['gid'] : 0);?>
+							<?php echo avatar_component_from_data($_item['avatar_url'], 'md', isset($_item['group_icon_class']) ? $_item['group_icon_class'] : '', isset($_item['group_color']) ? $_item['group_color'] : '', isset($_item['gid']) ? $_item['gid'] : 0, array('_uid' => isset($_item['uid']) ? intval($_item['uid']) : 0));?>
 						</a>
 					</div>
 					<div class="flex-fill py-0.5" style="min-width:0">
@@ -144,7 +144,7 @@
 						</div>
 						<div class="me-2 flex-shrink-0">
 						<a href="<?php echo user_url($_item['uid']);?>" tabindex="-1">
-							<?php echo avatar_component_from_data($_item['avatar_url'], 'md', isset($_item['group_icon_class']) ? $_item['group_icon_class'] : '', isset($_item['group_color']) ? $_item['group_color'] : '', isset($_item['gid']) ? $_item['gid'] : 0);?>
+							<?php echo avatar_component_from_data($_item['avatar_url'], 'md', isset($_item['group_icon_class']) ? $_item['group_icon_class'] : '', isset($_item['group_color']) ? $_item['group_color'] : '', isset($_item['gid']) ? $_item['gid'] : 0, array('_uid' => isset($_item['uid']) ? intval($_item['uid']) : 0));?>
 						</a>
 					</div>
 					<div class="flex-fill py-0.5" style="min-width:0">

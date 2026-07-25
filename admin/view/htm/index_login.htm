@@ -38,26 +38,122 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-var jform = $('#form');
-var jsubmit = $('#submit');
-var jpassword = $('#password').focus();
+// ponytail: 后台登录页是关键修复页面，必须独立于 xiuno-modern.js
+// （旧版本站点可能没有 xiuno-modern.js，导致 $ is not defined 死循环，连登录都进不去），全程使用原生 JS
+
+// ponytail: 独立实现 showToast，不依赖 xiuno-modern.js 的 showToast/XN.toast
+// 复用 footer.inc.htm 已渲染的 #toast-container（若无则 fallback 到 alert）
+function showToast(message, type) {
+	var container = document.getElementById('toast-container');
+	if (!container) { alert(message); return; }
+	var toastEl = document.createElement('div');
+	toastEl.className = 'toast show align-items-center text-white bg-' + (type === 'success' ? 'success' : (type === 'error' ? 'danger' : 'secondary'));
+	toastEl.setAttribute('role', 'alert');
+	toastEl.style.minWidth = '200px';
+	var body = document.createElement('div');
+	body.className = 'd-flex';
+	var inner = document.createElement('div');
+	inner.className = 'toast-body';
+	inner.textContent = message;
+	body.appendChild(inner);
+	var btn = document.createElement('button');
+	btn.type = 'button';
+	btn.className = 'btn-close btn-close-white me-2 m-auto';
+	btn.setAttribute('data-bs-dismiss', 'toast');
+	btn.onclick = function() { toastEl.remove(); };
+	body.appendChild(btn);
+	toastEl.appendChild(body);
+	container.appendChild(toastEl);
+	setTimeout(function() { if (toastEl.parentNode) toastEl.remove(); }, 4000);
+}
+
+function buildQuery(data) {
+	var parts = [];
+	for (var k in data) {
+		if (Object.prototype.hasOwnProperty.call(data, k)) {
+			parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(data[k]));
+		}
+	}
+	return parts.join('&');
+}
+
+function ajax(opts) {
+	var url = opts.url;
+	var type = (opts.type || 'GET').toUpperCase();
+	var data = opts.data || null;
+	var dataType = opts.dataType || 'json';
+
+	var fetchOpts = {
+		method: type,
+		headers: {
+			'X-Requested-With': 'XMLHttpRequest'
+		},
+		credentials: 'same-origin'
+	};
+
+	if (type === 'POST' && data) {
+		if (data instanceof FormData) {
+			fetchOpts.body = data;
+		} else {
+			fetchOpts.headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+			fetchOpts.body = typeof data === 'object' ? buildQuery(data) : data;
+		}
+	} else if (data && !(data instanceof FormData)) {
+		var sep = url.indexOf('?') === -1 ? '?' : '&';
+		url += sep + buildQuery(data);
+	}
+
+	fetch(url, fetchOpts).then(function(response) {
+		return response.text().then(function(text) {
+			var xhrLike = { status: response.status, responseText: text };
+			if (!response.ok) throw xhrLike;
+			if (dataType === 'json') {
+				try { return JSON.parse(text); }
+				catch (e) { throw xhrLike; }
+			}
+			return text;
+		});
+	}).then(function(res) {
+		if (opts.success) opts.success(res);
+	}).catch(function(err) {
+		var xhr = err && err.responseText !== undefined ? err : { responseText: (err && err.message) ? err.message : String(err || '') };
+		if (opts.error) opts.error(xhr);
+	});
+}
+
+var jform = document.getElementById('form');
+var jsubmit = document.getElementById('submit');
+var jpassword = document.getElementById('password');
+if (jpassword) jpassword.focus();
+
+// 验证码过期自动刷新定时器（原生 JS 实现，替代 XN.captchaScheduleExpire）
+function captchaScheduleExpire(imgEl, expires_in, refreshFn) {
+	if (!imgEl || !expires_in) return;
+	if (imgEl._captchaExpireTimer) {
+		clearTimeout(imgEl._captchaExpireTimer);
+		imgEl._captchaExpireTimer = null;
+	}
+	imgEl._captchaExpireTimer = setTimeout(function() {
+		imgEl._captchaExpireTimer = null;
+		if (refreshFn) refreshFn();
+	}, expires_in * 1000);
+}
 
 // 验证码刷新
 function adminCaptchaRefresh() {
 	var img = document.getElementById('captcha-img');
 	if(!img) return;
-	$.ajax({
+	ajax({
 		url: '<?php echo url('index-login');?>?captcha_refresh=1',
 		type: 'GET',
 		dataType: 'text',
 		success: function(r) {
-			var s = xn.json_decode(r);
+			var s;
+			try { s = JSON.parse(r); } catch(e) { s = null; }
 			if(s && s.code == 0 && s.image) {
 				img.src = s.image;
 				// 启动过期定时器
-				if (typeof XN !== 'undefined' && XN.captchaScheduleExpire) {
-					XN.captchaScheduleExpire(img, s.expires_in || 600, adminCaptchaRefresh);
-				}
+				captchaScheduleExpire(img, s.expires_in || 600, adminCaptchaRefresh);
 			}
 		}
 	});
@@ -66,8 +162,8 @@ function adminCaptchaRefresh() {
 // 初次页面加载（PHP 已输出 captcha_image）时启动过期定时器
 (function() {
 	var img = document.getElementById('captcha-img');
-	if (img && <?php echo intval($captcha_expires_in);?> > 0 && typeof XN !== 'undefined' && XN.captchaScheduleExpire) {
-		XN.captchaScheduleExpire(img, <?php echo intval($captcha_expires_in);?>, adminCaptchaRefresh);
+	if (img && <?php echo intval($captcha_expires_in);?> > 0) {
+		captchaScheduleExpire(img, <?php echo intval($captcha_expires_in);?>, adminCaptchaRefresh);
 	}
 })();
 
@@ -75,7 +171,6 @@ function adminCaptchaRefresh() {
 function startCountdown(seconds) {
 	var btn = document.getElementById('submit');
 	if(!btn) return;
-	var originalText = btn.innerHTML;
 	btn.disabled = true;
 	var updateBtn = function() {
 		if(seconds > 0) {
@@ -84,25 +179,28 @@ function startCountdown(seconds) {
 			setTimeout(updateBtn, 1000);
 		} else {
 			btn.disabled = false;
-			btn.innerHTML = originalText;
+			btn.innerHTML = '<?php echo lang('login');?>';
 		}
 	};
 	updateBtn();
 }
 
-jform.on('submit', function() {
-	jsubmit.prop('disabled', true).html('<?php echo lang('submiting');?>...');
-	var postdata = jform.serializeObject();
-	// 用 $.ajax 代替 $.xpost，获取完整响应（含 wait 字段用于倒计时）
-	$.ajax({
+jform.addEventListener('submit', function(e) {
+	e.preventDefault();
+	jsubmit.disabled = true;
+	jsubmit.innerHTML = '<?php echo lang('submiting');?>...';
+	var postdata = new FormData(jform);
+	// 用 ajax 获取完整响应（含 wait 字段用于倒计时）
+	ajax({
 		type: 'POST',
-		url: jform.attr('action'),
+		url: jform.getAttribute('action'),
 		data: postdata,
 		dataType: 'text',
 		success: function(r) {
-			if(!r) { showToast('Server Response Empty!', 'error'); jsubmit.prop('disabled', false).html('<?php echo lang('login');?>'); return; }
-			var s = xn.json_decode(r);
-			if(!s || s.code === undefined) { showToast('Server Response Not JSON', 'error'); jsubmit.prop('disabled', false).html('<?php echo lang('login');?>'); return; }
+			if(!r) { showToast('Server Response Empty!', 'error'); jsubmit.disabled = false; jsubmit.innerHTML = '<?php echo lang('login');?>'; return; }
+			var s;
+			try { s = JSON.parse(r); } catch(e) { s = null; }
+			if(!s || s.code === undefined) { showToast('Server Response Not JSON', 'error'); jsubmit.disabled = false; jsubmit.innerHTML = '<?php echo lang('login');?>'; return; }
 			var code = s.code;
 			var message = s.message;
 			if(code == 0) {
@@ -114,23 +212,22 @@ jform.on('submit', function() {
 				showToast(message, 'error');
 				var wait = parseInt(s.wait) || 0;
 				if(wait > 0) { startCountdown(wait); }
-				else { jsubmit.prop('disabled', false).html('<?php echo lang('login');?>'); }
+				else { jsubmit.disabled = false; jsubmit.innerHTML = '<?php echo lang('login');?>'; }
 			} else if(code == 'password' || code == 'captcha') {
 				showToast(message, 'error');
 				if(code == 'captcha') { adminCaptchaRefresh(); }
-				else { jpassword.focus(); }
-				jsubmit.prop('disabled', false).html('<?php echo lang('login');?>');
+				else { if (jpassword) jpassword.focus(); }
+				jsubmit.disabled = false; jsubmit.innerHTML = '<?php echo lang('login');?>';
 			} else {
 				showToast(message, 'error');
-				jsubmit.prop('disabled', false).html('<?php echo lang('login');?>');
+				jsubmit.disabled = false; jsubmit.innerHTML = '<?php echo lang('login');?>';
 			}
 		},
 		error: function() {
 			showToast('Network error', 'error');
-			jsubmit.prop('disabled', false).html('<?php echo lang('login');?>');
+			jsubmit.disabled = false; jsubmit.innerHTML = '<?php echo lang('login');?>';
 		}
 	});
-	return false;
 });
 
 </script>

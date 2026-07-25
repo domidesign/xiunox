@@ -18,7 +18,7 @@
 		<div class="d-flex flex-column gap-2">
 			<?php if(!empty($userlist)) { foreach($userlist as $u) { ?>
 			<div class="d-flex align-items-center gap-3 p-2 hover-bg-body-secondary rounded">
-				<?php echo avatar_component_from_data($u['avatar_url'], 'md', isset($u['group_icon_class']) ? $u['group_icon_class'] : '', isset($u['group_color']) ? $u['group_color'] : '', isset($u['gid']) ? $u['gid'] : 0);?>
+				<?php echo avatar_component_from_data($u['avatar_url'], 'md', isset($u['group_icon_class']) ? $u['group_icon_class'] : '', isset($u['group_color']) ? $u['group_color'] : '', isset($u['gid']) ? $u['gid'] : 0, array('_uid' => isset($u['uid']) ? intval($u['uid']) : 0));?>
 				<div class="flex-fill">
 					<a href="<?php echo user_url($u['uid']);?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['display_name'] ?? $u['username']);?></a>
 					<!-- <span class="text-body-tertiary ms-1" style="font-size:0.85em">#<?php echo $u['uid'];?></span> -->
@@ -62,5 +62,6 @@
 </template>
 
 <script>
-$('a[data-active="user-followers"]').addClass('active');
+var el = document.querySelector('a[data-active="user-followers"]');
+if (el) el.classList.add('active');
 </script>

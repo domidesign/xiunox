@@ -141,6 +141,59 @@ var currentStep = 0;
 var isUpgrading = false;
 var csrfToken = <?php echo json_encode($csrfToken);?>;
 
+// ponytail: 在线升级页面是用户修复网站问题的"最后手段"，必须独立于 xiuno-modern.js
+// （旧版本站点可能没有 xiuno-modern.js，导致 $ is not defined 死循环），全程使用原生 JS
+function buildQuery(data) {
+	var parts = [];
+	for (var k in data) {
+		if (Object.prototype.hasOwnProperty.call(data, k)) {
+			parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(data[k]));
+		}
+	}
+	return parts.join('&');
+}
+
+function ajax(opts) {
+	var url = opts.url;
+	var type = (opts.type || 'GET').toUpperCase();
+	var data = opts.data || null;
+	var dataType = opts.dataType || 'json';
+
+	var fetchOpts = {
+		method: type,
+		headers: {
+			'X-Requested-With': 'XMLHttpRequest',
+			'X-CSRF-Token': csrfToken
+		},
+		credentials: 'same-origin'
+	};
+
+	if (type === 'POST' && data) {
+		fetchOpts.headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+		fetchOpts.body = typeof data === 'object' ? buildQuery(data) : data;
+	} else if (data) {
+		var sep = url.indexOf('?') === -1 ? '?' : '&';
+		url += sep + buildQuery(data);
+	}
+
+	fetch(url, fetchOpts).then(function(response) {
+		return response.text().then(function(text) {
+			var xhrLike = { status: response.status, responseText: text };
+			if (!response.ok) throw xhrLike;
+			if (dataType === 'json') {
+				try { return JSON.parse(text); }
+				catch (e) { throw xhrLike; }
+			}
+			return text;
+		});
+	}).then(function(res) {
+		if (opts.success) opts.success(res);
+	}).catch(function(err) {
+		var xhr = err && err.responseText !== undefined ? err : { responseText: (err && err.message) ? err.message : String(err || '') };
+		if (opts.error) opts.error(xhr);
+	});
+}
+
 // 检查更新频率限制：24 小时一次（前端 localStorage 拦截，后端 cache 兜底）
 var CHECK_LIMIT_KEY = 'xiunox_upgrade_check_manual';
 var CHECK_LIMIT_TTL = 24 * 60 * 60 * 1000; // 24 小时（毫秒）
@@ -226,7 +279,7 @@ function checkUpdate() {
 	btn.disabled = true;
 	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_checking');?>';
 
-	$.ajax({
+	ajax({
 		url: '<?php echo url('online_upgrade-check');?>',
 		type: 'POST',
 		data: { csrf_token: csrfToken },
@@ -323,13 +376,13 @@ function confirmStartUpgrade() {
 		btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_upgrading');?>';
 		// 重置步骤状态
 		currentStep = 0;
-		$('.step-icon').each(function(idx){
-			this.style.background = 'var(--bs-gray-300)';
-			this.style.color = '';
-			this.innerHTML = '<span class="step-number fw-bold" style="font-size:0.75rem">' + (idx + 1) + '</span>';
+		document.querySelectorAll('.step-icon').forEach(function(el, idx){
+			el.style.background = 'var(--bs-gray-300)';
+			el.style.color = '';
+			el.innerHTML = '<span class="step-number fw-bold" style="font-size:0.75rem">' + (idx + 1) + '</span>';
 		});
-		$('.step-status').html('<span class="text-secondary fs-6"><?php echo lang('admin_online_upgrade_waiting');?></span>');
-		$('.step-result').html('');
+		document.querySelectorAll('.step-status').forEach(function(el){ el.innerHTML = '<span class="text-secondary fs-6"><?php echo lang('admin_online_upgrade_waiting');?></span>'; });
+		document.querySelectorAll('.step-result').forEach(function(el){ el.innerHTML = ''; });
 
 		runNextStep();
 	});
@@ -351,7 +404,7 @@ function confirmStartUpgrade() {
 // 前置检查：调 ?online_upgrade-preflight.htm，未通过则展示问题清单
 function runPreflight(callback) {
 	var alertEl = document.getElementById('preflightAlert');
-	$.ajax({
+	ajax({
 		url: '<?php echo url('online_upgrade-preflight');?>',
 		type: 'POST',
 		data: { csrf_token: csrfToken },
@@ -416,7 +469,7 @@ function runNextStep() {
 	statusEl.innerHTML = '<span class="text-primary fs-6"><?php echo lang('admin_online_upgrade_executing');?></span>';
 	resultEl.innerHTML = '';
 
-	$.ajax({
+	ajax({
 		url: '<?php echo url('online_upgrade-run_step');?>',
 		type: 'POST',
 		data: { step: step.id, csrf_token: csrfToken },
@@ -429,7 +482,7 @@ function runNextStep() {
 			var detailHtml = escapeHtml(res.message || '');
 		if (res.results && res.results.length > 0) {
 			detailHtml += '<div class="mt-1" style="font-size:0.75rem">';
-			$.each(res.results, function(i, r) {
+			res.results.forEach(function(r, i) {
 				var icon = r.ok ? '<i class="ti ti-check text-success"></i>' : '<i class="ti ti-x text-danger"></i>';
 				detailHtml += '<div>' + icon + ' ' + escapeHtml(r.name || '') + ' — ' + escapeHtml(r.message) + '</div>';
 			});
@@ -494,21 +547,21 @@ function showUpgradeError(msg) {
 }
 
 function reinstall() {
-	XN.confirm('<?php echo lang('admin_online_upgrade_reinstall_confirm');?>', function() {
-		var btn = document.getElementById('reinstallBtn');
-		btn.disabled = true;
-		btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_reinstalling');?>';
+	if (!confirm('<?php echo lang('admin_online_upgrade_reinstall_confirm');?>')) return;
+	var btn = document.getElementById('reinstallBtn');
+	btn.disabled = true;
+	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_reinstalling');?>';
 
-		$.ajax({
-			url: '<?php echo url('online_upgrade-reinstall');?>',
-			type: 'POST',
-			data: { csrf_token: csrfToken },
-			dataType: 'json',
-			success: function(res) {
-				btn.disabled = false;
-				btn.innerHTML = '<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>';
-				var logArea = document.getElementById('logArea');
-				if (res.ok) {
+	ajax({
+		url: '<?php echo url('online_upgrade-reinstall');?>',
+		type: 'POST',
+		data: { csrf_token: csrfToken },
+		dataType: 'json',
+		success: function(res) {
+			btn.disabled = false;
+			btn.innerHTML = '<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>';
+			var logArea = document.getElementById('logArea');
+			if (res.ok) {
 				logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i>' + escapeHtml(res.message || '<?php echo lang('admin_online_upgrade_reinstall_success');?>') + '</div>';
 			} else {
 				logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + escapeHtml(res.message || '<?php echo lang('admin_online_upgrade_reinstall_failed');?>') + '</div>';
@@ -520,7 +573,6 @@ function reinstall() {
 			var logArea = document.getElementById('logArea');
 			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + escapeHtml(xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
 		}
-		});
 	});
 }
 

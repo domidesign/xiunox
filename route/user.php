@@ -795,6 +795,9 @@ if(empty($action)) {
 		$r = user__update($_uid, $update);
 		$r === FALSE AND message(-1, lang('update_error'));
 
+		// ponytail: 找回密码同样撤销该用户所有 API token（绕过了 user_change_password，需手动补）
+		db_delete('api_token', array('uid' => $_uid));
+
 		unset($_SESSION['user_resetpw_email']);
 		unset($_SESSION['user_resetpw_code']);
 		unset($_SESSION['resetpw_verify_ok']);
@@ -1017,7 +1020,7 @@ if(empty($action)) {
 			$u_is_followed = !empty($u['is_followed']);
 		?>
 		<div class="d-flex align-items-center gap-3 p-2 hover-bg-body-secondary rounded">
-			<img class="avatar-md" src="<?php echo $u['avatar_url'];?>" alt="" onerror="this.onerror=null;this.src='<?php echo default_avatar_url();?>'">
+			<?php echo avatar_component_from_data($u['avatar_url'], 'md', isset($u['group_icon_class']) ? $u['group_icon_class'] : '', isset($u['group_color']) ? $u['group_color'] : '', isset($u['gid']) ? $u['gid'] : 0, array('_uid' => isset($u['uid']) ? $u['uid'] : 0)); ?>
 			<div class="flex-fill">
 				<a href="<?php echo user_url($u['uid']);?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['display_name'] ?? $u['username']);?></a>
 				<div class="small text-body-secondary"><?php echo $u['groupname'];?></div>
@@ -1078,7 +1081,7 @@ if(empty($action)) {
 			$u_is_followed = !empty($u['is_followed']);
 		?>
 		<div class="d-flex align-items-center gap-3 p-2 hover-bg-body-secondary rounded">
-			<img class="avatar-md" src="<?php echo $u['avatar_url'];?>" alt="" onerror="this.onerror=null;this.src='<?php echo default_avatar_url();?>'">
+			<?php echo avatar_component_from_data($u['avatar_url'], 'md', isset($u['group_icon_class']) ? $u['group_icon_class'] : '', isset($u['group_color']) ? $u['group_color'] : '', isset($u['gid']) ? $u['gid'] : 0, array('_uid' => isset($u['uid']) ? $u['uid'] : 0)); ?>
 			<div class="flex-fill">
 				<a href="<?php echo user_url($u['uid']);?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['display_name'] ?? $u['username']);?></a>
 				<div class="small text-body-secondary"><?php echo $u['groupname'];?></div>
@@ -1219,7 +1222,8 @@ if(empty($action)) {
 	$offset = ($page - 1) * $pagesize;
 
 	// 按帖子去重查询点赞列表，JOIN thread 表过滤已删除帖子
-	$sql = "SELECT pl.tid, MAX(pl.create_date) AS last_like_time FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$_uid' GROUP BY pl.tid ORDER BY last_like_time DESC LIMIT $offset, $pagesize";
+	// INNER JOIN 只过滤硬删除，必须显式 AND t.is_deleted=0 排除软删除帖子
+	$sql = "SELECT pl.tid, MAX(pl.create_date) AS last_like_time FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$_uid' AND t.is_deleted=0 GROUP BY pl.tid ORDER BY last_like_time DESC LIMIT $offset, $pagesize";
 	$tid_rows = db_sql_find($sql);
 	$threadlist = array();
 	if($tid_rows) {
@@ -1229,7 +1233,7 @@ if(empty($action)) {
 	}
 
 	// 去重后的总数（仅统计帖子仍存在的）
-	$totalnum = db_sql_find_one("SELECT COUNT(DISTINCT pl.tid) AS cnt FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$_uid'");
+	$totalnum = db_sql_find_one("SELECT COUNT(DISTINCT pl.tid) AS cnt FROM {$tablepre}post_like pl INNER JOIN {$tablepre}thread t ON pl.tid=t.tid WHERE pl.uid='$_uid' AND t.is_deleted=0");
 	$totalnum = !empty($totalnum['cnt']) ? intval($totalnum['cnt']) : 0;
 
 	$pagination = pagination(route_url('user_like_page', array('uid'=>$_uid)), $totalnum, $page, $pagesize);

@@ -67,34 +67,53 @@
 <?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-var jsend_code_btn = $('#send_code_btn');
+var jsend_code_btn = document.getElementById('send_code_btn');
 var send_code_timer = 0;
-jsend_code_btn.on('click', function() {
-	var email = $('#email_new').val();
+jsend_code_btn.addEventListener('click', function() {
+	var emailInput = document.getElementById('email_new');
+	var email = emailInput.value;
 	if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-		$('#email_new').focus();
+		emailInput.focus();
 		return;
 	}
-	jsend_code_btn.prop('disabled', true);
-	XN.post('<?php echo my_send_email_code_url();?>', {email: email}, function(code, msg) {
+	jsend_code_btn.disabled = true;
+	var body = new URLSearchParams();
+	body.append('email', email);
+	var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+	if (csrfMeta) body.append('csrf_token', csrfMeta.getAttribute('content'));
+	fetch('<?php echo my_send_email_code_url();?>', {
+		method: 'POST',
+		body: body,
+		headers: {
+			'X-Requested-With': 'XMLHttpRequest',
+			'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+		},
+		credentials: 'same-origin'
+	}).then(function(r) { return r.json(); }).then(function(res) {
+		var code = res.code || 0;
+		var msg = res.message || '';
 		if(code == 0) {
 			if(typeof XN.toast === 'function') XN.toast(msg, 'success');
-			send_code_timer = (this && this.wait) ? parseInt(this.wait) : 60;
+			send_code_timer = (res && res.wait) ? parseInt(res.wait) : 60;
 			if(isNaN(send_code_timer) || send_code_timer < 1) send_code_timer = 60;
-			jsend_code_btn.text(send_code_timer + 's');
+			jsend_code_btn.textContent = send_code_timer + 's';
 			var interval = setInterval(function() {
 				send_code_timer--;
 				if(send_code_timer <= 0) {
 					clearInterval(interval);
-					jsend_code_btn.text('<?php echo lang('send_verify_code');?>').prop('disabled', false);
+					jsend_code_btn.textContent = '<?php echo lang('send_verify_code');?>';
+					jsend_code_btn.disabled = false;
 				} else {
-					jsend_code_btn.text(send_code_timer + 's');
+					jsend_code_btn.textContent = send_code_timer + 's';
 				}
 			}, 1000);
 		} else {
 			if(typeof XN.toast === 'function') XN.toast(msg || '<?php echo lang('error_label'); ?>', 'danger');
-			jsend_code_btn.prop('disabled', false);
+			jsend_code_btn.disabled = false;
 		}
+	}).catch(function() {
+		if(typeof XN.toast === 'function') XN.toast('<?php echo lang('error_label'); ?>', 'danger');
+		jsend_code_btn.disabled = false;
 	});
 });
 </script>

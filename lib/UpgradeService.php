@@ -431,6 +431,14 @@ class UpgradeService {
         if ($this->dbTableExists('api_token', $tablepre) && !$this->dbColumnExists('api_token', 'related_id', $tablepre)) {
             $columns[] = ['api_token', 'related_id', "ALTER TABLE `{$tablepre}api_token` ADD COLUMN `related_id` bigint(16) unsigned NOT NULL DEFAULT 0 AFTER `type`"];
         }
+        // ponytail: absolute_expires_at 用于 token 链绝对过期上限（OAuth 2.1 最佳实践，防止 refresh 滑动续期无限延长）
+        if ($this->dbTableExists('api_token', $tablepre) && !$this->dbColumnExists('api_token', 'absolute_expires_at', $tablepre)) {
+            $columns[] = ['api_token', 'absolute_expires_at', "ALTER TABLE `{$tablepre}api_token` ADD COLUMN `absolute_expires_at` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '绝对过期时间戳，0=不限制' AFTER `expires_at`"];
+        }
+        // ponytail: used 字段用于 refresh_token 重用检测（OAuth 2.1 严格重用检测：used=1 时再次使用即撤销整条 token 链）
+        if ($this->dbTableExists('api_token', $tablepre) && !$this->dbColumnExists('api_token', 'used', $tablepre)) {
+            $columns[] = ['api_token', 'used', "ALTER TABLE `{$tablepre}api_token` ADD COLUMN `used` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'refresh 是否已用过：0=未用，1=已用' AFTER `absolute_expires_at`"];
+        }
 
         foreach ($columns as $col) {
             $r = $this->addColumn($col[0], $col[1], $col[2], $tablepre);
@@ -588,6 +596,8 @@ class UpgradeService {
                 `related_id` bigint(16) unsigned NOT NULL DEFAULT 0 COMMENT '关联令牌ID',
                 `token` char(64) NOT NULL DEFAULT '',
                 `expires_at` int(11) unsigned NOT NULL DEFAULT 0,
+                `absolute_expires_at` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '绝对过期时间戳，0=不限制',
+                `used` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'refresh 是否已用过：0=未用，1=已用',
                 `created_at` int(11) unsigned NOT NULL DEFAULT 0,
                 PRIMARY KEY (`id`),
                 UNIQUE KEY `token` (`token`),
@@ -668,6 +678,8 @@ class UpgradeService {
             'editor' => 'aieditor',
             'api_enabled' => 1,
             'api_token_expire' => 30,
+            'api_access_token_expire' => 2,
+            'api_token_absolute_expire' => 90,
             'user_create_on' => 1,
         ];
 
@@ -700,6 +712,17 @@ class UpgradeService {
 
         $this->conf['version'] = $this->targetVersion;
         $changes['version'] = $this->targetVersion;
+
+        // 递增 static_version 末段数字，强制浏览器刷新 JS/CSS 缓存
+        // ponytail: static_version 形如 '?1.4.42'，升级必然伴随 JS/CSS 变更，必须递增否则浏览器走 HTTP 缓存
+        $currentSv = $this->conf['static_version'] ?? '?1.0';
+        if (preg_match('/^(.*?)(\d+)$/', $currentSv, $m)) {
+            $newSv = $m[1] . (((int)$m[2]) + 1);
+        } else {
+            $newSv = '?' . $this->targetVersion;
+        }
+        $this->conf['static_version'] = $newSv;
+        $changes['static_version'] = $newSv;
 
         $content = "<?php\nreturn " . var_export($this->conf, true) . ";\n?>";
         if (file_put_contents($confFile, $content) === false) {
@@ -780,16 +803,12 @@ class UpgradeService {
             }
         }
 
+        // ponytail: 只重编译缓存，不改变插件启用状态
+        // plugin_init() 已以 db 为权威初始化 $plugins（db 有记录按 db，无记录默认 installed=0/enable=0）
+        // 禁止读 conf.json 的 enable/installed 决定是否调 plugin_enable()——存量 conf.json 带 enable=1/installed=1
+        // 会让用户禁用的插件在「插件重编译」时被强制重新启用（已违反 1 次）
+        // _include() 是按需编译：tmp 已清，下次请求会自动重编译所有已启用插件的 hook
         plugin_init();
-        foreach (glob(APP_PATH . 'plugin/*', GLOB_ONLYDIR) as $dir) {
-            $conffile = $dir . '/conf.json';
-            if (is_file($conffile)) {
-                $pconf = xn_json_decode(file_get_contents($conffile));
-                if (!empty($pconf['enable']) && !empty($pconf['installed'])) {
-                    plugin_enable(file_name($dir));
-                }
-            }
-        }
 
         return [
             'ok' => true,
@@ -1496,9 +1515,13 @@ class UpgradeService {
         $results = [];
 
         // 添加精华帖相关字段
+        // ponytail: user.digests / forum.digests 必须同步添加，thread_digest_change_batch 会 UPDATE 这两列
+        // 旧库升级遗漏会导致 /mod-digest.html 触发 1054 Unknown column 'digests'
         $columns = [
             ['thread', 'digest', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `digest` tinyint(1) NOT NULL DEFAULT 0 COMMENT '精华级别: 0否/1-3精华'"],
             ['thread', 'digest_date', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `digest_date` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '精华时间'"],
+            ['user', 'digests', "ALTER TABLE `{$tablepre}user` ADD COLUMN `digests` int(11) NOT NULL DEFAULT '0' COMMENT '精华主题数'"],
+            ['forum', 'digests', "ALTER TABLE `{$tablepre}forum` ADD COLUMN `digests` mediumint(8) unsigned NOT NULL DEFAULT '0' COMMENT '精华主题数'"],
         ];
         foreach ($columns as $col) {
             $r = $this->addColumn($col[0], $col[1], $col[2], $tablepre);
@@ -1804,7 +1827,7 @@ class UpgradeService {
             ['id' => 'admin_log_table', 'name' => '管理操作日志表', 'description' => '创建管理操作日志表，用于记录附件删除等后台操作'],
             ['id' => 'plugin_table', 'name' => '插件管理表', 'description' => '创建插件管理表，支持插件时间记录和排序'],
             ['id' => 'email_log', 'name' => '邮件发送日志表', 'description' => '创建邮件发送日志表，记录邮件发送状态、错误信息等'],
-            ['id' => 'friendlink_digest', 'name' => '精华帖', 'description' => '添加帖子精华字段（digest, digest_date），创建精华帖索引表'],
+            ['id' => 'friendlink_digest', 'name' => '精华帖', 'description' => '添加帖子精华字段（digest, digest_date, user.digests, forum.digests），创建精华帖索引表'],
             ['id' => 'soft_delete', 'name' => '软删除字段', 'description' => '为 thread 和 post 表添加 is_deleted, deleted_date, deleted_by 字段及索引，支持软删除功能'],
             ['id' => 'user_ban_system', 'name' => '用户封禁系统', 'description' => '为 user 表添加 ban_type/ban_reason/ban_admin_uid/ban_time 字段，创建封禁历史记录表和 IP 黑名单表'],
             ['id' => 'migrate_banned_ip', 'name' => 'IP黑名单数据迁移', 'description' => '将 banned_ip 表数据迁移到 IpBlacklistService（kv 存储，支持 CIDR 和范围格式）'],

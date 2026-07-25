@@ -185,7 +185,21 @@ switch ($method) {
 
         // ===== 审核能力开关（Task 2.5）=====
         $skipAudit = $apiAppServerAuth && $apiAuth->checkAppCapability($apiApp, 'skip_audit');
-        $auditStatus = $skipAudit ? 1 : (in_array(intval($authUser['gid']), [1, 2]) ? 1 : 0);
+        if ($skipAudit) {
+            $auditStatus = 1;
+        } else {
+            // 使用 AuditService 三级审核规则（版块级 + 用户组级 + 敏感词）
+            // 设置全局 $gid 供 PermissionService 使用
+            $GLOBALS['gid'] = intval($authUser['gid']);
+            if (!class_exists('AuditService')) {
+                include_once APP_PATH . 'lib/security/AuditService.php';
+            }
+            if (!class_exists('PermissionService')) {
+                include_once APP_PATH . 'lib/PermissionService.php';
+            }
+            $needAudit = AuditService::need_post_audit(intval($thread['fid']), intval($authUser['gid']), $message);
+            $auditStatus = $needAudit ? 0 : 1;
+        }
 
         // ponytail: 改用核心 post_create()，复用 post_message_fmt() 生成 message_fmt、
         // 楼中楼 post_quote() 引用拼接、帖子/用户计数更新、缓存失效等完整逻辑。
@@ -209,13 +223,10 @@ switch ($method) {
         }
 
         // 关联附件（如果有 attach_keys）
+        // ponytail: api_attach_assoc_post 内部已同步更新 message/message_fmt/images/videos/files
         $attach_info = array('images' => 0, 'videos' => 0, 'files' => 0);
         if (!empty($attach_keys)) {
             $attach_info = api_attach_assoc_post($pid, $tid, $attach_keys, $message);
-            $original_message = param('message', '', false);
-            if ($message !== $original_message) {
-                post__update($pid, array('message' => $message));
-            }
         }
 
         ApiResponse::success([

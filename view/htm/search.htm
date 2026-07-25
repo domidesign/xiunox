@@ -168,7 +168,7 @@ $search_disabled = ($search_require_login && (empty($uid) || $uid == 0));
 						<div class="x-card card">
 							<?php foreach($userlist as $u) { ?>
 							<div class="d-flex align-items-center gap-2 p-2 rounded">
-								<?php echo avatar_component_from_data($u['avatar_url'], 'md', isset($u['group_icon_class']) ? $u['group_icon_class'] : '', isset($u['group_color']) ? $u['group_color'] : '', isset($u['gid']) ? $u['gid'] : 0);?>
+								<?php echo avatar_component_from_data($u['avatar_url'], 'md', isset($u['group_icon_class']) ? $u['group_icon_class'] : '', isset($u['group_color']) ? $u['group_color'] : '', isset($u['gid']) ? $u['gid'] : 0, array('_uid' => isset($u['uid']) ? intval($u['uid']) : 0));?>
 								<div class="flex-fill">
 									<a href="<?php echo user_url($u['uid']);?>" class="fw-medium text-decoration-none"><?php echo esc_html($u['display_name'] ?? $u['username']);?></a>
 									<?php if(!empty($u['signature'])) { ?>

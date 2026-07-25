@@ -90,23 +90,40 @@
 <script src="../view/js/tabler-icon-picker.js<?php echo $static_version;?>"></script>
 <script>
 
-var jform = $("#form");
-var jsubmit = $("#submit");
+// ponytail: 原生 JS 改造，移除对 $/XN. 的依赖
+var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
+function xpost(url, data, callback) {
+	var body = data;
+	var headers = {'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': csrfToken};
+	if (typeof data === 'object' && !(data instanceof FormData)) {
+		var params = new URLSearchParams();
+		for (var k in data) { if (Object.prototype.hasOwnProperty.call(data, k)) params.append(k, data[k]); }
+		body = params.toString();
+	}
+	if (typeof body === 'string') headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+	fetch(url, {method: 'POST', headers: headers, body: body, credentials: 'same-origin'})
+		.then(function(r) { return r.json(); })
+		.then(function(json) { callback(json.code, json.message); })
+		.catch(function(err) { callback(-1, err.message || 'Request failed'); });
+}
 
-jform.on('submit', function(){
-	setBtnLoading(jsubmit, true);
-	var postdata = jform.serialize();
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
+var form = document.getElementById('form');
+var submitBtn = document.getElementById('submit');
+
+form.addEventListener('submit', function(e){
+	e.preventDefault();
+	setBtnLoading(submitBtn, true);
+	var postdata = new URLSearchParams(new FormData(form)).toString();
+	xpost(form.getAttribute('action'), postdata, function(code, message) {
 		if(code == 0) {
 			showToast(message, 'success');
 			setTimeout(function(){ window.location.reload(); }, 1000);
 			return;
 		} else {
 			showToast(message, 'error');
-			setBtnLoading(jsubmit, false);
+			setBtnLoading(submitBtn, false);
 		}
 	});
-	return false;
 });
 
 // 图标选择器

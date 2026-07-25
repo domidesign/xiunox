@@ -618,6 +618,9 @@ a {
     right: -4px;
     border-width: 3px;
 }
+.avatar-shape-rounded img { border-radius: 6px; }
+.avatar-shape-circle  img { border-radius: 50%; }
+.avatar-shape-square  img { border-radius: 0; }
 
 .sidebar-tooltip {
     display: none;

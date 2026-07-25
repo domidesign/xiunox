@@ -187,6 +187,104 @@
 var latestTokens = <?php echo json_encode($tokens ?: []);?>;
 var lastResponse = '';
 
+// ponytail: 原生 JS 辅助函数，替代 $.xpost / $.ajax（避免依赖 xiuno-modern.js shim）
+function buildQuery(data) {
+	var parts = [];
+	for (var k in data) {
+		if (Object.prototype.hasOwnProperty.call(data, k)) {
+			parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(data[k]));
+		}
+	}
+	return parts.join('&');
+}
+
+function xpost(url, data, callback) {
+	var body = (data && typeof data === 'object') ? buildQuery(data) : (data || '');
+	fetch(url, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+			'X-Requested-With': 'XMLHttpRequest'
+		},
+		credentials: 'same-origin',
+		body: body
+	}).then(function(response) {
+		return response.text().then(function(text) {
+			if (!text) throw { code: -100, message: 'Server Response Empty' };
+			try { return JSON.parse(text); }
+			catch (e) { throw { code: -101, message: text }; }
+		});
+	}).then(function(json) {
+		if (json && json.code !== undefined) {
+			callback(json.code, json.message);
+		} else {
+			callback(0, json);
+		}
+	}).catch(function(err) {
+		callback(err.code || -1, err.message || 'Network error');
+	});
+}
+
+// 兼容 jQuery $.ajax 的子集实现：支持 url/type/data/dataType/beforeSend/complete/success/error
+// beforeSend(xhr) 提供 stub xhr.setRequestHeader(name, value) 收集自定义 header
+function ajax(opts) {
+	var url = opts.url;
+	var type = (opts.type || 'GET').toUpperCase();
+	var data = opts.data || null;
+	var dataType = opts.dataType || 'json';
+
+	var headers = {
+		'X-Requested-With': 'XMLHttpRequest'
+	};
+
+	if (opts.beforeSend) {
+		var xhrStub = {
+			setRequestHeader: function(name, value) {
+				headers[name] = value;
+			}
+		};
+		opts.beforeSend(xhrStub);
+	}
+
+	var fetchOpts = {
+		method: type,
+		headers: headers,
+		credentials: 'same-origin'
+	};
+
+	if (type === 'POST' || type === 'PUT') {
+		if (data && typeof data === 'object' && !(data instanceof FormData)) {
+			fetchOpts.headers['Content-Type'] = 'application/json;charset=UTF-8';
+			fetchOpts.body = JSON.stringify(data);
+		} else if (data) {
+			fetchOpts.headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+			fetchOpts.body = data;
+		}
+	} else if (data) {
+		var sep = url.indexOf('?') === -1 ? '?' : '&';
+		url += sep + buildQuery(data);
+	}
+
+	fetch(url, fetchOpts).then(function(response) {
+		return response.text().then(function(text) {
+			var xhrLike = { status: response.status, responseText: text, statusText: response.statusText };
+			if (!response.ok) throw xhrLike;
+			if (dataType === 'json') {
+				try { return JSON.parse(text); }
+				catch (e) { throw xhrLike; }
+			}
+			return text;
+		});
+	}).then(function(res) {
+		if (opts.success) opts.success(res);
+	}).catch(function(err) {
+		var xhr = err && err.responseText !== undefined ? err : { responseText: (err && err.message) ? err.message : String(err || ''), status: 0, statusText: 'Network error' };
+		if (opts.error) opts.error(xhr);
+	}).then(function() {
+		if (opts.complete) opts.complete();
+	});
+}
+
 (function() {
 	var params = new URLSearchParams(window.location.search);
 	var m = params.get('method');
@@ -232,7 +330,7 @@ function fillOrGenerateToken() {
 	var btn = document.getElementById('fillTokenBtn');
 	btn.disabled = true;
 	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('api_debug_generating');?>';
-	$.xpost('<?php echo admin_api_debug_url();?>', {op: 'generate_token', uid: 1, csrf_token: csrfToken}, function(code, message) {
+	xpost('<?php echo admin_api_debug_url();?>', {op: 'generate_token', uid: 1, csrf_token: csrfToken}, function(code, message) {
 		if(code == 0) {
 			// generateTokens() 返回 {access_token, refresh_token, expires_in, user}
 			document.getElementById('apiToken').value = message.access_token;
@@ -320,7 +418,7 @@ function sendApiRequest() {
 		ajaxOpts.data = {};
 	}
 
-	$.ajax(ajaxOpts);
+	ajax(ajaxOpts);
 }
 
 function syntaxHighlight(json) {
@@ -425,10 +523,10 @@ function clearHistory() {
 }
 
 function revokeToken(tokenId, uid) {
-	XN.confirm('<?php echo lang("api_debug_confirm_revoke");?> UID=' + uid + '？', function() {
+	if (confirm('<?php echo lang("api_debug_confirm_revoke");?> UID=' + uid + '？')) {
 	var csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 	// ponytail: 后端 revoke_token_by_id op 按 refresh token 主键 id 删除整对 access+refresh
-	$.xpost('<?php echo admin_api_debug_url();?>', {op: 'revoke_token_by_id', id: tokenId, csrf_token: csrfToken}, function(code, message) {
+	xpost('<?php echo admin_api_debug_url();?>', {op: 'revoke_token_by_id', id: tokenId, csrf_token: csrfToken}, function(code, message) {
 		if(code == 0) {
 			showToast('<?php echo lang("api_debug_token_revoked");?>', 'success');
 			setTimeout(function(){ location.reload(); }, 1000);
@@ -436,7 +534,7 @@ function revokeToken(tokenId, uid) {
 			showToast(message, 'error');
 		}
 	});
-	});
+	}
 }
 
 document.getElementById('apiMethod').addEventListener('change', updateBodyVisibility);

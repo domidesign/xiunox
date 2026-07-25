@@ -62,6 +62,10 @@ if($action == 'do') {
 	$scanner = new PluginScanner();
 	$result = $scanner->scanBeforeInstall($dir);
 
+	// 同类插件冲突检测：返回已安装的同类插件列表供前端提示
+	// ponytail: 安装新插件时不会卸载而是禁用这些同类插件，保留配置便于切换
+	$result['conflicts'] = plugin_find_conflicts($dir);
+
 	header('Content-Type: application/json; charset=utf-8');
 	echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
 	exit;

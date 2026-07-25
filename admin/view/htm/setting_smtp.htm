@@ -375,43 +375,78 @@ document.querySelectorAll('.log-filter-btn').forEach(function(btn) {
     });
 });
 
+// ponytail: 原生 JS 改造，移除对 $/XN. 的依赖
+var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
+function xpost(url, data, callback) {
+    var body = data;
+    var headers = {'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': csrfToken};
+    if (typeof data === 'object' && !(data instanceof FormData)) {
+        var params = new URLSearchParams();
+        for (var k in data) { if (Object.prototype.hasOwnProperty.call(data, k)) params.append(k, data[k]); }
+        body = params.toString();
+    }
+    if (typeof body === 'string') headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+    fetch(url, {method: 'POST', headers: headers, body: body, credentials: 'same-origin'})
+        .then(function(r) { return r.json(); })
+        .then(function(json) { callback(json.code, json.message); })
+        .catch(function(err) { callback(-1, err.message || 'Request failed'); });
+}
+function fieldError(el, message) {
+    if (!el) return;
+    var parent = el.closest('.form-group');
+    if (parent) parent.classList.add('has-danger');
+    el.classList.add('form-control-danger');
+    el.setAttribute('title', message);
+    var tip = el.nextElementSibling;
+    if (tip && tip.classList.contains('xn-field-tip')) {
+        tip.textContent = message;
+        tip.style.display = '';
+    } else {
+        tip = document.createElement('span');
+        tip.className = 'xn-field-tip text-danger small';
+        tip.textContent = message;
+        el.parentNode.insertBefore(tip, el.nextSibling);
+    }
+    el.focus();
+}
+
 // SMTP 设置表单提交
-var jsmtpForm = $('#smtpForm');
-var jsmtpSubmit = jsmtpForm.find('button[type="submit"]');
-jsmtpForm.on('submit', function() {
-    setBtnLoading(jsmtpSubmit, true);
-    var postdata = jsmtpForm.serialize();
-    $.xpost(jsmtpForm.attr('action'), postdata, function(code, message) {
+var smtpForm = document.getElementById('smtpForm');
+var smtpSubmit = smtpForm.querySelector('button[type="submit"]');
+smtpForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    setBtnLoading(smtpSubmit, true);
+    var postdata = new URLSearchParams(new FormData(smtpForm)).toString();
+    xpost(smtpForm.getAttribute('action'), postdata, function(code, message) {
         if(code == 0) {
             showToast(message, 'success');
             setTimeout(function(){ window.location.reload(); }, 1000);
         } else if(xn.is_number(code)) {
             showToast(message, 'error');
-            setBtnLoading(jsmtpSubmit, false);
+            setBtnLoading(smtpSubmit, false);
         } else {
-            jsmtpForm.find('[name="'+code+'"]').fieldError(message).focus();
-            setBtnLoading(jsmtpSubmit, false);
+            fieldError(smtpForm.querySelector('[name="'+code+'"]'), message);
+            setBtnLoading(smtpSubmit, false);
         }
     });
-    return false;
 });
 
 // 邮件模板表单提交
-var jtplForm = $('#templateForm');
-var jtplSubmit = jtplForm.find('button[type="submit"]');
-jtplForm.on('submit', function() {
-    setBtnLoading(jtplSubmit, true);
-    var postdata = jtplForm.serialize();
-    $.xpost(jtplForm.attr('action'), postdata, function(code, message) {
+var tplForm = document.getElementById('templateForm');
+var tplSubmit = tplForm.querySelector('button[type="submit"]');
+tplForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    setBtnLoading(tplSubmit, true);
+    var postdata = new URLSearchParams(new FormData(tplForm)).toString();
+    xpost(tplForm.getAttribute('action'), postdata, function(code, message) {
         if(code == 0) {
             showToast(message, 'success');
             setTimeout(function(){ window.location.reload(); }, 1000);
         } else {
             showToast(message, 'error');
-            setBtnLoading(jtplSubmit, false);
+            setBtnLoading(tplSubmit, false);
         }
     });
-    return false;
 });
 </script>
 

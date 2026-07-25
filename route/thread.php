@@ -691,7 +691,8 @@ if($action == 'create') {
 	$valid_sorts = array('asc', 'desc', 'hot');
 	if(!in_array($sort, $valid_sorts)) $sort = 'asc';
 
-	$thread = thread_read($tid);
+	// 用 thread_read_cache 而非 thread_read：填充 static 缓存，避免 post_format 中 thread_read_cache 重复查库
+	$thread = thread_read_cache($tid);
 	empty($thread) AND error_page(404, lang('thread_not_exists'));
 
 	// 待审/驳回帖子访问控制：非管理员(gid!=1,2)不能查看他人待审帖子，驳回帖子仅作者可见
@@ -743,6 +744,25 @@ if($action == 'create') {
 
 	// 格式化一级评论 + 楼层
 	if($postlist) {
+		// 批量预加载用户/点赞状态/隐藏内容/勋章，消除 post_format 与模板 hook 中的 N+1 查询
+		$_pl_uids = arrlist_values($postlist, 'uid');
+		$_pl_pids = arrlist_values($postlist, 'pid');
+		user_preload($_pl_uids);
+		// 批量预加载点赞状态
+		if(!empty($uid) && !empty($_pl_pids)) {
+			global $g_preloaded_post_likes;
+			if(!isset($g_preloaded_post_likes)) $g_preloaded_post_likes = array();
+			$g_preloaded_post_likes = array_merge($g_preloaded_post_likes, post_like_read_batch($uid, $_pl_pids));
+		}
+		// 批量预加载隐藏内容
+		if(class_exists('HiddenService', false) && !empty($_pl_pids)) {
+			HiddenService::preloadHiddenByPostIds($_pl_pids);
+		}
+		// 批量预加载勋章（填充 MedalService 静态缓存，模板 hook 中 getUserWearingMedalsCached 直接命中）
+		if(class_exists('MedalService', false) && !empty($_pl_uids)) {
+			MedalService::getInstance()->getBatchUserMedals($_pl_uids);
+		}
+
 		$floor = ($page - 1) * $pagesize + 1;
 		foreach($postlist as &$_pf_post) {
 			$_pf_post['floor'] = $floor++;
@@ -767,18 +787,41 @@ if($action == 'create') {
 	}
 
 	// 首帖单独获取（不受排序影响，始终显示）
+	// 预加载首帖的点赞状态和隐藏内容，避免 post_format 和下方 is_liked 重复查询
+	$_firstpid = intval($thread['firstpid']);
+	if(!empty($uid) && $_firstpid > 0) {
+		global $g_preloaded_post_likes;
+		if(!isset($g_preloaded_post_likes)) $g_preloaded_post_likes = array();
+		if(!isset($g_preloaded_post_likes[$_firstpid])) {
+			$g_preloaded_post_likes = array_merge($g_preloaded_post_likes, post_like_read_batch($uid, array($_firstpid)));
+		}
+	}
+	if(class_exists('HiddenService', false) && $_firstpid > 0) {
+		HiddenService::preloadHiddenByPostIds(array($_firstpid));
+	}
+	// 预加载首帖作者数据（通常与 thread author 相同，预加载后 user_read_cache 直接命中）
+	if($_firstpid > 0) {
+		$_first_post_raw = post__read($_firstpid);
+		if(!empty($_first_post_raw['uid'])) {
+			user_preload(array($_first_post_raw['uid']));
+			// 预加载首帖作者勋章
+			if(class_exists('MedalService', false)) {
+				MedalService::getInstance()->getBatchUserMedals(array($_first_post_raw['uid']));
+			}
+		}
+	}
 	$first = post_read($thread['firstpid']);
 	empty($first) AND error_page(404, lang('data_malformation'));
-	post_format($first);
+	// 注意：post_read 内部已调用 post_format，不再重复调用（原重复调用导致 post_like_read/hidden 等查询执行两次）
 	if($page == 1) {
 		thread_inc_views($tid);
 	}
 
 	// 查询当前用户对首帖的点赞和收藏状态（从 thread_format 移出，仅详情页需要）
-	$thread['is_liked'] = 0;
+	// is_liked 直接复用 post_format 中已设置的 $first['is_liked']，避免重复查询 post_like_read
+	$thread['is_liked'] = !empty($first['is_liked']) ? 1 : 0;
 	$thread['is_favorited'] = 0;
 	if(!empty($uid)) {
-		$thread['is_liked'] = !empty(post_like_read($uid, $thread['firstpid'])) ? 1 : 0;
 		$thread['is_favorited'] = !empty(thread_favorite_read($uid, $tid)) ? 1 : 0;
 	}
 
@@ -820,11 +863,23 @@ if($action == 'create') {
 				}
 			}
 
-			// 批量预加载楼中楼回复的点赞状态和隐藏内容，消除 post_format 中的 N+1 查询
+			// 批量预加载楼中楼回复的点赞状态/隐藏内容/用户/勋章，消除 post_format 与模板 hook 中的 N+1 查询
 			if(!empty($_all_replies)) {
 				global $uid, $g_preloaded_post_likes;
 				$_reply_pids = array();
-				foreach($_all_replies as $_r) $_reply_pids[] = $_r['pid'];
+				$_reply_uids = array();
+				foreach($_all_replies as $_r) {
+					$_reply_pids[] = $_r['pid'];
+					$_reply_uids[] = $_r['uid'];
+				}
+
+				// 批量预加载用户数据
+				user_preload($_reply_uids);
+
+				// 批量预加载勋章（填充 MedalService 静态缓存）
+				if(class_exists('MedalService', false) && !empty($_reply_uids)) {
+					MedalService::getInstance()->getBatchUserMedals($_reply_uids);
+				}
 
 				// 补充预加载点赞状态（合并一级评论已预加载的数据）
 				if(!empty($uid) && !empty($_reply_pids)) {
@@ -975,8 +1030,8 @@ if(isset($_main_count) && $pagesize > 0) {
 
 	// === 右侧边栏数据准备 ===
 
-	// 作者完整数据
-	$author = user_read($thread['uid']);
+	// 作者完整数据（用 user_read_cache 命中静态缓存，避免 user_read 重复查库）
+	$author = user_read_cache($thread['uid']);
 	$author_group = isset($grouplist[$author['gid']]) ? $grouplist[$author['gid']] : group_read($author['gid']);
 
 	// SEO: 作者 Person（含 url，便于 AI 关联作者主页）

@@ -2996,5 +2996,3 @@
     });
 
 })(window);
-
-console.log('xiuno-modern.js loaded');

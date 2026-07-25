@@ -200,7 +200,7 @@
                             <td><input type="checkbox" class="form-check-input profile-check" value="<?php echo $pa['id'];?>"></td>
                             <td>
                                 <?php if(!empty($pa['avatar_url'])): ?>
-                                <img class="rounded-circle me-1" src="<?php echo $pa['avatar_url'];?>" style="width:24px;height:24px" onerror="this.onerror=null;this.src='<?php echo $conf['view_url']; ?>img/avatar.png'">
+                                <?php echo avatar_component_from_data($pa['avatar_url'], 'xs', '', '', 0, array('show_hooks' => false, 'show_group_icon' => false, 'extra_class' => 'me-1')); ?>
                                 <?php endif; ?>
                                 <?php echo esc_html($pa['username'] ?? '');?>
                                 <?php if(intval($pa['audit_status']) === AuditService::STATUS_IGNORED): ?>
@@ -215,10 +215,10 @@
                             </td>
                             <?php if($pa['field_name'] == 'avatar'): ?>
                             <td style="max-width:120px;">
-                                <img src="<?php echo $pa['avatar_url'];?>" style="width:48px;height:48px;border-radius:50%;" onerror="this.onerror=null;this.src='<?php echo $conf['view_url']; ?>img/avatar.png'">
+                                <?php echo avatar_component_from_data($pa['avatar_url'], 'lg', '', '', 0, array('show_hooks' => false, 'show_group_icon' => false)); ?>
                             </td>
                             <td style="max-width:120px;">
-                                <img src="<?php echo $pa['new_avatar_url'] ?? $pa['avatar_url'];?>" style="width:48px;height:48px;border-radius:50%;" onerror="this.onerror=null;this.src='<?php echo $conf['view_url']; ?>img/avatar.png'">
+                                <?php echo avatar_component_from_data($pa['new_avatar_url'] ?? $pa['avatar_url'], 'lg', '', '', 0, array('show_hooks' => false, 'show_group_icon' => false)); ?>
                             </td>
                             <?php else: ?>
                             <td class="text-truncate" style="max-width:120px;" title="<?php echo esc_html($pa['old_value']);?>"><?php echo esc_html(mb_substr($pa['old_value'], 0, 30));?></td>
@@ -254,20 +254,79 @@
 <script>
 var csrf_token = <?php echo json_encode($header['csrf_token'] ?? '');?>;
 
+// ponytail: 改造为原生 JS，不依赖 $/XN（参考 online_upgrade.htm 范式）
+// buildQuery: 等价 $.param，支持数组（ids[]=1&ids[]=2，PHP param('ids', array()) 可正确解析）
+function buildQuery(data) {
+    var parts = [];
+    function build(prefix, val) {
+        if (val === null || val === undefined) val = '';
+        if (Array.isArray(val)) {
+            for (var i = 0; i < val.length; i++) build(prefix + '[]', val[i]);
+        } else if (typeof val === 'object') {
+            for (var k in val) {
+                if (Object.prototype.hasOwnProperty.call(val, k)) {
+                    build(prefix ? prefix + '[' + k + ']' : k, val[k]);
+                }
+            }
+        } else {
+            parts.push(encodeURIComponent(prefix) + '=' + encodeURIComponent(val));
+        }
+    }
+    build('', data);
+    return parts.join('&').replace(/%20/g, '+');
+}
+
+// xpost: 等价 $.xpost(url, postdata, callback) — callback(code, message)
+function xpost(url, postdata, callback) {
+    var body = (postdata && typeof postdata === 'object') ? buildQuery(postdata) : (postdata || '');
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin',
+        body: body
+    }).then(function(response) {
+        return response.text().then(function(text) {
+            if (!text) throw { code: -100, message: 'Server Response Empty' };
+            try { return JSON.parse(text); }
+            catch (e) { throw { code: -101, message: text }; }
+        });
+    }).then(function(json) {
+        if (json && json.code !== undefined) {
+            callback(json.code, json.message);
+        } else {
+            callback(0, json);
+        }
+    }).catch(function(err) {
+        callback(err.code || -1, err.message || 'Network error');
+    });
+}
+
 // 标签页切换（使用 URL hash 保持刷新后状态）
 function switchAuditTab(tabName) {
-    $('#audit-tabs .nav-link').removeClass('active');
-    $('#audit-tabs .nav-link[data-tab="' + tabName + '"]').addClass('active');
-    $('.audit-tab-content').hide();
-    $('#tab-' + tabName).show();
+    document.querySelectorAll('#audit-tabs .nav-link').forEach(function(el) {
+        el.classList.remove('active');
+    });
+    var activeTab = document.querySelector('#audit-tabs .nav-link[data-tab="' + tabName + '"]');
+    if (activeTab) activeTab.classList.add('active');
+    document.querySelectorAll('.audit-tab-content').forEach(function(el) {
+        el.style.display = 'none';
+    });
+    var activeContent = document.getElementById('tab-' + tabName);
+    if (activeContent) activeContent.style.display = '';
     if(history.replaceState) {
         history.replaceState(null, '', '#' + tabName);
     }
 }
 
-$('#audit-tabs .nav-link').on('click', function(e) {
+// 标签页点击（事件委托）
+document.getElementById('audit-tabs').addEventListener('click', function(e) {
+    var el = e.target.closest('.nav-link');
+    if (!el) return;
     e.preventDefault();
-    var tab = $(this).data('tab');
+    var tab = el.getAttribute('data-tab');
     if(tab) switchAuditTab(tab);
 });
 
@@ -280,11 +339,14 @@ $('#audit-tabs .nav-link').on('click', function(e) {
     }
 })();
 
-// 审核通过（帖子/回帖）
-$('.audit-approve').on('click', function() {
-    var type = $(this).data('type');
-    var id = $(this).data('id');
-    $.xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'approve', target_type: type, target_id: id}, function(code, message) {
+// 审核通过（帖子/回帖）— 事件委托
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('.audit-approve');
+    if (!el) return;
+    e.preventDefault();
+    var type = el.getAttribute('data-type');
+    var id = el.getAttribute('data-id');
+    xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'approve', target_type: type, target_id: id}, function(code, message) {
         if(code == 0) {
             showToast(message, 'success');
             setTimeout(function(){ location.reload(); }, 800);
@@ -292,88 +354,105 @@ $('.audit-approve').on('click', function() {
     });
 });
 
-// 审核驳回（帖子/回帖）
-$('.audit-reject').on('click', function() {
-    var type = $(this).data('type');
-    var id = $(this).data('id');
-    XN.prompt('<?php echo lang('admin_reject_reason_prompt')?>', '', function(reason) {
-        $.xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'reject', target_type: type, target_id: id, reason: reason || ''}, function(code, message) {
-            if(code == 0) {
-                showToast(message, 'success');
-                setTimeout(function(){ location.reload(); }, 800);
-            } else { showToast(message, 'error'); }
-        });
-    });
-});
-
-// 审核忽略（帖子/回帖）：从队列移除，不通知作者
-$('.audit-ignore').on('click', function() {
-    var type = $(this).data('type');
-    var id = $(this).data('id');
-    $.xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'ignore', target_type: type, target_id: id}, function(code, message) {
+// 审核驳回（帖子/回帖）— 事件委托
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('.audit-reject');
+    if (!el) return;
+    e.preventDefault();
+    var type = el.getAttribute('data-type');
+    var id = el.getAttribute('data-id');
+    var reason = prompt('<?php echo lang('admin_reject_reason_prompt')?>', '');
+    if (reason === null) return;
+    xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'reject', target_type: type, target_id: id, reason: reason || ''}, function(code, message) {
         if(code == 0) {
             showToast(message, 'success');
             setTimeout(function(){ location.reload(); }, 800);
         } else { showToast(message, 'error'); }
     });
 });
+
+// 审核忽略（帖子/回帖）：从队列移除，不通知作者 — 事件委托
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('.audit-ignore');
+    if (!el) return;
+    e.preventDefault();
+    var type = el.getAttribute('data-type');
+    var id = el.getAttribute('data-id');
+    xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'ignore', target_type: type, target_id: id}, function(code, message) {
+        if(code == 0) {
+            showToast(message, 'success');
+            setTimeout(function(){ location.reload(); }, 800);
+        } else { showToast(message, 'error'); }
+    });
+});
+
+// 辅助：按 id 绑定事件（元素可能在无待审数据时不存在，需 null 安全）
+function onId(id, event, fn) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener(event, fn);
+}
 
 // 全选
-$('#select-all-thread').on('change', function() {
-    $('.thread-check').prop('checked', this.checked);
+onId('select-all-thread', 'change', function() {
+    var checked = this.checked;
+    document.querySelectorAll('.thread-check').forEach(function(el) { el.checked = checked; });
 });
-$('#select-all-post').on('change', function() {
-    $('.post-check').prop('checked', this.checked);
+onId('select-all-post', 'change', function() {
+    var checked = this.checked;
+    document.querySelectorAll('.post-check').forEach(function(el) { el.checked = checked; });
 });
 
 // 批量通过 - 帖子
-$('#batch-approve-thread').on('click', function() {
+onId('batch-approve-thread', 'click', function() {
     var ids = [];
-    $('.thread-check:checked').each(function(){ ids.push($(this).val()); });
+    document.querySelectorAll('.thread-check:checked').forEach(function(el){ ids.push(el.value); });
     if(ids.length === 0) { showToast('<?php echo lang('admin_please_select_first')?>', 'warning'); return; }
-    $.xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'batch_approve', target_type: 'thread', ids: ids}, function(code, message) {
+    xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'batch_approve', target_type: 'thread', ids: ids}, function(code, message) {
         if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 800); }
         else { showToast(message, 'error'); }
     });
 });
 
 // 批量通过 - 回帖
-$('#batch-approve-post').on('click', function() {
+onId('batch-approve-post', 'click', function() {
     var ids = [];
-    $('.post-check:checked').each(function(){ ids.push($(this).val()); });
+    document.querySelectorAll('.post-check:checked').forEach(function(el){ ids.push(el.value); });
     if(ids.length === 0) { showToast('<?php echo lang('admin_please_select_first')?>', 'warning'); return; }
-    $.xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'batch_approve', target_type: 'post', ids: ids}, function(code, message) {
+    xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'batch_approve', target_type: 'post', ids: ids}, function(code, message) {
         if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 800); }
         else { showToast(message, 'error'); }
     });
 });
 
 // 批量忽略 - 主题
-$('#batch-ignore-thread').on('click', function() {
+onId('batch-ignore-thread', 'click', function() {
     var ids = [];
-    $('.thread-check:checked').each(function(){ ids.push($(this).val()); });
+    document.querySelectorAll('.thread-check:checked').forEach(function(el){ ids.push(el.value); });
     if(ids.length === 0) { showToast('<?php echo lang('admin_please_select_first')?>', 'warning'); return; }
-    $.xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'batch_ignore', target_type: 'thread', ids: ids}, function(code, message) {
+    xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'batch_ignore', target_type: 'thread', ids: ids}, function(code, message) {
         if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 800); }
         else { showToast(message, 'error'); }
     });
 });
 
 // 批量忽略 - 回帖
-$('#batch-ignore-post').on('click', function() {
+onId('batch-ignore-post', 'click', function() {
     var ids = [];
-    $('.post-check:checked').each(function(){ ids.push($(this).val()); });
+    document.querySelectorAll('.post-check:checked').forEach(function(el){ ids.push(el.value); });
     if(ids.length === 0) { showToast('<?php echo lang('admin_please_select_first')?>', 'warning'); return; }
-    $.xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'batch_ignore', target_type: 'post', ids: ids}, function(code, message) {
+    xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'batch_ignore', target_type: 'post', ids: ids}, function(code, message) {
         if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 800); }
         else { showToast(message, 'error'); }
     });
 });
 
-// 资料审核通过
-$('.audit-profile-approve').on('click', function() {
-    var id = $(this).data('id');
-    $.xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_approve', audit_id: id}, function(code, message) {
+// 资料审核通过 — 事件委托
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('.audit-profile-approve');
+    if (!el) return;
+    e.preventDefault();
+    var id = el.getAttribute('data-id');
+    xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_approve', audit_id: id}, function(code, message) {
         if(code == 0) {
             showToast(message, 'success');
             setTimeout(function(){ location.reload(); }, 800);
@@ -381,23 +460,29 @@ $('.audit-profile-approve').on('click', function() {
     });
 });
 
-// 资料审核驳回
-$('.audit-profile-reject').on('click', function() {
-    var id = $(this).data('id');
-    XN.prompt('<?php echo lang('admin_reject_reason_prompt')?>', '', function(reason) {
-        $.xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_reject', audit_id: id, reason: reason || ''}, function(code, message) {
-            if(code == 0) {
-                showToast(message, 'success');
-                setTimeout(function(){ location.reload(); }, 800);
-            } else { showToast(message, 'error'); }
-        });
+// 资料审核驳回 — 事件委托
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('.audit-profile-reject');
+    if (!el) return;
+    e.preventDefault();
+    var id = el.getAttribute('data-id');
+    var reason = prompt('<?php echo lang('admin_reject_reason_prompt')?>', '');
+    if (reason === null) return;
+    xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_reject', audit_id: id, reason: reason || ''}, function(code, message) {
+        if(code == 0) {
+            showToast(message, 'success');
+            setTimeout(function(){ location.reload(); }, 800);
+        } else { showToast(message, 'error'); }
     });
 });
 
-// 资料审核忽略
-$('.audit-profile-ignore').on('click', function() {
-    var id = $(this).data('id');
-    $.xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_ignore', audit_id: id}, function(code, message) {
+// 资料审核忽略 — 事件委托
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('.audit-profile-ignore');
+    if (!el) return;
+    e.preventDefault();
+    var id = el.getAttribute('data-id');
+    xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_ignore', audit_id: id}, function(code, message) {
         if(code == 0) {
             showToast(message, 'success');
             setTimeout(function(){ location.reload(); }, 800);
@@ -406,27 +491,28 @@ $('.audit-profile-ignore').on('click', function() {
 });
 
 // 资料全选
-$('#select-all-profile').on('change', function() {
-    $('.profile-check').prop('checked', this.checked);
+onId('select-all-profile', 'change', function() {
+    var checked = this.checked;
+    document.querySelectorAll('.profile-check').forEach(function(el) { el.checked = checked; });
 });
 
 // 资料批量通过
-$('#batch-approve-profile').on('click', function() {
+onId('batch-approve-profile', 'click', function() {
     var ids = [];
-    $('.profile-check:checked').each(function(){ ids.push($(this).val()); });
+    document.querySelectorAll('.profile-check:checked').forEach(function(el){ ids.push(el.value); });
     if(ids.length === 0) { showToast('<?php echo lang('admin_please_select_first')?>', 'warning'); return; }
-    $.xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_batch_approve', ids: ids}, function(code, message) {
+    xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_batch_approve', ids: ids}, function(code, message) {
         if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 800); }
         else { showToast(message, 'error'); }
     });
 });
 
 // 资料批量忽略
-$('#batch-ignore-profile').on('click', function() {
+onId('batch-ignore-profile', 'click', function() {
     var ids = [];
-    $('.profile-check:checked').each(function(){ ids.push($(this).val()); });
+    document.querySelectorAll('.profile-check:checked').forEach(function(el){ ids.push(el.value); });
     if(ids.length === 0) { showToast('<?php echo lang('admin_please_select_first')?>', 'warning'); return; }
-    $.xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_batch_ignore', ids: ids}, function(code, message) {
+    xpost('<?php echo url('audit');?>', {csrf_token: csrf_token, audit_action: 'profile_batch_ignore', ids: ids}, function(code, message) {
         if(code == 0) { showToast(message, 'success'); setTimeout(function(){ location.reload(); }, 800); }
         else { showToast(message, 'error'); }
     });

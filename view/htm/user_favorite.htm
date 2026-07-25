@@ -33,5 +33,6 @@
 </template>
 
 <script>
-$('a[data-active="user-favorite"]').addClass('active');
+var el = document.querySelector('a[data-active="user-favorite"]');
+if (el) el.classList.add('active');
 </script>

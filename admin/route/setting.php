@@ -1020,6 +1020,59 @@ respond @hidden 404
 		message(0, lang('save_successfully'));
 	}
 
+} elseif($action == 'avatar') {
+
+	// hook admin_setting_avatar_get_post.php
+
+	if($method == 'GET') {
+
+		// hook admin_setting_avatar_get_start.php
+
+		// 读取当前头像形状(avatar_component_get_shape 走 setting_get('avatar_shape'))
+		$avatar_shape = function_exists('setting_get') ? setting_get('avatar_shape') : '';
+		if(!in_array($avatar_shape, array('rounded', 'circle', 'square'), true)) {
+			$avatar_shape = 'rounded';
+		}
+
+		$header['title'] = lang('admin_setting_avatar');
+		$header['mobile_title'] = lang('admin_setting_avatar');
+
+		// hook admin_setting_avatar_get_end.php
+
+		include _include(ADMIN_PATH.'view/htm/setting_avatar.htm');
+
+	} else {
+
+		CsrfService::check();
+
+		// hook admin_setting_avatar_post_start.php
+
+		$avatar_shape = param('avatar_shape', 'rounded');
+		// 白名单校验,非法值回退到默认 rounded
+		if(!in_array($avatar_shape, array('rounded', 'circle', 'square'), true)) {
+			$avatar_shape = 'rounded';
+		}
+
+		// 用 setting_set 保存(走 kv 存储,avatar_component_get_shape 用 setting_get 读取)
+		// setting_set 内部已通过 kv_cache_set 同步更新 db 和 cache,无需手动清缓存
+		setting_set('avatar_shape', $avatar_shape);
+
+		// hook admin_setting_avatar_post_end.php
+
+		admin_log_create('setting_avatar', 'setting', '', '修改头像设置: shape=' . $avatar_shape);
+
+		// htmx 请求:返回 HTML 片段(成功提示带 data-code),非 htmx 请求:返回 JSON
+		if(isset($_SERVER['HTTP_HX_REQUEST']) && $_SERVER['HTTP_HX_REQUEST'] === 'true') {
+			header('Content-Type: text/html; charset=utf-8');
+			echo '<div class="alert alert-success d-flex align-items-center mb-0" data-code="0" role="alert">';
+			echo '<i class="ti ti-circle-check me-2"></i>';
+			echo '<span>' . esc_html(lang('admin_setting_avatar_saved')) . '</span>';
+			echo '</div>';
+			exit;
+		}
+		message(0, lang('admin_setting_avatar_saved'));
+	}
+
 }
 
 // hook admin_setting_end.php

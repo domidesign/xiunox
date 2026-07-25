@@ -296,9 +296,30 @@ function renderPreinstallResult(data) {
         preinstallUrl = '?plugin-install-' + preinstallDir + '.htm';
     }
 
+    // 同类插件冲突提示：渲染在最上方，让用户在安装前知晓哪些插件会被自动禁用
+    var conflicts = data.conflicts || [];
+    if (conflicts.length > 0) {
+        html += '<div class="alert alert-warning py-2 mb-2">';
+        html += '<i class="ti ti-alert-circle me-1"></i><b><?php echo lang('plugin_conflict_title');?></b><br>';
+        html += '<span class="small"><?php echo lang('plugin_conflict_desc');?></span>';
+        html += '<ul class="mb-0 mt-1 ps-3">';
+        conflicts.forEach(function(c) {
+            var statusText = c.enable
+                ? '<span class="text-danger small"><?php echo lang('plugin_conflict_item_enabled');?></span>'
+                : '<span class="text-secondary small"><?php echo lang('plugin_conflict_item_disabled');?></span>';
+            html += '<li>' + escapeHtml(c.name) + ' <code class="small">' + escapeHtml(c.dir) + '</code> ' + statusText + '</li>';
+        });
+        html += '</ul>';
+        html += '</div>';
+    }
+
     if (data.can_install && data.total === 0) {
-        // 无任何问题
-        html = '<div class="alert alert-success py-2"><i class="ti ti-circle-check me-1"></i><?php echo lang('plugin_preinstall_pass');?></div>';
+        // 无任何问题（冲突提示已在上方渲染，这里只显示扫描通过）
+        if (conflicts.length === 0) {
+            html = '<div class="alert alert-success py-2"><i class="ti ti-circle-check me-1"></i><?php echo lang('plugin_preinstall_pass');?></div>';
+        } else {
+            html += '<div class="alert alert-success py-2"><i class="ti ti-circle-check me-1"></i><?php echo lang('plugin_preinstall_pass');?></div>';
+        }
         document.getElementById('preinstallScanResult').innerHTML = html;
         actionsEl.innerHTML = '<button type="button" class="btn btn-primary rounded-pill" onclick="submitPluginInstallFromPreinstall()"><i class="ti ti-download me-1"></i><?php echo lang('admin_btn_install');?></button>';
         actionsEl.classList.remove('d-none');
@@ -489,9 +510,9 @@ function bindPluginActionButtons() {
                 okText = '<?php echo lang('admin_btn_upgrade');?>';
             }
 
-            XN.confirm(msg, function() {
+            if (confirm(msg)) {
                 submitPluginAction(btn, url);
-            }, { type: type, okText: okText });
+            }
         });
     });
 }

@@ -185,7 +185,9 @@ class UserService {
         if (empty($validUids)) return [];
         $placeholders = rtrim(str_repeat('?,', count($validUids)), ',');
         $sql = "SELECT * FROM " . $this->db->table('user') . " WHERE uid IN ({$placeholders})";
-        $stmt = $this->db->execute($sql, $validUids);
+        // ponytail: db_pdo_mysql 无 execute() 方法，用 prepare() 返回 PDOStatement
+        $stmt = $this->db->prepare($sql, $validUids);
+        if (!$stmt) return [];
         $result = $stmt->fetchAll();
         return $result ? $result : [];
     }

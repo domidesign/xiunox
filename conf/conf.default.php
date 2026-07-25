@@ -169,6 +169,7 @@ return array (
 	'api_log' => 0,                          // API 日志开关
 	'api_cors_origin' => '*',                // CORS 允许来源
 	'api_access_token_expire' => 2,          // access token 过期时间（小时），默认 2 小时
+	'api_token_absolute_expire' => 90,       // token 链绝对过期上限（天），默认 90 天，0=不限制
 	'api_cors_credentials' => 0,             // CORS 是否允许携带凭证（0=不允许，1=允许，仅在 api_cors_origin 为具体域名时生效）
 
 	// 编辑器

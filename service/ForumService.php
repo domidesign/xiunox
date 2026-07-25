@@ -73,7 +73,9 @@ class ForumService {
         if (empty($validFids)) return [];
         $placeholders = rtrim(str_repeat('?,', count($validFids)), ',');
         $sql = "SELECT * FROM " . $this->db->table('forum') . " WHERE fid IN ({$placeholders})";
-        $stmt = $this->db->execute($sql, $validFids);
+        // ponytail: db_pdo_mysql 无 execute() 方法，用 prepare() 返回 PDOStatement
+        $stmt = $this->db->prepare($sql, $validFids);
+        if (!$stmt) return [];
         $result = $stmt->fetchAll();
         return $result ? $result : [];
     }
@@ -88,8 +90,26 @@ class ForumService {
         // 含 JOIN 子查询 SELECT MAX(tid) FROM thread GROUP BY fid，开销大
         // 使用 CacheHelper::remember 简化缓存读写，核心代码前缀 'core'
         return CacheHelper::remember('forum_tree', 300, function() {
-            // 查询所有版块，按 rank 降序、fid 升序排列
-            $allForums = $this->db->find('forum', [], ['rank' => -1, 'fid' => 1], 1, 1000, 'fid');
+            // ponytail: 优先复用全局 $forumlist（已由 forum_list_cache 加载）
+            // 避免「SELECT * FROM bbs_forum ORDER BY rank DESC」和此处重复全表查询
+            // $forumlist 经 forum_format 处理，原始字段（fid/fup/name/icon/moduids 等）均保留，formatForumItem 重新读 icon 字段不会二次转义
+            global $forumlist;
+            $allForums = array();
+            if (!empty($forumlist) && is_array($forumlist)) {
+                // 复制一份避免污染全局变量，按 rank DESC, fid ASC 排序（与原 db->find 排序一致）
+                $allForums = $forumlist;
+                uasort($allForums, function($a, $b) {
+                    $rankA = intval($a['rank'] ?? 0);
+                    $rankB = intval($b['rank'] ?? 0);
+                    if ($rankA === $rankB) {
+                        return intval($a['fid']) - intval($b['fid']);
+                    }
+                    return $rankB - $rankA; // DESC
+                });
+            } else {
+                // 回退：API 等未走 index.inc.php 的场景，$forumlist 未加载时直接查库
+                $allForums = $this->db->find('forum', [], ['rank' => -1, 'fid' => 1], 1, 1000, 'fid');
+            }
             if (empty($allForums)) return [];
 
             // 获取每个版块的最新帖子（用于 last_post 信息）

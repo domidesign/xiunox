@@ -176,7 +176,10 @@ function forum_format(&$forum) {
 		global $forumlist;
 		$forum['fup_name'] = isset($forumlist[$forum['fup']]) ? $forumlist[$forum['fup']]['name'] : '';
 		// 缓存未命中时回退查库
-		if(empty($forum['fup_name'])) {
+		// ponytail: 仅当全局 $forumlist 已初始化为数组时才回退查库；
+		// forum_list_cache 加载阶段 $forumlist 为 NULL/FALSE（cache_get 未命中），
+		// 此时跳过查库，由 forum_list_cache 后续 foreach 从已构建列表填充 fup_name，避免 N+1
+		if(empty($forum['fup_name']) && is_array($forumlist) && !empty($forumlist)) {
 			$fup_forum = forum__read($forum['fup']);
 			$forum['fup_name'] = $fup_forum ? $fup_forum['name'] : '';
 		}
@@ -255,7 +258,11 @@ function forum_list_cache_delete() {
 
 	cache_delete('forumlist');
 	// 同步清除版块树缓存（ForumService::getForumTree）
-	cache_delete('forum_tree');
+	// ponytail: ForumService::getForumTree() 通过 CacheHelper::remember('forum_tree', ...) 写入，
+	// CacheHelper::pluginKey() 会自动加 core_ 前缀，实际缓存键为 core_forum_tree。
+	// 之前误用 cache_delete('forum_tree') 删的是不带 core_ 前缀的键，导致缓存永不失效，
+	// 后台增删改版块后前台 forum_index.htm 仍显示旧树结构（已违反 1 次）
+	cache_delete('core_forum_tree');
 	$deleted = TRUE;
 	// hook model_forum_list_cache_delete_end.php
 }

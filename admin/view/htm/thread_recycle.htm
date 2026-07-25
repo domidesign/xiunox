@@ -150,10 +150,59 @@ var recycleUrl = '<?php echo admin_thread_recycle_url(array('type'=>$type));?>';
 var recycleType = '<?php echo $type;?>';
 var csrf_token = '<?php echo CsrfService::getToken();?>';
 
+// ponytail: 原生 xpost 封装，替代 $.xpost（回调签名 code, message；code=0 成功）
+// 支持数组参数序列化（ids[]=1&ids[]=2，PHP 风格），与 $.param 行为一致
+function xpost(url, postdata, callback) {
+	var parts = [];
+	function build(prefix, val) {
+		if (val === null || val === undefined) val = '';
+		if (Array.isArray(val)) {
+			for (var i = 0; i < val.length; i++) {
+				build(prefix + '[]', val[i]);
+			}
+		} else if (typeof val === 'object') {
+			for (var k in val) {
+				if (Object.prototype.hasOwnProperty.call(val, k)) {
+					build(prefix ? prefix + '[' + k + ']' : k, val[k]);
+				}
+			}
+		} else {
+			parts.push(encodeURIComponent(prefix) + '=' + encodeURIComponent(val));
+		}
+	}
+	var body = null;
+	if (postdata instanceof FormData) {
+		body = postdata;
+	} else if (postdata && typeof postdata === 'object') {
+		build('', postdata);
+		body = parts.join('&').replace(/%20/g, '+');
+	} else if (postdata) {
+		body = postdata;
+	}
+	fetch(url, {
+		method: 'POST',
+		headers: {
+			'X-Requested-With': 'XMLHttpRequest',
+			'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+		},
+		credentials: 'same-origin',
+		body: body
+	}).then(function(response) {
+		return response.text();
+	}).then(function(text) {
+		var data;
+		try { data = JSON.parse(text); }
+		catch(e) { data = {code: -1, message: text}; }
+		if (callback) callback(data.code, data.message);
+	}).catch(function(err) {
+		if (callback) callback(-1, err && err.message ? err.message : 'Network error');
+	});
+}
+
 // 筛选跳转
 function doFilter() {
-	var fid = $('#filter_fid').val();
-	var keyword = $('#filter_keyword').val();
+	var fid = document.getElementById('filter_fid').value;
+	var keyword = document.getElementById('filter_keyword').value;
 	var url = recycleUrl;
 	var params = [];
 	if(fid && fid != '0') params.push('fid=' + encodeURIComponent(fid));
@@ -164,34 +213,38 @@ function doFilter() {
 }
 
 // 全选/取消全选
-$('#checkall').on('change', function() {
-	var checked = $(this).prop('checked');
-	$('#item_list input[type="checkbox"]').prop('checked', checked);
+document.getElementById('checkall').addEventListener('change', function() {
+	var checked = this.checked;
+	document.querySelectorAll('#item_list input[type="checkbox"]').forEach(function(el) {
+		el.checked = checked;
+	});
 	updateBatchButtons();
 });
 
-// 复选框变化
-$('#item_list').on('change', 'input[type="checkbox"]', function() {
-	updateBatchButtons();
+// 复选框变化（事件委托）
+document.getElementById('item_list').addEventListener('change', function(e) {
+	if (e.target && e.target.matches && e.target.matches('input[type="checkbox"]')) {
+		updateBatchButtons();
+	}
 });
 
 // 更新批量按钮状态
 function updateBatchButtons() {
-	var checked = $('#item_list input[type="checkbox"]:checked');
-	var total = $('#item_list input[type="checkbox"]');
-	var count = checked.length;
+	var checkedEls = document.querySelectorAll('#item_list input[type="checkbox"]:checked');
+	var totalEls = document.querySelectorAll('#item_list input[type="checkbox"]');
+	var count = checkedEls.length;
 	var label = recycleType === 'post' ? '<?php echo lang("admin_thread_col_posts");?>' : '<?php echo lang("admin_thread_col_subjects");?>';
-	$('#selected_count').text(count + ' ' + label);
-	$('#btn_restore').prop('disabled', count === 0);
-	$('#btn_hard_delete').prop('disabled', count === 0);
-	$('#checkall').prop('checked', total.length > 0 && count === total.length);
+	document.getElementById('selected_count').textContent = count + ' ' + label;
+	document.getElementById('btn_restore').disabled = (count === 0);
+	document.getElementById('btn_hard_delete').disabled = (count === 0);
+	document.getElementById('checkall').checked = (totalEls.length > 0 && count === totalEls.length);
 }
 
 // 获取选中的 id（thread 用 tid，post 用 pid）
 function getSelectedIds() {
 	var ids = [];
-	$('#item_list input[type="checkbox"]:checked').each(function() {
-		ids.push($(this).val());
+	document.querySelectorAll('#item_list input[type="checkbox"]:checked').forEach(function(el) {
+		ids.push(el.value);
 	});
 	return ids;
 }
@@ -209,7 +262,7 @@ function doRecycleOp(op, ids, confirmMsg) {
 		postdata[idField] = ids.join(',');
 		postdata.op = op;
 		postdata.csrf_token = csrf_token;
-		$.xpost(recycleUrl, postdata, function(code, message) {
+		xpost(recycleUrl, postdata, function(code, message) {
 			if(parseInt(code) == 0) {
 				showToast(message, 'success');
 				setTimeout(function() { window.location.reload(); }, 800);
@@ -220,29 +273,31 @@ function doRecycleOp(op, ids, confirmMsg) {
 	};
 
 	if(confirmMsg) {
-		XN.confirm(confirmMsg, doAction);
+		if (confirm(confirmMsg)) doAction();
 	} else {
 		doAction();
 	}
 }
 
 // 批量恢复
-$('#btn_restore').on('click', function() {
+document.getElementById('btn_restore').addEventListener('click', function() {
 	var ids = getSelectedIds();
 	doRecycleOp('restore', ids, '<?php echo lang("admin_thread_restore");?>？');
 });
 
 // 批量彻底删除
-$('#btn_hard_delete').on('click', function() {
+document.getElementById('btn_hard_delete').addEventListener('click', function() {
 	var ids = getSelectedIds();
-	doRecycleOp('hard_delete', ids, $(this).data('confirm-text'));
+	doRecycleOp('hard_delete', ids, this.getAttribute('data-confirm-text'));
 });
 
-// 单条操作
-$('#item_list').on('click', 'button[data-op]', function() {
-	var op = $(this).data('op');
-	var id = $(this).data('id');
-	var confirmMsg = op === 'hard_delete' ? $(this).data('confirm-text') : '<?php echo lang("admin_thread_restore");?>？';
+// 单条操作（事件委托）
+document.getElementById('item_list').addEventListener('click', function(e) {
+	var el = e.target.closest('button[data-op]');
+	if (!el) return;
+	var op = el.getAttribute('data-op');
+	var id = el.getAttribute('data-id');
+	var confirmMsg = op === 'hard_delete' ? el.getAttribute('data-confirm-text') : '<?php echo lang("admin_thread_restore");?>？';
 	doRecycleOp(op, [id], confirmMsg);
 });
 </script>

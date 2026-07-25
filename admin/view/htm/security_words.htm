@@ -122,12 +122,37 @@ document.querySelectorAll('#wordTypeTab .nav-link').forEach(function(btn) {
 	});
 });
 
+// ponytail: 原生 JS ajax POST（替代 XN.post/$.xpost，不依赖 jQuery/XN shim）
+function ajaxPost(url, data, cb) {
+	var body = new URLSearchParams();
+	for (var k in data) {
+		if (Object.prototype.hasOwnProperty.call(data, k)) body.append(k, data[k]);
+	}
+	fetch(url, {
+		method: 'POST',
+		body: body.toString(),
+		credentials: 'same-origin',
+		headers: {
+			'X-Requested-With': 'XMLHttpRequest',
+			'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+		}
+	}).then(function(res) { return res.text(); }).then(function(text) {
+		var s = null;
+		try { s = text ? JSON.parse(text) : null; } catch(e) {}
+		var code = s && s.code !== undefined ? s.code : -1;
+		var message = s && s.message !== undefined ? s.message : (text || '');
+		if(cb) cb(code, message);
+	}).catch(function() {
+		if(cb) cb(-1, '<?php echo lang('admin_request_failed');?>');
+	});
+}
+
 // 删除词
 document.querySelectorAll('.word-delete').forEach(function(btn) {
 	btn.addEventListener('click', function() {
 		var word = this.getAttribute('data-word');
-		XN.confirm('<?php echo lang('admin_confirm_delete_word')?>' + word + '？', function() {
-			XN.post('<?php echo admin_security_url('words');?>', { word_action: 'delete', word: word, word_type: currentType }, function(code, message) {
+		if(confirm('<?php echo lang('admin_confirm_delete_word')?>' + word + '？')) {
+			ajaxPost('<?php echo admin_security_url('words');?>', { word_action: 'delete', word: word, word_type: currentType }, function(code, message) {
 				if(code == 0) {
 					showToast(message, 'success');
 					setTimeout(function(){ location.reload(); }, 1000);
@@ -135,7 +160,7 @@ document.querySelectorAll('.word-delete').forEach(function(btn) {
 					showToast(message, 'error');
 				}
 			});
-		});
+		}
 	});
 });
 
@@ -143,8 +168,8 @@ document.querySelectorAll('.word-delete').forEach(function(btn) {
 var clearBtn = document.getElementById('clear-btn');
 if(clearBtn) {
 	clearBtn.addEventListener('click', function() {
-		XN.confirm('<?php echo lang('admin_confirm_clear_all_words')?>', function() {
-			XN.post('<?php echo admin_security_url('words');?>', { word_action: 'clear', word_type: currentType }, function(code, message) {
+		if(confirm('<?php echo lang('admin_confirm_clear_all_words')?>')) {
+			ajaxPost('<?php echo admin_security_url('words');?>', { word_action: 'clear', word_type: currentType }, function(code, message) {
 				if(code == 0) {
 					showToast(message, 'success');
 					setTimeout(function(){ location.reload(); }, 1000);
@@ -152,7 +177,7 @@ if(clearBtn) {
 					showToast(message, 'error');
 				}
 			});
-		});
+		}
 	});
 };
 
@@ -185,47 +210,56 @@ document.getElementById('test-text').addEventListener('keyup', function(e) {
 });
 
 // 批量导入表单
-var jimportForm = $('#import-form');
-jimportForm.on('submit', function() {
-	var postdata = jimportForm.serialize();
-	$.xpost(jimportForm.attr('action'), postdata, function(code, message) {
+var importForm = document.querySelector('#import-form');
+importForm.addEventListener('submit', function(e) {
+	e.preventDefault();
+	var formData = new FormData(importForm);
+	fetch(importForm.getAttribute('action'), {
+		method: 'POST',
+		body: formData,
+		credentials: 'same-origin',
+		headers: {'X-Requested-With': 'XMLHttpRequest'}
+	}).then(function(res) { return res.text(); }).then(function(text) {
+		var s = null;
+		try { s = text ? JSON.parse(text) : null; } catch(e) {}
+		var code = s && s.code !== undefined ? s.code : -1;
+		var message = s && s.message !== undefined ? s.message : (text || '');
 		if(code == 0) {
 			showToast(message, 'success');
 			setTimeout(function(){ location.reload(); }, 1000);
 		} else {
 			showToast(message, 'error');
 		}
+	}).catch(function() {
+		showToast('<?php echo lang('admin_request_failed');?>', 'error');
 	});
-	return false;
 });
 
 // 文件导入表单
-var jfileForm = $('#file-import-form');
-jfileForm.on('submit', function() {
-	var formData = new FormData(this);
-	var jsubmit = jfileForm.find('button[type="submit"]');
-	setBtnLoading(jsubmit, true);
-	$.ajax({
-		url: jfileForm.attr('action'),
-		type: 'POST',
-		data: formData,
-		processData: false,
-		contentType: false,
-		success: function(r) {
-			var s = xn.json_decode(r);
-			if(s && s.code == 0) {
-				showToast(s.message, 'success');
-				setTimeout(function(){ location.reload(); }, 1000);
-			} else {
-				showToast(s && s.message ? s.message : '<?php echo lang('admin_import_failed');?>', 'error');
-			}
-			setBtnLoading(jsubmit, false);
-		},
-		error: function() {
-			showToast('<?php echo lang('admin_request_failed');?>', 'error');
-			setBtnLoading(jsubmit, false);
+var fileForm = document.querySelector('#file-import-form');
+fileForm.addEventListener('submit', function(e) {
+	e.preventDefault();
+	var formData = new FormData(fileForm);
+	var submitBtn = fileForm.querySelector('button[type="submit"]');
+	setBtnLoading(submitBtn, true);
+	fetch(fileForm.getAttribute('action'), {
+		method: 'POST',
+		body: formData,
+		credentials: 'same-origin',
+		headers: {'X-Requested-With': 'XMLHttpRequest'}
+	}).then(function(res) { return res.text(); }).then(function(text) {
+		var s = null;
+		try { s = text ? JSON.parse(text) : null; } catch(e) {}
+		if(s && s.code == 0) {
+			showToast(s.message, 'success');
+			setTimeout(function(){ location.reload(); }, 1000);
+		} else {
+			showToast(s && s.message ? s.message : '<?php echo lang('admin_import_failed');?>', 'error');
 		}
+		setBtnLoading(submitBtn, false);
+	}).catch(function() {
+		showToast('<?php echo lang('admin_request_failed');?>', 'error');
+		setBtnLoading(submitBtn, false);
 	});
-	return false;
 });
 </script>

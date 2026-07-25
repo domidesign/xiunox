@@ -135,24 +135,58 @@
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
-var jform = $('#form');
-var jsubmit = $('#submit');
-jform.on('submit', function() {
-	setBtnLoading(jsubmit, true);
-	var postdata = jform.serialize();
-	$.xpost(jform.attr('action'), postdata, function(code, message) {
+// ponytail: 原生 JS 改造，移除对 $/XN. 的依赖
+var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
+function xpost(url, data, callback) {
+	var body = data;
+	var headers = {'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': csrfToken};
+	if (typeof data === 'object' && !(data instanceof FormData)) {
+		var params = new URLSearchParams();
+		for (var k in data) { if (Object.prototype.hasOwnProperty.call(data, k)) params.append(k, data[k]); }
+		body = params.toString();
+	}
+	if (typeof body === 'string') headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+	fetch(url, {method: 'POST', headers: headers, body: body, credentials: 'same-origin'})
+		.then(function(r) { return r.json(); })
+		.then(function(json) { callback(json.code, json.message); })
+		.catch(function(err) { callback(-1, err.message || 'Request failed'); });
+}
+function fieldError(el, message) {
+	if (!el) return;
+	var parent = el.closest('.form-group');
+	if (parent) parent.classList.add('has-danger');
+	el.classList.add('form-control-danger');
+	el.setAttribute('title', message);
+	var tip = el.nextElementSibling;
+	if (tip && tip.classList.contains('xn-field-tip')) {
+		tip.textContent = message;
+		tip.style.display = '';
+	} else {
+		tip = document.createElement('span');
+		tip.className = 'xn-field-tip text-danger small';
+		tip.textContent = message;
+		el.parentNode.insertBefore(tip, el.nextSibling);
+	}
+	el.focus();
+}
+var form = document.getElementById('form');
+var submitBtn = document.getElementById('submit');
+form.addEventListener('submit', function(e) {
+	e.preventDefault();
+	setBtnLoading(submitBtn, true);
+	var postdata = new URLSearchParams(new FormData(form)).toString();
+	xpost(form.getAttribute('action'), postdata, function(code, message) {
 		if(code == 0) {
 			showToast(message, 'success');
 			setTimeout(function(){ window.location.reload(); }, 1000);
 		} else if(xn.is_number(code)) {
 			showToast(message, 'error');
-			setBtnLoading(jsubmit, false);
+			setBtnLoading(submitBtn, false);
 		} else {
-			jform.find('[name="'+code+'"]').fieldError(message).focus();
-			setBtnLoading(jsubmit, false);
+			fieldError(form.querySelector('[name="'+code+'"]'), message);
+			setBtnLoading(submitBtn, false);
 		}
 	});
-	return false;
 });
 </script>
 

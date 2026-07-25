@@ -33,26 +33,29 @@ class RankService {
             global $forumlist;
             $pre = $this->db->tablepre;
 
-            // 根据时间周期构建条件
-            $timeCond = '';
+            // 构建查询条件：始终排除已删除帖子（Xiuno 软删除 is_deleted=1 仍在表中），非管理员只显示审核通过
+            $conds = array('t.is_deleted = 0');
             if ($period === 'week') {
-                $timeCond = ' WHERE t.create_date >= ' . (time() - 7 * 86400);
+                $conds[] = 't.create_date >= ' . (time() - 7 * 86400);
             } elseif ($period === 'month') {
-                $timeCond = ' WHERE t.create_date >= ' . (time() - 30 * 86400);
+                $conds[] = 't.create_date >= ' . (time() - 30 * 86400);
             }
             // period === 'all' 时不加时间条件
+            if (!$isAdmin) {
+                $conds[] = 't.audit_status = 1';
+            }
+            $whereSql = ' WHERE ' . implode(' AND ', $conds);
 
             $offset = ($page - 1) * $pageSize;
 
-            // 查询列表，按 views+posts 综合得分降序，非管理员只显示审核通过的帖子
+            // 查询列表，按 views+posts 综合得分降序
             // 多查一些用于版块权限过滤后仍能填满 pageSize
             $fetchSize = $pageSize * 3;
-            $whereAudit = $isAdmin ? '' : (($timeCond ? ' AND' : ' WHERE') . ' t.audit_status = 1');
             $sql = "SELECT t.tid, t.subject AS title, t.uid, t.posts AS replies, t.views, t.last_date, t.fid, t.audit_status,
                            IFNULL(NULLIF(u.nickname,''), u.username) AS username
                     FROM {$pre}thread t
                     LEFT JOIN {$pre}user u ON t.uid = u.uid
-                    {$timeCond}{$whereAudit}
+                    {$whereSql}
                     ORDER BY (t.views + t.posts) DESC
                     LIMIT {$offset}, {$fetchSize}";
 
@@ -85,9 +88,8 @@ class RankService {
                 ];
             }, $list);
 
-            // 查询总数（非管理员排除待审帖子）
-            $countWhereAudit = $isAdmin ? '' : $whereAudit;
-            $countSql = "SELECT COUNT(*) AS total FROM {$pre}thread t{$timeCond}{$countWhereAudit}";
+            // 查询总数（与列表查询使用相同的 where 条件，含 is_deleted=0 过滤）
+            $countSql = "SELECT COUNT(*) AS total FROM {$pre}thread t{$whereSql}";
             $countRow = $this->db->sqlFindOne($countSql);
             $total = !empty($countRow) ? intval($countRow['total']) : 0;
 

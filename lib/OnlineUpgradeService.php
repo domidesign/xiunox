@@ -520,7 +520,7 @@ class OnlineUpgradeService {
         }
 
         // 重装后清全部缓存（data+tmp+opcache），确保覆盖的新源码生效
-        // tmp 编译缓存（route_*.php/model.min.php 等）必须清，否则 _include() 仍加载旧缓存导致新代码不生效
+        // tmp 编译缓存（route_*.php 等）必须清，否则 _include() 仍加载旧缓存导致新代码不生效
         $cacheRes = $this->clearCaches(['data', 'tmp', 'opcache']);
         $cacheMsg = ($cacheRes['ok'] && $cacheRes['message']) ? '；已清 ' . $cacheRes['message'] : '';
 
@@ -777,7 +777,7 @@ class OnlineUpgradeService {
             'content' => is_file($versionFile) ? file_get_contents($versionFile) : '(文件不存在)',
         ];
 
-        // 3. tmp/ 目录下的合并缓存文件（DEBUG=0 时会走 model.min.php 合并加载）
+        // 3. tmp/ 目录下的编译缓存文件
         $tmpFiles = [];
         if (is_dir($this->tmpPath)) {
             $dirIt = new DirectoryIterator($this->tmpPath);

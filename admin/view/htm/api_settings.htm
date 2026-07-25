@@ -148,10 +148,26 @@
 		<h6 class="fw-semibold mb-3"><i class="ti ti-key me-1"></i>Token 配置</h6>
 		<div class="row g-3">
 			<div class="col-md-4">
-				<label class="form-label" for="apiTokenExpire">Token 有效期（天）</label>
+				<label class="form-label" for="apiTokenExpire">Refresh Token 有效期（天）</label>
 				<input type="number" class="form-control form-control-sm" id="apiTokenExpire" value="<?php echo $api_token_expire;?>" min="1" max="365">
-				<div class="form-text">Refresh Token 的有效天数</div>
+				<div class="form-text">Refresh Token 的有效天数（滑动续期，每次刷新重置）</div>
 			</div>
+			<div class="col-md-4">
+				<label class="form-label" for="apiAccessTokenExpire">Access Token 有效期（小时）</label>
+				<input type="number" class="form-control form-control-sm" id="apiAccessTokenExpire" value="<?php echo $api_access_token_expire;?>" min="1" max="168">
+				<div class="form-text">Access Token 的有效小时数，默认 2 小时（与微信开放平台一致）</div>
+			</div>
+			<div class="col-md-4">
+				<label class="form-label" for="apiTokenAbsoluteExpire">Token 链绝对过期上限（天）</label>
+				<input type="number" class="form-control form-control-sm" id="apiTokenAbsoluteExpire" value="<?php echo $api_token_absolute_expire;?>" min="0" max="365">
+				<div class="form-text">无论刷新与否，超过此天数强制重新登录（0=不限制，默认 90 天）</div>
+			</div>
+		</div>
+		<div class="alert alert-info mt-3 mb-0 small">
+			<i class="ti ti-info-circle"></i>
+			<strong>OAuth 2.1 安全策略：</strong>
+			Access Token 短期有效（推荐 1-2 小时），Refresh Token 滑动续期（推荐 30 天），绝对过期上限防止无限续期（推荐 90 天）。
+			检测到 Refresh Token 重用时会撤销该用户所有 Token；用户改密码会立即撤销所有 API Token。
 		</div>
 	</div>
 </div>
@@ -451,6 +467,8 @@ function saveSettings() {
 		api_rate_limit_window: parseInt(document.getElementById('apiRateLimitWindow').value) || 60,
 		api_cors_origin: document.getElementById('apiCorsOrigin').value.trim() || '*',
 		api_token_expire: parseInt(document.getElementById('apiTokenExpire').value) || 30,
+		api_access_token_expire: parseInt(document.getElementById('apiAccessTokenExpire').value) || 2,
+		api_token_absolute_expire: parseInt(document.getElementById('apiTokenAbsoluteExpire').value) || 0,
 		csrf_token: getCsrfToken()
 	};
 
@@ -643,7 +661,7 @@ function updateApp() {
 }
 
 function deleteApp(id, name) {
-	XN.confirm('确定要删除应用「' + name + '」吗？此操作不可恢复。', function() {
+	if (confirm('确定要删除应用「' + name + '」吗？此操作不可恢复。')) {
 		var data = {
 			id: id,
 			csrf_token: getCsrfToken()
@@ -667,11 +685,11 @@ function deleteApp(id, name) {
 		.catch(function(err) {
 			XN.toast('请求失败', 'danger');
 		});
-	});
+	}
 }
 
 function resetSecret(id, name) {
-	XN.confirm('确定要重置应用「' + name + '」的密钥吗？旧密钥将立即失效。', function() {
+	if (confirm('确定要重置应用「' + name + '」的密钥吗？旧密钥将立即失效。')) {
 		var data = {
 			id: id,
 			csrf_token: getCsrfToken()
@@ -697,7 +715,7 @@ function resetSecret(id, name) {
 		.catch(function(err) {
 			XN.toast('请求失败', 'danger');
 		});
-	});
+	}
 }
 
 function copyField(fieldId) {
