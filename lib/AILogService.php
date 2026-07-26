@@ -51,7 +51,7 @@ class AILogService {
     public static function log(array $data) {
         global $time, $longip;
 
-        // 表不存在时静默跳过（升级未执行的情况）
+        // 表不存在或 db 不可用时静默跳过（升级未执行 / SSE 流式阶段不能中断响应）
         if (!function_exists('db_insert')) return false;
 
         $uid = intval(isset($data['uid']) ? $data['uid'] : 0);
@@ -73,7 +73,15 @@ class AILogService {
             'ip'                => intval(isset($longip) ? $longip : 0),
             'create_time'       => intval(isset($data['create_time']) ? $data['create_time'] : $time),
         );
-        return db_insert(self::$table, $insert);
+        // ponytail: 表不存在时 db_insert 触发 PDOException / E_WARNING，在 SSE 流式阶段会中断响应
+        // 必须用 try-catch 静默失败，日志丢失优于 AI 调用本身失败
+        try {
+            return db_insert(self::$table, $insert);
+        } catch (\Throwable $e) {
+            return false;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
     /**
@@ -91,6 +99,7 @@ class AILogService {
      * @return array 日志列表
      */
     public static function getLogs($page = 1, $pagesize = 20, $filters = array()) {
+        if (!function_exists('db_find')) return array();
         $page = max(1, intval($page));
         $pagesize = max(1, intval($pagesize));
         $cond = array();
@@ -104,7 +113,13 @@ class AILogService {
                 ? array('>=' => intval($filters['start_time']), '<=' => intval($filters['end_time']))
                 : array('<=' => intval($filters['end_time']));
         }
-        return db_find(self::$table, $cond, array('id' => -1), $page, $pagesize);
+        try {
+            return db_find(self::$table, $cond, array('id' => -1), $page, $pagesize);
+        } catch (\Throwable $e) {
+            return array();
+        } catch (\Exception $e) {
+            return array();
+        }
     }
 
     /**
@@ -114,6 +129,7 @@ class AILogService {
      * @return int 总数
      */
     public static function countLogs($filters = array()) {
+        if (!function_exists('db_count')) return 0;
         $cond = array();
         if (!empty($filters['feature'])) $cond['feature'] = $filters['feature'];
         if (!empty($filters['source'])) $cond['source'] = $filters['source'];
@@ -125,7 +141,13 @@ class AILogService {
                 ? array('>=' => intval($filters['start_time']), '<=' => intval($filters['end_time']))
                 : array('<=' => intval($filters['end_time']));
         }
-        return db_count(self::$table, $cond);
+        try {
+            return db_count(self::$table, $cond);
+        } catch (\Throwable $e) {
+            return 0;
+        } catch (\Exception $e) {
+            return 0;
+        }
     }
 
     /**
@@ -135,7 +157,8 @@ class AILogService {
      * @return array [source => [count, success, fail, total_tokens], ...]
      */
     public static function getStatsBySource($period = 'today') {
-        global $time;
+        global $time, $db;
+        if (!function_exists('db_sql_find') || empty($db)) return array();
         if ($period == 'week') {
             $start = strtotime('monday this week 00:00:00', $time);
         } elseif ($period == 'month') {
@@ -144,7 +167,6 @@ class AILogService {
             $start = strtotime(date('Y-m-d 00:00:00', $time));
         }
         // 联表查询，db_find 不支持 GROUP BY，保留 db_sql_find
-        global $db;
         $tablepre = $db->tablepre;
         $sql = "SELECT source,
                     COUNT(*) as cnt,
@@ -154,7 +176,13 @@ class AILogService {
                 FROM `{$tablepre}xnx_ai_call_log`
                 WHERE create_time >= {$start}
                 GROUP BY source";
-        $rows = db_sql_find($sql);
+        try {
+            $rows = db_sql_find($sql);
+        } catch (\Throwable $e) {
+            return array();
+        } catch (\Exception $e) {
+            return array();
+        }
         $stats = array();
         if (is_array($rows)) {
             foreach ($rows as $row) {

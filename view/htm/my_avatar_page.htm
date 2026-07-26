@@ -362,6 +362,13 @@
 
 	// 表单提交（使用 FormData + fetch 发送裁剪后的文件，避免 DataTransfer 兼容性问题）
 	var form = document.getElementById('avatar_upload_form');
+
+	// 头像上传成功后刷新页面：用 form.action（由 my_avatar_url() 生成，兼容查询式与伪静态路由）
+	// 避免 window.location.pathname 在查询式路由下丢失 ?my-avatar.htm 入口导致 404
+	function reloadAvatarPage() {
+		window.location.href = form.action;
+	}
+
 	if(form) {
 		form.addEventListener('submit', function(e) {
 			e.preventDefault();
@@ -384,8 +391,8 @@
 			}).then(function(response) {
 				// 服务端上传成功后会 302 重定向到 my-avatar 页面，fetch 自动跟随
 				if(response.redirected && response.ok) {
-					// 使用带时间戳的 URL 刷新，避免浏览器缓存旧头像
-					window.location.href = window.location.pathname + '?t=' + Date.now();
+					// 用 form.action 跳回头像页，避免时间戳在查询式路由下丢失路由入口
+					reloadAvatarPage();
 					return;
 				}
 				// 错误情况：服务端返回 JSON（X-Requested-With 触发 is_api 分支）
@@ -393,7 +400,7 @@
 					var code = parseInt(json.code);
 					if(code === 0) {
 						// 成功但未走重定向（如审核模式），也刷新页面
-						window.location.href = window.location.pathname + '?t=' + Date.now();
+						reloadAvatarPage();
 						return;
 					}
 					var msg = json.message || '<?php echo lang('upload_failed');?>';
@@ -402,7 +409,7 @@
 					uploadBtn.innerHTML = '<i class="ti ti-check"></i> <?php echo lang('confirm_upload_avatar');?>';
 				}).catch(function() {
 					// 非 JSON 响应，刷新页面
-					window.location.href = window.location.pathname + '?t=' + Date.now();
+					reloadAvatarPage();
 				});
 			}).catch(function() {
 				XN.toast('<?php echo lang('network_error');?>', 'danger');

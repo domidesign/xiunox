@@ -324,13 +324,16 @@
     });
 
     // 如果 URL 中没有 sort 参数但有 localStorage 记忆，自动跳转
+    // 注意：必须保留原 query string（查询式路由下 ?thread-123.htm 是路由入口），
+    // 否则 window.location.pathname 只返回 /，会丢路由入口导致 404
     var urlParams = new URLSearchParams(window.location.search);
     if(!urlParams.has('sort')) {
         var saved = '';
         try { saved = localStorage.getItem(STORAGE_KEY) || ''; } catch(e) {}
         if(saved && saved !== 'asc' && saved !== currentSort) {
-            var newUrl = window.location.pathname + '?sort=' + saved;
-            window.location.href = newUrl;
+            var base = window.location.pathname + window.location.search;
+            var sep = base.indexOf('?') !== -1 ? '&' : '?';
+            window.location.href = base + sep + 'sort=' + saved;
         }
     }
 })();
