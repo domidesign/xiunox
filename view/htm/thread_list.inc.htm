@@ -19,7 +19,7 @@
 				if(!empty($threadlist)) { foreach($threadlist as &$_thread) {
 					if(!isset($_thread['top_class']) || !isset($_thread['tid'])){ continue; }
 				?>
-					<li class="d-flex align-items-center thread-list-item <?php echo $_thread['top_class'];?>" data-tid="<?php echo $_thread['tid'];?>">
+					<li class="d-flex  thread-list-item <?php echo $_thread['top_class'];?>" data-tid="<?php echo $_thread['tid'];?>">
 						<?php if($have_allowtop) { ?>
 							<?php if(!empty($force_show_checkbox) || $_thread['allowtop']) { ?>
 							<input type="checkbox" name="modtid" class="form-check-input  me-2  flex-shrink-0" value="<?php echo $_thread['tid']; ?>" <?php echo empty($mod_input_checked) ? '' : 'checked disabled';?> />

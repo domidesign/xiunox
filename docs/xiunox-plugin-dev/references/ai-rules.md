@@ -69,6 +69,17 @@
 | JS 全局 | `var __myPluginConfig = ...;` |
 | Setting 键 | `setting_get('my_plugin')` / `setting_set('my_plugin', $settings)` |
 | CSS class | `.my-plugin-badge` |
+| **hook 内局部变量** | `$_myplugin_settings`（带下划线前缀，避免污染宿主变量） |
+
+### hook 内变量污染规范
+
+编译期内联 hook（源码标记 `// hook xxx.php` 或 `<!--{hook xxx.htm}-->`）会被直接拼接进宿主函数/模板的 PHP 代码中，**共享宿主作用域**。hook 内赋值的局部变量会泄漏给宿主后续代码，可能覆盖宿主原有变量。
+
+**禁止**：在 hook 中使用通用变量名赋值，如 `$settings`、`$conf`、`$user`、`$thread` 等。
+
+**必须**：hook 内局部变量加插件前缀，如 `$_hidden_settings`、`$_friendlink_links`。
+
+**真实案例**：xnx_hidden 的 `header_link_after.htm` hook 执行 `$settings = HiddenService::getSettings()`，覆盖了 xnx_friendlink 路由预设的 `$settings`，导致 links.htm 模板中 `apply_enabled` 键丢失，申请按钮不显示。
 
 ---
 
@@ -85,6 +96,8 @@
 | hook 内 `return` | 用 `if` 包裹 + `ob_start/ob_get_clean` 暂存输出，UA 检测分支尤其警惕 |
 | Service 内 `// hook xxx.php` 注释直接 `include_once` 加载 | 必须通过 `hook/model_inc_file.php` 注册到 model 加载列表走 `_include()` 编译 |
 | `plugin_hook()` 运行时分发访问调用方局部变量 | 通过第二参数 `$data` 传关联数组，内部 `extract($data, EXTR_SKIP)` 注入 |
+| **hook 内用通用变量名（`$settings`/`$conf`/`$user`）赋值** | **加插件前缀**（`$_myplugin_settings`），否则污染宿主作用域（已违反 1 次：xnx_hidden 的 `$settings` 覆盖 xnx_friendlink） |
+| **模板 `include header.inc.htm` 后使用 `$settings`** | header 中其他插件 hook 会覆盖 `$settings`，需在 include 后重新获取或用前缀变量名 |
 
 ### 运行时 hook 分发：`plugin_hook()`
 

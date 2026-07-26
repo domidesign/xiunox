@@ -939,7 +939,7 @@ class AIService {
      * @param string $path 要拼接的路径（如 '/chat/completions'、'/images/generations'）
      * @return string
      */
-    private function buildEndpointUrl($baseUrl, $path) {
+    public function buildEndpointUrl($baseUrl, $path) {
         $baseUrl = rtrim((string)$baseUrl, '/');
         // ponytail: 若 URL 已以目标 path 结尾，直接返回（兼容用户填完整路径的情况）
         if (substr($baseUrl, -strlen($path)) === $path) {

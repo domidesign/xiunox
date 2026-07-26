@@ -138,7 +138,7 @@ if($action == 'chat') {
         while(ob_get_level() > 0) { @ob_end_flush(); }
         @flush();
 
-        $url = rtrim($config['url'], '/') . '/chat/completions';
+        $url = $aiService->buildEndpointUrl($config['url'], '/chat/completions');
         $body['stream'] = true;
         // 请求 provider 在最后一帧返回 usage（OpenAI 兼容接口规范）
         // 不是所有 provider 都支持，未返回时日志 token 记为 0，前端显示 '-'
@@ -165,7 +165,11 @@ if($action == 'chat') {
         // 性能优化：启用 HTTP/2（ALPN 协商）、禁用 Nagle
         // 注意：不要启用 CURLOPT_ENCODING（gzip），否则 curl 会等待完整 gzip 块才解码
         // 导致 SSE 流式数据被缓冲，前端收不到逐 chunk 的数据，失去打字效果
-        curl_setopt($ch, CURLOPT_SSL_ENABLE_ALPN, true);
+        // ponytail: ALPN 常量在 PHP 5.6.10+ / libcurl 7.36+ 才有，旧版线上环境未定义会抛
+        // Error: Undefined constant，被 ErrorHandler 捕获返回 500，必须 defined() 守卫
+        if(defined('CURLOPT_SSL_ENABLE_ALPN')) {
+            curl_setopt($ch, CURLOPT_SSL_ENABLE_ALPN, true);
+        }
         if(defined('CURLOPT_TCP_NODELAY')) {
             curl_setopt($ch, CURLOPT_TCP_NODELAY, true);
         }

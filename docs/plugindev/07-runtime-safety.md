@@ -376,6 +376,39 @@ $s .= $t;
 - `.htm` hook 编译后是 HTML 输出，注入 PHP 注释会污染页面源码
 - `.htm` hook 是模板片段，运行时报错通常是模板变量未定义这类「软错误」，不会触发 fatal error 走 `handleShutdown`
 
+### 3.3b hook 变量污染：编译期内联 hook 共享宿主作用域
+
+编译期内联 hook（源码标记 `// hook xxx.php` 或 `<!--{hook xxx.htm}-->`）会被直接拼接进宿主函数/模板的 PHP 代码中，**共享宿主作用域**。这与运行时 `plugin_hook()` 的独立函数作用域（通过 `$data` 引用传递）有本质区别。
+
+**变量可见性对比**：
+
+| 机制 | 作用域 | 能否读写宿主变量 | 变量泄漏风险 |
+|---|---|---|---|
+| 编译期内联（`// hook xxx`） | 宿主函数/模板作用域 | ✅ 能读写所有局部变量 | ⚠️ 高，hook 内赋值会覆盖宿主变量 |
+| 运行时分发（`plugin_hook()`） | 独立函数作用域 | ❌ 只能通过 `$data` 引用 | ✅ 无泄漏风险 |
+
+**禁止做法**：在编译期内联 hook 中使用通用变量名赋值（`$settings`、`$conf`、`$user`、`$thread`、`$fid` 等），会覆盖宿主原有变量。
+
+**必须做法**：hook 内局部变量加插件前缀，如 `$_hidden_settings`、`$_friendlink_links`。
+
+**真实案例**（2026-07-26）：xnx_hidden 的 `header_link_after.htm` hook 执行：
+
+```php
+$settings = HiddenService::getSettings();  // ❌ 污染宿主
+```
+
+该 hook 内联到 `header.inc.htm`，所有前台模板 `include header.inc.htm` 后，`$settings` 都被覆盖为 xnx_hidden 的设置。导致 xnx_friendlink 的 `links.htm` 模板中 `$settings['apply_enabled']` 丢失，申请按钮不显示。
+
+**修复方案**：
+1. hook 内变量改用前缀名：`$_hidden_settings = HiddenService::getSettings();`
+2. 受害模板可在 `include header.inc.htm` 后重新获取：`$settings = FriendLinkService::getSettings();`（防御性兜底）
+
+**排查方法**：当路由层变量正确但模板层条件失败时，检查 `tmp/view_htm_header.inc.htm` 中是否有其他插件 hook 覆盖了同名变量：
+
+```bash
+grep '$settings\s*=' tmp/view_htm_header.inc.htm
+```
+
 ### 3.4 token_get_all 语法预检已废弃
 
 历史上 `plugin_compile_srcfile_callback` 曾用 `token_get_all` 对每个 hook 做语法预检，发现语法错误就跳过该 hook。现在已废弃，原因记录在源码注释里：

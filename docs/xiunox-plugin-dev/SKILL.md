@@ -91,6 +91,8 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | Card 组件 | 加 `x-card` class，禁止裸用 `border`/`border-*`，列表分隔用 `py-*`/`mb-*` 间距 |
 | 头像渲染 | `avatar_component_from_data()`（非原生 `<img>`） |
 | 改 `static/*.js`/`*.css` 后 | 递增 `conf/conf.php` 的 `static_version` |
+| **hook 内局部变量** | **加插件前缀**（`$_myplugin_settings`），禁止用 `$settings`/`$conf`/`$user` 等通用名（会污染宿主作用域） |
+| **模板 `include header.inc.htm` 后用 `$settings`** | header 中其他插件 hook 会覆盖 `$settings`，需在 include 后重新获取或改用前缀变量名 |
 
 > 完整规则清单见 [references/ai-rules.md](references/ai-rules.md)
 
