@@ -19,6 +19,7 @@ return array(
 	'front_index_page'=>'Foreground',
 	'admin_site_setting'=>'Site Setting',
 	'admin_setting_base'=>'Base Setting',
+	'admin_setting_seo'=>'SEO Settings',
 	'admin_setting_smtp'=>'SMTP Setting',
 	'admin_setting_nav'=>'Navigation Setting',
 	'admin_setting_nav_icon'=>'Icon',
@@ -86,8 +87,101 @@ return array(
 	'for_safe_input_password_again'=>'Please input password again for security',
 
 	'sitename'=>'Site Name',
+	'sitesubtitle'=>'Site Subtitle',
+	'sitesubtitle_tips'=>'Shown after the site name in the browser title bar, e.g. slogan: Not just a forum. Leave empty to hide',
 	'sitebrief'=>'Site Brief',
 	'sitebrief_tips'=>'Tips: Support HTML tag, new line use &lt;br&gt;',
+	'site_keywords'=>'Site Keywords',
+	'site_keywords_tips'=>'Default SEO keywords for the whole site, separated by commas. Used on aggregate pages like home/rank/discover; content pages use their own keywords',
+	'site_description'=>'Site Description',
+	'site_description_tips'=>'Default SEO description, shown in search engine result snippets. Falls back to Site Brief when empty',
+
+	// SEO settings page
+	'seo_section_basic'=>'Basic SEO Settings',
+	'seo_section_basic_desc'=>'Site-wide default meta info, affects home and aggregate pages (rank, forum index, discover, etc.)',
+	'seo_section_sitemap'=>'Sitemap',
+	'seo_section_sitemap_desc'=>'Dynamically generates sitemap.xml for search engines. Submit to Google Search Console / Bing Webmaster Tools to speed up indexing',
+	'seo_section_geo'=>'AI/GEO Optimization',
+	'seo_section_geo_desc'=>'Optimizations for generative AI engines (ChatGPT, Claude, Perplexity, etc.) to better understand and cite site content',
+	'seo_section_llms'=>'llms.txt Editor',
+	'seo_section_llms_desc'=>'llms.txt is a site description file for AI models, the AI version of robots.txt. Adding actual forum info greatly improves AI citation accuracy',
+	'seo_section_health'=>'SEO Health Check',
+	'seo_section_health_desc'=>'Real-time check of SEO config status. Green = configured, Yellow = suggested, Red = must fix',
+	'seo_section_tips'=>'System vs Plugin Extensions',
+	'sitemap_enabled'=>'Enable Sitemap',
+	'sitemap_thread_limit'=>'Sitemap Thread Limit',
+	'sitemap_thread_limit_tips'=>'Max recent threads in sitemap. Recommended 500-2000. Large sites should shard (requires separate plugin)',
+	'sitemap_cache_ttl'=>'Sitemap Cache TTL (seconds)',
+	'sitemap_cache_ttl_tips'=>'Sitemap content is cached for this duration to avoid DB load. Default 3600s (1 hour)',
+	'sitemap_view'=>'View sitemap.xml',
+	'sitemap_test_tip'=>'Open sitemap.xml in a new window to verify, then submit to search engine webmaster tools',
+	'seo_og_enabled'=>'Enable Open Graph / Twitter Card',
+	'seo_og_enabled_tips'=>'Outputs og:title / og:description / og:image / twitter:card meta for social share cards. Strongly recommended to keep on',
+	'seo_jsonld_enabled'=>'Enable JSON-LD Structured Data',
+	'seo_jsonld_enabled_tips'=>'Outputs Article / QAPage / BreadcrumbList / WebSite schema.org structured data. Strongly recommended to keep on',
+	'seo_canonical_enabled'=>'Enable Canonical URL',
+	'seo_canonical_enabled_tips'=>'Outputs &lt;link rel="canonical"&gt; to avoid duplicate content penalty. Strongly recommended to keep on',
+	'llms_txt_field'=>'llms.txt Content',
+	'llms_txt_save_failed'=>'Failed to save llms.txt, check root directory write permission',
+	'seo_llms_warning'=>'Warning: incorrect llms.txt may mislead AI engines. Keep default structure and only add forum info',
+
+	// SEO health check items
+	'seo_check_site_keywords'=>'Site Keywords',
+	'seo_check_site_description'=>'Site Description',
+	'seo_check_sitesubtitle'=>'Site Subtitle',
+	'seo_check_sitemap'=>'Sitemap Enabled',
+	'seo_check_robots'=>'robots.txt',
+	'seo_check_llms'=>'llms.txt',
+	'seo_check_og'=>'Open Graph',
+	'seo_check_jsonld'=>'JSON-LD Structured Data',
+	'seo_check_canonical'=>'Canonical URL',
+	'seo_check_permalink'=>'Pretty URL',
+	'seo_check_filled'=>'Filled',
+	'seo_check_empty'=>'Empty, suggested to fill',
+	'seo_check_optional'=>'Optional',
+	'seo_check_sitemap_on'=>'Enabled',
+	'seo_check_sitemap_off'=>'Disabled, search engines cannot discover new content',
+	'seo_check_robots_ok'=>'Exists, all AI crawlers allowed',
+	'seo_check_robots_missing'=>'robots.txt does not exist',
+	'seo_check_llms_ok'=>'Exists',
+	'seo_check_llms_missing'=>'llms.txt does not exist, suggested to add',
+	'seo_check_og_on'=>'Enabled',
+	'seo_check_og_off'=>'Disabled, no social share cards',
+	'seo_check_jsonld_on'=>'Enabled',
+	'seo_check_jsonld_off'=>'Disabled, AI engines understand less',
+	'seo_check_canonical_on'=>'Enabled',
+	'seo_check_canonical_off'=>'Disabled, may trigger duplicate content penalty',
+	'seo_check_permalink_on'=>'Pretty URL enabled',
+	'seo_check_permalink_off'=>'Disabled, enable in Permalink settings',
+
+	// System vs plugin tips
+	'seo_tips_system_title'=>'System Built-in (No Plugin Needed)',
+	'seo_tips_system_items'=>'
+• Dynamic sitemap.xml: /sitemap.xml, includes home+all forums+recent threads, 1h cache\n
+• robots.txt: explicitly allows GPTBot / ClaudeBot / PerplexityBot / Baiduspider and all major AI crawlers\n
+• llms.txt: AI-oriented site description file\n
+• Per-page meta keywords/description: home/aggregate pages use site default, thread/forum use dynamic values\n
+• Canonical URL: avoids duplicate content penalty\n
+• prev/next pagination meta: helps search engines understand pagination\n
+• Open Graph + Twitter Card: social share cards\n
+• JSON-LD structured data: thread→QAPage/DiscussionForumPosting, forum→BreadcrumbList, home→WebSite, user→Profile\n
+• robots meta: default index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1 (AI friendly)\n
+• noindex tag: search/my/edit-post pages auto blocked from indexing\n
+• Pretty URL: search engine friendly (enable in Permalink settings)\n
+• theme-color meta: mobile browser address bar color',
+	'seo_tips_plugin_title'=>'Suggested Plugin Extensions (Advanced SEO)',
+	'seo_tips_plugin_items'=>'
+• Per-page SEO override: each thread/forum has own keywords/description/og_image\n
+• Baidu/Shenma/Bing active push: auto-submit new threads to search engines\n
+• Auto internal links: keywords auto-linked to improve PageRank flow\n
+• Image WebP auto-conversion + lazy load: improve page speed (Core Web Vitals)\n
+• SEO-friendly URL slug: thread title as URL part (e.g. /thread/123/post-title)\n
+• Structured data extensions: FAQ / Review / Event / HowTo schemas\n
+• Baidu Analytics / Google Analytics integration\n
+• Content originality check\n
+• Dead link detection and submission\n
+• Multi-language hreflang tags',
+
 	'runlevel'=>'Site access restrictions',
 	'user_create_on'=>'Enable user register',
 	'user_create_email_on'=>'Open email verification when user register',

@@ -3,13 +3,26 @@
 // SEO: 动态生成 sitemap.xml，包含首页 + 所有公开版块 + 最近 N 条帖子
 // ponytail: 单文件 sitemap，URL 数上限 50000（Google 规范），实际一般 < 5000 够用
 // 若帖子数超大需分片（sitemap-index + sitemap-thread-1.xml），目前站点规模未达到
+// 受后台 sitemap_enabled 开关控制，关闭时返回 404
 
 // hook sitemap_start.php
 
-// 1. 缓存 1 小时，避免每次请求查 DB
+if(!function_exists('conf')) {
+	// 兼容性：conf() 函数在 index.inc.php 中定义，sitemap 直接访问时可能未加载
+}
+$_sitemap_enabled = !isset($conf['sitemap_enabled']) || $conf['sitemap_enabled'];
+if(!$_sitemap_enabled) {
+	http_response_code(404);
+	exit('sitemap is disabled');
+}
+
+// 1. 缓存 N 秒（后台可配置），避免每次请求查 DB
 $_sitemap_cache_key = 'seo_sitemap_xml_v1';
-$_sitemap_xml = CacheHelper::remember($_sitemap_cache_key, 3600, function() {
+$_sitemap_cache_ttl = isset($conf['sitemap_cache_ttl']) ? max(60, intval($conf['sitemap_cache_ttl'])) : 3600;
+$_sitemap_thread_limit = isset($conf['sitemap_thread_limit']) ? max(100, intval($conf['sitemap_thread_limit'])) : 1000;
+$_sitemap_xml = CacheHelper::remember($_sitemap_cache_key, $_sitemap_cache_ttl, function() {
 	global $conf, $db;
+	$_sitemap_thread_limit_local = isset($conf['sitemap_thread_limit']) ? max(100, intval($conf['sitemap_thread_limit'])) : 1000;
 
 	// 基础 URL（站点根，含协议+域名+base_path）
 	$_base = http_url_path();
@@ -44,9 +57,9 @@ $_sitemap_xml = CacheHelper::remember($_sitemap_cache_key, 3600, function() {
 		}
 	}
 
-	// 3) 最近 1000 条帖子（按 last_date 倒序，hourly，priority 0.8）
-	// ponytail: 1000 条上限兼顾抓取效率与覆盖度，站点日均新帖 < 100 时足够
-	$_recent_threads = db_find('thread', array('is_deleted' => 0), array('last_date' => -1), 1, 1000, 'tid');
+	// 3. 最近 N 条帖子（按 last_date 倒序，hourly，priority 0.8）
+	// ponytail: 默认 1000 条上限兼顾抓取效率与覆盖度，后台可配置
+	$_recent_threads = db_find('thread', array('is_deleted' => 0), array('last_date' => -1), 1, $_sitemap_thread_limit_local, 'tid');
 	if(!empty($_recent_threads)) {
 		foreach($_recent_threads as $_t) {
 			$_urls[] = array(

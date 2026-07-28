@@ -19,6 +19,7 @@ return array(
 	'front_index_page'=>'前台',
 	'admin_site_setting'=>'站点设置',
 	'admin_setting_base'=>'基本设置',
+	'admin_setting_seo'=>'SEO 设置',
 	'admin_setting_smtp'=>'SMTP 设置',
 	'admin_setting_nav'=>'导航设置',
 	'admin_setting_nav_icon'=>'图标',
@@ -87,8 +88,101 @@ return array(
 	
 	// 设置
 	'sitename'=>'站点名称',
+	'sitesubtitle'=>'站点副标题',
+	'sitesubtitle_tips'=>'显示在浏览器标题栏站点名称后，如 slogan：不只是一个论坛。留空则不显示',
 	'sitebrief'=>'站点介绍',
 	'sitebrief_tips'=>'注：支持 HTML 标签，换行请使用 &lt;br&gt;',
+	'site_keywords'=>'站点关键词',
+	'site_keywords_tips'=>'全站默认 SEO 关键词，多个用英文逗号分隔。首页/排行榜/发现页等聚合页使用此值，帖子/版块等内容页使用各自的关键词',
+	'site_description'=>'站点描述',
+	'site_description_tips'=>'全站默认 SEO 描述，显示在搜索引擎结果摘要中。留空时回退到站点介绍',
+
+	// SEO 设置页
+	'seo_section_basic'=>'基础 SEO 设置',
+	'seo_section_basic_desc'=>'全站默认 meta 信息，影响首页及聚合页（排行榜、版块总览、发现页等）',
+	'seo_section_sitemap'=>'站点地图 (Sitemap)',
+	'seo_section_sitemap_desc'=>'动态生成 sitemap.xml 供搜索引擎抓取，提交到 Google Search Console / 百度站长平台可加速收录',
+	'seo_section_geo'=>'AI/GEO 优化',
+	'seo_section_geo_desc'=>'针对生成式 AI 引擎（ChatGPT、Claude、Perplexity、文心一言等）的优化，让 AI 更好地理解、引用站点内容',
+	'seo_section_llms'=>'llms.txt 编辑',
+	'seo_section_llms_desc'=>'llms.txt 是面向 AI 模型的站点说明文件，相当于 robots.txt 的 AI 版。补充实际版块信息可大幅提升 AI 引擎引用准确度',
+	'seo_section_health'=>'SEO 健康检查',
+	'seo_section_health_desc'=>'实时检测各项 SEO 配置状态，绿色表示已配置，黄色表示建议优化，红色表示必须处理',
+	'seo_section_tips'=>'系统层与插件扩展说明',
+	'sitemap_enabled'=>'启用 Sitemap',
+	'sitemap_thread_limit'=>'Sitemap 帖子数量上限',
+	'sitemap_thread_limit_tips'=>'单次 sitemap 包含的最近帖子数，建议 500-2000，超大站点应分片（需独立插件）',
+	'sitemap_cache_ttl'=>'Sitemap 缓存时长（秒）',
+	'sitemap_cache_ttl_tips'=>'为避免频繁查库，sitemap 内容会按此时长缓存，默认 3600 秒（1 小时）',
+	'sitemap_view'=>'查看 sitemap.xml',
+	'sitemap_test_tip'=>'点击下方按钮在新窗口打开 sitemap.xml，确认内容正常后提交到搜索引擎站长平台',
+	'seo_og_enabled'=>'启用 Open Graph / Twitter Card',
+	'seo_og_enabled_tips'=>'输出 og:title / og:description / og:image / twitter:card 等 meta，控制社交平台分享卡片样式。强烈建议保持开启',
+	'seo_jsonld_enabled'=>'启用 JSON-LD 结构化数据',
+	'seo_jsonld_enabled_tips'=>'输出 Article / QAPage / BreadcrumbList / WebSite 等 schema.org 结构化数据，让搜索引擎和 AI 引擎精确理解页面内容。强烈建议保持开启',
+	'seo_canonical_enabled'=>'启用 Canonical URL',
+	'seo_canonical_enabled_tips'=>'输出 &lt;link rel="canonical"&gt;，避免分页、URL 参数等导致的重复内容惩罚。强烈建议保持开启',
+	'llms_txt_field'=>'llms.txt 内容',
+	'llms_txt_save_failed'=>'llms.txt 保存失败，请检查根目录写权限',
+	'seo_llms_warning'=>'注意：错误的 llms.txt 可能导致 AI 引擎误解站点，建议保留默认结构并只补充版块信息',
+
+	// SEO 健康检查项
+	'seo_check_site_keywords'=>'站点关键词',
+	'seo_check_site_description'=>'站点描述',
+	'seo_check_sitesubtitle'=>'站点副标题',
+	'seo_check_sitemap'=>'Sitemap 启用',
+	'seo_check_robots'=>'robots.txt',
+	'seo_check_llms'=>'llms.txt',
+	'seo_check_og'=>'Open Graph',
+	'seo_check_jsonld'=>'JSON-LD 结构化数据',
+	'seo_check_canonical'=>'Canonical URL',
+	'seo_check_permalink'=>'伪静态 URL',
+	'seo_check_filled'=>'已填写',
+	'seo_check_empty'=>'未填写，建议补充',
+	'seo_check_optional'=>'选填，留空不影响',
+	'seo_check_sitemap_on'=>'已启用',
+	'seo_check_sitemap_off'=>'未启用，搜索引擎无法发现新内容',
+	'seo_check_robots_ok'=>'已存在，AI 爬虫全部允许',
+	'seo_check_robots_missing'=>'robots.txt 不存在',
+	'seo_check_llms_ok'=>'已存在',
+	'seo_check_llms_missing'=>'llms.txt 不存在，建议补充',
+	'seo_check_og_on'=>'已启用',
+	'seo_check_og_off'=>'未启用，社交分享无卡片',
+	'seo_check_jsonld_on'=>'已启用',
+	'seo_check_jsonld_off'=>'未启用，AI 引擎理解能力下降',
+	'seo_check_canonical_on'=>'已启用',
+	'seo_check_canonical_off'=>'未启用，可能触发重复内容惩罚',
+	'seo_check_permalink_on'=>'已启用伪静态',
+	'seo_check_permalink_off'=>'未启用，建议到「固定链接」开启伪静态',
+
+	// 系统层与插件提示
+	'seo_tips_system_title'=>'系统层已实现（无需插件）',
+	'seo_tips_system_items'=>'
+• 动态 sitemap.xml：/sitemap.xml，含首页+全部版块+最近帖子，1 小时缓存\n
+• robots.txt：明确允许 GPTBot / ClaudeBot / PerplexityBot / Baiduspider 等所有主流 AI 爬虫\n
+• llms.txt：面向 AI 模型的站点说明文件\n
+• 每页 meta keywords/description：首页/聚合页用站点默认，帖子/版块用动态值\n
+• Canonical URL：避免重复内容惩罚\n
+• prev/next 分页 meta：帮助搜索引擎理解分页\n
+• Open Graph + Twitter Card：社交分享卡片\n
+• JSON-LD 结构化数据：帖子→QAPage/DiscussionForumPosting，版块→BreadcrumbList，首页→WebSite，用户→Profile\n
+• robots meta：默认 index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1（AI 友好）\n
+• noindex 标记：搜索/我的/编辑帖子等无 SEO 价值页面自动禁止索引\n
+• 伪静态 URL：搜索引擎友好（需在「固定链接」开启）\n
+• theme-color meta：移动浏览器地址栏配色',
+	'seo_tips_plugin_title'=>'建议使用插件扩展（进阶 SEO）',
+	'seo_tips_plugin_items'=>'
+• 每页独立 SEO 覆盖：每个帖子/版块单独设置 keywords/description/og_image\n
+• 百度/神马/Bing 主动推送：新帖自动提交给搜索引擎，加速收录\n
+• 自动内链生成：关键词自动加链接，提升页面权重传递\n
+• 图片 WebP 自动转换 + 懒加载：提升页面加载速度（Core Web Vitals）\n
+• SEO 友好 URL slug：帖子标题作为 URL 一部分（如 /thread/123/post-title）\n
+• 结构化数据扩展：FAQ / Review / Event / HowTo 等 schema\n
+• 百度统计 / Google Analytics 集成\n
+• 内容原创度检测\n
+• 死链检测与提交\n
+• 多语言 hreflang 标签',
+
 	'runlevel'=>'站点访问限制',
 	'user_create_on'=>'开启用户注册',
 	'user_create_email_on'=>'开启注册邮箱验证',

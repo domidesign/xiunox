@@ -6,8 +6,8 @@
 
 // 版块总览页面
 $header['title'] = '版块总览' . ' - ' . $conf['sitename'];
-$header['keywords'] = '版块总览';
-$header['description'] = $conf['sitebrief'];
+// keywords/description 用全局默认值（site_keywords/site_description），由 index.inc.php 初始化
+// 专门的 SEO 插件可通过 hook forum_index_start.php 覆盖
 // SEO: canonical
 $header['canonical'] = absolute_url(url('forum_index'));
 $header['og_type'] = 'website';

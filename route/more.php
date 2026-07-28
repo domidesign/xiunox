@@ -4,8 +4,7 @@
 
 // 发现页面（宫格应用展示）
 $header['title'] = lang('discover') . ' - ' . $conf['sitename'];
-$header['keywords'] = lang('discover');
-$header['description'] = $conf['sitebrief'];
+// keywords/description 用全局默认值（site_keywords/site_description），由 index.inc.php 初始化
 $_SESSION['fid'] = 0;
 
 // 从配置读取发现导航项（手动添加的）

@@ -392,8 +392,10 @@ function notify_format(&$notify, $prefetched = array()) {
 
 	// ponytail: tid>0 时用帖子链接覆盖；tid=0 时保留 notify 表中存储的 url（如 audit_pending 的应用详情链接）。
 	// 原代码无条件 `$notify['url'] = ''` 会清空 audit_pending/report_xxx 等无 tid 通知的自定义 url。
+	// ponytail: 用 frontend_thread_url 而非 url('thread-')，避免 admin 上下文下 url() 加 ./ 前缀
+	// 导致后台通知列表帖子链接被浏览器解析为 /admin/?thread-xxx.htm（参考 bugfix_rules.md 0b 条）
 	if($notify['tid'] > 0) {
-		$notify['url'] = url('thread-'.$notify['tid']);
+		$notify['url'] = frontend_thread_url($notify['tid']);
 	}
 	// 防御 javascript:/data:/vbscript: 等危险协议（XSS 防护）
 	if($notify['url'] !== '' && preg_match('/^\s*(javascript|data|vbscript):/i', $notify['url'])) {
@@ -411,13 +413,14 @@ function notify_format(&$notify, $prefetched = array()) {
 	}
 
 	// 根据 tid 获取帖子标题和链接
+	// ponytail: 用 frontend_thread_url 而非 url('thread-')，避免 admin 上下文下帖子链接多了 admin 前缀
 	$thread_subject = '';
 	$thread_url = '';
 	if($notify['tid'] > 0) {
 		if(!empty($_thread)) {
 			$thread_subject = $_thread['subject'];
 		}
-		$thread_url = url('thread-'.$notify['tid']);
+		$thread_url = frontend_thread_url($notify['tid']);
 	}
 
 	// 如果 message 字段有值（原 notice 系统的数据），优先使用

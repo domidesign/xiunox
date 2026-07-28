@@ -757,7 +757,7 @@ if ($seg1 === 'security') {
 } elseif ($seg1 === 'setting') {
     // ========== 站点设置 ==========
     // 安全限制：仅允许读写白名单字段，禁止修改 database/password/api_*/smtp 等敏感配置
-    $setting_whitelist = array('sitename', 'sitebrief', 'runlevel', 'lang', 'user_create_on', 'user_create_email_on', 'user_resetpw_on', 'force_https');
+    $setting_whitelist = array('sitename', 'sitesubtitle', 'sitebrief', 'site_keywords', 'site_description', 'sitemap_enabled', 'sitemap_thread_limit', 'sitemap_cache_ttl', 'seo_og_enabled', 'seo_jsonld_enabled', 'seo_canonical_enabled', 'runlevel', 'lang', 'user_create_on', 'user_create_email_on', 'user_resetpw_on', 'force_https');
     $footer_whitelist = array('icp', 'gongan', 'gongan_url', 'copyright');
 
     if ($method === 'GET') {

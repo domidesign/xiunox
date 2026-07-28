@@ -574,7 +574,9 @@ class NotifyTypeRegistry {
             if(!empty($_thread)) {
                 $thread_subject = isset($_thread['subject']) ? $_thread['subject'] : '';
             }
-            $thread_url = function_exists('url') ? url('thread-'.$notify['tid']) : '';
+            // ponytail: 用 frontend_thread_url 而非 url('thread-')，避免 admin 上下文下
+            // message 中拼接的帖子链接被浏览器解析为 /admin/?thread-xxx.htm（多了 admin 前缀）
+            $thread_url = function_exists('frontend_thread_url') ? frontend_thread_url($notify['tid']) : (function_exists('url') ? url('thread-'.$notify['tid']) : '');
         }
 
         // 帖子标题链接（截断超长标题）

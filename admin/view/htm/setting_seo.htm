@@ -1,0 +1,232 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook admin_setting_seo_start.htm}-->
+
+<div class=" ">
+	<?php echo admin_tab_active($menu['setting']['tab'], 'seo');?>
+</div>
+
+<div class="x-card card">
+	<div class="card-body">
+		<form action="<?php echo admin_setting_url('seo');?>" method="post" id="seoForm">
+			<?php echo CsrfService::input(); ?>
+
+			<!-- ========== 1. 基础 SEO 设置 ========== -->
+			<div class="mb-4">
+				<h6 class="fw-semibold mb-2"><i class="ti ti-meta-tags me-1"></i><?php echo lang('seo_section_basic');?></h6>
+				<p class="text-body-secondary small mb-3"><?php echo lang('seo_section_basic_desc');?></p>
+
+				<div class="mb-3">
+					<label class="form-label fw-medium"><?php echo lang('sitesubtitle');?></label>
+					<?php echo $input['sitesubtitle'];?>
+					<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('sitesubtitle_tips');?></p>
+				</div>
+
+				<div class="mb-3">
+					<label class="form-label fw-medium"><?php echo lang('site_keywords');?></label>
+					<?php echo $input['site_keywords'];?>
+					<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('site_keywords_tips');?></p>
+				</div>
+
+				<div class="mb-3">
+					<label class="form-label fw-medium"><?php echo lang('site_description');?></label>
+					<?php echo $input['site_description'];?>
+					<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('site_description_tips');?></p>
+				</div>
+			</div>
+
+			<hr class="my-4">
+
+			<!-- ========== 2. Sitemap 设置 ========== -->
+			<div class="mb-4">
+				<h6 class="fw-semibold mb-2"><i class="ti ti-sitemap me-1"></i><?php echo lang('seo_section_sitemap');?></h6>
+				<p class="text-body-secondary small mb-3"><?php echo lang('seo_section_sitemap_desc');?></p>
+
+				<div class="mb-3">
+					<label class="form-label fw-medium"><?php echo lang('sitemap_enabled');?></label>
+					<br>
+					<?php echo $input['sitemap_enabled'];?>
+				</div>
+
+				<div class="row g-3 mb-3">
+					<div class="col-md-6">
+						<label class="form-label fw-medium"><?php echo lang('sitemap_thread_limit');?></label>
+						<?php echo $input['sitemap_thread_limit'];?>
+						<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('sitemap_thread_limit_tips');?></p>
+					</div>
+					<div class="col-md-6">
+						<label class="form-label fw-medium"><?php echo lang('sitemap_cache_ttl');?></label>
+						<?php echo $input['sitemap_cache_ttl'];?>
+						<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('sitemap_cache_ttl_tips');?></p>
+					</div>
+				</div>
+
+				<div class="alert alert-info py-2 mb-2">
+					<i class="ti ti-info-circle me-1"></i><?php echo lang('sitemap_test_tip');?>
+				</div>
+				<a href="<?php echo http_url_path();?>sitemap.xml" target="_blank" class="btn btn-outline-secondary btn-sm rounded-pill mb-2">
+					<i class="ti ti-external-link me-1"></i><?php echo lang('sitemap_view');?>
+				</a>
+			</div>
+
+			<hr class="my-4">
+
+			<!-- ========== 3. AI/GEO 优化开关 ========== -->
+			<div class="mb-4">
+				<h6 class="fw-semibold mb-2"><i class="ti ti-robot me-1"></i><?php echo lang('seo_section_geo');?></h6>
+				<p class="text-body-secondary small mb-3"><?php echo lang('seo_section_geo_desc');?></p>
+
+				<div class="mb-3">
+					<label class="form-label fw-medium"><?php echo lang('seo_og_enabled');?></label>
+					<br>
+					<?php echo $input['seo_og_enabled'];?>
+					<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('seo_og_enabled_tips');?></p>
+				</div>
+
+				<div class="mb-3">
+					<label class="form-label fw-medium"><?php echo lang('seo_jsonld_enabled');?></label>
+					<br>
+					<?php echo $input['seo_jsonld_enabled'];?>
+					<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('seo_jsonld_enabled_tips');?></p>
+				</div>
+
+				<div class="mb-3">
+					<label class="form-label fw-medium"><?php echo lang('seo_canonical_enabled');?></label>
+					<br>
+					<?php echo $input['seo_canonical_enabled'];?>
+					<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('seo_canonical_enabled_tips');?></p>
+				</div>
+			</div>
+
+			<hr class="my-4">
+
+			<!-- ========== 4. llms.txt 编辑 ========== -->
+			<div class="mb-4">
+				<h6 class="fw-semibold mb-2"><i class="ti ti-file-text me-1"></i><?php echo lang('seo_section_llms');?></h6>
+				<p class="text-body-secondary small mb-3"><?php echo lang('seo_section_llms_desc');?></p>
+
+				<div class="alert alert-warning py-2 mb-2">
+					<i class="ti ti-alert-triangle me-1"></i><?php echo lang('seo_llms_warning');?>
+				</div>
+
+				<div class="mb-3">
+					<label class="form-label fw-medium"><?php echo lang('llms_txt_field');?></label>
+					<textarea class="form-control" name="llms_txt" id="llmsTxt" rows="15" style="font-family: monospace; font-size: 0.875rem;"><?php echo esc_html($llms_txt_content);?></textarea>
+				</div>
+			</div>
+
+			<hr class="my-4">
+
+			<!-- ========== 5. SEO 健康检查 ========== -->
+			<div class="mb-4">
+				<h6 class="fw-semibold mb-2"><i class="ti ti-heart-check me-1"></i><?php echo lang('seo_section_health');?></h6>
+				<p class="text-body-secondary small mb-3"><?php echo lang('seo_section_health_desc');?></p>
+
+				<div class="table-responsive">
+					<table class="table table-hover align-middle mb-2">
+						<tbody>
+						<?php foreach($seo_checks as $_check):?>
+							<tr>
+								<td style="width:240px">
+									<span class="fw-medium"><?php echo $_check['label'];?></span>
+								</td>
+								<td style="width:60px" class="text-center">
+								<?php if($_check['status'] === 'ok'):?>
+									<span class="badge bg-success-subtle text-success rounded-pill"><i class="ti ti-check"></i></span>
+								<?php elseif($_check['status'] === 'warn'):?>
+									<span class="badge bg-warning-subtle text-warning rounded-pill"><i class="ti ti-alert-triangle"></i></span>
+								<?php elseif($_check['status'] === 'info'):?>
+									<span class="badge bg-info-subtle text-info rounded-pill"><i class="ti ti-info-circle"></i></span>
+								<?php else:?>
+									<span class="badge bg-danger-subtle text-danger rounded-pill"><i class="ti ti-x"></i></span>
+								<?php endif;?>
+								</td>
+								<td>
+									<span class="small
+									<?php if($_check['status'] === 'ok'):?>text-success
+									<?php elseif($_check['status'] === 'warn'):?>text-warning-emphasis
+									<?php elseif($_check['status'] === 'info'):?>text-info-emphasis
+									<?php else:?>text-danger<?php endif;?>"><?php echo $_check['msg'];?></span>
+								</td>
+							</tr>
+						<?php endforeach;?>
+						</tbody>
+					</table>
+				</div>
+			</div>
+
+			<hr class="my-4">
+
+			<!-- ========== 6. 系统层与插件扩展说明 ========== -->
+			<div class="mb-4">
+				<h6 class="fw-semibold mb-2"><i class="ti ti-bulb me-1"></i><?php echo lang('seo_section_tips');?></h6>
+
+				<div class="row g-3">
+					<div class="col-md-6">
+						<div class="border rounded p-3 h-100 bg-success-subtle bg-opacity-25">
+							<h6 class="text-success-emphasis mb-2"><i class="ti ti-circle-check me-1"></i><?php echo lang('seo_tips_system_title');?></h6>
+							<pre class="small mb-0 text-body-secondary" style="white-space: pre-wrap; font-family: inherit;"><?php echo esc_html(lang('seo_tips_system_items'));?></pre>
+						</div>
+					</div>
+					<div class="col-md-6">
+						<div class="border rounded p-3 h-100 bg-warning-subtle bg-opacity-25">
+							<h6 class="text-warning-emphasis mb-2"><i class="ti ti-plug me-1"></i><?php echo lang('seo_tips_plugin_title');?></h6>
+							<pre class="small mb-0 text-body-secondary" style="white-space: pre-wrap; font-family: inherit;"><?php echo esc_html(lang('seo_tips_plugin_items'));?></pre>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!--{hook admin_setting_seo_before_submit.htm}-->
+
+			<div class="mt-4">
+				<button type="submit" class="btn btn-primary rounded-pill" id="submitBtn" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('confirm');?></button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<!--{hook admin_setting_seo_end.htm}-->
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+// 表单提交（防重复点击 + toast 反馈）
+var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
+var seoForm = document.getElementById('seoForm');
+var submitBtn = document.getElementById('submitBtn');
+
+seoForm.addEventListener('submit', function(e) {
+	e.preventDefault();
+	if(submitBtn.disabled) return;
+	submitBtn.disabled = true;
+	submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + '<?php echo lang('submiting');?>...';
+
+	var formData = new FormData(seoForm);
+
+	fetch(seoForm.action, {
+		method: 'POST',
+		body: formData,
+		headers: {'X-Requested-With': 'XMLHttpRequest'},
+		credentials: 'same-origin'
+	})
+	.then(function(res) { return res.json(); })
+	.then(function(data) {
+		if(parseInt(data.code) === 0) {
+			showToast(data.message, 'success');
+			setTimeout(function() { window.location.reload(); }, 1200);
+		} else {
+			showToast(data.message, 'error');
+			submitBtn.disabled = false;
+			submitBtn.innerHTML = '<?php echo lang('confirm');?>';
+		}
+	})
+	.catch(function(err) {
+		showToast('<?php echo lang('admin_request_failed_retry');?>', 'error');
+		submitBtn.disabled = false;
+		submitBtn.innerHTML = '<?php echo lang('confirm');?>';
+	});
+});
+</script>
+
+<!--{hook admin_setting_seo_js.htm}-->

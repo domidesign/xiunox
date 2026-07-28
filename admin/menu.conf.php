@@ -7,6 +7,7 @@ return array(
 		'icon'=>'icon-cog', 
 		'tab'=> array (
 			'base'=>array('url'=>url('setting-base'), 'text'=>lang('admin_setting_base')),
+			'seo'=>array('url'=>url('setting-seo'), 'text'=>lang('admin_setting_seo')),
 		'permalink'=>array('url'=>url('setting-permalink'), 'text'=>lang('admin_setting_permalink')),
 			'smtp'=>array('url'=>url('setting-smtp'), 'text'=>lang('admin_setting_smtp')),
 			'nav'=>array('url'=>url('setting-nav'), 'text'=>lang('admin_setting_nav')),

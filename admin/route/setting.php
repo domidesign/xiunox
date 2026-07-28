@@ -11,13 +11,13 @@ $smtplist = smtp_init(APP_PATH.'conf/smtp.conf.php');
 // hook admin_setting_start.php
 
 if($action == 'base') {
-	
+
 	// hook admin_setting_base_get_post.php
-	
+
 	if($method == 'GET') {
-		
+
 		// hook admin_setting_base_get_start.php
-		
+
 		$input = array();
 		$input['sitename'] = form_text('sitename', $conf['sitename']);
 		$input['sitebrief'] = form_textarea('sitebrief', $conf['sitebrief'], '100%', 100);
@@ -27,18 +27,18 @@ if($action == 'base') {
 		$input['user_resetpw_on'] = form_radio_yes_no('user_resetpw_on', $conf['user_resetpw_on']);
 		$input['force_https'] = form_radio_yes_no('force_https', isset($conf['force_https']) ? $conf['force_https'] : 0);
 		$input['lang'] = form_select('lang', array('zh-cn'=>lang('lang_zh_cn'), 'zh-tw'=>lang('lang_zh_tw'), 'en-us'=>lang('lang_en_us')), $conf['lang']);
-		
+
 		$header['title'] = lang('admin_site_setting');
 		$header['mobile_title'] =lang('admin_site_setting');
-		
+
 		// hook admin_setting_base_get_end.php
-		
+
 		include _include(ADMIN_PATH.'view/htm/setting_base.htm');
-		
+
 	} else {
-		
+
 		CsrfService::check();
-		
+
 		$sitebrief = param('sitebrief', '', FALSE);
 		$sitename = param('sitename', '', FALSE);
 		$runlevel = param('runlevel', 0);
@@ -60,12 +60,143 @@ if($action == 'base') {
 		$replace['user_resetpw_on'] = $user_resetpw_on;
 		$replace['force_https'] = $force_https;
 		$replace['lang'] = $_lang;
-		
+
 		file_replace_var(APP_PATH.'conf/conf.php', $replace);
 
 		// hook admin_setting_base_post_end.php
 
 		admin_log_create('setting_site', 'setting', '', '修改站点设置');
+		message(0, lang('modify_successfully'));
+	}
+
+} elseif($action == 'seo') {
+
+	// hook admin_setting_seo_get_post.php
+
+	if($method == 'GET') {
+
+		// hook admin_setting_seo_get_start.php
+
+		$input = array();
+		$input['sitesubtitle'] = form_text('sitesubtitle', isset($conf['sitesubtitle']) ? $conf['sitesubtitle'] : '');
+		$input['site_keywords'] = form_text('site_keywords', isset($conf['site_keywords']) ? $conf['site_keywords'] : '');
+		$input['site_description'] = form_textarea('site_description', isset($conf['site_description']) ? $conf['site_description'] : '', '100%', 60);
+		$input['sitemap_enabled'] = form_radio_yes_no('sitemap_enabled', isset($conf['sitemap_enabled']) ? $conf['sitemap_enabled'] : 1);
+		$input['sitemap_thread_limit'] = form_text('sitemap_thread_limit', isset($conf['sitemap_thread_limit']) ? $conf['sitemap_thread_limit'] : 1000);
+		$input['sitemap_cache_ttl'] = form_text('sitemap_cache_ttl', isset($conf['sitemap_cache_ttl']) ? $conf['sitemap_cache_ttl'] : 3600);
+		$input['seo_og_enabled'] = form_radio_yes_no('seo_og_enabled', isset($conf['seo_og_enabled']) ? $conf['seo_og_enabled'] : 1);
+		$input['seo_jsonld_enabled'] = form_radio_yes_no('seo_jsonld_enabled', isset($conf['seo_jsonld_enabled']) ? $conf['seo_jsonld_enabled'] : 1);
+		$input['seo_canonical_enabled'] = form_radio_yes_no('seo_canonical_enabled', isset($conf['seo_canonical_enabled']) ? $conf['seo_canonical_enabled'] : 1);
+
+		// llms.txt 内容读取（根目录 llms.txt，不存在时给默认模板）
+		$_llms_path = APP_PATH . 'llms.txt';
+		$llms_txt_content = is_file($_llms_path) ? file_get_contents($_llms_path) : '';
+
+		// SEO 健康检查
+		$seo_checks = array();
+		$seo_checks['site_keywords'] = array(
+			'label' => lang('seo_check_site_keywords'),
+			'status' => !empty($conf['site_keywords']) ? 'ok' : 'warn',
+			'msg' => !empty($conf['site_keywords']) ? lang('seo_check_filled') : lang('seo_check_empty'),
+		);
+		$seo_checks['site_description'] = array(
+			'label' => lang('seo_check_site_description'),
+			'status' => !empty($conf['site_description']) ? 'ok' : 'warn',
+			'msg' => !empty($conf['site_description']) ? lang('seo_check_filled') : lang('seo_check_empty'),
+		);
+		$seo_checks['sitesubtitle'] = array(
+			'label' => lang('seo_check_sitesubtitle'),
+			'status' => !empty($conf['sitesubtitle']) ? 'ok' : 'info',
+			'msg' => !empty($conf['sitesubtitle']) ? lang('seo_check_filled') : lang('seo_check_optional'),
+		);
+		$seo_checks['sitemap'] = array(
+			'label' => lang('seo_check_sitemap'),
+			'status' => (isset($conf['sitemap_enabled']) ? $conf['sitemap_enabled'] : 1) ? 'ok' : 'error',
+			'msg' => (isset($conf['sitemap_enabled']) ? $conf['sitemap_enabled'] : 1) ? lang('seo_check_sitemap_on') : lang('seo_check_sitemap_off'),
+		);
+		$seo_checks['robots'] = array(
+			'label' => lang('seo_check_robots'),
+			'status' => is_file(APP_PATH . 'robots.txt') ? 'ok' : 'error',
+			'msg' => is_file(APP_PATH . 'robots.txt') ? lang('seo_check_robots_ok') : lang('seo_check_robots_missing'),
+		);
+		$seo_checks['llms'] = array(
+			'label' => lang('seo_check_llms'),
+			'status' => is_file(APP_PATH . 'llms.txt') ? 'ok' : 'warn',
+			'msg' => is_file(APP_PATH . 'llms.txt') ? lang('seo_check_llms_ok') : lang('seo_check_llms_missing'),
+		);
+		$seo_checks['og'] = array(
+			'label' => lang('seo_check_og'),
+			'status' => (isset($conf['seo_og_enabled']) ? $conf['seo_og_enabled'] : 1) ? 'ok' : 'warn',
+			'msg' => (isset($conf['seo_og_enabled']) ? $conf['seo_og_enabled'] : 1) ? lang('seo_check_og_on') : lang('seo_check_og_off'),
+		);
+		$seo_checks['jsonld'] = array(
+			'label' => lang('seo_check_jsonld'),
+			'status' => (isset($conf['seo_jsonld_enabled']) ? $conf['seo_jsonld_enabled'] : 1) ? 'ok' : 'warn',
+			'msg' => (isset($conf['seo_jsonld_enabled']) ? $conf['seo_jsonld_enabled'] : 1) ? lang('seo_check_jsonld_on') : lang('seo_check_jsonld_off'),
+		);
+		$seo_checks['canonical'] = array(
+			'label' => lang('seo_check_canonical'),
+			'status' => (isset($conf['seo_canonical_enabled']) ? $conf['seo_canonical_enabled'] : 1) ? 'ok' : 'warn',
+			'msg' => (isset($conf['seo_canonical_enabled']) ? $conf['seo_canonical_enabled'] : 1) ? lang('seo_check_canonical_on') : lang('seo_check_canonical_off'),
+		);
+		$seo_checks['permalink'] = array(
+			'label' => lang('seo_check_permalink'),
+			'status' => (!empty($conf['url_rewrite']) || !empty($conf['seo_url_pretty'])) ? 'ok' : 'warn',
+			'msg' => (!empty($conf['url_rewrite']) || !empty($conf['seo_url_pretty'])) ? lang('seo_check_permalink_on') : lang('seo_check_permalink_off'),
+		);
+
+		// hook admin_setting_seo_get_end.php
+
+		$header['title'] = lang('admin_setting_seo');
+		$header['mobile_title'] = lang('admin_setting_seo');
+
+		include _include(ADMIN_PATH.'view/htm/setting_seo.htm');
+
+	} else {
+
+		CsrfService::check();
+
+		$sitesubtitle = param('sitesubtitle', '', FALSE);
+		$site_keywords = param('site_keywords', '', FALSE);
+		$site_description = param('site_description', '', FALSE);
+		$sitemap_enabled = param('sitemap_enabled', 0);
+		$sitemap_thread_limit = param('sitemap_thread_limit', 1000);
+		$sitemap_cache_ttl = param('sitemap_cache_ttl', 3600);
+		$seo_og_enabled = param('seo_og_enabled', 0);
+		$seo_jsonld_enabled = param('seo_jsonld_enabled', 0);
+		$seo_canonical_enabled = param('seo_canonical_enabled', 0);
+		$llms_txt_content = param('llms_txt', '', FALSE);
+
+		// hook admin_setting_seo_post_start.php
+
+		$replace = array();
+		$replace['sitesubtitle'] = $sitesubtitle;
+		$replace['site_keywords'] = $site_keywords;
+		$replace['site_description'] = $site_description;
+		$replace['sitemap_enabled'] = $sitemap_enabled;
+		$replace['sitemap_thread_limit'] = max(100, intval($sitemap_thread_limit));
+		$replace['sitemap_cache_ttl'] = max(60, intval($sitemap_cache_ttl));
+		$replace['seo_og_enabled'] = $seo_og_enabled;
+		$replace['seo_jsonld_enabled'] = $seo_jsonld_enabled;
+		$replace['seo_canonical_enabled'] = $seo_canonical_enabled;
+
+		file_replace_var(APP_PATH.'conf/conf.php', $replace);
+
+		// 保存 llms.txt 到根目录
+		$_llms_path = APP_PATH . 'llms.txt';
+		$_llms_ok = file_put_contents($_llms_path, $llms_txt_content);
+		if($_llms_ok === false) {
+			message(-1, lang('seo_llms_save_failed'));
+		}
+
+		// 清理 sitemap 缓存，让新配置立即生效
+		if(class_exists('CacheHelper', false) && method_exists('CacheHelper', 'delete')) {
+			CacheHelper::delete('seo_sitemap_xml_v1');
+		}
+
+		// hook admin_setting_seo_post_end.php
+
+		admin_log_create('setting_seo', 'setting', '', '修改SEO设置');
 		message(0, lang('modify_successfully'));
 	}
 
