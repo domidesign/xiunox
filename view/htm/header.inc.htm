@@ -15,7 +15,9 @@ if(strpos($_lang_bcp47, '-') !== false) {
 	}
 }
 // SEO: OG 兜底，无 og_type 时默认 website，保证所有页面都有社交分享卡片
-if(empty($header['og_type'])) $header['og_type'] = 'website';
+// ponytail: 受后台 seo_og_enabled 开关控制，关闭时不输出 OG/Twitter Card
+$_seo_og_enabled = !isset($conf['seo_og_enabled']) || $conf['seo_og_enabled'];
+if($_seo_og_enabled && empty($header['og_type'])) $header['og_type'] = 'website';
 // SEO: 主题色映射（与 css/theme.css 的 brand 色对齐，供 meta theme-color 使用）
 $_theme_colors = array(
 	'blue'   => '#0d6efd',
@@ -30,6 +32,9 @@ $_theme_colors = array(
 	'lime'   => '#65a30d',
 );
 $_meta_theme_color = $_theme_colors[$conf['theme_brand'] ?? 'blue'] ?? '#0d6efd';
+// SEO 开关：JSON-LD 与 canonical 受后台开关控制
+$_seo_jsonld_enabled = !isset($conf['seo_jsonld_enabled']) || $conf['seo_jsonld_enabled'];
+$_seo_canonical_enabled = !isset($conf['seo_canonical_enabled']) || $conf['seo_canonical_enabled'];
 ?>
 <?php $user = G('user', array());?>
 <?php $uid = G('uid');?>
@@ -69,7 +74,7 @@ $_robots_content = !empty($header['noindex']) ? 'noindex, follow' : 'index, foll
 <meta name="theme-color" content="<?php echo esc_attr($_meta_theme_color);?>">
 <meta name="format-detection" content="telephone=no, email=no, address=no">
 
-<?php if(!empty($header['canonical'])) { ?>
+<?php if($_seo_canonical_enabled && !empty($header['canonical'])) { ?>
 <link rel="canonical" href="<?php echo esc_attr($header['canonical']);?>" />
 <?php } ?>
 <?php if(!empty($header['prev_url'])) { ?>
@@ -79,7 +84,7 @@ $_robots_content = !empty($header['noindex']) ? 'noindex, follow' : 'index, foll
 <link rel="next" href="<?php echo esc_attr($header['next_url']);?>" />
 <?php } ?>
 
-<?php if(!empty($header['og_type'])) { ?>
+<?php if($_seo_og_enabled && !empty($header['og_type'])) { ?>
 <meta property="og:title" content="<?php echo $header['title'];?>" />
 <meta property="og:description" content="<?php echo $header['description'];?>" />
 <meta property="og:type" content="<?php echo $header['og_type'];?>" />
@@ -98,7 +103,7 @@ $_robots_content = !empty($header['noindex']) ? 'noindex, follow' : 'index, foll
 <?php } ?>
 <?php } ?>
 
-<?php if(!empty($header['json_ld'])) { ?>
+<?php if($_seo_jsonld_enabled && !empty($header['json_ld'])) { ?>
 <script type="application/ld+json"><?php echo json_encode($header['json_ld'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);?></script>
 <?php } ?>
 

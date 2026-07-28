@@ -19,6 +19,7 @@ return array(
 	'front_index_page'=>'前臺',
 	'admin_site_setting'=>'站點設置',
 	'admin_setting_base'=>'基本設置',
+	'admin_setting_seo'=>'SEO 設定',
 	'admin_setting_smtp'=>'SMTP 設置',
 	'admin_setting_nav'=>'導航設置',
 	'admin_setting_nav_icon'=>'圖標',
@@ -86,8 +87,101 @@ return array(
 	'for_safe_input_password_again'=>'為了您的安全，請再次輸入賬戶密碼',
 
 	'sitename'=>'站點名稱',
+	'sitesubtitle'=>'站點副標題',
+	'sitesubtitle_tips'=>'顯示在瀏覽器標題欄站點名稱後，如 slogan：不只是一個論壇。留空則不顯示',
 	'sitebrief'=>'站點介紹',
 	'sitebrief_tips'=>'註：支持 HTML 標簽，換行請使用 &lt;br&gt;',
+	'site_keywords'=>'站點關鍵詞',
+	'site_keywords_tips'=>'全站默認 SEO 關鍵詞，多個用英文逗號分隔。首頁/排行榜/發現頁等聚合頁使用此值，帖子/版塊等內容頁使用各自的關鍵詞',
+	'site_description'=>'站點描述',
+	'site_description_tips'=>'全站默認 SEO 描述，顯示在搜索引擎結果摘要中。留空時回退到站點介紹',
+
+	// SEO 設定頁
+	'seo_section_basic'=>'基礎 SEO 設定',
+	'seo_section_basic_desc'=>'全站默認 meta 資訊，影響首頁及聚合頁（排行榜、版塊總覽、發現頁等）',
+	'seo_section_sitemap'=>'站點地圖 (Sitemap)',
+	'seo_section_sitemap_desc'=>'動態生成 sitemap.xml 供搜索引擎抓取，提交到 Google Search Console / 百度站長平台可加速收錄',
+	'seo_section_geo'=>'AI/GEO 優化',
+	'seo_section_geo_desc'=>'針對生成式 AI 引擎（ChatGPT、Claude、Perplexity、文心一言等）的優化，讓 AI 更好地理解、引用站點內容',
+	'seo_section_llms'=>'llms.txt 編輯',
+	'seo_section_llms_desc'=>'llms.txt 是面向 AI 模型的站點說明檔案，相當於 robots.txt 的 AI 版。補充實際版塊資訊可大幅提升 AI 引擎引用準確度',
+	'seo_section_health'=>'SEO 健康檢查',
+	'seo_section_health_desc'=>'即時檢測各項 SEO 配置狀態，綠色表示已配置，黃色表示建議優化，紅色表示必須處理',
+	'seo_section_tips'=>'系統層與插件擴展說明',
+	'sitemap_enabled'=>'啟用 Sitemap',
+	'sitemap_thread_limit'=>'Sitemap 帖子數量上限',
+	'sitemap_thread_limit_tips'=>'單次 sitemap 包含的最近帖子數，建議 500-2000，超大站點應分片（需獨立插件）',
+	'sitemap_cache_ttl'=>'Sitemap 快取時長（秒）',
+	'sitemap_cache_ttl_tips'=>'為避免頻繁查庫，sitemap 內容會按此時長快取，默認 3600 秒（1 小時）',
+	'sitemap_view'=>'查看 sitemap.xml',
+	'sitemap_test_tip'=>'點擊下方按鈕在新視窗開啟 sitemap.xml，確認內容正常後提交到搜索引擎站長平台',
+	'seo_og_enabled'=>'啟用 Open Graph / Twitter Card',
+	'seo_og_enabled_tips'=>'輸出 og:title / og:description / og:image / twitter:card 等 meta，控制社交平台分享卡片樣式。強烈建議保持開啟',
+	'seo_jsonld_enabled'=>'啟用 JSON-LD 結構化資料',
+	'seo_jsonld_enabled_tips'=>'輸出 Article / QAPage / BreadcrumbList / WebSite 等 schema.org 結構化資料，讓搜索引擎和 AI 引擎精確理解頁面內容。強烈建議保持開啟',
+	'seo_canonical_enabled'=>'啟用 Canonical URL',
+	'seo_canonical_enabled_tips'=>'輸出 &lt;link rel="canonical"&gt;，避免分頁、URL 參數等導致的重複內容懲罰。強烈建議保持開啟',
+	'llms_txt_field'=>'llms.txt 內容',
+	'llms_txt_save_failed'=>'llms.txt 儲存失敗，請檢查根目錄寫入權限',
+	'seo_llms_warning'=>'注意：錯誤的 llms.txt 可能導致 AI 引擎誤解站點，建議保留默認結構並只補充版塊資訊',
+
+	// SEO 健康檢查項
+	'seo_check_site_keywords'=>'站點關鍵詞',
+	'seo_check_site_description'=>'站點描述',
+	'seo_check_sitesubtitle'=>'站點副標題',
+	'seo_check_sitemap'=>'Sitemap 啟用',
+	'seo_check_robots'=>'robots.txt',
+	'seo_check_llms'=>'llms.txt',
+	'seo_check_og'=>'Open Graph',
+	'seo_check_jsonld'=>'JSON-LD 結構化資料',
+	'seo_check_canonical'=>'Canonical URL',
+	'seo_check_permalink'=>'偽靜態 URL',
+	'seo_check_filled'=>'已填寫',
+	'seo_check_empty'=>'未填寫，建議補充',
+	'seo_check_optional'=>'選填，留空不影響',
+	'seo_check_sitemap_on'=>'已啟用',
+	'seo_check_sitemap_off'=>'未啟用，搜索引擎無法發現新內容',
+	'seo_check_robots_ok'=>'已存在，AI 爬蟲全部允許',
+	'seo_check_robots_missing'=>'robots.txt 不存在',
+	'seo_check_llms_ok'=>'已存在',
+	'seo_check_llms_missing'=>'llms.txt 不存在，建議補充',
+	'seo_check_og_on'=>'已啟用',
+	'seo_check_og_off'=>'未啟用，社交分享無卡片',
+	'seo_check_jsonld_on'=>'已啟用',
+	'seo_check_jsonld_off'=>'未啟用，AI 引擎理解能力下降',
+	'seo_check_canonical_on'=>'已啟用',
+	'seo_check_canonical_off'=>'未啟用，可能觸發重複內容懲罰',
+	'seo_check_permalink_on'=>'已啟用偽靜態',
+	'seo_check_permalink_off'=>'未啟用，建議到「固定連結」開啟偽靜態',
+
+	// 系統層與插件提示
+	'seo_tips_system_title'=>'系統層已實現（無需插件）',
+	'seo_tips_system_items'=>'
+• 動態 sitemap.xml：/sitemap.xml，含首頁+全部版塊+最近帖子，1 小時快取\n
+• robots.txt：明確允許 GPTBot / ClaudeBot / PerplexityBot / Baiduspider 等所有主流 AI 爬蟲\n
+• llms.txt：面向 AI 模型的站點說明檔案\n
+• 每頁 meta keywords/description：首頁/聚合頁用站點默認，帖子/版塊用動態值\n
+• Canonical URL：避免重複內容懲罰\n
+• prev/next 分頁 meta：幫助搜索引擎理解分頁\n
+• Open Graph + Twitter Card：社交分享卡片\n
+• JSON-LD 結構化資料：帖子→QAPage/DiscussionForumPosting，版塊→BreadcrumbList，首頁→WebSite，用戶→Profile\n
+• robots meta：默認 index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1（AI 友好）\n
+• noindex 標記：搜索/我的/編輯帖子等無 SEO 價值頁面自動禁止索引\n
+• 偽靜態 URL：搜索引擎友好（需在「固定連結」開啟）\n
+• theme-color meta：行動瀏覽器地址欄配色',
+	'seo_tips_plugin_title'=>'建議使用插件擴展（進階 SEO）',
+	'seo_tips_plugin_items'=>'
+• 每頁獨立 SEO 覆蓋：每個帖子/版塊單獨設定 keywords/description/og_image\n
+• 百度/神馬/Bing 主動推送：新帖自動提交給搜索引擎，加速收錄\n
+• 自動內鏈生成：關鍵詞自動加連結，提升頁面權重傳遞\n
+• 圖片 WebP 自動轉換 + 懶載入：提升頁面載入速度（Core Web Vitals）\n
+• SEO 友好 URL slug：帖子標題作為 URL 一部分（如 /thread/123/post-title）\n
+• 結構化資料擴展：FAQ / Review / Event / HowTo 等 schema\n
+• 百度統計 / Google Analytics 集成\n
+• 內容原創度檢測\n
+• 死鏈檢測與提交\n
+• 多語言 hreflang 標籤',
+
 	'runlevel'=>'站點訪問限制',
 	'user_create_on'=>'開啟用戶註冊',
 	'user_create_email_on'=>'開啟註冊郵箱驗證',

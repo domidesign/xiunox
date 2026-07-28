@@ -75,7 +75,16 @@ return array (
 	'logo_water_url' => 'view/img/water-small.png',		// 水印的 LOGO URL
 	
 	'sitename' => 'Xiuno BBS',
+	'sitesubtitle' => '',
+	'site_keywords' => '',
+	'site_description' => '',
 	'sitebrief' => 'Site Brief',
+	'sitemap_enabled' => 1,
+	'sitemap_thread_limit' => 1000,
+	'sitemap_cache_ttl' => 3600,
+	'seo_og_enabled' => 1,
+	'seo_jsonld_enabled' => 1,
+	'seo_canonical_enabled' => 1,
 	'timezone' => getenv('XIUNO_TIMEZONE') ?: 'Asia/Shanghai',	// 时区，默认中国
 	'lang' => 'zh-cn',
 	'runlevel' => 5,		// 0: 站点关闭; 1: 管理员可读写; 2: 会员可读;  3: 会员可读写; 4：所有人只读; 5: 所有人可读写

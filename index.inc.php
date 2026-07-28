@@ -109,13 +109,20 @@ $forumlist_show = function_exists('forum_list_access_filter') ? forum_list_acces
 $forumarr = arrlist_key_values($forumlist_show, 'fid', 'name');
 
 // 头部 header.inc.htm
-// SEO: 首页 title/description 留给后台 sitename/sitebrief 配置，专门的 SEO 插件可后续扩展
+// SEO: 首页 title 拼接副标题(slogan)，keywords/description 从站点设置读取，专门的 SEO 插件可后续扩展
+$_seo_title = $conf['sitename'];
+if(!empty($conf['sitesubtitle'])) {
+	$_seo_title .= ' - ' . $conf['sitesubtitle'];
+}
+$_seo_desc = !empty($conf['site_description'])
+	? trim(preg_replace('/\s+/', ' ', strip_tags($conf['site_description'])))
+	: trim(preg_replace('/\s+/', ' ', strip_tags($conf['sitebrief'])));
 $header = array(
-	'title'=>$conf['sitename'],
+	'title'=>$_seo_title,
 	'mobile_title'=>'',
 	'mobile_link'=>'./',
-	'keywords'=>'', // 搜索引擎自行分析 keywords, 自己指定没用 / Search engine automatic analysis of key words, so keep it empty.
-	'description'=>trim(preg_replace('/\s+/', ' ', strip_tags($conf['sitebrief']))),
+	'keywords'=>isset($conf['site_keywords']) ? $conf['site_keywords'] : '',
+	'description'=>$_seo_desc,
 	'navs'=>array(),
 );
 // SEO: 首页 canonical / Open Graph / JSON-LD WebSite schema（含 SearchAction 站内搜索）

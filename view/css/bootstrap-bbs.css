@@ -885,10 +885,7 @@ a.hover-bg-body-secondary:hover {
         display: flex !important;
     }
 
-    body {
-        padding-bottom: 70px;
-        overflow-x: hidden;
-    }
+   
 
     .hidden-sm {
         display: none !important;
