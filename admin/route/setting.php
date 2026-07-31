@@ -141,8 +141,8 @@ if($action == 'base') {
 		);
 		$seo_checks['permalink'] = array(
 			'label' => lang('seo_check_permalink'),
-			'status' => (!empty($conf['url_rewrite']) || !empty($conf['seo_url_pretty'])) ? 'ok' : 'warn',
-			'msg' => (!empty($conf['url_rewrite']) || !empty($conf['seo_url_pretty'])) ? lang('seo_check_permalink_on') : lang('seo_check_permalink_off'),
+			'status' => !empty($conf['url_rewrite_on']) ? 'ok' : 'warn',
+			'msg' => !empty($conf['url_rewrite_on']) ? lang('seo_check_permalink_on') : lang('seo_check_permalink_off'),
 		);
 
 		// hook admin_setting_seo_get_end.php
