@@ -5,9 +5,17 @@
 </div>
 
 <!-- 顶部安全提示 -->
-<div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="alert">
+<div class="alert alert-info d-flex align-items-start gap-2 mb-2" role="alert">
 	<i class="ti ti-info-circle mt-1"></i>
 	<div class="flex-grow-1 small"><?php echo lang('plugin_marketplace_notice');?></div>
+</div>
+<div class="alert alert-warning d-flex align-items-start gap-2 mb-2" role="alert">
+	<i class="ti ti-shield-check mt-1"></i>
+	<div class="flex-grow-1 small"><?php echo lang('plugin_marketplace_notice_official');?></div>
+</div>
+<div class="alert alert-danger d-flex align-items-start gap-2 mb-4" role="alert">
+	<i class="ti ti-alert-triangle mt-1"></i>
+	<div class="flex-grow-1 small"><?php echo lang('plugin_marketplace_notice_paid');?></div>
 </div>
 
 <!-- 顶部工具栏 -->
@@ -84,6 +92,7 @@
 		<?php foreach($official_plugins as $info):
 			$p = $info['manifest'];
 			$status = $info['status'];
+			$is_official = !empty($p['author_uid']) && intval($p['author_uid']) === 1;
 		?>
 			<div class="col-12 col-md-6 col-lg-4 col-xl-3">
 			<div class="x-card card hover-shadow position-relative overflow-hidden">
@@ -106,6 +115,11 @@
 									</a>
 								<?php else:?>
 									<?php echo esc_html($p['name']);?>
+								<?php endif;?>
+								<?php if($is_official):?>
+									<span class="badge bg-primary ms-1" title="<?php echo esc_attr(lang('plugin_marketplace_official_badge'));?>">
+										<i class="ti ti-shield-check me-1"></i><?php echo esc_html(lang('plugin_marketplace_official_badge'));?>
+									</span>
 								<?php endif;?>
 							</div>
 							<div class="d-flex flex-wrap gap-1 align-items-center">
@@ -135,6 +149,11 @@
 							</a>
 						<?php else:?>
 							<span><?php echo esc_html(!empty($p['author']) ? $p['author'] : 'unknown');?></span>
+						<?php endif;?>
+						<?php if($is_official):?>
+							<span class="badge bg-primary-subtle text-primary" title="<?php echo esc_attr(lang('plugin_marketplace_official_badge'));?>">
+								<i class="ti ti-shield-check me-1"></i><?php echo esc_html(lang('plugin_marketplace_official_badge'));?>
+							</span>
 						<?php endif;?>
 					</div>
 
