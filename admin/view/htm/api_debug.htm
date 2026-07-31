@@ -523,7 +523,7 @@ function clearHistory() {
 }
 
 function revokeToken(tokenId, uid) {
-	if (confirm('<?php echo lang("api_debug_confirm_revoke");?> UID=' + uid + '？')) {
+	XN.confirm('<?php echo lang("api_debug_confirm_revoke");?> UID=' + uid + '？', function() {
 	var csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 	// ponytail: 后端 revoke_token_by_id op 按 refresh token 主键 id 删除整对 access+refresh
 	xpost('<?php echo admin_api_debug_url();?>', {op: 'revoke_token_by_id', id: tokenId, csrf_token: csrfToken}, function(code, message) {
@@ -534,7 +534,7 @@ function revokeToken(tokenId, uid) {
 			showToast(message, 'error');
 		}
 	});
-	}
+	}, {type: 'danger', okText: '撤销'});
 }
 
 document.getElementById('apiMethod').addEventListener('change', updateBodyVisibility);

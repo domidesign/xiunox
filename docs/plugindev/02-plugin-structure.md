@@ -83,7 +83,7 @@ plugin/my_plugin/
 | `bbs_version` | string | ✅ | — | 兼容的核心主次版本，必须两位制（X.Y，如 "1.1"）。**必须与当前系统版本前两位完全一致**（`XIUNOX_VERSION` 取前两段，如 1.1.0 → 1.1），不一致一律拒绝安装。语义：插件与核心同分支绑定，避免跨分支兼容性陷阱 |
 | `hooks_rank` | object | ❌ | `{}` | hook 排序权重 |
 | `overwrites_rank` | object | ❌ | `{}` | 覆盖优先级 |
-| `dependencies` | object | ❌ | `{}` | 依赖（值是最低版本，但**实际不比较版本**，只看在不在/启没启） |
+| `dependencies` | object \| array | ❌ | `{}` | 依赖插件。推荐 object 格式 `{"plugin_dir": "version"}`（版本约束支持 `*`/`>=1.0`/`^1.0` 等语义化版本）；也兼容索引数组格式 `["plugin_dir"]`（版本约束视为 `*`）。安装/启用时缺依赖或版本不满足会拦截，卸载/禁用时若被别人依赖也会拦截 |
 | `capabilities` | array | ❌ | `[]` | 权限沙箱声明，扫描器已强制校验格式（要求 `lowercase.dots` 数组）。规则详见 06-ai-collaboration.md 第六节 `capabilities_format` |
 | `type` | string | ✅ | — | 必须为 `"plugin"` 或 `"theme"`（`template`/`skin` 视为 `theme` 别名）。缺失或值非法一律拒绝安装。**插件唯一标识是目录名（dir），不需要也不读取 `id` 字段** |
 | `author` | string | ❌ | — | 作者 |

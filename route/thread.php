@@ -471,7 +471,7 @@ if($action == 'create') {
 			message(-1, '内容太短，至少需要' . $post_min_length . '个字');
 		}
 		if ($post_max_length > 0 && $message_len > $post_max_length) {
-			message(-1, '内容太长，最多允许' . $post_max_length . '个字');
+			message(-1, '内容太长，最多允许 ' . $post_max_length . ' 个字符（含 HTML 格式化标签如 &lt;p&gt;、加粗、图片等；编辑器右下角显示的是纯文本字数，会小于此值，当前 ' . $message_len . ' 字符）');
 		}
 
 		// ===== 新用户前N帖需审核 =====

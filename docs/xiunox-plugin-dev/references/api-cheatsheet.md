@@ -37,6 +37,8 @@ $page = param('page', 1);         // int
 $password = param('password', '', FALSE);  // 敏感字段必须关闭 htmlspecialchars
 ```
 
+> ⚠️ **URL 按 `-` 分隔参数，`case` 值禁止含 `-`**（已违反 1 次）：`-` 是参数分隔符，`myplugin-list-settings` 被解析为 `param(1)='list'`、`param(2)='settings'`——`param(1)` 只取单段。路由 `switch` 的 `case` 值必须是不含 `-` 的单段字符串，多段子动作用 `param(2)`/`param(3)` 逐段取。详见 [04-api-cheatsheet.md](../../plugindev/04-api-cheatsheet.md) 第 1 节。
+
 > ⚠️ 密码 / token / API key 等敏感字段必须传第 3 参 `FALSE`，否则 `<`、`>`、`&` 被转义后比对失败。
 
 ---

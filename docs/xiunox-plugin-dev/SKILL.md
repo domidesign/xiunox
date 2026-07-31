@@ -86,9 +86,11 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | 用户信息显示 | `user_find_by_uids()`/`user_read()`/`user_read_cache()`（自动生成 `display_name`），禁止 `db_find('user')` 后取 `username` |
 | URL 生成 | 命名快捷函数（`thread_url($tid)`）> `route_url()` > `url()`；禁止硬编码 `.htm`/`.html` 后缀 |
 | 插件自定义路由 | 通过 `hook/model_route_table_end.php` 注册到 `$routes` 数组 |
+| **路由 case 值** | **禁止含 `-`**（`-` 是 URL 参数分隔符，`param(1)` 只取单段）；多段子动作用 `param(2)`/`param(3)` 逐段取 |
 | 改核心文件后 | 清 `tmp/` 编译缓存（`_include()` 不比较 mtime） |
 | Service 调用核心类 | `if (!class_exists('XxxService')) { include_once APP_PATH.'lib/XxxService.php'; }` 守卫前置 |
-| Card 组件 | 加 `x-card` class，禁止裸用 `border`/`border-*`，列表分隔用 `py-*`/`mb-*` 间距 |
+| Card 组件 | **必须 `x-card` + `card` 组合**，禁止裸用 `card`/`border`/`border-*`；列表分隔用 `py-*`/`mb-*` 间距 |
+| 前台布局 | **必须用三栏骨架** `layout_three_column.inc.htm`（`ob_start` + `$main_content` + include）；禁止自行写 `container`/`row`/`col-lg-*`；不需左右栏时设 `$sidebar_*_file=''` |
 | 头像渲染 | `avatar_component_from_data()`（非原生 `<img>`） |
 | 改 `static/*.js`/`*.css` 后 | 递增 `conf/conf.php` 的 `static_version` |
 | **hook 内局部变量** | **加插件前缀**（`$_myplugin_settings`），禁止用 `$settings`/`$conf`/`$user` 等通用名（会污染宿主作用域） |
@@ -118,7 +120,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 
 按顺序创建文件（详见 [../plugindev/02-plugin-structure.md](../plugindev/02-plugin-structure.md)）：
 
-1. **`conf.json`** — 必填字段 + `hooks_rank`（键名与 hook 文件名含扩展名完全一致）+ `overwrites_rank`（object，非 array）
+1. **`conf.json`** — 必填字段 + `hooks_rank`（键名与 hook 文件名含扩展名完全一致）+ `overwrites_rank`（object，非 array）+ `dependencies`（推荐 object `{"dir":"ver"}`，兼容 array `["dir"]`）
 2. **`install.php`** — `CREATE TABLE IF NOT EXISTS` + `setting_set()` 默认配置 + `!defined('DEBUG') AND exit('Access Denied');`
 3. **`uninstall.php`** — 标准拼写（非 `unstall.php`）+ `DROP TABLE` + `kv_delete()`/`setting_delete()`
 4. **`upgrade.php`**（如需结构变更）— `SHOW COLUMNS` + `ALTER TABLE` 幂等；递增 `conf.json.version`
@@ -160,6 +162,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | 查 hook 注入点 | [references/hooks-catalog.md](references/hooks-catalog.md) |
 | 查 API 签名 / 参数细节 | [references/api-cheatsheet.md](references/api-cheatsheet.md) |
 | 查前端模式 / htmx 4 / XN.* | [references/frontend-patterns.md](references/frontend-patterns.md) |
+| 查后台 UI 模式 / Tab 独立页面 / 入口模式 / 搜索分页 | [references/admin-patterns.md](references/admin-patterns.md) |
 | 查 AI 协作硬规则 / 扫描器分级 | [references/ai-rules.md](references/ai-rules.md) |
 | 查完整插件架构原理 | [../plugindev/01-architecture.md](../plugindev/01-architecture.md) |
 | 查 conf.json 完整字段 / zip 打包 | [../plugindev/02-plugin-structure.md](../plugindev/02-plugin-structure.md) |
@@ -173,6 +176,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | 查 jQuery 移除迁移指南 | [../plugindev/10-jquery-removal-guide.md](../plugindev/10-jquery-removal-guide.md) |
 | 查编辑器工具栏按钮集成 | [../plugindev/11-editor-toolbar-integration.md](../plugindev/11-editor-toolbar-integration.md) |
 | 查头像组件使用与扩展 | [../plugindev/12-avatar-component.md](../plugindev/12-avatar-component.md) |
+| 查后台/前台 UI 规范总览 | [../plugindev/14-plugin-admin-ui.md](../plugindev/14-plugin-admin-ui.md) |
 | 查插件互斥机制 / 目录命名 | [../plugindev/plugin-mutex-guide.md](../plugindev/plugin-mutex-guide.md) |
 | 查完整手册入口 | [../plugindev/README.md](../plugindev/README.md) |
 
@@ -192,6 +196,8 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | 注册前台路由 | `index_route_case_end.php` |
 | 注册插件路由表 | `model_route_table_end.php` |
 | 注册后台路由 | `admin_index_route_case_end.php` |
+| 后台侧边栏入口（顶部） | `admin_sidebar_start.htm` |
+| 后台侧边栏入口（底部） | `admin_sidebar_end.htm` |
 | 首页侧边栏组件 | `index_site_brief_after.htm` |
 | 语言扩展 | `lang_zh_cn_bbs.php` |
 | 个人中心导航 | `my_sidebar_nav_item_after.htm` |
@@ -223,6 +229,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | PC/移动端双模板 JS 更新失效 | 移动端模板 id 加 `-mobile` 后缀，JS 分别获取两端元素同时更新；或全用 class + `querySelectorAll` 遍历 |
 | AIEditor 自定义按钮不显示 | 1. 用 Grep 确认 `conf.json.hooks_rank` 键名含 `.php` 2. hook 内用 `$data` 变量追加按钮配置 3. 配置字段名必须是 `toolbarKeys`（不是 `toolbar`） 4. SVG 用 fill 模式（path 不带 `fill="none"`） 5. 调试用 `document.querySelectorAll('aie-custom').length` 确认按钮是否创建 |
 | 升级流程删源文件 | 升级顺序：rename 备份旧插件 → `rmove_dir` 移入新版本 → 清 `tmpDir` → `plugin_disable`（顺序颠倒会删源文件） |
+| 路由报"参数错误" / 404 | 路由 `case` 值含 `-`（`-` 是 URL 参数分隔符，`param(1)` 只取单段）。改用 `param(1)` 取主动作 + `param(2)` 取子动作的嵌套模式 |
 
 ## 交付检查表
 
@@ -246,7 +253,8 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 - [ ] Service 调用核心类前 `include_once` 守卫
 - [ ] 改核心文件后清 `tmp/`；改静态资源后递增 `static_version`
 - [ ] 后台模板 include `ADMIN_PATH` 的 header/footer；前台用 `APP_PATH`
-- [ ] Card 组件加 `x-card` class，无裸 `border`
+- [ ] Card 组件必须 `x-card` + `card` 组合，禁止裸 `card`/`border`/`border-*`
+- [ ] 前台页面用三栏骨架 `layout_three_column.inc.htm`，禁止自行写 `container`/`row`/`col-lg-*`
 - [ ] 头像用 `avatar_component_from_data()`，非原生 `<img>`
 - [ ] PC/移动端双模板 id 加 `-mobile` 后缀
 - [ ] 插件目录名符合 `作者_功能标识` 两段格式；主题类第二段为 `theme`

@@ -194,12 +194,16 @@ foreach ($include_model_files as $model_files) {
 `conf.json` 声明：
 
 ```json
+// 推荐格式（object：key=插件目录名，value=版本约束）
 "dependencies": {
     "xn_search": "1.0"
 }
+
+// 兼容格式（array：仅列插件目录名，版本约束视为 *）
+"dependencies": ["xn_search"]
 ```
 
-- `plugin_dependencies($dir)`：检查依赖是否**存在、启用、版本满足约束**（`plugin.func.php:209`）
+- `plugin_dependencies($dir)`：检查依赖是否**存在、启用、版本满足约束**（`plugin.func.php:209`）。内部会自动规范化两种格式，索引数组的元素被当作插件目录名、版本约束视为 `*`。
 - **版本号会被语义化比较**：`plugin_version_satisfies($dep_version, $constraint)`（`plugin.func.php:240`）支持 npm 风格约束 `>=`、`<=`、`>`、`<`、`=`、`^`（兼容主版本）、`~`（兼容次版本）、`*`（任意）；`"1.0"` 被当作精确版本用 `version_compare()` 比较。无法解析的约束默认通过。
 - `plugin_check_dependency()`：安装/启用时缺依赖或版本不满足会拦截；卸载/禁用时若被别人依赖也会拦截。
 

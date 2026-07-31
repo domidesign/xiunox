@@ -547,7 +547,7 @@ function showUpgradeError(msg) {
 }
 
 function reinstall() {
-	if (!confirm('<?php echo lang('admin_online_upgrade_reinstall_confirm');?>')) return;
+	XN.confirm('<?php echo lang('admin_online_upgrade_reinstall_confirm');?>', function() {
 	var btn = document.getElementById('reinstallBtn');
 	btn.disabled = true;
 	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_reinstalling');?>';
@@ -574,6 +574,7 @@ function reinstall() {
 			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + escapeHtml(xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
 		}
 	});
+	}, {type: 'warning', okText: '重新安装'});
 }
 
 // 页面加载初始化：若 24h 内已检查过，预 disable 检查按钮并改文案

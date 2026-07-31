@@ -62,12 +62,12 @@ document.querySelectorAll('.confirm').forEach(function(btn) {
 	btn.addEventListener('click', function() {
 		var nid = this.getAttribute('data-nid');
 		var postdata = {nid: nid, csrf_token: '<?php echo $header["csrf_token"];?>'};
-		if (confirm('<?php echo lang('admin_confirm_delete_question')?>')) {
+		XN.confirm('<?php echo lang('admin_confirm_delete_question')?>', function() {
 			xpost(xn.url('notice-delete'), postdata, function(code, message) {
 				if(code != 0) return showToast(message, 'error');
 				window.location.reload();
 			});
-		}
+		}, {type: 'danger'});
 	});
 });
 
@@ -93,7 +93,7 @@ function bindAnnouncementDelete() {
         btn.addEventListener('click', function() {
             var nid = this.getAttribute('data-nid');
             if(!nid) return;
-            if (confirm('<?php echo lang('admin_confirm_delete_question');?>')) {
+            XN.confirm('<?php echo lang('admin_confirm_delete_question');?>', function() {
                 var csrfTok = document.querySelector('meta[name="csrf-token"]');
                 var data = {nid: nid, csrf_token: csrfTok ? csrfTok.getAttribute('content') : ''};
                 fetch('<?php echo admin_notice_delete_url();?>', {
@@ -111,7 +111,7 @@ function bindAnnouncementDelete() {
                 }).catch(function() {
                     showToast('<?php echo lang('admin_request_failed');?>', 'error');
                 });
-            }
+            }, {type: 'danger'});
         });
     });
 }

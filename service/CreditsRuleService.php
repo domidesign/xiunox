@@ -9,9 +9,6 @@
  */
 class CreditsRuleService {
 
-	// 扣减事件列表（这些事件使用 CreditsService::sub 扣减积分）
-	private static $subEvents = array('like', 'unlike', 'thread_delete', 'reply_delete', 'favorite', 'unfavorite');
-
 	// 规则缓存：[event][fid] => rule_array，避免批量场景下 N+1 规则查询
 	// fid=0 表示全局规则
 	private static $ruleCache = array();
@@ -130,9 +127,6 @@ class CreditsRuleService {
 			return array('ok' => true, 'message' => '规则未启用或不存在', 'skipped' => true);
 		}
 
-		// 判断是增加还是扣减
-		$isSub = in_array($event, self::$subEvents);
-
 		// 获取规则级每日限制
 		$dailyLimit = intval($rule['daily_limit'] ?? 0);
 
@@ -172,13 +166,20 @@ class CreditsRuleService {
 		// 构建扣减描述（用于前端提示）
 		$deductDesc = array();
 
+		// ponytail: 统一按数值正负处理 —— 正值=奖励(add)，负值=扣减(sub)
+		// 移除原 $subEvents 硬编码反转逻辑，与后台提示文案「正值增加、负值扣除」保持一致
 		foreach ($types as $type) {
 			$changeKey = $type . '_change';
 			$amount = intval($rule[$changeKey] ?? 0);
 			if ($amount == 0) continue;
 
-			if ($isSub) {
-				// 扣减事件：正值表示扣减量
+			if ($amount > 0) {
+				// 正值：奖励
+				if ($checkOnly) continue; // 奖励无需预检查余额
+				$result = $creditsService->add($uid, $type, $amount, $creditsReason, -1);
+				$results[$type] = $result;
+			} else {
+				// 负值：扣减
 				$deductAmount = abs($amount);
 
 				// 仅检查模式：检查余额是否充足
@@ -207,49 +208,6 @@ class CreditsRuleService {
 				$result = $creditsService->sub($uid, $type, $deductAmount, $creditsReason, -1);
 				if (!$result['ok']) {
 					// 余额不足，扣减失败，整个操作应中止
-					self::_releaseLock($lockAcquired, $lockKey);
-					return array(
-						'ok' => false,
-						'message' => $result['message'],
-						'event' => $event,
-						'uid' => $uid,
-						'results' => $results,
-					);
-				}
-				$results[$type] = $result;
-			} elseif ($amount > 0) {
-				// 增加事件：正值增加
-				if ($checkOnly) continue; // 增加事件不需要预检查
-				$result = $creditsService->add($uid, $type, $amount, $creditsReason, -1);
-				$results[$type] = $result;
-			} else {
-				// 增加事件但值为负：表示扣减
-				$deductAmount = abs($amount);
-
-				if ($checkOnly) {
-					$check = $creditsService->checkNegative($uid, $type, $deductAmount);
-					$results[$type] = array(
-						'ok' => $check['sufficient'],
-						'amount' => $deductAmount,
-						'balance' => $check['balance'] ?? 0,
-						'sufficient' => $check['sufficient'] ?? false,
-					);
-					$typeName = self::getTypeName($type);
-					if (!$check['sufficient']) {
-						return array(
-							'ok' => false,
-							'message' => $typeName . '余额不足，需要 ' . $deductAmount . '，当前 ' . ($check['balance'] ?? 0),
-							'event' => $event,
-							'uid' => $uid,
-							'results' => $results,
-						);
-					}
-					$deductDesc[] = $typeName . ' -' . $deductAmount;
-					continue;
-				}
-
-				$result = $creditsService->sub($uid, $type, $deductAmount, $creditsReason, -1);
-				if (!$result['ok']) {
 					self::_releaseLock($lockAcquired, $lockKey);
 					return array(
 						'ok' => false,
@@ -419,9 +377,6 @@ class CreditsRuleService {
 			return array('ok' => true, 'message' => '规则未启用或不存在', 'skipped' => true);
 		}
 
-		// 判断是否为扣减事件
-		$isSub = in_array($event, self::$subEvents);
-
 		if (!class_exists('CreditsService')) {
 			include_once APP_PATH . 'lib/CreditsService.php';
 		}
@@ -432,23 +387,15 @@ class CreditsRuleService {
 		$results = array();
 		$types = array('credits', 'golds', 'rmbs');
 
+		// ponytail: 统一按数值正负处理 —— 仅负值（扣减部分）立即执行，正值（奖励部分）跳过
 		foreach ($types as $type) {
 			$changeKey = $type . '_change';
 			$amount = intval($rule[$changeKey] ?? 0);
-			if ($amount == 0) continue;
+			if ($amount >= 0) continue; // 跳过正值（奖励部分），审核通过后由 grantCredits 补发
 
-			if ($isSub) {
-				// 扣减事件：正值表示扣减量，立即执行
-				$deductAmount = abs($amount);
-				$result = $creditsService->sub($uid, $type, $deductAmount, $creditsReason, -1);
-				$results[$type] = $result;
-			} elseif ($amount < 0) {
-				// 增加事件但值为负：表示扣减，立即执行
-				$deductAmount = abs($amount);
-				$result = $creditsService->sub($uid, $type, $deductAmount, $creditsReason, -1);
-				$results[$type] = $result;
-			}
-			// 正值（奖励部分）跳过，审核通过后由 grantCredits 补发
+			$deductAmount = abs($amount);
+			$result = $creditsService->sub($uid, $type, $deductAmount, $creditsReason, -1);
+			$results[$type] = $result;
 		}
 
 		return array(
@@ -475,12 +422,6 @@ class CreditsRuleService {
 			return array('ok' => true, 'message' => '规则未启用或不存在', 'skipped' => true);
 		}
 
-		// 扣减事件不处理奖励
-		$isSub = in_array($event, self::$subEvents);
-		if ($isSub) {
-			return array('ok' => true, 'message' => '扣减事件无奖励部分', 'skipped' => true);
-		}
-
 		if (!class_exists('CreditsService')) {
 			include_once APP_PATH . 'lib/CreditsService.php';
 		}
@@ -491,10 +432,11 @@ class CreditsRuleService {
 		$results = array();
 		$types = array('credits', 'golds', 'rmbs');
 
+		// ponytail: 统一按数值正负处理 —— 仅正值（奖励部分）发放，负值（扣减部分）已由 applyRuleDeductOnly 执行
 		foreach ($types as $type) {
 			$changeKey = $type . '_change';
 			$amount = intval($rule[$changeKey] ?? 0);
-			if ($amount <= 0) continue; // 跳过扣除部分（已执行）
+			if ($amount <= 0) continue; // 跳过非正值（扣减部分已执行）
 
 			// 正值：发放奖励
 			$result = $creditsService->add($uid, $type, $amount, $creditsReason, -1);

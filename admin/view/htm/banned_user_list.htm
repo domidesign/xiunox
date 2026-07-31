@@ -124,10 +124,10 @@ document.querySelectorAll('form[data-confirm]').forEach(function(f) {
 			return;
 		}
 		e.preventDefault();
-		if (confirm(f.dataset.confirm)) {
+		XN.confirm(f.dataset.confirm, function() {
 			f.dataset.confirmed = '1';
 			HTMLFormElement.prototype.submit.call(f);
-		}
+		}, {type: 'danger'});
 	});
 });
 // 搜索表单：构造路径风格 URL 跳转，与 admin/route/user.php 风格一致

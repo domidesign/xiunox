@@ -429,3 +429,13 @@ fetch(url, {
 - [ ] CSRF token 通过 PHP `json_encode` 注入 JS 变量，header + body 双保险
 - [ ] 动态内容插入 DOM 前用 `escapeHtml()` 转义
 - [ ] Toast 独立实现，有 `alert` 兜底
+
+---
+
+## 10. 布局与 Card 规范
+
+> 前台页面**必须使用系统三栏布局骨架** `layout_three_column.inc.htm`，禁止自行硬编码 `row` + `col-lg-*`；Card 组件**必须 `x-card` + `card` 组合使用**，禁止裸 `card`/`border`。
+
+> 📖 **UI 规范总览**：三栏布局骨架完整变量表、x-card + card 组合规范、列表分隔规则、禁止用 `border` 的场景说明，已整合到：
+> - 速查版：[admin-patterns.md](admin-patterns.md)（速查表 + 最小代码片段）
+> - 完整版：[../../plugindev/14-plugin-admin-ui.md](../../plugindev/14-plugin-admin-ui.md) 第 3 节（x-card + card 组合规范）和第 4 节（前台三栏布局骨架）

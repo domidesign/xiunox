@@ -25,6 +25,32 @@ $keyword = param('keyword');  // 自动 htmlspecialchars
 $page = param('page', 1);     // int
 ```
 
+> ⚠️ **URL 按 `-` 分隔参数，`case` 值禁止含 `-`**（已违反 1 次）：Xiuno URL 中 `-` 是参数分隔符，`myplugin-list-settings` 被解析为 `param(0)='myplugin'`、`param(1)='list'`、`param(2)='settings'`——`param(1)` 永远只取到单段 `'list'`，不可能得到 `'list-settings'`。因此路由 `switch` 的 `case` 值必须是**不含 `-` 的单段字符串**。多段子动作用 `param(2)`、`param(3)` 逐段取。
+>
+> ```php
+> // ❌ 错误：case 值含 -，永远匹配不到
+> $action = param(1);
+> switch ($action) {
+>     case 'projects-settings': ...  // 不可能匹配，param(1) 只返回 'projects'
+> }
+>
+> // ✅ 正确：param(1) 取主动作，param(2) 取子动作
+> $action = param(1);
+> $sub = param(2);
+> switch ($action) {
+>     case 'projects':
+>         if (is_numeric($sub)) {
+>             // gitee-projects-{uid} 独立页面
+>         } else {
+>             switch ($sub) {
+>                 case 'settings': ...  // gitee-projects-settings
+>                 case 'sync': ...      // gitee-projects-sync
+>             }
+>         }
+>         break;
+> }
+> ```
+
 > ⚠️ **敏感字段禁止用默认 htmlspecialchars**（已违反 1 次）：`param()` 第 3 参 `$htmlspecialchars` 默认 `TRUE` 会自动转义 `<`、`>`、`&` 等字符。**密码、token、API key 等敏感配置必须传第 3 参 `FALSE`**，否则特殊字符被转义后导致密码比对失败。
 >
 > ```php

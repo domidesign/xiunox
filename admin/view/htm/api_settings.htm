@@ -661,7 +661,7 @@ function updateApp() {
 }
 
 function deleteApp(id, name) {
-	if (confirm('确定要删除应用「' + name + '」吗？此操作不可恢复。')) {
+	XN.confirm('确定要删除应用「' + name + '」吗？此操作不可恢复。', function() {
 		var data = {
 			id: id,
 			csrf_token: getCsrfToken()
@@ -685,11 +685,11 @@ function deleteApp(id, name) {
 		.catch(function(err) {
 			XN.toast('请求失败', 'danger');
 		});
-	}
+	}, {type: 'danger', okText: '删除'});
 }
 
 function resetSecret(id, name) {
-	if (confirm('确定要重置应用「' + name + '」的密钥吗？旧密钥将立即失效。')) {
+	XN.confirm('确定要重置应用「' + name + '」的密钥吗？旧密钥将立即失效。', function() {
 		var data = {
 			id: id,
 			csrf_token: getCsrfToken()
@@ -715,7 +715,7 @@ function resetSecret(id, name) {
 		.catch(function(err) {
 			XN.toast('请求失败', 'danger');
 		});
-	}
+	}, {type: 'danger', okText: '重置'});
 }
 
 function copyField(fieldId) {

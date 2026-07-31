@@ -13,6 +13,7 @@ XIUNOX（XIUNO BBS X 重构版）插件开发规范与速查文档。文档面�
 | [references/api-cheatsheet.md](references/api-cheatsheet.md) | API 速查（param/URL/DB CRUD/model/权限/KV/安全/全局变量） | 查函数签名 |
 | [references/hooks-catalog.md](references/hooks-catalog.md) | Hook 点速查（280+ hook，按页面分类，已核对源码真实存在） | 查 hook 注入点 |
 | [references/frontend-patterns.md](references/frontend-patterns.md) | 前端模式速查（CSS/JS 加载顺序/htmx 4 事件/XN.* API/lightbox/CSRF） | 查前端模式 |
+| [references/admin-patterns.md](references/admin-patterns.md) | 后台 UI 模式速查（Tab 独立页面/后台入口/GET 搜索/分页 URL/命名快捷函数/菜单注册） | 查后台 UI 模式 |
 
 ### 配套完整手册（plugindev/，深入细节时查）
 
@@ -34,6 +35,7 @@ XIUNOX（XIUNO BBS X 重构版）插件开发规范与速查文档。文档面�
 | [plugindev/10-jquery-removal-guide.md](../plugindev/10-jquery-removal-guide.md) | jQuery 移除指南（迁移到原生 JS + htmx 4） |
 | [plugindev/11-editor-toolbar-integration.md](../plugindev/11-editor-toolbar-integration.md) | 编辑器工具栏集成 |
 | [plugindev/12-avatar-component.md](../plugindev/12-avatar-component.md) | 头像组件（三层嵌套结构 + 2 个 hook 点 + avatar_shape 配置） |
+| [plugindev/14-plugin-admin-ui.md](../plugindev/14-plugin-admin-ui.md) | **插件后台与 UI 规范总览**（Tab 独立页面 / x-card / 三栏布局 / 后台入口 / 搜索分页 / 弹窗） |
 | [plugindev/plugin-mutex-guide.md](../plugindev/plugin-mutex-guide.md) | 插件互斥指南 |
 
 ### 何时读哪个

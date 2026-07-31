@@ -268,9 +268,9 @@ function fieldError(el, message) {
 	if (f) {
 		f.addEventListener('submit', function(e) {
 			e.preventDefault();
-			if (confirm('<?php echo lang('user_clear_content_confirm');?>')) {
+			XN.confirm('<?php echo lang('user_clear_content_confirm');?>', function() {
 				HTMLFormElement.prototype.submit.call(f);
-			}
+			}, {type: 'danger'});
 		});
 	}
 })();

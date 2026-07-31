@@ -1404,7 +1404,7 @@ a.hover-bg-body-secondary:hover {
 
 /* 下拉菜单子项高亮（active 在 <li data-active> 上） */
 .navbar-nav [data-active].active>.dropdown-item {
-    color: var(--bs-primary);
+    /* color: var(--bs-primary); */
     font-weight: 600;
 }
 
@@ -1574,7 +1574,7 @@ a.hover-bg-body-secondary:hover {
 .message.aie-content{
         height: auto;
     min-height: unset;
-    padding: 0;
+    padding: 12px 0;
 }
 .message p {
     margin: 0.5rem 0;
@@ -1681,6 +1681,22 @@ a.hover-bg-body-secondary:hover {
 .message img {
     max-width: 100%;
     height: auto;
+    border-radius: 0.375rem;
+    margin: 0.3rem 0;
+}
+
+/* 详情页内联视频：AIEditor 上传的 video 只有 width 属性没有 height，
+   拖动 resize 会残留 inline height:0px 写入数据库。
+   !important 强制覆盖 inline height:0；min-height 提供占位；
+   实际宽高比由 thread_js.inc.htm 的 JS 在 loadedmetadata 后设置。 */
+.message video,
+.post-content video {
+    max-width: 100%;
+    height: auto !important;
+    min-height: 160px;
+    object-fit: contain;
+    display: block;
+    background: #000;
     border-radius: 0.375rem;
     margin: 0.3rem 0;
 }

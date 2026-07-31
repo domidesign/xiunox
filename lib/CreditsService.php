@@ -45,9 +45,10 @@ class CreditsService {
         if (!$limitCheck['ok']) return $limitCheck;
 
         // 3. credits_before_change 钩子
+        // ponytail: add() 也用 abs() 强制转正，与 sub() 对称 —— 钩子只能调整量的大小，不能翻转方向（负值变奖励）
         $hookResult = $this->fireBeforeChange($uid, $type, $amount, $reason);
         if ($hookResult === false) return ['ok' => false, 'message' => '操作被钩子阻止'];
-        if (is_array($hookResult) && isset($hookResult['amount'])) $amount = intval($hookResult['amount']);
+        if (is_array($hookResult) && isset($hookResult['amount'])) $amount = abs(intval($hookResult['amount']));
 
         // 4. 行锁 + 事务
         try {

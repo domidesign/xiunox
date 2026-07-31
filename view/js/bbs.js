@@ -1019,7 +1019,7 @@ document.querySelectorAll('a.confirm').forEach(function(el) {
 		var jthis = this;
 		var text = jthis.getAttribute('data-confirm-text');
 		e.preventDefault();
-		if(confirm(text)) {
+		XN.confirm(text, function() {
 			var method = xn.strtolower(jthis.getAttribute('data-method') || '');
 			var href = jthis.getAttribute('data-href') || jthis.getAttribute('href');
 			if(method == 'post') {
@@ -1033,7 +1033,7 @@ document.querySelectorAll('a.confirm').forEach(function(el) {
 			} else {
 				//window.location = jthis.getAttribute('href');
 			}
-		}
+		}, {type: 'warning'});
 		return false;
 	});
 });

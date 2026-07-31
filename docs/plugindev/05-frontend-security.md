@@ -350,25 +350,9 @@ message(0, '已更新');
 
 ## 4. Tabler Icons
 
-```html
-<i class="ti ti-home"></i>          <!-- 首页 -->
-<i class="ti ti-message-circle"></i>  <!-- 消息 -->
-<i class="ti ti-user"></i>          <!-- 用户 -->
-<i class="ti ti-settings"></i>       <!-- 设置 -->
-<i class="ti ti-trash"></i>          <!-- 删除 -->
-<i class="ti ti-edit"></i>           <!-- 编辑 -->
-<i class="ti ti-plus"></i>           <!-- 添加 -->
-<i class="ti ti-search"></i>        <!-- 搜索 -->
-<i class="ti ti-star"></i>           <!-- 收藏 -->
-<i class="ti ti-heart"></i>          <!-- 点赞 -->
-<i class="ti ti-tag"></i>            <!-- 标签 -->
-<i class="ti ti-check"></i>          <!-- 确认 -->
-<i class="ti ti-x"></i>             <!-- 关闭 -->
-<i class="ti ti-alert-triangle"></i> <!-- 警告 -->
-<i class="ti ti-info-circle"></i>   <!-- 信息 -->
-```
+> 图标用法统一使用 `<i class="ti ti-xxx"></i>` 格式，前后台共用。完整图标列表见 https://tabler.io/icons。
 
-完整图标列表：https://tabler.io/icons
+> 📖 **UI 规范总览**：Tabler Icons 的加载顺序（前后台 CSS 引入位置）、与 Bootstrap 5 组件的搭配规范、按钮/徽章中图标用法速查表，已整合到 [14-plugin-admin-ui.md](14-plugin-admin-ui.md) 第 1 节（技术栈与加载顺序）和第 2 节（后台 Bootstrap 5 组件规范）。
 
 ---
 
@@ -535,11 +519,21 @@ localStorage.getItem('theme') === 'dark'
 
 ---
 
+## 9. 布局与 Card 规范
+
+> 前台页面**必须使用系统三栏布局骨架** `layout_three_column.inc.htm`，禁止自行硬编码 `row` + `col-lg-*`；Card 组件**必须 `x-card` + `card` 组合使用**，禁止裸 `card`/`border`。
+
+> 📖 **UI 规范总览**：三栏布局骨架的完整变量表（`$sidebar_left_file`/`$sidebar_right_file`/`$right_html`/`$col_main`/`$left_lg`/`$main_class`/`$right_class`）、用法代码模板、x-card + card 组合规范、列表分隔规则、禁止用 `border` 的场景说明，已整合到 [14-plugin-admin-ui.md](14-plugin-admin-ui.md) 第 3 节（x-card + card 组合规范）和第 4 节（前台三栏布局骨架）。
+
+---
+
 ## 小结
 
 - **CSS 注入** → `header_link_after.htm`（全局）或模板内（局部）
 - **JS 注入** → `footer_js_after.htm`（全局）或模板内（局部）
 - **JS API** → `XN.toast()` / `XN.ajax()` / `XN.confirm()` / `XN.alert()`（非关键页面）或原生 `fetch`+`confirm`（关键修复页面）
 - **交互** → htmx 4 属性（`hx-get`/`hx-post`/`hx-target`/`hx-optimistic`）
+- **布局** → 三栏骨架 `layout_three_column.inc.htm`（前台必须使用）
+- **Card** → `x-card` + `card` 组合，禁止裸 `card`/`border`
 - **安全** → `CsrfService::input()` + `CsrfService::check()` + `esc_html()`
 - **禁止** → jQuery（已移除）/ Alpine.js / idiomorph / `window.__xxxData`

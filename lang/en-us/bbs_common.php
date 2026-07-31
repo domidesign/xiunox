@@ -366,7 +366,7 @@ return array(
 	'default_forum_name'=>'Default Forum',
 	'default_forum_brief'=>'Default Forum Brief',
 	'welcome_thread_subject'=>'Welcome to the site!',
-	'welcome_thread_message'=>'<p>Congratulations, the forum has been installed successfully!</p><p>This is an auto-generated welcome post. You can edit or delete it.</p><p>Next steps:</p><ul><li>Go to <a href="admin/">Admin Panel</a> to configure settings and create forums</li><li>Adjust navigation in <a href="admin/?setting-nav.htm">Navigation Settings</a></li><li>Install plugins to extend functionality</li></ul>',
+	'welcome_thread_message'=>'<p>Congratulations, the XIUNOX forum has been installed successfully!</p><p>This is an auto-generated welcome post. You can edit or delete it.</p><p>Next steps:</p><ul><li>Go to <a href="admin/">Admin Panel</a> to configure settings and create forums</li><li>Adjust navigation in <a href="admin/?setting-nav.htm">Navigation Settings</a></li><li>Install plugins to extend functionality</li></ul>',
 	'password_old'=>'Old Password',
 	'password_new'=>'New Password',
 	'password_new_repeat'=>'Repeat New Password',

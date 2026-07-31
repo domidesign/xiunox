@@ -233,38 +233,6 @@ if (preg_match('/^Bearer\s+(.+)$/i', $authHeader, $m)) {
 }
 $apiLogUid = $earlyAuthUser ? intval($earlyAuthUser['uid']) : 0;
 
-// === DEBUG: 临时诊断 POST/PUT/DELETE 401（定位后删除）===
-if (in_array($method, ['POST', 'PUT', 'DELETE'], true)) {
-    $_dbg_http_auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-    $_dbg_redir_auth = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
-    $_dbg_env_auth = getenv('HTTP_AUTHORIZATION') ?: '';
-    $_dbg_bearer = ApiAuthService::getBearerToken();
-    $_dbg_access_row = null;
-    $_dbg_refresh_row = null;
-    $_dbg_expire = 0;
-    $_dbg_now = time();
-    if (!empty($_dbg_bearer)) {
-        $_dbg_hash = hash('sha256', $_dbg_bearer);
-        try {
-            // ponytail: 与 validateAccessToken 一致，查 type=access；查不到再查 refresh 排查客户端误用
-            $_dbg_access_row = $db->findOne('api_token', ['token' => $_dbg_hash, 'type' => 'access']);
-            if (!$_dbg_access_row) {
-                $_dbg_refresh_row = $db->findOne('api_token', ['token' => $_dbg_hash, 'type' => 'refresh']);
-            }
-        } catch (Exception $e) {}
-        $_dbg_row = $_dbg_access_row ?: $_dbg_refresh_row;
-        if ($_dbg_row) { $_dbg_expire = intval($_dbg_row['expires_at']); }
-    }
-    xn_log("API401_DBG method=$method uri=$uri " .
-        "HTTP_AUTHORIZATION=" . (!empty($_dbg_http_auth) ? 'YES' : 'NO') . " " .
-        "REDIRECT_HTTP_AUTHORIZATION=" . (!empty($_dbg_redir_auth) ? 'YES' : 'NO') . " " .
-        "getenv_AUTH=" . (!empty($_dbg_env_auth) ? 'YES' : 'NO') . " " .
-        "bearer_extracted=" . (!empty($_dbg_bearer) ? 'YES(' . strlen($_dbg_bearer) . ')' : 'NO') . " " .
-        "early_auth_user=" . (!empty($earlyAuthUser) ? 'YES(uid=' . intval($earlyAuthUser['uid']) . ')' : 'NO') . " " .
-        "token_row=" . (!empty($_dbg_row) ? "type={$_dbg_row['type']} expires_at={$_dbg_expire} now={$_dbg_now} expired=" . ($_dbg_expire < $_dbg_now ? 'YES' : 'NO') : 'NOT_FOUND'), 'api_error_debug', 'ERROR');
-}
-// === END DEBUG ===
-
 // 设置全局 $uid/$gid/$user，与前端路由保持一致
 // 许多核心函数（PermissionService::check、CaptchaService::is_enabled 等）依赖 global $gid/$uid
 // API 模式下不写 session，必须显式注入这些变量，否则触发 "Undefined variable $gid"
@@ -413,11 +381,7 @@ if ($segments[0] === 'auth') {
 }
 
 if ($routeFile !== null) {
-    // === DEBUG: 确认路由文件被执行（定位后删除）===
-    xn_log("API_ROUTE_DBG routeFile={$routeFile} resource={$resource} segments=" . json_encode($segments, JSON_UNESCAPED_UNICODE), 'api_error_debug', 'ERROR');
     include __DIR__ . '/' . $routeFile;
-} else {
-    xn_log("API_ROUTE_DBG routeFile=NULL resource={$resource} segments=" . json_encode($segments, JSON_UNESCAPED_UNICODE), 'api_error_debug', 'ERROR');
 }
 
 /**

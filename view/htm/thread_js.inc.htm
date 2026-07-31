@@ -24,6 +24,26 @@
         doHighlight(document);
         syncThemeClass();
 
+        // 详情页视频高度修复：AIEditor 拖动 resize 会残留 inline height:0px，
+        // 且 video node 没有 height attribute，手机端 metadata 未加载时高度为 0。
+        // 1. 清理 inline height/aspect-ratio（让 CSS 接管）
+        // 2. CSS min-height 提供占位
+        // 3. loadedmetadata 后用实际宽高比显示
+        function fixVideoRatio(v) {
+            v.style.height = '';
+            v.style.aspectRatio = '';
+            if (v.videoWidth && v.videoHeight) {
+                v.style.aspectRatio = v.videoWidth + ' / ' + v.videoHeight;
+                v.style.minHeight = '';
+            }
+        }
+        document.querySelectorAll('.message video, .post-content video').forEach(function(v) {
+            fixVideoRatio(v);
+            if (v.readyState < 1) {
+                v.addEventListener('loadedmetadata', function() { fixVideoRatio(v); });
+            }
+        });
+
         // 监听主题属性变化
         new MutationObserver(syncThemeClass).observe(
             document.documentElement,
@@ -161,16 +181,16 @@
                 if (code == 0) {
                     if (message && message.action == 'set') {
                         el.innerHTML = '<i class="ti ti-megaphone"></i> <?php echo lang('cancel_announcement');?>';
-                        alert('<?php echo lang('set_announcement');?><?php echo lang('success_label');?>');
+                        showToast('<?php echo lang('set_announcement');?><?php echo lang('success_label');?>', 'success');
                     } else {
                         el.innerHTML = '<i class="ti ti-megaphone"></i> <?php echo lang('set_announcement');?>';
-                        alert('<?php echo lang('cancel_announcement');?><?php echo lang('success_label');?>');
+                        showToast('<?php echo lang('cancel_announcement');?><?php echo lang('success_label');?>', 'success');
                     }
                 } else {
-                    alert(typeof message === 'string' ? message : '<?php echo lang('operation_failed');?>');
+                    showToast(typeof message === 'string' ? message : '<?php echo lang('operation_failed');?>', 'error');
                 }
             }).catch(function() {
-                alert('<?php echo lang('operation_failed');?>');
+                showToast('<?php echo lang('operation_failed');?>', 'error');
             });
         });
     });
@@ -637,10 +657,12 @@ var threadFid = <?php echo intval($fid);?>;
         var eventName = null;
         if (el.classList.contains('thread-like-btn') || el.classList.contains('thread-like-btn-mobile') || el.classList.contains('post-like-btn')) {
             // 根据 hx-post 的 URL 判断是点赞还是取消点赞
+            // ponytail: 兼容 url_rewrite_on=0 (?thread-unlike-x.htm) 和 =1 (/thread-unlike-x) 两种格式
             var hxPost = el.getAttribute('hx-post') || '';
-            eventName = hxPost.indexOf('/thread-unlike-') !== -1 ? 'unlike' : 'like';
+            eventName = hxPost.indexOf('thread-unlike-') !== -1 ? 'unlike' : 'like';
         } else if (el.classList.contains('thread-favorite-btn') || el.classList.contains('thread-favorite-btn-mobile')) {
-            // 判断是收藏还是取消收藏：检查图标是否为已收藏状态
+            // 收藏按钮的 hx-post 始终指向 thread-favorite-{tid}，无法从 URL 区分收藏/取消
+            // 改用图标状态判断：已收藏（ti-star-filled）→ unfavorite，未收藏（ti-star）→ favorite
             var favIcon = el.querySelector('i.ti-star-filled');
             eventName = favIcon ? 'unfavorite' : 'favorite';
         } else if (el.id === 'quick_reply_form' || (el.closest && el.closest('#quick_reply_form'))) {

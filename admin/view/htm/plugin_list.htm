@@ -510,9 +510,17 @@ function bindPluginActionButtons() {
                 okText = '<?php echo lang('admin_btn_upgrade');?>';
             }
 
-            if (confirm(msg)) {
-                submitPluginAction(btn, url);
+            var confirmOpts = {};
+            if (action === 'unstall') {
+                confirmOpts = {type: 'danger', okText: okText};
+            } else if (action === 'upgrade') {
+                confirmOpts = {type: 'danger', okText: okText};
+            } else {
+                confirmOpts = {type: 'warning', okText: okText};
             }
+            XN.confirm(msg, function() {
+                submitPluginAction(btn, url);
+            }, confirmOpts);
         });
     });
 }

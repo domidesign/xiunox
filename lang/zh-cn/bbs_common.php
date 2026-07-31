@@ -375,7 +375,7 @@ return array(
 	'default_forum_name'=>'默认版块',
 	'default_forum_brief'=>'默认版块介绍',
 	'welcome_thread_subject'=>'欢迎来到本站！',
-	'welcome_thread_message'=>'<p>恭喜，论坛已安装成功！</p><p>这是一篇自动生成的欢迎帖，您可以编辑或删除它。</p><p>接下来您可以：</p><ul><li>进入 <a href="admin/">后台管理</a> 修改站点设置、创建版块</li><li>在 <a href="admin/?setting-nav.htm">导航设置</a> 中调整导航菜单</li><li>安装插件来扩展功能</li></ul>',
+	'welcome_thread_message'=>'<p>恭喜，XIUNOX 论坛已安装成功！</p><p>这是一篇自动生成的欢迎帖，您可以编辑或删除它。</p><p>接下来您可以：</p><ul><li>进入 <a href="admin/">后台管理</a> 修改站点设置、创建版块</li><li>在 <a href="admin/?setting-nav.htm">导航设置</a> 中调整导航菜单</li><li>安装插件来扩展功能</li></ul>',
 	'password_old'=>'旧密码',
 	'password_new'=>'新密码',
 	'password_new_repeat'=>'重复新密码',

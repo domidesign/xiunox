@@ -22,10 +22,10 @@
 | 后台管理（admin） | [后台管理](#10-后台管理-admin) |
 | 侧边栏/导航 | [侧边栏与导航](#11-侧边栏与导航-sidebar) |
 | 模型/业务层（PHP） | [模型层 PHP](#12-模型层-php-model) |
-| 编辑器工具栏加按钮 | [编辑器工具栏](#125-编辑器工具栏-editor) |
-| 头像组件加角标/头像框 | [头像组件](#13-头像组件-avatar-component) |
-| 搜索/错误/消息/分页/封禁 | [其它页面](#13-其它页面) |
-| 路由分发/入口 | [入口与路由](#14-入口与路由-indexincphp) |
+| 编辑器工具栏加按钮 | [编辑器工具栏](#13-编辑器工具栏-editor) |
+| 头像组件加角标/头像框 | [头像组件](#16-头像组件-avatar-component) |
+| 搜索/错误/消息/分页/封禁 | [其它页面](#14-其它页面) |
+| 路由分发/入口 | [入口与路由](#15-入口与路由-indexincphp) |
 
 ---
 
@@ -199,7 +199,7 @@
 | `thread_info_end.php` | 帖子详情加载后 | |
 | `thread_end.php` | route/thread.php 结束 | |
 
-> `banned_ip_check.php` 和 `user_ban_check.php` 也会在 thread 路由中触发，见[入口与路由](#14-入口与路由-indexincphp)。
+> `banned_ip_check.php` 和 `user_ban_check.php` 也会在 thread 路由中触发，见[入口与路由](#15-入口与路由-indexincphp)。
 
 ---
 
@@ -1035,7 +1035,7 @@
 
 ---
 
-## 12.5 编辑器工具栏（Editor）
+## 13. 编辑器工具栏（Editor）
 
 > `lib/EditorService.php` 的 `renderEditorHtml()` 方法内，用于插件向 AIEditor 工具栏注入自定义按钮。
 > 完整教程见 [11-editor-toolbar-integration.md](11-editor-toolbar-integration.md)。
@@ -1058,7 +1058,7 @@ $data[] = array(
 
 ---
 
-## 13. 其它页面
+## 14. 其它页面
 
 ### 搜索（`view/htm/search.htm`、`route/search.php`）
 
@@ -1197,7 +1197,7 @@ $data[] = array(
 
 ---
 
-## 14. 入口与路由（index.inc.php）
+## 15. 入口与路由（index.inc.php）
 
 在 `index.inc.php` 中，是全局路由分发入口。
 
@@ -1267,7 +1267,7 @@ $data[] = array(
 
 ---
 
-## 13. 头像组件（Avatar Component）
+## 16. 头像组件（Avatar Component）
 
 > 来源：`lib/avatar_component.php` 的 `avatar_component_from_data()` 函数内的 `plugin_hook()` 调用。
 > 两个 hook 点都通过 `plugin_hook($name, $data)` 触发，`$data` 为引用传递。
