@@ -472,7 +472,7 @@ function doBatch(op, extra) {
 	}
 
 	if(confirmMsg) {
-		if (confirm(confirmMsg)) doSubmit();
+		XN.confirm(confirmMsg, function() { doSubmit(); }, {type: 'danger'});
 	} else {
 		doSubmit();
 	}

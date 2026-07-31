@@ -130,19 +130,27 @@ $search_disabled = ($search_require_login && (empty($uid) || $uid == 0));
 						<?php if(!empty($threadlist)) { ?>
 						<div class="x-card card">
 							<?php foreach($threadlist as $thread) { ?>
-							<div class="  pb-3 mb-1">
-								<div class="mb-1">
-									<a href="<?php echo thread_url($thread['tid']);?>" class="fw-semibold text-decoration-none fs-6"><?php echo $thread['subject'];?></a>
-							</div>
-							<?php if(!empty($thread['summary'])) { ?>
-							<div class="small text-body-secondary mb-2 line-clamp-2"><?php echo $thread['summary'];?></div>
-								<?php } ?>
-								<div class="d-flex align-items-center gap-3 small text-body-secondary">
-									<?php if(!empty($thread['forumname'])) { ?>
-									<span><i class="ti ti-folder me-1"></i><?php echo esc_html($thread['forumname']);?></span>
+							<div class="d-flex pb-3 mb-1">
+								<div class="me-2 flex-shrink-0">
+									<a href="<?php echo $thread['user_url'];?>" tabindex="-1" aria-label="<?php echo $thread['username'];?>">
+										<?php echo avatar_component_from_data($thread['user_avatar_url'], 'sm', isset($thread['group_icon_class']) ? $thread['group_icon_class'] : '', isset($thread['group_color']) ? $thread['group_color'] : '', isset($thread['gid']) ? $thread['gid'] : 0, array('_uid' => isset($thread['uid']) ? intval($thread['uid']) : 0));?>
+									</a>
+								</div>
+								<div class="flex-fill" style="min-width:0">
+									<div class="mb-1">
+										<a href="<?php echo thread_url($thread['tid']);?>" class="fw-semibold text-decoration-none fs-6"><?php echo $thread['subject'];?></a>
+									</div>
+									<?php if(!empty($thread['summary'])) { ?>
+									<div class="small text-body-secondary mb-2 line-clamp-2"><?php echo $thread['summary'];?></div>
 									<?php } ?>
-									<span><i class="ti ti-clock me-1"></i><?php echo $thread['create_date_fmt'];?></span>
-									<span><i class="ti ti-message me-1"></i><?php echo $thread['posts'];?></span>
+									<div class="d-flex align-items-center flex-wrap gap-3 small text-body-secondary">
+										<a href="<?php echo $thread['user_url'];?>" class="text-decoration-none text-body-secondary"><?php echo $thread['username'];?><?php echo user_ban_badge_html(isset($thread['user']) ? $thread['user'] : array());?></a>
+										<?php if(!empty($thread['forumname'])) { ?>
+										<span><i class="ti ti-folder me-1"></i><?php echo esc_html($thread['forumname']);?></span>
+										<?php } ?>
+										<span><i class="ti ti-clock me-1"></i><?php echo $thread['create_date_fmt'];?></span>
+										<span><i class="ti ti-message me-1"></i><?php echo $thread['posts'];?></span>
+									</div>
 								</div>
 							</div>
 							<?php } ?>

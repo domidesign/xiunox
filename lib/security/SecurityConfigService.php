@@ -38,7 +38,7 @@ class SecurityConfigService {
         'security_allow_edit' => 1,                    // 允许作者修改帖子
         'security_edit_time_limit' => 60,              // 修改有效时间（分钟），0=永久
         'security_allow_delete' => 0,                  // 允许作者删除帖子
-        'security_delete_time_limit' => 0,             // 删除有效时间（分钟），0=不可删除
+        'security_delete_time_limit' => 0,             // 删除有效时间（分钟），0=永久
         'security_soft_delete' => 1,                   // 软删除（进回收站）
         'security_allow_delete_reply' => 0,            // 允许作者删除自己回复
 

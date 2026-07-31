@@ -108,8 +108,10 @@ $captcha_post_on = CaptchaService::is_enabled($captcha_scene, $gid);
 // thread_create → context=fid | post_create → context=tid | post_update → context=pid
 $_autosave_type = ($route == 'thread' && $action == 'create') ? 'thread_create' : (($route == 'post' && $action == 'update') ? 'post_update' : 'post_create');
 $_autosave_ctx = ($route == 'thread' && $action == 'create') ? intval($fid) : (($route == 'post' && $action == 'update') ? intval($pid) : intval($tid));
+// ponytail: 编辑帖子不需要积分预检查，移除 hx-confirm 避免触发原生 confirm 弹空框
+$_hx_confirm_attr = ($route == 'post' && $action == 'update') ? '' : ' hx-confirm=" "';
 ?>
-<form hx-post="<?php echo $form_action;?>" hx-target="#post-msg" hx-swap="innerHTML" hx-encoding="multipart/form-data" hx-confirm=" " id="form" data-autosave="<?php echo $_autosave_type; ?>" data-autosave-context="<?php echo $_autosave_ctx; ?>">
+<form hx-post="<?php echo $form_action;?>" hx-target="#post-msg" hx-swap="innerHTML" hx-encoding="multipart/form-data"<?php echo $_hx_confirm_attr;?> id="form" data-autosave="<?php echo $_autosave_type; ?>" data-autosave-context="<?php echo $_autosave_ctx; ?>">
 <div class="row g-3 g-lg-4">
 	<div class="col-12 col-lg post-form-wrap">
 		<div class="x-card card">
@@ -227,8 +229,9 @@ $_autosave_ctx = ($route == 'thread' && $action == 'create') ? intval($fid) : ((
 					<textarea class="form-control w-100 post-input " placeholder="<?php echo lang('message');?>" name="message" id="message" style="min-height: 300px; height: auto;"><?php echo $form_message;?></textarea>
 					
 				</div><div class="form-text text-body-secondary mt-1">
-						<?php echo lang('char_requirement')." {$sec_current_min_length} ".lang('char_unit').lang('char_max_unit')." {$sec_current_max_length} ".lang('char_unit'); ?>
-					</div>
+					<?php echo lang('char_requirement')." {$sec_current_min_length} ".lang('char_unit').lang('char_max_unit')." {$sec_current_max_length} ".lang('char_unit'); ?>
+					<span class="d-block text-body-secondary-emphasis" style="font-size:0.85em;">（含 HTML 格式化标签如 &lt;p&gt;、加粗、图片等；编辑器右下角显示的是纯文本字数，会小于此值）</span>
+				</div>
 
 					<!--{hook post_message_after.htm}-->
 
@@ -620,7 +623,7 @@ var uploadService = new UploadService({
                 bar.textContent = '<?php echo lang('failed_label');?>';
             }
         }
-        alert(error || '<?php echo lang('upload_failed');?>');
+        postShowError(error || '<?php echo lang('upload_failed');?>');
     },
     onPreview: function(file, dataUrl) {
         addLocalPreview(dataUrl, file);
@@ -878,7 +881,7 @@ function openExtRefModal() {
 </script>
 
 <!-- 积分消耗预检查 -->
-<?php if($uid > 0): ?>
+<?php if($uid > 0 && !($route == 'post' && $action == 'update')): ?>
 <script>
 (function() {
 	var submitBtn = document.getElementById('submit');

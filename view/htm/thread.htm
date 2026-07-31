@@ -18,7 +18,7 @@ if($_is_thread_rejected && !empty($uid) && $uid == $thread['uid']) {
 	$sec_can_edit_thread = $allowupdate ? TRUE : ($first['allowupdate'] && $sec_allow_edit && ($sec_edit_time_limit == 0 || ($time - $thread['create_date']) < $sec_edit_time_limit * 60));
 }
 // 主帖删除权限：版主/管理员不受时间限制和安全开关限制
-$sec_can_delete_thread = $allowdelete ? TRUE : ($first['allowdelete'] && $sec_allow_delete && ($sec_delete_time_limit > 0 && ($time - $thread['create_date']) < $sec_delete_time_limit * 60));
+$sec_can_delete_thread = $allowdelete ? TRUE : ($first['allowdelete'] && $sec_allow_delete && ($sec_delete_time_limit <= 0 || ($time - $thread['create_date']) < $sec_delete_time_limit * 60));
 ?>
 
 <!--{hook thread_start.htm}-->

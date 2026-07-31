@@ -3,6 +3,7 @@
 !defined('DEBUG') AND exit('Access Denied.');
 
 include XIUNOPHP_PATH.'xn_zip.func.php';
+include APP_PATH . 'lib/OfficialPluginService.php';
 
 // 递归过滤插件设置中的 XSS
 function sanitize_plugin_setting(&$value) {
@@ -743,6 +744,144 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 } elseif($action == 'scanner') {
 
 	include _include(ADMIN_PATH.'route/plugin_scanner.php');
+
+} elseif($action == 'official') {
+
+	// 官方插件市场列表 / official plugin marketplace list
+	$service = new OfficialPluginService();
+	$force = param('force', 0);
+	$result = $service->fetchManifest($force == 1);
+
+	$official_plugins = array();
+	$fetch_error = '';
+	$last_update = 0;
+	$is_stale = false;
+
+	if (!empty($result['ok'])) {
+		$manifest = $result['data'];
+		$last_update = isset($manifest['fetched_at']) ? intval($manifest['fetched_at']) : 0;
+		$is_stale = !empty($result['stale']);
+
+		// 比对本地版本 / compare with local plugins
+		$official_plugins = $service->compareWithLocal($manifest, $plugins);
+	} else {
+		$fetch_error = isset($result['message']) ? $result['message'] : 'Unknown error';
+	}
+
+	// 筛选/搜索参数 / filter and search params
+	$filter_free = param('free', 0); // 0:全部 1:免费 2:付费
+	$keyword = trim(param('keyword', ''));
+
+	// 对 official_plugins 执行过滤（原代码只接收参数未实际过滤，导致搜索无效）
+	if (!empty($official_plugins) && ($filter_free || $keyword !== '')) {
+		$filtered = array();
+		foreach ($official_plugins as $dir => $info) {
+			$p = $info['manifest'];
+			// 类型筛选：1=免费 2=付费
+			if ($filter_free == 1 && empty($p['free'])) continue;
+			if ($filter_free == 2 && !empty($p['free'])) continue;
+			// 关键词搜索：匹配 name / dir / brief / author
+			if ($keyword !== '') {
+				$haystack = implode(' ', array(
+					isset($p['name']) ? $p['name'] : '',
+					isset($p['dir']) ? $p['dir'] : '',
+					isset($p['brief']) ? $p['brief'] : '',
+					isset($p['author']) ? $p['author'] : '',
+				));
+				if (stripos($haystack, $keyword) === false) continue;
+			}
+			$filtered[$dir] = $info;
+		}
+		$official_plugins = $filtered;
+	}
+
+	// 传递给模板 / pass to template
+	$input['free'] = $filter_free;
+	$input['keyword'] = $keyword;
+
+	$header['title'] = lang('admin_plugin_marketplace');
+	$header['mobile_title'] = lang('admin_plugin_marketplace');
+
+	include _include(ADMIN_PATH."view/htm/plugin_official_list.htm");
+
+} elseif($action == 'official_install') {
+
+	// 下载并安装免费插件 / download and install free plugin
+	// CSRF 校验 / CSRF check
+	CsrfService::check();
+
+	$dir = param_word(2);
+	$version = param(3);
+
+	if (empty($dir) || empty($version)) {
+		message(-1, lang('plugin_marketplace_download_failed'));
+	}
+
+	$service = new OfficialPluginService();
+	$result = $service->downloadAndInstall($dir, $version);
+
+	if (!empty($result['ok'])) {
+		$name = isset($plugins[$dir]['name']) ? $plugins[$dir]['name'] : $dir;
+		admin_log_create('plugin_install', 'plugin', $dir, '安装官方插件：' . $name);
+		message(0, lang('plugin_marketplace_install_success', array('name' => $name)));
+	} else {
+		message(-1, isset($result['message']) ? $result['message'] : lang('plugin_marketplace_download_failed'));
+	}
+
+} elseif($action == 'official_upgrade') {
+
+	// 下载并升级插件（启用/禁用均可）/ download and upgrade plugin (enabled or disabled)
+	// CSRF 校验 / CSRF check
+	CsrfService::check();
+
+	$dir = param_word(2);
+	$version = param(3);
+
+	if (empty($dir) || empty($version)) {
+		message(-1, lang('plugin_marketplace_download_failed'));
+	}
+
+	$service = new OfficialPluginService();
+	$result = $service->downloadAndUpgrade($dir, $version);
+
+	if (!empty($result['ok'])) {
+		$name = isset($plugins[$dir]['name']) ? $plugins[$dir]['name'] : $dir;
+		admin_log_create('plugin_upgrade', 'plugin', $dir, '升级官方插件：' . $name);
+		message(0, lang('plugin_marketplace_upgrade_success', array('name' => $name, 'version' => $version)));
+	} else {
+		$msg = isset($result['message']) ? $result['message'] : lang('plugin_marketplace_download_failed');
+		message(-1, $msg);
+	}
+
+} elseif($action == 'official_refresh') {
+
+	// 强制刷新清单缓存 + jsdelivr CDN 缓存 / force refresh manifest + jsdelivr CDN cache
+	// CSRF 校验（支持 GET，用 CsrfService::check() 即可）
+	CsrfService::check();
+
+	$service = new OfficialPluginService();
+	$result = $service->forceRefresh();
+
+	if (!empty($result['ok'])) {
+		// 拼接 CDN 刷新结果信息
+		$purgeMsg = '';
+		if (isset($result['purge_status'])) {
+			$ps = $result['purge_status'];
+			$purged = isset($ps['purged']) ? intval($ps['purged']) : 0;
+			$failed = isset($ps['failed']) ? intval($ps['failed']) : 0;
+			if ($purged > 0) {
+				$purgeMsg = '（CDN 已刷新 ' . $purged . ' 个文件';
+				if ($failed > 0) {
+					$purgeMsg .= '，' . $failed . ' 个失败';
+				}
+				$purgeMsg .= '）';
+			}
+		}
+		message(0, lang('plugin_marketplace_refreshed') . $purgeMsg);
+	} else {
+		message(-1, isset($result['message']) ? $result['message'] : lang('plugin_marketplace_fetch_failed'));
+	}
+
 }
 
 

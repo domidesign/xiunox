@@ -430,15 +430,15 @@
 			if(!img) return;
 			var idx = img.getAttribute('data-index');
 			if(!idx) return;
-			if (confirm('<?php echo lang('confirm_use_avatar');?>')) {
-				presetIndexInput.value = idx;
-				var btn = document.createElement('button');
-				btn.type = 'submit';
-				btn.name = 'submit';
-				presetForm.appendChild(btn);
-				btn.click();
-				btn.remove();
-			}
+			XN.confirm('<?php echo lang('confirm_use_avatar');?>', function() {
+			presetIndexInput.value = idx;
+			var btn = document.createElement('button');
+			btn.type = 'submit';
+			btn.name = 'submit';
+			presetForm.appendChild(btn);
+			btn.click();
+			btn.remove();
+		}, {type: 'warning', okText: '使用'});
 		});
 	}
 
@@ -447,14 +447,14 @@
 	var resetForm = document.getElementById('reset_form');
 	if(resetBtn && resetForm) {
 		resetBtn.addEventListener('click', function() {
-			if (confirm('<?php echo lang('confirm_reset_avatar');?>')) {
-				var btn = document.createElement('button');
-				btn.type = 'submit';
-				btn.name = 'submit';
-				resetForm.appendChild(btn);
-				btn.click();
-				btn.remove();
-			}
+			XN.confirm('<?php echo lang('confirm_reset_avatar');?>', function() {
+			var btn = document.createElement('button');
+			btn.type = 'submit';
+			btn.name = 'submit';
+			resetForm.appendChild(btn);
+			btn.click();
+			btn.remove();
+		}, {type: 'warning', okText: '重置'});
 		});
 	}
 })();

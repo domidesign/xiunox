@@ -678,8 +678,10 @@
             }
             var data = res.data || {};
 
-            // 每日上限达到 → 直接放行，不弹窗（操作继续，但不扣减/奖励积分）
+            // 每日上限达到 → toast 提示用户本次不扣减/奖励积分，然后放行操作
             if (res.code === 0 && data.daily_limit_reached) {
+                var limitMsg = res.message || '每日操作次数已达上限';
+                XN.toast(limitMsg + '，本次不扣减/奖励积分', 'warning');
                 callback();
                 return;
             }

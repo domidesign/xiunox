@@ -239,10 +239,10 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 						<li class="dropdown-header"><span>
 								<?php echo esc_html($user['display_name'] ?? $user['username']);?>
 							</span></li>
-						<li><a class="dropdown-item" href="<?php echo user_url($uid);?>"><i class="ti ti-user"></i>
+						<!-- <li><a class="dropdown-item" href="<?php echo user_url($uid);?>"><i class="ti ti-user"></i>
 							<?php echo lang('my_home_page');?>
-						</a></li>
-					<li><a class="dropdown-item" href="<?php echo my_url();?>"><i class="ti ti-settings"></i>
+						</a></li> -->
+					<li><a class="dropdown-item" href="<?php echo my_url();?>"><i class="ti ti-user"></i>
 							<?php echo lang('user_center');?>
 						</a></li>
 					

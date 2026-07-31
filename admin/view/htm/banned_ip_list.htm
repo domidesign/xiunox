@@ -115,10 +115,10 @@ document.querySelectorAll('form[data-confirm]').forEach(function(f) {
 			return;
 		}
 		e.preventDefault();
-		if (confirm(f.dataset.confirm)) {
+		XN.confirm(f.dataset.confirm, function() {
 			f.dataset.confirmed = '1';
 			HTMLFormElement.prototype.submit.call(f);
-		}
+		}, {type: 'danger'});
 	});
 });
 </script>

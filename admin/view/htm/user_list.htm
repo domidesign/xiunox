@@ -297,9 +297,7 @@ confirmBtn.addEventListener('click', function(){
 	if(deleteModal) {
 		deleteModal.show();
 	} else {
-		if (confirm("<?php echo lang('user_delete_confirm');?>")) {
-			executeDelete(checkedArr);
-		}
+		XN.confirm("<?php echo lang('user_delete_confirm');?>", function() { executeDelete(checkedArr); }, {type: 'danger'});
 	}
 });
 
@@ -354,7 +352,7 @@ if(checkAll) {
 document.querySelectorAll('.quick-ban-btn').forEach(function(btn) {
 	btn.addEventListener('click', function() {
 		var uid = this.getAttribute('data-uid');
-		if (confirm('<?php echo lang('admin_user_quick_silence_7d_confirm');?>')) {
+		XN.confirm('<?php echo lang('admin_user_quick_silence_7d_confirm');?>', function() {
 			xpost(xn.url('user-ban'), {
 				uid: uid,
 				ban_type: 1,
@@ -369,7 +367,7 @@ document.querySelectorAll('.quick-ban-btn').forEach(function(btn) {
 					showToast(message, 'error');
 				}
 			});
-		}
+		}, {type: 'warning'});
 	});
 });
 
@@ -408,20 +406,20 @@ document.getElementById('batchBanConfirmBtn').addEventListener('click', function
 document.getElementById('batchUnbanBtn').addEventListener('click', function() {
 	var checkedArr = getCheckedUsers();
 	if(checkedArr.length < 1) return showToast('<?php echo lang('admin_user_batch_select_users');?>', 'error');
-	if (confirm('<?php echo lang('admin_user_batch_unban_confirm');?>')) {
-		var successCount = 0, failCount = 0, total = checkedArr.length;
-		checkedArr.forEach(function(cb) {
-			var tr = cb.closest('tr');
-			var uid = tr.getAttribute('uid');
-			xpost(xn.url('user-unban'), {uid: uid, csrf_token: csrfToken}, function(code, message) {
-				if(code == 0) { successCount++; } else { failCount++; }
-				if(successCount + failCount >= total) {
-					showToast('<?php echo lang('admin_user_batch_unban_done');?>' + successCount + '/' + total, successCount > 0 ? 'success' : 'error');
-					setTimeout(function(){ window.location.reload(); }, 1000);
-				}
+	XN.confirm('<?php echo lang('admin_user_batch_unban_confirm');?>', function() {
+			var successCount = 0, failCount = 0, total = checkedArr.length;
+			checkedArr.forEach(function(cb) {
+				var tr = cb.closest('tr');
+				var uid = tr.getAttribute('uid');
+				xpost(xn.url('user-unban'), {uid: uid, csrf_token: csrfToken}, function(code, message) {
+					if(code == 0) { successCount++; } else { failCount++; }
+					if(successCount + failCount >= total) {
+						showToast('<?php echo lang('admin_user_batch_unban_done');?>' + successCount + '/' + total, successCount > 0 ? 'success' : 'error');
+						setTimeout(function(){ window.location.reload(); }, 1000);
+					}
+				});
 			});
-		});
-	}
+		}, {type: 'warning'});
 });
 
 </script>

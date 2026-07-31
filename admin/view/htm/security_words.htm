@@ -151,7 +151,7 @@ function ajaxPost(url, data, cb) {
 document.querySelectorAll('.word-delete').forEach(function(btn) {
 	btn.addEventListener('click', function() {
 		var word = this.getAttribute('data-word');
-		if(confirm('<?php echo lang('admin_confirm_delete_word')?>' + word + '？')) {
+		XN.confirm('<?php echo lang('admin_confirm_delete_word')?>' + word + '？', function() {
 			ajaxPost('<?php echo admin_security_url('words');?>', { word_action: 'delete', word: word, word_type: currentType }, function(code, message) {
 				if(code == 0) {
 					showToast(message, 'success');
@@ -160,7 +160,7 @@ document.querySelectorAll('.word-delete').forEach(function(btn) {
 					showToast(message, 'error');
 				}
 			});
-		}
+		}, {type: 'danger'});
 	});
 });
 
@@ -168,7 +168,7 @@ document.querySelectorAll('.word-delete').forEach(function(btn) {
 var clearBtn = document.getElementById('clear-btn');
 if(clearBtn) {
 	clearBtn.addEventListener('click', function() {
-		if(confirm('<?php echo lang('admin_confirm_clear_all_words')?>')) {
+		XN.confirm('<?php echo lang('admin_confirm_clear_all_words')?>', function() {
 			ajaxPost('<?php echo admin_security_url('words');?>', { word_action: 'clear', word_type: currentType }, function(code, message) {
 				if(code == 0) {
 					showToast(message, 'success');
@@ -177,7 +177,7 @@ if(clearBtn) {
 					showToast(message, 'error');
 				}
 			});
-		}
+		}, {type: 'danger'});
 	});
 };
 

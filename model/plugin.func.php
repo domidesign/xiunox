@@ -185,6 +185,15 @@ function plugin_init() {
 					if (isset($db_list[$dir]['version']) && $db_list[$dir]['version'] !== '') {
 						$plugins[$dir]['db_version'] = $db_list[$dir]['version'];
 					}
+					// 同步 conf.json.version 到 db.version：
+					// 存量插件在 version 字段加入前安装的，db_version 可能为空或旧值（如 "1.0" 缺段）
+					// 以 conf.json.version 为权威（文件实际版本），db_version 落后时自动同步
+					$conf_ver = isset($plugins[$dir]['version']) ? (string)$plugins[$dir]['version'] : '';
+					$db_ver = isset($db_list[$dir]['version']) ? (string)$db_list[$dir]['version'] : '';
+					if ($conf_ver !== '' && $conf_ver !== $db_ver) {
+						plugin_db_set_version($dir, $conf_ver);
+						$plugins[$dir]['db_version'] = $conf_ver;
+					}
 				} else {
 					// db 无记录：首次发现该插件，默认未安装未启用
 					// ponytail: 不读 conf.json 的 enable/installed（已在 L149 unset），只以 db 为准
@@ -211,9 +220,23 @@ function plugin_dependencies($dir) {
 	$plugin = $plugins[$dir];
 	$dependencies = $plugin['dependencies'];
 	
+	// 规范化依赖格式：兼容两种 conf.json 写法
+	//   关联数组（推荐）：{"xn_ad": "1.0", "xn_umeditor": "*"}
+	//   索引数组（兼容）：["xn_ad", "xn_umeditor"]
+	$normalized = array();
+	foreach($dependencies as $_dir=>$version) {
+		if(is_int($_dir)) {
+			// 索引数组：value 是插件目录名，版本约束视为任意
+			$normalized[$version] = '*';
+		} else {
+			// 关联数组：key 是插件目录名，value 是版本约束
+			$normalized[$_dir] = $version;
+		}
+	}
+	
 	// 检查插件依赖关系
 	$arr = array();
-	foreach($dependencies as $_dir=>$version) {
+	foreach($normalized as $_dir=>$version) {
 		// 依赖插件未安装或未启用
 		if(!isset($plugins[$_dir]) || !$plugins[$_dir]['enable']) {
 			$arr[$_dir] = $version;

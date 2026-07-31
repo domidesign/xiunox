@@ -1,0 +1,304 @@
+<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+
+<div class="mb-4">
+	<?php echo admin_tab_active($menu['plugin']['tab'], $action);?>
+</div>
+
+<!-- 顶部安全提示 -->
+<div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="alert">
+	<i class="ti ti-info-circle mt-1"></i>
+	<div class="flex-grow-1 small"><?php echo lang('plugin_marketplace_notice');?></div>
+</div>
+
+<!-- 顶部工具栏 -->
+<div class="x-card card p-3 mb-4">
+	<div class="d-flex align-items-center gap-3 flex-wrap">
+		<!-- 刷新按钮 -->
+		<form method="post" action="<?php echo url('plugin-official_refresh');?>" style="display:inline">
+			<?php echo CsrfService::input();?>
+			<button type="submit" class="btn btn-outline-primary rounded-pill">
+				<i class="ti ti-refresh me-1"></i> <?php echo lang('plugin_marketplace_refresh');?>
+			</button>
+		</form>
+
+		<!-- 最后更新时间 -->
+		<?php if(!empty($last_update)):?>
+			<small class="text-secondary">
+				<i class="ti ti-clock me-1"></i>
+				<?php echo lang('plugin_marketplace_last_update');?>: <?php echo date('Y-m-d H:i', $last_update);?>
+			</small>
+		<?php endif;?>
+
+		<!-- 过期提示 -->
+		<?php if(!empty($is_stale)):?>
+			<span class="badge bg-info">
+				<i class="ti ti-alert-circle me-1"></i><?php echo lang('plugin_marketplace_stale_cache');?>
+			</span>
+		<?php endif;?>
+
+		<!-- 筛选 + 搜索（JS 拦截 submit 构建 URL，避免 GET 提交丢失路由参数 plugin-official.htm） -->
+		<form class="d-flex flex-grow-1 flex-wrap gap-2 ms-auto" method="get" action="<?php echo url('plugin-official');?>" id="officialSearchForm">
+			<select class="form-select rounded-pill" name="free" style="width: auto;" onchange="officialSearch()">
+				<option value="0" <?php echo $input['free'] == 0 ? 'selected' : '';?>><?php echo lang('plugin_marketplace_filter_all');?></option>
+				<option value="1" <?php echo $input['free'] == 1 ? 'selected' : '';?>><?php echo lang('plugin_marketplace_filter_free');?></option>
+				<option value="2" <?php echo $input['free'] == 2 ? 'selected' : '';?>><?php echo lang('plugin_marketplace_filter_fee');?></option>
+			</select>
+			<div class="input-group" style="max-width: 400px;">
+				<span class="input-group-text"><i class="ti ti-search"></i></span>
+				<input type="text" class="form-control rounded-pill" name="keyword"
+					value="<?php echo esc_attr($input['keyword'] ?? '');?>">
+			</div>
+			<button type="submit" class="btn btn-primary rounded-pill">
+				<i class="ti ti-search"></i> <?php echo lang('search');?>
+			</button>
+		</form>
+	</div>
+</div>
+
+<!-- 错误状态 -->
+<?php if(!empty($fetch_error)):?>
+	<div class="x-card card p-3 mb-4">
+		<div class="alert alert-danger mb-0 d-flex align-items-center gap-2">
+			<i class="ti ti-alert-triangle"></i>
+			<span class="flex-grow-1"><?php echo esc_html($fetch_error);?></span>
+			<form method="post" action="<?php echo url('plugin-official_refresh');?>" style="display:inline">
+				<?php echo CsrfService::input();?>
+				<button type="submit" class="btn btn-sm btn-outline-danger rounded-pill">
+					<i class="ti ti-refresh"></i> <?php echo lang('plugin_marketplace_refresh');?>
+				</button>
+			</form>
+		</div>
+	</div>
+<?php endif;?>
+
+<!-- 卡片网格 -->
+<div class="row g-4 plugin-grid">
+	<?php if(empty($official_plugins)):?>
+		<div class="col-12">
+			<div class="text-center py-5 text-secondary">
+				<i class="ti <?php echo !empty($fetch_error) ? 'ti-cloud-off' : 'ti-package';?>" style="font-size: 3rem;"></i>
+				<p class="mt-3"><?php echo !empty($fetch_error) ? lang('plugin_marketplace_fetch_failed') : lang('plugin_marketplace_empty');?></p>
+			</div>
+		</div>
+	<?php else:?>
+		<?php foreach($official_plugins as $info):
+			$p = $info['manifest'];
+			$status = $info['status'];
+		?>
+			<div class="col-12 col-md-6 col-lg-4 col-xl-3">
+			<div class="x-card card hover-shadow position-relative overflow-hidden">
+				<?php if($status == 'need_upgrade'):?>
+					<!-- 右上角斜角标：新版本提示 -->
+					<div class="ribbon-new-version"><?php echo lang('plugin_marketplace_new_version');?></div>
+				<?php endif;?>
+				<div class="d-flex align-items-start gap-2 mb-3">
+						<img src="<?php echo esc_attr($p['icon_url']);?>"
+							width="42" height="42"
+							class="rounded-2 plugin-icon"
+							data-dir="<?php echo esc_attr($p['dir']);?>"
+							onerror="handlePluginIconError(this)">
+						<div class="flex-grow-1 min-width-0">
+							<div class="mb-1 fw-medium text-truncate text-xl" title="<?php echo esc_attr($p['name']);?>">
+								<?php if(!empty($p['detail_url'])):?>
+									<a href="<?php echo esc_attr($p['detail_url']);?>" target="_blank" rel="noopener" class="text-decoration-none">
+										<?php echo esc_html($p['name']);?>
+										<i class="ti ti-external-link small text-secondary"></i>
+									</a>
+								<?php else:?>
+									<?php echo esc_html($p['name']);?>
+								<?php endif;?>
+							</div>
+							<div class="d-flex flex-wrap gap-1 align-items-center">
+								<span class="badge bg-secondary">v<?php echo esc_html($p['version']);?></span>
+								<span class="badge <?php echo $p['type'] == 'theme' ? 'bg-warning' : 'bg-primary';?>">
+									<?php echo $p['type'] == 'theme' ? lang('admin_template_type') : lang('admin_plugin_type');?>
+								</span>
+								<?php if(!empty($p['free'])):?>
+									<span class="badge bg-success"><?php echo lang('plugin_marketplace_filter_free');?></span>
+								<?php else:?>
+									<span class="badge bg-warning text-dark"><?php echo lang('plugin_marketplace_filter_fee');?></span>
+								<?php endif;?>
+							</div>
+						</div>
+					</div>
+
+					<p class="text-secondary small mb-3 plugin-brief"><?php echo esc_html($p['brief']);?></p>
+
+					<!-- 操作按钮区：左下角作者信息 + 右下角操作按钮 -->
+				<div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+					<!-- 左下角：作者名 + 开发者主页链接 -->
+					<div class="d-flex align-items-center gap-1 text-secondary small">
+						<i class="ti ti-user"></i>
+						<?php if(!empty($p['author_homepage'])):?>
+							<a href="<?php echo esc_attr($p['author_homepage']);?>" target="_blank" rel="noopener" class="text-decoration-none text-secondary" title="<?php echo esc_attr($p['author']);?>">
+								<?php echo esc_html($p['author']);?>
+							</a>
+						<?php else:?>
+							<span><?php echo esc_html(!empty($p['author']) ? $p['author'] : 'unknown');?></span>
+						<?php endif;?>
+					</div>
+
+					<!-- 右下角：操作按钮 -->
+					<div class="d-flex flex-wrap gap-2">
+						<?php if($status == 'not_installed' && !empty($p['free'])):?>
+						<!-- 免费插件未安装：安装按钮（点击弹窗确认后再提交） -->
+						<form method="post" action="<?php echo url('plugin-official_install-'.$p['dir'].'-'.$p['version']);?>" style="display:inline" class="js-confirm-install" data-name="<?php echo esc_attr($p['name']);?>">
+							<?php echo CsrfService::input();?>
+							<button type="submit" class="btn btn-sm btn-outline-primary rounded-pill">
+								<i class="ti ti-download"></i> <?php echo lang('plugin_marketplace_install_btn');?>
+							</button>
+						</form>
+
+					<?php elseif($status == 'latest'):?>
+						<!-- 已安装且为最新版本：置灰按钮（与付费插件"前往下载"按钮样式统一） -->
+						<button type="button" class="btn btn-sm btn-outline-primary rounded-pill" disabled>
+							<i class="ti ti-check"></i> <?php echo lang('plugin_marketplace_latest');?>
+						</button>
+
+					<?php elseif($status == 'need_upgrade' && !empty($p['free'])):?>
+						<!-- 免费插件有新版本（启用/禁用均可升级）：升级按钮（点击弹窗确认后再提交） -->
+						<form method="post" action="<?php echo url('plugin-official_upgrade-'.$p['dir'].'-'.$p['version']);?>" style="display:inline" class="js-confirm-upgrade" data-name="<?php echo esc_attr($p['name']);?>" data-version="<?php echo esc_attr($p['version']);?>">
+							<?php echo CsrfService::input();?>
+							<button type="submit" class="btn btn-sm btn-outline-warning rounded-pill">
+								<i class="ti ti-arrow-up"></i> <?php echo lang('plugin_marketplace_upgrade_btn');?>
+							</button>
+						</form>
+
+					<?php elseif(!$p['free']):?>
+						<!-- 付费插件：跳转外链（含已安装有新版本场景，付费无法在线升级，只能前往下载新版） -->
+						<a href="<?php echo esc_attr($p['homepage']);?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary rounded-pill">
+							<i class="ti ti-external-link"></i> <?php echo lang('plugin_marketplace_goto_download');?>
+						</a>
+
+					<?php endif;?>
+					</div>
+				</div>
+				</div>
+			</div>
+		<?php endforeach;?>
+	<?php endif;?>
+</div>
+
+<style>
+	.hover-shadow {
+		transition: box-shadow 0.3s ease, transform 0.3s ease;
+	}
+	.hover-shadow:hover {
+		box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.15)!important;
+		transform: translateY(-2px);
+	}
+	/* 右上角斜角标：新版本提示 */
+	.ribbon-new-version {
+		position: absolute;
+		top: 10px;
+		right: -38px;
+		transform: rotate(45deg);
+		background: #dc3545;
+		color: #fff;
+		padding: 3px 42px;
+		font-size: 12px;
+		font-weight: 600;
+		line-height: 1.4;
+		box-shadow: 0 2px 4px rgba(0,0,0,0.18);
+		z-index: 2;
+		white-space: nowrap;
+		letter-spacing: 1px;
+	}
+	.plugin-brief {
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		min-height: 36px;
+		line-height: 18px;
+	}
+	.row>*{
+		margin-top: 12px;
+	}
+	.row>* .card{
+		margin-bottom: 0;
+	}
+</style>
+
+<script>
+// 插件市场搜索：JS 拦截 submit 构建 URL（保留路由参数 plugin-official.htm）
+// 不能依赖 GET 表单默认提交：浏览器会用表单字段替换 action URL 中的 query string，
+// 丢失 ?plugin-official.htm 中的路由信息 plugin-official.htm，导致 404。
+function officialSearch() {
+	var form = document.getElementById('officialSearchForm');
+	if (!form) return;
+	var base = '<?php echo url('plugin-official');?>';  // ?plugin-official.htm
+	var fd = new FormData(form);
+	var query = [];
+	var free = fd.get('free');
+	var keyword = (fd.get('keyword') || '').trim();
+	if (free) query.push('free=' + encodeURIComponent(free));
+	if (keyword) query.push('keyword=' + encodeURIComponent(keyword));
+	// base 已包含 ?（如 ?plugin-official.htm），附加参数用 & 拼接
+	window.location.href = base + (query.length ? '&' + query.join('&') : '');
+}
+(function() {
+	var form = document.getElementById('officialSearchForm');
+	if (!form) return;
+	form.addEventListener('submit', function(e) {
+		e.preventDefault();
+		officialSearch();
+	});
+})();
+
+// 图标 onerror 兜底（与 plugin_list.htm 实现一致，本视图独立定义避免依赖）
+function handlePluginIconError(img) {
+	var dir = img.getAttribute('data-dir') || '?';
+	var letter = dir.charAt(0).toUpperCase();
+	var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+		+ '<rect fill="#ddd" width="64" height="64"/>'
+		+ '<text x="32" y="38" text-anchor="middle" font-size="24" fill="#999">' + letter + '</text>'
+		+ '</svg>';
+	img.src = 'data:image/svg+xml,' + encodeURIComponent(svg);
+	img.onerror = null;
+}
+
+// 安装/升级前确认弹窗（XN.confirm 基于 Bootstrap 5 Modal）
+// 拦截表单 submit → 弹窗确认 → 通过后用原生 form.submit() 提交（不再触发 submit 事件）
+(function() {
+	var langInstallTitle = <?php echo json_encode(lang('plugin_marketplace_install_confirm_title'));?>;
+	var langInstallBody  = <?php echo json_encode(lang('plugin_marketplace_install_confirm_body'));?>;
+	var langInstallBtn   = <?php echo json_encode(lang('plugin_marketplace_install_confirm_btn'));?>;
+	var langUpgradeTitle = <?php echo json_encode(lang('plugin_marketplace_upgrade_confirm_title'));?>;
+	var langUpgradeBody  = <?php echo json_encode(lang('plugin_marketplace_upgrade_confirm_body'));?>;
+	var langUpgradeBtn   = <?php echo json_encode(lang('plugin_marketplace_upgrade_confirm_btn'));?>;
+
+	function bindConfirm(selector, title, bodyTpl, okText) {
+		document.addEventListener('submit', function(e) {
+			var form = e.target.closest(selector);
+			if (!form || form.dataset.confirmed === '1') return;
+			e.preventDefault();
+			var name = form.getAttribute('data-name') || '';
+			var version = form.getAttribute('data-version') || '';
+			var body = bodyTpl.replace('{name}', name).replace('{version}', version);
+			XN.confirm(body, function() {
+				// 标记已确认，避免重复弹窗
+				form.dataset.confirmed = '1';
+				// 禁用提交按钮，避免重复提交
+				var btn = form.querySelector('button[type="submit"]');
+				if (btn) {
+					btn.disabled = true;
+					btn.classList.add('disabled');
+				}
+				// 原生 submit 不触发 submit 事件，直接提交
+				HTMLFormElement.prototype.submit.call(form);
+			}, {
+				title: title,
+				type: 'warning',
+				okText: okText,
+				cancelText: (typeof lang !== 'undefined' && lang.close) || '取消'
+			});
+		}, true); // 捕获阶段，确保最先拦截
+	}
+
+	bindConfirm('form.js-confirm-install', langInstallTitle, langInstallBody, langInstallBtn);
+	bindConfirm('form.js-confirm-upgrade', langUpgradeTitle, langUpgradeBody, langUpgradeBtn);
+})();
+</script>
+
+<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>

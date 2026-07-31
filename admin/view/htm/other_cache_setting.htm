@@ -488,7 +488,7 @@ document.querySelectorAll('.btn-clear-plugin').forEach(function(btn) {
     btn.addEventListener('click', function() {
         var plugin = this.dataset.plugin;
         var confirmMsg = '<?php echo lang('admin_cache_clear_plugin_confirm');?>'.replace('%s', plugin);
-        if (confirm(confirmMsg)) {
+        XN.confirm(confirmMsg, function() {
             btn.disabled = true;
             fetch(btn.dataset.url, {
                 method: 'POST',
@@ -513,7 +513,7 @@ document.querySelectorAll('.btn-clear-plugin').forEach(function(btn) {
             .catch(function(err) {
                 btn.disabled = false;
             });
-        }
+        }, {type: 'warning'});
     });
 });
 </script>

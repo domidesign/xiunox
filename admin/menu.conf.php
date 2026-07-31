@@ -143,6 +143,7 @@ return array(
 		'icon'=>'icon-cogs',
 		'tab'=> array (
 			'local'=>array('url'=>url('plugin-local'), 'text'=>lang('admin_plugin_local_list')),
+			'official'=>array('url'=>url('plugin-official'), 'text'=>lang('admin_plugin_marketplace')),
 		)
 	),
 	'theme' => array(

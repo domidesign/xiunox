@@ -273,7 +273,7 @@ function doRecycleOp(op, ids, confirmMsg) {
 	};
 
 	if(confirmMsg) {
-		if (confirm(confirmMsg)) doAction();
+		XN.confirm(confirmMsg, function() { doAction(); }, {type: 'danger'});
 	} else {
 		doAction();
 	}

@@ -212,7 +212,7 @@ textarea {
 .list-group-item.active {
     border-color: var(--bs-primary);
     background-color: var(--bs-link-color-hover);
-    color: #fff;
+    color: #fff !important;
 
 }
 

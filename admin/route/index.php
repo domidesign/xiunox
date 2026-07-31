@@ -88,7 +88,18 @@ if($action == 'login') {
 			}
 			$stored = isset($_SESSION['captcha_login']) ? $_SESSION['captcha_login'] : '';
 			unset($_SESSION['captcha_login']);
-			if(empty($stored) || strtolower($captcha_input) !== strtolower($stored)) {
+			// ponytail: 适配 CaptchaService 新格式存储（数组含 code/expires）
+			// 旧格式为字符串、新格式为数组，PHP 8.0+ strtolower 传数组会触发 TypeError fatal
+			// 导致后台登录密码错误 >= 3 次出现验证码后，输入正确密码+正确验证码报 Network error
+			if (is_array($stored)) {
+				if (!empty($stored['expires']) && time() > $stored['expires']) {
+					message('captcha', lang('captcha_error'));
+				}
+				$code = isset($stored['code']) ? $stored['code'] : '';
+			} else {
+				$code = $stored;
+			}
+			if(empty($code) || strtolower($captcha_input) !== strtolower($code)) {
 				message('captcha', lang('captcha_error'));
 			}
 		}

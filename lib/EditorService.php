@@ -261,6 +261,13 @@ class EditorService {
     function syncEditorContent() {
         if (aiEditorInstance && hiddenInput) {
             var html = aiEditorInstance.getHtml();
+            // 清理 video 的 inline height/aspect-ratio：AIEditor 拖动 resize 时会残留
+            // height: 0px 等 inline style，提交后写入数据库导致详情页手机端高度为 0。
+            // video node 的 addAttributes 只定义了 width，height 应由 CSS 控制。
+            html = html.replace(/<video\b([^>]*)\sstyle="([^"]*)"/gi, function(m, pre, style) {
+                var cleaned = style.replace(/\s*height\s*:\s*[^;]+;?/gi, '').replace(/\s*aspect-ratio\s*:\s*[^;]+;?/gi, '').trim();
+                return '<video' + pre + (cleaned ? ' style="' + cleaned + '"' : '');
+            });
             hiddenInput.value = html;
         }
     }
