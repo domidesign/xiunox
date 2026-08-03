@@ -848,3 +848,6 @@ a {
 }
 .check-item-main { display: flex; align-items: center; width: 100%; }
 .health-action-bar { display: flex; justify-content: flex-end; padding: 1rem 0; }
+.plugin-grid a{
+    color: var(--bs-body-color);
+}

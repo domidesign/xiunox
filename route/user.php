@@ -887,19 +887,17 @@ if(empty($action)) {
 		message(-1, $rate_check);
 	}
 
-	$r = xn_send_mail($smtp, $conf['sitename'], $email, $subject, $message, array('is_html'=>TRUE));
+	// 频率记录：先记录防止绕过频率限制连续调用
+	xn_email_rate_record($email, $longip);
+
+	// 伪异步发送：通过 register_shutdown_function 在响应返回客户端后再执行 SMTP 发送
+	// 避免阻塞用户请求（SMTP 连接/SSL 握手通常需要 1-5 秒）
+	// ponytail: 异步模式无法获取返回值，邮件失败由 xn_send_mail() 内部写入 email_log 表
+	xn_send_mail_async($smtp, $conf['sitename'], $email, $subject, $message, array('is_html'=>TRUE));
 	// hook user_send_code_after.php
 
-	if($r === TRUE) {
-		xn_email_rate_record($email, $longip);
-		$interval = class_exists('SecurityConfigService') ? intval(SecurityConfigService::get('security_email_code_interval', 60)) : 60;
-		message(0, lang('send_successfully'), array('wait' => $interval));
-	} else {
-		// xn_send_mail 失败时返回错误字符串，$r 与全局 $errstr 内容一致
-		$err_detail = is_string($r) ? $r : (isset($errstr) ? $errstr : '邮件发送失败');
-		xn_log($err_detail, 'send_mail_error');
-		message(-1, $err_detail);
-	}
+	$interval = class_exists('SecurityConfigService') ? intval(SecurityConfigService::get('security_email_code_interval', 60)) : 60;
+	message(0, lang('send_successfully'), array('wait' => $interval));
 
 // 简单的同步登陆实现：| sync login implement simply
 /*
