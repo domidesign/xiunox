@@ -69,7 +69,11 @@ class cache_file {
         if($r === FALSE) {
             return $this->error(-1, '写入缓存文件失败：' . $filepath);
         }
-        @chmod($filepath, 0644);
+        // ponytail: 部分面板（宝塔等）通过 disable_functions 禁用 chmod，
+        // PHP 8+ 中 undefined function 是 Error 不被 @ 抑制，会直接崩溃导致 nginx 502
+        if (function_exists('chmod')) {
+            @chmod($filepath, 0644);
+        }
         return TRUE;
     }
 
