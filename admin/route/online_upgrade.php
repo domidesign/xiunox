@@ -95,7 +95,7 @@ if($action == 'check') {
 
 } else {
     // 默认页面 - 升级主页
-    $header['title'] = lang('admin_online_upgrade_title');
+    $header['title'] = lang('admin_online_upgrade');
     $header['mobile_title'] = lang('admin_online_upgrade');
 
     // 获取当前版本和最新版本信息（初始为空，由前端 AJAX 获取）

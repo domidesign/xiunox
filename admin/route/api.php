@@ -6,6 +6,24 @@ $action = param(1, 'doc');
 
 // hook admin_api_start.php
 
+// ponytail: api_log 未开启时从 API 菜单 tab 中隐藏「日志」项，与各页面顶部按钮的条件显示逻辑一致
+if(empty($conf['api_log']) && isset($menu['api']['tab']['log'])) {
+	unset($menu['api']['tab']['log']);
+}
+
+// ponytail: 统一设置 API 模块各页面的标题（同时用于 <title> 和面包屑导航）
+$_api_titles = array(
+	'doc'      => lang('admin_api_doc'),
+	'settings' => lang('admin_api_settings'),
+	'debug'    => lang('admin_api_debug'),
+	'log'      => lang('admin_api_log_title'),
+);
+if(isset($_api_titles[$action])) {
+	$header['title'] = $_api_titles[$action];
+	$header['mobile_title'] = $_api_titles[$action];
+}
+unset($_api_titles);
+
 /**
  * 从请求中构建应用 capabilities JSON 字符串
  * 安全限制：gid != 1 时强制关闭 skip_captcha/skip_audit

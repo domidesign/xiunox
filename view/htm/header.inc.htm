@@ -137,6 +137,17 @@ $_robots_content = !empty($header['noindex']) ? 'noindex, follow' : 'index, foll
 
 	<!--{hook header_link_after.htm}-->
 
+<?php
+	// ponytail: 登录用户预取 AiEditor（1.7MB / gzip 后 ~450KB）
+	// rel="prefetch" 低优先级，浏览器空闲时下载，不阻塞当前页关键资源
+	// 发帖页本身会加载 aieditor 无需 prefetch；游客看不到发帖入口不预取
+	$_action = G('action');
+	$_is_editor_page = ($route === 'post') || ($route === 'thread' && $_action === 'create');
+	if($uid > 0 && !$_is_editor_page):
+?>
+	<link rel="prefetch" as="script" href="<?php echo $conf['view_url'];?>js/aieditor/index.umd.js<?php echo $static_version;?>">
+<?php endif; ?>
+
 	<script src="<?php echo $conf['view_url'];?>vendor/htmx/htmx.min.js" defer></script>
 	<script src="<?php echo $conf['view_url'];?>vendor/htmx/ext/hx-live.min.js" defer></script>
 	<script src="<?php echo $conf['view_url'];?>vendor/htmx/ext/hx-optimistic.min.js" defer></script>
