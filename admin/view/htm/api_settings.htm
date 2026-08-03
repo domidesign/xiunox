@@ -2,13 +2,7 @@
 
 <!--{hook admin_api_settings_start.htm}-->
 
-<div class="mb-3">
-	<a href="<?php echo admin_api_doc_url();?>" class="btn btn-sm btn-outline-secondary"><i class="ti ti-book"></i> 文档</a>
-	<a href="<?php echo admin_api_settings_url();?>" class="btn btn-sm btn-primary"><i class="ti ti-settings"></i> 设置</a>
-	<?php if(!empty($conf['api_log'])): ?>
-	<a href="<?php echo admin_api_log_url();?>" class="btn btn-sm btn-outline-secondary"><i class="ti ti-history"></i> <?php echo lang('admin_api_log_title');?></a>
-	<?php endif; ?>
-</div>
+<?php echo admin_tab_active($menu['api']['tab'], 'settings');?>
 
 <!-- API 总开关 -->
 <div class="x-card card mb-4">

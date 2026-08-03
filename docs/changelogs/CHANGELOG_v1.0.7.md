@@ -1,4 +1,4 @@
-# v1.0.7 - 2026-07-07
+# XIUNOX v1.0.7 更新日志 - 2026-07-07
 
 > **版本说明**: API 接口扩展 + SEO 体系初建 —— 新增站点地图（sitemap）、个人中心 API（my.php），新增 NavService 导航服务与 PluginApiRegistry 插件 API 注册表，帖子/版块页引入 canonical/OG/JSON-LD
 

@@ -25,6 +25,7 @@ if($action == 'cache') {
 
 		// hook admin_other_cache_get_end.php
 
+		$header['title'] = lang('admin_other_cache');
 		$input = array();
 		$input['clear_cache'] = form_checkbox('clear_cache', 1);
 		$input['clear_tmp'] = form_checkbox('clear_tmp', 1);
@@ -63,6 +64,7 @@ if($action == 'cache') {
 elseif($action == 'cache_setting') {
 
 	if($method == 'GET') {
+		$header['title'] = lang('admin_cache_setting');
 		$config = CacheService::getConfig();
 		$status = CacheService::getStatus();
 		$drivers = CacheService::getAvailableDrivers();

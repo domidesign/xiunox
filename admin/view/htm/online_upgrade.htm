@@ -12,7 +12,11 @@ if (!isset($hasUpdate)) $hasUpdate = false;
 $csrfToken = CsrfService::getToken();
 ?>
 
-<div class="mx-auto" style="max-width:48rem">
+<div class="mb-3">
+    <?php echo admin_tab_active($menu['other']['tab'], 'online_upgrade');?>
+</div>
+
+ 
 	<div class="x-card card">
 		<div class="card-body">
 			<!-- 标题 + 当前版本 -->
@@ -55,7 +59,7 @@ $csrfToken = CsrfService::getToken();
 			<!-- 步骤进度条 -->
 			<div id="stepsContainer">
 				<?php foreach($steps as $i => $step): ?>
-				<div class="step-item d-flex align-items-start mb-2 pb-2 border-bottom" id="step-<?php echo $step['id'];?>">
+				<div class="step-item d-flex align-items-start mb-2 pb-2  " id="step-<?php echo $step['id'];?>">
 					<div class="step-icon me-3 flex-shrink-0" style="width:32px; height:32px; border-radius:50%; background:var(--bs-gray-300); display:flex; align-items:center; justify-content:center;">
 						<span class="step-number fw-bold" style="font-size:0.75rem"><?php echo $i + 1;?></span>
 					</div>

@@ -347,8 +347,13 @@ $_hx_confirm_attr = ($route == 'post' && $action == 'update') ? '' : ' hx-confir
 <link rel="stylesheet" href="<?php echo $cssUrl . $static_version;?>">
 <?php endforeach; ?>
 
-<?php foreach($editorAssets['js'] as $jsUrl): ?>
-<script src="<?php echo $jsUrl . $static_version;?>"></script>
+<?php foreach($editorAssets['js'] as $jsUrl):
+	// ponytail: 仅 1.7MB 的 aieditor/index.umd.js 加 defer，避免阻塞首屏渲染
+	// upload-service.js / editor-paste-markdown.js 体积小保持同步，因为内联 IIFE 立即 new UploadService()
+	// renderEditorHtml 的 safeInit() 监听 DOMContentLoaded（defer 脚本执行完后触发），AiEditor 已就绪
+	$_isAiEditor = strpos($jsUrl, 'aieditor/index.umd.js') !== false;
+?>
+<script src="<?php echo $jsUrl . $static_version;?>"<?php if($_isAiEditor): ?> defer<?php endif; ?>></script>
 <?php endforeach; ?>
 
 <?php echo $editorService->renderEditorHtml('message'); ?>

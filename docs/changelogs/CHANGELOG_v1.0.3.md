@@ -1,4 +1,4 @@
-# v1.0.3 - 2026-07-02
+# XIUNOX v1.0.3 更新日志 - 2026-07-02
 
 > **版本说明**: 核心框架深化 —— 引入 version.php 统一版本管理、新增 QueryBuilder 查询构造器与 ServiceRegistry 服务注册中心、加入 BizException 业务异常体系，帖子页改三栏布局，补齐项目文档，全面转入生产模式（DEBUG=0）
 
