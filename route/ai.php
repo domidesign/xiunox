@@ -133,7 +133,8 @@ if($action == 'chat') {
         header('Cache-Control: no-cache');
         header('Connection: keep-alive');
         header('X-Accel-Buffering: no'); // Nginx 关闭缓冲
-        @set_time_limit(120);
+        // ponytail: 部分面板禁用 set_time_limit，PHP 8+ 中 @ 不捕获 Error，必须用 function_exists 守卫
+        if(function_exists('set_time_limit')) { @set_time_limit(120); }
         // 清空所有 PHP 输出缓冲层，确保 curl 收到数据立即 flush 给客户端
         while(ob_get_level() > 0) { @ob_end_flush(); }
         @flush();
