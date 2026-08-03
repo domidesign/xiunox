@@ -776,34 +776,4 @@ CREATE FULLTEXT INDEX ft_subject ON bbs_thread (subject) WITH PARSER ngram;
 # FULLTEXT_TOLERANT
 CREATE FULLTEXT INDEX ft_message ON bbs_post (message) WITH PARSER ngram;
 
-### AI 调用日志表 ###
-# 核心与插件统一记录 AI 调用日志（AIService::call / AILogService::log），后台「AI 设置 → 调用日志」展示
-# 存量站点通过 UpgradeService::upgradeAiCallLogTable() 升级建表，新装站点由 install.sql 直接创建
-DROP TABLE IF EXISTS `bbs_xnx_ai_call_log`;
-CREATE TABLE `bbs_xnx_ai_call_log` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `uid` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '调用用户ID',
-  `feature` varchar(32) NOT NULL DEFAULT '' COMMENT '功能标识：editor/xnx_ai_reply 等',
-  `source` varchar(32) NOT NULL DEFAULT 'core' COMMENT '来源：core=核心 / 插件目录名',
-  `provider_name` varchar(64) NOT NULL DEFAULT '' COMMENT '提供商名称',
-  `model` varchar(64) NOT NULL DEFAULT '' COMMENT '调用的模型',
-  `mode` varchar(16) NOT NULL DEFAULT '' COMMENT '模式：global/user_key/both',
-  `prompt_tokens` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '请求 token 数',
-  `completion_tokens` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '响应 token 数',
-  `total_tokens` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '总 token 数',
-  `response_time` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '响应耗时（毫秒）',
-  `status` tinyint(1) NOT NULL DEFAULT '0' COMMENT '0=失败 1=成功',
-  `error_msg` varchar(500) NOT NULL DEFAULT '' COMMENT '错误信息（失败时）',
-  `request_summary` varchar(255) NOT NULL DEFAULT '' COMMENT '请求摘要（前 200 字符）',
-  `response_summary` varchar(600) NOT NULL DEFAULT '' COMMENT '响应摘要（前 500 字符）',
-  `ip` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '调用者 IP（ip2long）',
-  `create_time` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_uid` (`uid`),
-  KEY `idx_feature` (`feature`),
-  KEY `idx_source` (`source`),
-  KEY `idx_status` (`status`),
-  KEY `idx_create_time` (`create_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 调用日志（核心+插件统一记录）';
-
 

@@ -11,6 +11,52 @@
 		<form action="<?php echo admin_setting_url('display');?>" method="post" id="displayForm">
 			<?php echo CsrfService::input(); ?>
 
+		<!-- 头像形状设置 -->
+		<h6 class="fw-semibold mb-3"><i class="ti ti-user-circle me-1"></i><?php echo lang('admin_setting_avatar_shape');?></h6>
+		<p class="text-body-secondary small mb-3"><?php echo lang('admin_setting_avatar_shape_desc');?></p>
+		<div class="mb-4">
+			<div class="row g-3">
+				<!-- rounded -->
+				<div class="col-md-4">
+					<label class="avatar-shape-option d-flex flex-column align-items-center p-3 border rounded <?php echo $avatar_shape=='rounded'?'border-primary bg-primary-subtle':'';?>" style="cursor:pointer" data-shape="rounded">
+						<div class="avatar-wrap avatar-wrap-lg avatar-shape-rounded mb-3">
+							<img class="avatar-lg" src="<?php echo default_avatar_url();?>" width="52" height="52" alt="rounded">
+						</div>
+						<div class="form-check">
+							<input class="form-check-input" type="radio" name="avatar_shape" value="rounded" id="shape_rounded" <?php echo $avatar_shape=='rounded'?'checked':'';?>>
+							<label class="form-check-label" for="shape_rounded"><?php echo lang('admin_setting_avatar_shape_rounded');?></label>
+						</div>
+					</label>
+				</div>
+				<!-- circle -->
+				<div class="col-md-4">
+					<label class="avatar-shape-option d-flex flex-column align-items-center p-3 border rounded <?php echo $avatar_shape=='circle'?'border-primary bg-primary-subtle':'';?>" style="cursor:pointer" data-shape="circle">
+						<div class="avatar-wrap avatar-wrap-lg avatar-shape-circle mb-3">
+							<img class="avatar-lg" src="<?php echo default_avatar_url();?>" width="52" height="52" alt="circle">
+						</div>
+						<div class="form-check">
+							<input class="form-check-input" type="radio" name="avatar_shape" value="circle" id="shape_circle" <?php echo $avatar_shape=='circle'?'checked':'';?>>
+							<label class="form-check-label" for="shape_circle"><?php echo lang('admin_setting_avatar_shape_circle');?></label>
+						</div>
+					</label>
+				</div>
+				<!-- square -->
+				<div class="col-md-4">
+					<label class="avatar-shape-option d-flex flex-column align-items-center p-3 border rounded <?php echo $avatar_shape=='square'?'border-primary bg-primary-subtle':'';?>" style="cursor:pointer" data-shape="square">
+						<div class="avatar-wrap avatar-wrap-lg avatar-shape-square mb-3">
+							<img class="avatar-lg" src="<?php echo default_avatar_url();?>" width="52" height="52" alt="square">
+						</div>
+						<div class="form-check">
+							<input class="form-check-input" type="radio" name="avatar_shape" value="square" id="shape_square" <?php echo $avatar_shape=='square'?'checked':'';?>>
+							<label class="form-check-label" for="shape_square"><?php echo lang('admin_setting_avatar_shape_square');?></label>
+						</div>
+					</label>
+				</div>
+			</div>
+		</div>
+
+		<hr class="my-4">
+
 		<!-- 首页版块过滤 -->
 		<h6 class="fw-semibold mb-3"><i class="ti ti-filter me-1"></i><?php echo lang('admin_home_forum_filter');?></h6>
 		<p class="text-body-secondary small mb-3"><?php echo lang('admin_home_forum_filter_desc');?></p>
@@ -96,6 +142,17 @@
 <script src="../view/js/tabler-icon-picker.js<?php echo $static_version;?>"></script>
 <script>
 (function() {
+	// 头像形状选择卡片点击选中 + 切换高亮
+	var avatarOptionCards = document.querySelectorAll('.avatar-shape-option');
+	avatarOptionCards.forEach(function(card) {
+		card.addEventListener('click', function() {
+			var radio = card.querySelector('input[type="radio"]');
+			if (radio) radio.checked = true;
+			avatarOptionCards.forEach(function(c) { c.classList.remove('border-primary', 'bg-primary-subtle'); });
+			card.classList.add('border-primary', 'bg-primary-subtle');
+		});
+	});
+
 	// 状态标签数据
 	var statusLabels = <?php echo xn_json_encode($status_labels);?>;
 

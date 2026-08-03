@@ -12,10 +12,9 @@ return array(
 			'smtp'=>array('url'=>url('setting-smtp'), 'text'=>lang('admin_setting_smtp')),
 			'nav'=>array('url'=>url('setting-nav'), 'text'=>lang('admin_setting_nav')),
 			'display'=>array('url'=>url('setting-display'), 'text'=>lang('admin_setting_display')),
-			'avatar'=>array('url'=>url('setting-avatar'), 'text'=>lang('admin_setting_avatar')),
 			'upload'=>array('url'=>url('setting-upload'), 'text'=>lang('admin_setting_upload')),
 			'credits'=>array('url'=>url('setting-credits'), 'text'=>lang('admin_setting_credits_tab')),
-			'credits_rule'=>array('url'=>url('credits_rule-global'), 'text'=>lang('admin_credits_rule')),
+			'creditsrules'=>array('url'=>url('setting-creditsrules'), 'text'=>lang('admin_credits_rule')),
 		)
 	),
 	'forum' => array(

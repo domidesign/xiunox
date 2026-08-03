@@ -687,7 +687,7 @@ class cache_file {
 	public function __construct($conf = array()) {
 		$this->conf = $conf;
 		$this->cachepre = isset($conf['cachepre']) ? $conf['cachepre'] : 'pre_';
-		$this->cache_dir = isset($conf['cache_dir']) ? $conf['cache_dir'] : APP_PATH . 'tmp/cache/';
+		$this->cache_dir = !empty($conf['cache_dir']) ? $conf['cache_dir'] : APP_PATH . 'tmp/cache/';
 	}
 
 	public function connect() {

@@ -15,6 +15,12 @@ class CsrfService {
     const COOKIE_NAME = 'bbs_csrf';
     const COOKIE_LIFETIME = 604800; // 7 天，与 auth cookie 一致
 
+    // ponytail: 防重复 check 标记。
+    // admin/index.inc.php 中央化校验 + 插件 setting.php 各自调用 check() 导致同一请求 check 两次，
+    // 第二次 check 匹配失败会直接触发 CSRF 错误（无 graceful 机制时），或消耗 graceful 的 old token，
+    // 用户业务失败后按浏览器返回再提交时验证失败。
+    private static $checked = false;
+
     public static function generate(): string {
         $token = self::getToken();
         if (empty($token)) {
@@ -25,6 +31,10 @@ class CsrfService {
     }
 
     public static function check(): void {
+        // 同一请求中已 check 过则跳过，避免 admin/index.inc.php + setting.php 双重 check
+        if (self::$checked) return;
+        self::$checked = true;
+
         $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
         $cookieToken = self::getToken();
         if (empty($token) || empty($cookieToken) || !hash_equals($cookieToken, $token)) {

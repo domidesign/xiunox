@@ -10,30 +10,10 @@ $onlineUpgradeService = new OnlineUpgradeService($db, $conf);
 // hook admin_online_upgrade_start.php
 
 if($action == 'check') {
-    // 检查最新版本（24 小时频率限制：避免对官方升级服务器频繁请求）
-    // ponytail: 双层限制——后端 cache 兜底，前端 localStorage 拦截；上限是 86400 秒一次
-    $cacheKey = 'online_upgrade_check_last';
-    $cached = cache_get($cacheKey);
-    $cacheTtl = 86400; // 24 小时
-    if ($cached && isset($cached['timestamp']) && isset($cached['result'])
-        && (time() - $cached['timestamp'] < $cacheTtl)) {
-        $result = $cached['result'];
-        $result['cached'] = true;
-        $result['next_check_at'] = $cached['timestamp'] + $cacheTtl;
-        $result['seconds_until_next'] = max(0, $cached['timestamp'] + $cacheTtl - time());
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode($result, JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-
+    // 检查最新版本（无频率限制：Gitee API 限流 60-5000 次/小时，远高于单站点点击频率）
+    // ponytail: 移除 24h cache 拦截，每次点击都直连 Gitee API；仪表盘自动检查仍保留独立缓存（admin/index.inc.php）
+    cache_delete('online_upgrade_check_last'); // 清理旧版 24h 缓存，避免残留
     $result = $onlineUpgradeService->checkLatestVersion();
-
-    // 仅在检查成功时写缓存，失败不缓存（允许用户立即重试）
-    if (isset($result['ok']) && $result['ok']) {
-        cache_set($cacheKey, ['timestamp' => time(), 'result' => $result], $cacheTtl);
-        $result['next_check_at'] = time() + $cacheTtl;
-        $result['seconds_until_next'] = $cacheTtl;
-    }
 
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($result, JSON_UNESCAPED_UNICODE);

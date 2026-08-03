@@ -185,22 +185,20 @@ function plugin_init() {
 					if (isset($db_list[$dir]['version']) && $db_list[$dir]['version'] !== '') {
 						$plugins[$dir]['db_version'] = $db_list[$dir]['version'];
 					}
-					// 同步 conf.json.version 到 db.version：
-					// 存量插件在 version 字段加入前安装的，db_version 可能为空或旧值（如 "1.0" 缺段）
-					// 以 conf.json.version 为权威（文件实际版本），db_version 落后时自动同步
-					$conf_ver = isset($plugins[$dir]['version']) ? (string)$plugins[$dir]['version'] : '';
-					$db_ver = isset($db_list[$dir]['version']) ? (string)$db_list[$dir]['version'] : '';
-					if ($conf_ver !== '' && $conf_ver !== $db_ver) {
-						plugin_db_set_version($dir, $conf_ver);
-						$plugins[$dir]['db_version'] = $conf_ver;
-					}
+					// ponytail: 版本号不再从代码同步到数据库——数据库版本号代表"已安装版本"，
+					// 只在 plugin_install() 或 plugin_upgrade() 时更新。
+					// 初始化时绝不触碰版本号，否则升级按钮永远不触发（代码版本会同步覆盖数据库版本）。
 				} else {
 					// db 无记录：首次发现该插件，默认未安装未启用
 					// ponytail: 不读 conf.json 的 enable/installed（已在 L149 unset），只以 db 为准
 					$plugins[$dir]['installed'] = 0;
 					$plugins[$dir]['enable'] = 0;
 					plugin_db_init($dir, $plugins[$dir]);
-					if (!empty($plugins[$dir]['version'])) plugin_db_set_version($dir, $plugins[$dir]['version']);
+					// 首次发现插件时，将代码版本写入数据库作为初始版本号
+					if (!empty($plugins[$dir]['version'])) {
+						plugin_db_set_version($dir, $plugins[$dir]['version']);
+						$plugins[$dir]['db_version'] = $plugins[$dir]['version'];
+					}
 				}
 			}
 		}
