@@ -117,23 +117,7 @@ $csrfToken = CsrfService::getToken();
 	</div>
 </div>
 
-<!-- 检查频率限制提示 Modal：24 小时内重复点击检查时弹出 -->
-<div class="modal fade" id="checkLimitedModal" tabindex="-1" aria-hidden="true">
-	<div class="modal-dialog modal-dialog-centered">
-		<div class="modal-content">
-			<div class="modal-header">
-				<h5 class="modal-title">
-					<i class="ti ti-clock-pause text-warning"></i> <?php echo lang('admin_online_upgrade_check_limited_title');?>
-				</h5>
-				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-			</div>
-			<div class="modal-body" id="checkLimitedModalBody"></div>
-			<div class="modal-footer">
-				<button type="button" class="btn btn-primary" data-bs-dismiss="modal"><?php echo lang('admin_online_upgrade_confirm_cancel');?></button>
-			</div>
-		</div>
-	</div>
-</div>
+<!-- 检查频率限制已移除：Gitee API 限流足够宽松（60-5000 次/小时），无需前端拦截 -->
 
 <script>
 var steps = <?php echo json_encode($steps);?>;
@@ -194,10 +178,6 @@ function ajax(opts) {
 	});
 }
 
-// 检查更新频率限制：24 小时一次（前端 localStorage 拦截，后端 cache 兜底）
-var CHECK_LIMIT_KEY = 'xiunox_upgrade_check_manual';
-var CHECK_LIMIT_TTL = 24 * 60 * 60 * 1000; // 24 小时（毫秒）
-
 // XSS 防护：escapeHtml 用于将服务端返回的 res.message / xhr.responseText 安全地插入 DOM
 function escapeHtml(s) {
 	if (s === null || s === undefined) return '';
@@ -206,76 +186,8 @@ function escapeHtml(s) {
 	});
 }
 
-// 读取本地存储的下次可检查时间戳；返回 0 表示无限制记录
-function getLocalNextCheckAt() {
-	try {
-		var raw = localStorage.getItem(CHECK_LIMIT_KEY);
-		if (!raw) return 0;
-		var obj = JSON.parse(raw);
-		return obj && obj.next_check_at ? obj.next_check_at : 0;
-	} catch(e) { return 0; }
-}
-
-// 写入下次可检查时间戳
-function setLocalNextCheckAt(nextAt) {
-	try { localStorage.setItem(CHECK_LIMIT_KEY, JSON.stringify({next_check_at: nextAt})); } catch(e) {}
-}
-
-// 将剩余毫秒格式化为「N 小时 M 分钟」
-function formatRemaining(ms) {
-	if (ms <= 0) return '';
-	var totalMin = Math.ceil(ms / 60000);
-	var h = Math.floor(totalMin / 60);
-	var m = totalMin % 60;
-	if (h > 0 && m > 0) return h + ' <?php echo lang('admin_online_upgrade_check_limited_hour');?> ' + m + ' <?php echo lang('admin_online_upgrade_check_limited_minute');?>';
-	if (h > 0) return h + ' <?php echo lang('admin_online_upgrade_check_limited_hour');?>';
-	return m + ' <?php echo lang('admin_online_upgrade_check_limited_minute');?>';
-}
-
-// disable 检查按钮并改文案，提示用户已被 24h 限制
-function disableCheckBtnLimited(remainingMs) {
-	var btn = document.getElementById('checkBtn');
-	btn.disabled = true;
-	var remain = formatRemaining(remainingMs);
-	btn.innerHTML = '<i class="ti ti-clock-pause"></i><?php echo lang('admin_online_upgrade_check_limited_btn');?>' + (remain ? ' (' + remain + ')' : '');
-}
-
-// 根据本地 localStorage 限制状态刷新检查按钮：24h 内 disabled + 限制文案，否则 enabled + 原始文案
-function refreshCheckBtnState() {
-	var btn = document.getElementById('checkBtn');
-	if (!btn) return;
-	var nextAt = getLocalNextCheckAt();
-	var now = Date.now();
-	if (nextAt && now < nextAt) {
-		disableCheckBtnLimited(nextAt - now);
-	} else {
-		btn.disabled = false;
-		btn.innerHTML = '<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>';
-	}
-}
-
-// 弹出 24h 限制提示 Modal
-function showCheckLimitedModal(remainingMs) {
-	var body = document.getElementById('checkLimitedModalBody');
-	var remain = formatRemaining(remainingMs);
-	body.textContent = '<?php echo lang('admin_online_upgrade_check_limited_msg');?>'.replace('%s', remain);
-	var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('checkLimitedModal'));
-	modal.show();
-}
-
 function checkUpdate() {
 	var btn = document.getElementById('checkBtn');
-
-	// 前端 localStorage 拦截：24 小时内已检查过，弹窗提示 + disable 按钮，不发请求
-	var localNextAt = getLocalNextCheckAt();
-	var nowMs = Date.now();
-	if (localNextAt && nowMs < localNextAt) {
-		var remainingMs = localNextAt - nowMs;
-		disableCheckBtnLimited(remainingMs);
-		showCheckLimitedModal(remainingMs);
-		return;
-	}
-
 	btn.disabled = true;
 	btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span><?php echo lang('admin_online_upgrade_checking');?>';
 
@@ -309,19 +221,11 @@ function checkUpdate() {
 					releaseNotes.classList.remove('d-none');
 				}
 
-				// 24 小时频率限制：检查成功后 disable 按钮 + 写入 localStorage + 后端 cache 兜底
-				// 后端返回 next_check_at（秒级时间戳），前端统一转毫秒；未返回时按当前时间 + 24h
-				var nextAtSec = res.next_check_at || Math.floor(nowMs / 1000) + CHECK_LIMIT_TTL / 1000;
-				var nextAtMs = nextAtSec * 1000;
-				setLocalNextCheckAt(nextAtMs);
-				var remainingMs = nextAtMs - Date.now();
-				disableCheckBtnLimited(remainingMs);
-
-				var cachedTip = res.cached ? '<?php echo lang('admin_online_upgrade_check_cached_tip');?>' : '';
-				var limitTip = '<div class="alert alert-secondary py-2 mt-1"><i class="ti ti-clock-pause"></i><?php echo lang('admin_online_upgrade_check_done_limited');?>' + (cachedTip ? ' ' + escapeHtml(cachedTip) : '') + '</div>';
-				logArea.innerHTML = '<div class="alert alert-info py-2"><i class="ti ti-info-circle"></i>' + escapeHtml(res.message || '') + '</div>' + limitTip;
+				btn.disabled = false;
+				btn.innerHTML = '<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>';
+				logArea.innerHTML = '<div class="alert alert-info py-2"><i class="ti ti-info-circle"></i>' + escapeHtml(res.message || '') + '</div>';
 			} else {
-				// 检查失败：恢复按钮，不写限制缓存，允许用户立即重试
+				// 检查失败：恢复按钮，允许用户立即重试
 				btn.disabled = false;
 				btn.innerHTML = '<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>';
 				logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + escapeHtml(res.message || '<?php echo lang('admin_online_upgrade_check_failed');?>') + '</div>';
@@ -367,8 +271,10 @@ function confirmStartUpgrade() {
 			btn.disabled = false;
 			btn.innerHTML = '<i class="ti ti-player-play-filled"></i><?php echo lang('admin_online_upgrade_start');?>';
 			document.getElementById('reinstallBtn').disabled = false;
-			// 前置检查失败恢复时，按 localStorage 限制状态恢复检查按钮
-			refreshCheckBtnState();
+			// 前置检查失败恢复时，恢复检查按钮为可点击状态
+			var checkBtn = document.getElementById('checkBtn');
+			checkBtn.disabled = false;
+			checkBtn.innerHTML = '<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>';
 			return;
 		}
 		// 前置检查通过，开始升级
@@ -521,10 +427,12 @@ function finishUpgrade() {
 
 	document.getElementById('reinstallBtn').disabled = false;
 
-	// 升级完成后清除版本检查缓存（仪表盘 + 手动检查的 24h 限制），允许用户立即重新检查新版本
+	// 升级完成后清除仪表盘版本检查缓存，允许仪表盘立即重新检查新版本
 	try { localStorage.removeItem('xiunox_upgrade_check'); } catch(e) {}
-	try { localStorage.removeItem(CHECK_LIMIT_KEY); } catch(e) {}
-	refreshCheckBtnState();
+	// 恢复检查按钮为可点击状态（升级过程中被 disable）
+	var checkBtn = document.getElementById('checkBtn');
+	checkBtn.disabled = false;
+	checkBtn.innerHTML = '<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>';
 
 	var logArea = document.getElementById('logArea');
 	var latestVersion = document.getElementById('latestVersionCode').textContent;
@@ -539,8 +447,10 @@ function showUpgradeError(msg) {
 	btn.disabled = false;
 
 	document.getElementById('reinstallBtn').disabled = false;
-	// 升级失败不影响检查频率限制：按 localStorage 当前状态恢复检查按钮（24h 内仍 disabled）
-	refreshCheckBtnState();
+	// 升级失败恢复检查按钮为可点击状态
+	var checkBtn = document.getElementById('checkBtn');
+	checkBtn.disabled = false;
+	checkBtn.innerHTML = '<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>';
 
 	var logArea = document.getElementById('logArea');
 	logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + escapeHtml(msg) + '</div>';
@@ -576,9 +486,6 @@ function reinstall() {
 	});
 	}, {type: 'warning', okText: '重新安装'});
 }
-
-// 页面加载初始化：若 24h 内已检查过，预 disable 检查按钮并改文案
-refreshCheckBtnState();
 </script>
 
 <!--{hook admin_online_upgrade_end.htm}-->

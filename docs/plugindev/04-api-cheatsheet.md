@@ -612,4 +612,92 @@ echo $pagination;
 
 ---
 
+## 11. 邮件发送 API
+
+### 同步发送
+
+| 函数 | 签名 | 说明 |
+|---|---|---|
+| `xn_send_mail` | `xn_send_mail($smtp, $from_name, $to_email, $subject, $body, $options = array())` | **同步发送**，阻塞直到邮件发出。返回 `TRUE` 成功，或错误字符串 |
+| `xn_smtp_get` | `xn_smtp_get()` | 从 `smtp.conf.php` 获取 SMTP 配置（随机选择一个），无配置时返回 `FALSE` |
+
+**`$options` 参数**：
+- `charset`: 字符集，默认 `UTF-8`
+- `is_html`: 是否 HTML 邮件，默认 `TRUE`
+- `alt_body`: 纯文本替代正文（未设置时自动从 HTML 提取）
+- `reply_to`: 回复邮箱
+- `timeout`: 超时秒数，默认 `10`
+
+```php
+$smtp = xn_smtp_get();
+$r = xn_send_mail($smtp, '论坛名称', 'user@example.com', '主题', '<p>正文</p>', array('is_html' => TRUE));
+if ($r === TRUE) {
+    message(0, '发送成功');
+} else {
+    message(-1, '发送失败：' . $r);
+}
+```
+
+### 异步发送（推荐）
+
+| 函数 | 签名 | 说明 |
+|---|---|---|
+| `xn_send_mail_async` | `xn_send_mail_async($smtp, $from_name, $to_email, $subject, $body, $options = array())` | **立即返回 TRUE**，不阻塞页面响应。实际发送在 `register_shutdown_function` 回调中执行 |
+
+**核心原理**：利用 PHP 的 `register_shutdown_function()` 注册回调，在脚本结束、HTTP 响应已发送给浏览器后再执行 SMTP 发送。配合 `fastcgi_finish_request()` 加速响应返回。
+
+**适用场景**：
+- 验证码邮件（登录/注册/找回密码）
+- 通知类邮件（审核通知、系统告警等）
+- 任何不需要同步等待发送结果的场景
+
+```php
+// 异步发送，立即返回，不阻塞登录/注册页面跳转
+xn_send_mail_async($smtp, $conf['sitename'], $email, $subject, $body, array('is_html' => TRUE));
+
+// 立即给用户反馈
+message(0, '验证码已发送，请查收邮箱');
+```
+
+**注意事项**：
+- ⚠️ **此函数立即返回 `TRUE`，调用方无法同步获取发送结果**
+- ⚠️ 如需验证发送结果，请查询 `bbs_email_log` 表
+- ⚠️ 依赖 PHP-FPM SAPI；在 CLI 或其他 SAPI 下会退化为同步发送
+- ⚠️ 不建议用于必须立即确认的关键业务邮件（如付费凭证、订单确认）
+
+### 频率限制
+
+| 函数 | 签名 | 说明 |
+|---|---|---|
+| `xn_email_rate_check` | `xn_email_rate_check($email, $ip = '')` | 检查频率限制。通过返回 `TRUE` 表示通过，返回错误消息字符串表示超限 |
+| `xn_email_rate_record` | `xn_email_rate_record($email, $ip = '')` | 记录本次发送（供下次频率检查） |
+
+**频率限制规则**：
+- 同一邮箱发送间隔：默认 60 秒（可通过 `SecurityConfigService` 配置）
+- 同一邮箱每日上限：默认 5 次
+- 同一 IP 每小时上限：默认 10 次
+
+```php
+$rate_check = xn_email_rate_check($email, $longip);
+if ($rate_check !== TRUE) {
+    message(-1, $rate_check);
+}
+xn_send_mail_async($smtp, ...);
+xn_email_rate_record($email, $longip);
+```
+
+### 模板
+
+| 函数 | 签名 | 说明 |
+|---|---|---|
+| `xn_email_template` | `xn_email_template($template_key, $vars = array())` | 从 `conf/email_templates.conf.php` 渲染邮件模板，返回 `array('subject' => ..., 'body' => ...)` |
+
+```php
+$template = xn_email_template('user_create_code', array('code' => $code, 'sitename' => '我的论坛'));
+$subject = $template['subject'];
+$body = $template['body'];
+```
+
+---
+
 > 下一步：[05-frontend-security.md](05-frontend-security.md) 了解前端规范和安全要求。

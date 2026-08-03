@@ -10,8 +10,9 @@
 - [四、hook 文件常见坑](#四hook-文件常见坑)
 - [五、数据库常见坑](#五数据库常见坑)
 - [六、前端常见坑](#六前端常见坑)
-- [七、扫描器规则分级](#七扫描器规则分级pluginscanner)
-- [八、交付前检查表](#八交付前检查表)
+- [七、并发安全与积分防刷](#七并发安全与积分防刷)
+- [八、扫描器规则分级](#八扫描器规则分级pluginscanner)
+- [九、交付前检查表](#九交付前检查表)
 
 ---
 
@@ -34,6 +35,11 @@
 | 禁止 hook 文件用 `return`（会从宿主函数/路由/模板返回跳过后续逻辑）—— 终止性操作用 `exit` + `if` 包裹 | 已违反 5 次，影响多个插件 |
 | 禁止 `overwrites_rank` 覆盖模板放在 `plugin/<dir>/view/htm/`（必须放 `overwrite/` 子目录） | 覆盖不生效 |
 | 禁止 `esc_textarea()`（项目中不存在，用 `esc_html()`） | 后台设置页白屏 |
+| **禁止积分/库存/计数器操作用「先读后写」无 CAS**（已违反 6 次，导致重放刷积分、库存超发、计数器重复递增） | 重放攻击、并发刷积分 |
+| **禁止 `CreditsService::add()/sub()` 不检查返回值**（add 可能因防刷限制/钩子阻止失败） | 积分未入账但记录已发，回滚时误扣 |
+| **禁止多步积分发放部分失败时不回滚已成功步骤** | 用户重复领取导致重复发积分 |
+| **禁止批量 UPDATE 无 CAS 条件**（会对 REJECTED 状态记录重复发积分） | 批量操作重放刷积分 |
+| **禁止每日次数限制检查与实际操作非原子**（TOCTOU 漏洞，并发绕过限频） | 并发刷次数 |
 
 ## 二、硬规则：必须项
 
@@ -54,6 +60,13 @@
 | 从前台生成 admin URL 用 `admin_url()` | `url()`/`admin_plugin_setting_url()` 前台调用不带 `admin/` 前缀 |
 | `db_*` 函数传表名禁止含前缀 | 内部已拼 `$d->tablepre . $table`，传 `'xnx_oauth_bind'` 而非 `'bbs_xnx_oauth_bind'`（例外：`install.php`/`uninstall.php`/`upgrade.php` 原生 SQL 需手动拼 `$db->tablepre`） |
 | API 层写操作调核心 `post_create()`/`post_update()`/`thread_create()` | 禁止用 `PostService::createPost()` 等薄封装（跳过 `message_fmt`/计数/缓存失效） |
+| **邮件发送用 `xn_send_mail_async()`** | 验证码、通知类邮件用 `xn_send_mail_async()` 异步发送；仅关键业务邮件（付费凭证等）用 `xn_send_mail()` 同步发送 |
+| **状态转换用 CAS（Compare-And-Swap）** | `UPDATE ... WHERE status=旧值`，检查 `affected_rows`；批量操作用逐条 CAS。详见 [security-patterns.md](security-patterns.md) |
+| **业务实体唯一性用 UNIQUE 约束** | 如 `UNIQUE KEY invitee_uid`，INSERT 用 `INSERT IGNORE` 兜底并发冲突 |
+| **检查 `CreditsService::add()/sub()` 返回值** | 返回 `array('ok'=>bool)`，add 失败时不记录 reward，回滚时只回滚实际入账的积分 |
+| **多步积分发放部分失败回滚已成功步骤** | 记录 credited 标志，失败时 sub 回滚，sub 失败记 `xn_log('error')` |
+| **每日次数限制用 GET_LOCK 串行化** | CAS 无法覆盖的 TOCTOU 场景用 `GET_LOCK('插件_操作_uid', 5)`，finally 释放 |
+| **敏感接口路由层加 IP+uid 限频** | 抽奖/决斗/发奖等接口在 `route/*.php` 加 cache 实现的频率限制 |
 
 ---
 
@@ -94,6 +107,7 @@
 | lang hook 格式错 | 每行严格 `$lang['my_prefix_xxx'] = 'xxx';` |
 | `model_inc_file.php` 忘逗号 | 每行 `APP_PATH.'plugin/...',` 以逗号结尾 |
 | hook 内 `return` | 用 `if` 包裹 + `ob_start/ob_get_clean` 暂存输出，UA 检测分支尤其警惕 |
+| **hook 文件内写 `// hook xxx` 注释** | **禁止**：编译器多趟循环（`plugin.func.php:575-584`，最多 10 层）会把 hook 文件内的 `// hook xxx.php` 注释误匹配为 hook 占位符，第二趟编译时再次拼接 hook 内容破坏代码结构，引发 `ParseError`。改用 `// hook: xxx`（冒号分隔）或 `// xxx` 格式（已违反 1 次：xnx_login_alert 注释导致 xnx_verify 崩溃被误禁用） |
 | Service 内 `// hook xxx.php` 注释直接 `include_once` 加载 | 必须通过 `hook/model_inc_file.php` 注册到 model 加载列表走 `_include()` 编译 |
 | `plugin_hook()` 运行时分发访问调用方局部变量 | 通过第二参数 `$data` 传关联数组，内部 `extract($data, EXTR_SKIP)` 注入 |
 | **hook 内用通用变量名（`$settings`/`$conf`/`$user`）赋值** | **加插件前缀**（`$_myplugin_settings`），否则污染宿主作用域（已违反 1 次：xnx_hidden 的 `$settings` 覆盖 xnx_friendlink） |
@@ -142,10 +156,88 @@
 | PC/移动端双模板用相同 `id` | 移动端加 `-mobile` 后缀（`id="xxx-mobile"`） |
 | `response.ok` 判断 htmx 请求成败 | htmx 4 中 `ctx.response` 无 `.ok` 属性，用 `ctx.response.status >= 400` |
 | 关键修复页面依赖 `xiuno-modern.js` 的 `$`/`XN` shim | 必须原生 `fetch` + `querySelectorAll` + `confirm` |
+| 静态资源缺少版本号 | Hook 文件用 `$static_version`（已在 header.inc.htm 定义），视图文件用 `$conf['static_version']`；推荐用 `filemtime()` 动态版本号 |
 
 ---
 
-## 七、扫描器规则分级（PluginScanner）
+## 七、并发安全与积分防刷
+
+> 详细说明见 [plugindev/15-concurrency-security.md](../../plugindev/15-concurrency-security.md) 和 [security-patterns.md](security-patterns.md)
+
+### CAS（Compare-And-Swap）模式
+
+| 场景 | 错误写法 | 正确写法 |
+|---|---|---|
+| 状态转换 | 先读后写 | `db_update($t, ['id'=>$id, 'status'=>0], ['status'=>1])`，检查 affected |
+| 批量操作 | 批量 UPDATE 无条件 | 逐条 CAS UPDATE，仅对成功的记录发积分 |
+| 库存扣减 | `db_update($t, ['id'=>$id], ['stock-'=>1])` | `db_update($t, ['id'=>$id, 'stock>'=>0], ['stock-'=>1])` |
+| CAS 条件 | 只允许 PENDING | 覆盖所有合法旧状态（如 PENDING + IGNORED） |
+| CAS 失败 | 报错 | 幂等返回 true 或补偿性 refund |
+
+### 幂等性设计
+
+| 场景 | 方案 |
+|---|---|
+| 业务实体唯一 | `UNIQUE KEY invitee_uid` + `INSERT IGNORE` |
+| 幂等检查 | `db_find_one(...)` 已存在则返回 true |
+| 返回值约定 | 幂等成功返回 true（不报错），避免上层 retry |
+| add/sub 返回值 | 检查 `['ok'=>bool]`，仅实际入账才记录 reward |
+| 回滚 | 只回滚实际入账的积分（检查 credited 标志） |
+
+### GET_LOCK 串行化
+
+适用 CAS 无法覆盖的 TOCTOU 场景（如每日次数限制）：
+
+```php
+$lockKey = 'duel_join_' . intval($uid);
+$stmt = $db->wlink->query("SELECT GET_LOCK(" . $db->wlink->quote($lockKey) . ", 5) AS lk");
+if ($stmt->fetchColumn() != 1) return ['ok'=>false, 'message'=>'系统繁忙'];
+try {
+    // 串行化区域
+} finally {
+    $db->wlink->query("SELECT RELEASE_LOCK(" . $db->wlink->quote($lockKey) . ")");
+}
+```
+
+### 部分成功回滚
+
+多步积分发放部分失败时，回滚已成功步骤：
+
+```php
+// 记录已成功发放的积分
+if (!empty($reward_detail['credits'])) {
+    $r = $creditsService->sub($uid, 'credits', $reward_detail['credits'], '回滚');
+    if (empty($r['ok'])) {
+        xn_log("回滚失败 uid=$uid amount=" . $reward_detail['credits'], 'error');
+    }
+}
+// 回滚业务状态（放在积分回滚之后）
+db_update('quest_progress', ..., ['completed' => 0]);
+```
+
+### 路由层频率限制
+
+```php
+// route/lottery.php
+$cache_key = 'lottery_draw_rate_' . $uid . '_' . $ip;
+$count = cache_get($cache_key);
+if ($count && intval($count) >= 10) message(-1, lang('rate_limited'));
+cache_set($cache_key, intval($count) + 1, 60);
+```
+
+### 真实案例速查
+
+| 案例 | 漏洞 | 修复 |
+|---|---|---|
+| AuditService::approve() | 无 CAS，重放刷积分 | CAS `audit_status IN (PENDING, IGNORED)` |
+| xnx_invite useCode | 先读后写 use_count | CAS `use_count<max_use_count` + `use_count+1` |
+| xnx_quest grantReward | 部分成功无回滚 | 回滚已成功发放的 credits/golds |
+| xnx_duel joinDuel | daily_limit TOCTOU | GET_LOCK 串行化同用户操作 |
+| xnx_lottery drawSidebar | 库存可扣成负数 | CAS `stock>0` + `stock-1` |
+
+---
+
+## 八、扫描器规则分级（PluginScanner）
 
 安装前自动运行（`lib/PluginScanner.php` + `lib/PluginScannerRules.php`），按严重性分级。
 
@@ -237,6 +329,7 @@
 - [ ] 图标用 Tabler Icons（`ti ti-xxx`），CSS/JS 用相对路径 `plugin/<dir>/...`
 - [ ] 数据库表/语言键/PHP 全局/JS 全局/setting 键/CSS class 全部带插件前缀
 - [ ] `avatar_component_from_data()` 调用传 `_uid`
+- [ ] JS/CSS 静态资源引用带版本号（hook 文件用 `$static_version`，视图文件用 `$conf['static_version']`，推荐 `filemtime()`）
 
 ### 功能
 

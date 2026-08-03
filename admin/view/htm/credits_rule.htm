@@ -3,7 +3,7 @@
 <!--{hook admin_credits_rule_start.htm}-->
 
 <div class=" ">
-	<?php echo admin_tab_active($menu['setting']['tab'], 'credits_rule');?>
+	<?php echo admin_tab_active($menu['setting']['tab'], 'creditsrules');?>
 </div>
 
 <div class="x-card card">
@@ -27,7 +27,7 @@
 		<!-- ==================== 全局规则 Tab ==================== -->
 		<div class="credits-tab-pane" id="globalRulePane">
 
-		<form action="<?php echo admin_credits_rule_url('global');?>" method="post" id="globalForm">
+		<form action="<?php echo admin_setting_url('creditsrules');?>" method="post" id="globalForm">
 			<?php echo CsrfService::input(); ?>
 
 			<p class="text-body-secondary fs-6 mb-3"><i class="ti ti-info-circle me-1"></i><?php echo lang('admin_credits_rule_positive_tip');?></p>

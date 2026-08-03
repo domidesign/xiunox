@@ -45,6 +45,48 @@ header.inc.htm（head 尾部）与 footer.inc.htm（footer_js_before.htm 之后�
 
 ---
 
+### 1.5 静态资源版本号规范
+
+插件 JS/CSS 必须带版本号，避免浏览器缓存旧文件。三种方式按推荐程度排序：
+
+| 方式 | 适用场景 | 代码示例 |
+|---|---|---|
+| **`filemtime()` 动态版本号** | 推荐，自动跟随文件修改时间 | `filemtime(APP_PATH.'plugin/xxx/static/js/app.js')` |
+| **`$static_version`** | Hook 文件（`header_link_after.htm`/`footer_js_after.htm`） | `$static_version`（已在 `header.inc.htm` 第 47 行定义） |
+| **`$conf['static_version']`** | 独立视图文件（`view/htm/*.htm`） | 直接取配置值 |
+
+**正确写法**：
+
+```php
+// 方式 A：filemtime() 动态版本号（最推荐）
+<script src="<?php echo $conf['view_url'];?>../plugin/my_plugin/static/js/app.js?v=<?php echo filemtime(APP_PATH.'plugin/my_plugin/static/js/app.js');?>"></script>
+
+// 方式 B：Hook 文件中用 $static_version
+<!-- 在 header_link_after.htm 中 -->
+<link href="<?php echo $conf['view_url'];?>../plugin/my_plugin/static/css/style.css<?php echo $static_version;?>">
+
+// 方式 C：视图文件中用 $conf['static_version']
+<!-- 在 view/htm/setting.htm 中 -->
+<script src="<?php echo $conf['view_url'];?>../plugin/my_plugin/static/js/app.js<?php echo $conf['static_version'];?>"></script>
+```
+
+**禁止写法**：
+
+```php
+// ❌ 无版本号（浏览器缓存旧文件）
+<script src="<?php echo $conf['view_url'];?>../plugin/my_plugin/static/js/app.js"></script>
+
+// ❌ 硬编码版本号（修改后需手动维护）
+<link href="...style.css?v=1.0.0">
+
+// ❌ 用 APP_PATH（扫描器 fatal 拦截）
+<script src="<?php echo APP_PATH;?>plugin/my_plugin/static/js/app.js">
+```
+
+> 速查版见 [../xiunox-plugin-dev/references/ui-patterns.md](../xiunox-plugin-dev/references/ui-patterns.md) 第 1 节
+
+---
+
 ## 2. xiuno-modern.js API（`XN.*`）
 
 全局 `XN` 对象，定义于 `view/js/xiuno-modern.js`。插件 JS 应优先使用这些 API。

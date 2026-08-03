@@ -90,13 +90,30 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | 改核心文件后 | 清 `tmp/` 编译缓存（`_include()` 不比较 mtime） |
 | Service 调用核心类 | `if (!class_exists('XxxService')) { include_once APP_PATH.'lib/XxxService.php'; }` 守卫前置 |
 | Card 组件 | **必须 `x-card` + `card` 组合**，禁止裸用 `card`/`border`/`border-*`；列表分隔用 `py-*`/`mb-*` 间距 |
+| **右侧栏插件模块 card header** | **必须按范本格式**：`<div class="x-card card mt-3"><div class="card-body"><h3 class="card-title small"><i class="ti ti-xxx"></i> 标题</h3></div><div class="card-body">...</div></div>`。**禁止** `card-header`、`h5`/`h6`、`fw-bold`/`fw-semibold`、`me-1`/`me-2`；副标题用 `<small class="text-muted ms-2">副标题</small>` 紧跟主标题。详见 [plugindev/14-plugin-admin-ui.md#3.5](../plugindev/14-plugin-admin-ui.md) |
 | 前台布局 | **必须用三栏骨架** `layout_three_column.inc.htm`（`ob_start` + `$main_content` + include）；禁止自行写 `container`/`row`/`col-lg-*`；不需左右栏时设 `$sidebar_*_file=''` |
 | 头像渲染 | `avatar_component_from_data()`（非原生 `<img>`） |
 | 改 `static/*.js`/`*.css` 后 | 递增 `conf/conf.php` 的 `static_version` |
 | **hook 内局部变量** | **加插件前缀**（`$_myplugin_settings`），禁止用 `$settings`/`$conf`/`$user` 等通用名（会污染宿主作用域） |
 | **模板 `include header.inc.htm` 后用 `$settings`** | header 中其他插件 hook 会覆盖 `$settings`，需在 include 后重新获取或改用前缀变量名 |
+| 静态资源版本 | Hook 文件（`header_link_after.htm`/`footer_js_after.htm`）用 `$static_version`；视图文件用 `$conf['static_version']`；推荐 `filemtime()` 动态版本号（如 `filemtime(APP_PATH.'plugin/xxx/static/js/xxx.js')`） |
 
 > 完整规则清单见 [references/ai-rules.md](references/ai-rules.md)
+
+### 前端 UI 偏好规范
+
+| 偏好 | 规范 |
+|---|---|
+| Toast vs Modal | 轻提示（成功/失败/信息/警告）用 `XN.toast()`；需要确认（删除/卸载/重置）用 `XN.confirm()`；重要错误/长文本用 `XN.alert()`；需输入文本用 `XN.prompt()` |
+| 视频显示 | 视频作为内联播放器显示在正文位置，不出现在附件列表中，不显示下载链接 |
+| 附件显示 | 附件列表仅显示图片、文档等非视频附件；视频通过内联 `<video>` 标签直接播放 |
+| Card 组件 | **必须 `x-card` + `card` 组合**，禁止裸用 `card`/`border`/`border-*`；列表分隔用 `py-*`/`mb-*` 间距 |
+| 前台布局 | **必须用三栏骨架** `layout_three_column.inc.htm`（`ob_start` + `$main_content` + include）；不需左右栏时设 `$sidebar_*_file=''`；禁止自行写 `container`/`row`/`col-lg-*` |
+| 右侧边栏 | 放置帖子目录（替代"最新帖子"区域） |
+| 个人签名 | 放在统计信息上方，浅色背景，与论坛描述样式一致 |
+| 按钮样式 | 禁止在按钮上使用 `w-100` 类；按钮内禁止使用过多样式 |
+| Tab 导航 | 每个子 Tab 前加图标；单个 Tab 可点击展开/折叠 |
+| 表单提交 | 提交时禁用按钮 + 显示 loading 状态，防重复提交 |
 
 ## 开发工作流
 
@@ -218,7 +235,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 |---|---|
 | hook 不生效 / 未触发 | 1. 检查 hook 文件名（含扩展名）是否与源码标记 `// hook xxx.php` 完全一致 2. 检查 `conf.json.hooks_rank` 键名是否含扩展名 3. 清 `tmp/` 编译缓存（含 OPcache：`CacheService::clearByType(['data','opcache'])`） 4. 检查插件是否启用（db `bbs_plugin` 表） |
 | 修改后无变化 | 1. 清 `tmp/` 编译缓存（`_include()` 不比较 mtime） 2. 改了 `static/*.js`/`*.css` 递增 `conf/conf.php` 的 `static_version` 3. 改了语言键清 `tmp/lang_*_bbs.php` 4. 硬刷新浏览器（Ctrl+F5） |
-| 白屏 / fatal | 1. 检查 `.htm` hook 是否误用 `<?php exit;`（应只用 `<?php`） 2. 检查 hook 是否用了 `return;`（应用 `if` 包裹） 3. 检查单行注释是否含 `?>` 4. 检查 `esc_textarea()` 调用（不存在，用 `esc_html()`） 5. 检查早期 hook 的 `esc_*` 是否有 `function_exists` 兜底 |
+| 白屏 / fatal | 1. 检查 `.htm` hook 是否误用 `<?php exit;`（应只用 `<?php`） 2. 检查 hook 是否用了 `return;`（应用 `if` 包裹） 3. 检查单行注释是否含 `?>` 4. 检查 `esc_textarea()` 调用（不存在，用 `esc_html()`） 5. 检查早期 hook 的 `esc_*` 是否有 `function_exists` 兜底 6. **检查 hook 文件内是否含 `// hook xxx` 注释**（会被编译器多趟循环误匹配为 hook 占位符，第二趟重复拼接引发 ParseError；改用 `// hook: xxx` 或 `// xxx` 格式） |
 | 扫描器 fatal 拦截安装 | 1. 查 [references/ai-rules.md](references/ai-rules.md) 「扫描器规则分级」定位分类 2. fatal 类（jQuery/Alpine.js/PHP8 语法/危险函数/`hook_htm_header`/`app_path_in_url` 等）不可跳过 3. `conf_version` 拦截：`bbs_version` 必须与当前 `XIUNOX_VERSION` 前两段一致 |
 | `Class not found` | Service 调用核心类前未 `include_once`：`if (!class_exists('XxxService')) { include_once APP_PATH.'lib/XxxService.php'; }`；访问静态属性/常量前必须先确保类加载 |
 | 表前缀重复 / Table not found | `db_*` 函数 `$table` 参数不含前缀（传 `'my_plugin'` 非 `'bbs_my_plugin'`）；取前缀用 `$db->tablepre`，禁止 `$conf['db']['tablepre']` |
@@ -258,6 +275,9 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 - [ ] 头像用 `avatar_component_from_data()`，非原生 `<img>`
 - [ ] PC/移动端双模板 id 加 `-mobile` 后缀
 - [ ] 插件目录名符合 `作者_功能标识` 两段格式；主题类第二段为 `theme`
+- [ ] 静态资源引用带版本号（hook 用 `$static_version`，视图用 `$conf['static_version']`）
+- [ ] UI 组件符合规范：x-card + card、三栏布局骨架、Toast/Modal 场景区分
+- [ ] 视频内联播放、不出现在附件列表中
 
 ## 输出要求
 

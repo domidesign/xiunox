@@ -1077,6 +1077,12 @@ respond @hidden 404
 		// 版块列表（用于版块过滤选择）
 		$all_forums = isset($forumlist_show) ? $forumlist_show : array();
 
+		// 头像形状（从 kv 存储读取，与 avatar_component_get_shape 一致）
+		$avatar_shape = function_exists('setting_get') ? setting_get('avatar_shape') : '';
+		if(!in_array($avatar_shape, array('rounded', 'circle', 'square'), true)) {
+			$avatar_shape = 'rounded';
+		}
+
 		$header['title'] = lang('admin_setting_display');
 		$header['mobile_title'] = lang('admin_setting_display');
 
@@ -1145,64 +1151,77 @@ respond @hidden 404
 		$display_replace['editor_tip'] = $editor_tip;
 		file_replace_var(APP_PATH.'conf/conf.php', $display_replace);
 
+		// 头像形状（kv 存储，setting_set 内部已同步 db 和 cache）
+		$avatar_shape = param('avatar_shape', 'rounded');
+		if(!in_array($avatar_shape, array('rounded', 'circle', 'square'), true)) {
+			$avatar_shape = 'rounded';
+		}
+		setting_set('avatar_shape', $avatar_shape);
+
 		// hook admin_setting_display_post_end.php
 
 		admin_log_create('setting_display', 'setting', '', '修改显示设置');
 		message(0, lang('save_successfully'));
 	}
 
-} elseif($action == 'avatar') {
+} elseif($action == 'creditsrules') {
 
-	// hook admin_setting_avatar_get_post.php
+	include APP_PATH . 'service/CreditsRuleService.php';
 
-	if($method == 'GET') {
+	// hook admin_setting_creditsrules_get_post.php
 
-		// hook admin_setting_avatar_get_start.php
-
-		// 读取当前头像形状(avatar_component_get_shape 走 setting_get('avatar_shape'))
-		$avatar_shape = function_exists('setting_get') ? setting_get('avatar_shape') : '';
-		if(!in_array($avatar_shape, array('rounded', 'circle', 'square'), true)) {
-			$avatar_shape = 'rounded';
-		}
-
-		$header['title'] = lang('admin_setting_avatar');
-		$header['mobile_title'] = lang('admin_setting_avatar');
-
-		// hook admin_setting_avatar_get_end.php
-
-		include _include(ADMIN_PATH.'view/htm/setting_avatar.htm');
-
-	} else {
-
+	if($method == 'POST') {
 		CsrfService::check();
 
-		// hook admin_setting_avatar_post_start.php
+		// hook admin_setting_creditsrules_post_start.php
 
-		$avatar_shape = param('avatar_shape', 'rounded');
-		// 白名单校验,非法值回退到默认 rounded
-		if(!in_array($avatar_shape, array('rounded', 'circle', 'square'), true)) {
-			$avatar_shape = 'rounded';
+		$events = param('events', array());
+		$rules = array();
+		foreach($events as $event) {
+			$rules[] = array(
+				'event' => $event,
+				'credits_change' => param('credits_change_' . $event, 0),
+				'golds_change' => param('golds_change_' . $event, 0),
+				'rmbs_change' => param('rmbs_change_' . $event, 0),
+				'enabled' => param('enabled_' . $event, 0),
+				'daily_limit' => param('daily_limit_' . $event, 0),
+			);
 		}
 
-		// 用 setting_set 保存(走 kv 存储,avatar_component_get_shape 用 setting_get 读取)
-		// setting_set 内部已通过 kv_cache_set 同步更新 db 和 cache,无需手动清缓存
-		setting_set('avatar_shape', $avatar_shape);
+		$result = CreditsRuleService::saveGlobalRules($rules);
 
-		// hook admin_setting_avatar_post_end.php
+		admin_log_create('credits_rule_update', 'credits_rule', '', '修改全局积分规则');
 
-		admin_log_create('setting_avatar', 'setting', '', '修改头像设置: shape=' . $avatar_shape);
+		// hook admin_setting_creditsrules_post_end.php
 
-		// htmx 请求:返回 HTML 片段(成功提示带 data-code),非 htmx 请求:返回 JSON
-		if(isset($_SERVER['HTTP_HX_REQUEST']) && $_SERVER['HTTP_HX_REQUEST'] === 'true') {
-			header('Content-Type: text/html; charset=utf-8');
-			echo '<div class="alert alert-success d-flex align-items-center mb-0" data-code="0" role="alert">';
-			echo '<i class="ti ti-circle-check me-2"></i>';
-			echo '<span>' . esc_html(lang('admin_setting_avatar_saved')) . '</span>';
-			echo '</div>';
-			exit;
-		}
-		message(0, lang('admin_setting_avatar_saved'));
+		message($result['ok'] ? 0 : -1, $result['message']);
 	}
+
+	// hook admin_setting_creditsrules_get_start.php
+
+	$rules = CreditsRuleService::getAllGlobalRules();
+	$rulemap = array();
+	if($rules) {
+		foreach($rules as $r) {
+			$rulemap[$r['event']] = $r;
+		}
+	}
+
+	// 获取版块列表（供版块覆盖 tab 使用）
+	$forumlist = forum_list_cache();
+	$all_forums = array();
+	foreach($forumlist as $f) {
+		if(empty($f['type']) || $f['type'] != 1) {
+			$all_forums[$f['fid']] = $f;
+		}
+	}
+
+	$header['title'] = lang('admin_credits_rule_global');
+	$header['mobile_title'] = lang('admin_credits_rule_global');
+
+	// hook admin_setting_creditsrules_get_end.php
+
+	include _include(ADMIN_PATH.'view/htm/credits_rule.htm');
 
 }
 

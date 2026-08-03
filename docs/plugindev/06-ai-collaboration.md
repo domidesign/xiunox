@@ -82,6 +82,7 @@ setting_set('my_plugin', $settings);
 | **hook 名拼错** | 编译时找不到匹配，静默跳过 | 对照 [03-hooks-catalog.md](03-hooks-catalog.md) 核对 |
 | **lang hook 格式错** | 不匹配 `$lang['key'] = value;` 的行被跳过 | 每行严格 `$lang['my_prefix_xxx'] = 'xxx';` |
 | **model_inc_file 忘了逗号** | 拼进数组时语法错误 | 每行 `APP_PATH.'plugin/...',` 以逗号结尾 |
+| **hook 文件内写 `// hook xxx` 注释** | 编译器多趟循环（最多 10 层）会把 hook 文件内的 `// hook xxx.php` 注释**误匹配为 hook 占位符**，第二趟编译时再次拼接 hook 内容，破坏代码结构引发 `ParseError`。真实案例：xnx_login_alert 的 `// hook my_action_before.php - 处理登录提醒开关保存` 注释导致 `tmp/route_my.php` 出现 `unexpected variable "$_xnx_la_action"` 错误，xnx_verify 被崩溃计数器误禁用 | hook 文件内注释**禁止** `// hook xxx` 格式（`hook` 后跟空格匹配正则 `#//\s*hook\s+([\w\.\-]+)#is`），改用 `// hook: xxx`（冒号分隔）或 `// xxx` 格式 |
 
 ### 运行时 hook 分发：`plugin_hook()`
 

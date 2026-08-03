@@ -13,7 +13,9 @@ XIUNOX（XIUNO BBS X 重构版）插件开发规范与速查文档。文档面�
 | [references/api-cheatsheet.md](references/api-cheatsheet.md) | API 速查（param/URL/DB CRUD/model/权限/KV/安全/全局变量） | 查函数签名 |
 | [references/hooks-catalog.md](references/hooks-catalog.md) | Hook 点速查（280+ hook，按页面分类，已核对源码真实存在） | 查 hook 注入点 |
 | [references/frontend-patterns.md](references/frontend-patterns.md) | 前端模式速查（CSS/JS 加载顺序/htmx 4 事件/XN.* API/lightbox/CSRF） | 查前端模式 |
+| [references/ui-patterns.md](references/ui-patterns.md) | UI/样式规范速查（静态资源版本号/三栏布局/Card 组件/Toast vs Modal/视频附件显示/Tab 导航/表单交互） | 查 UI 样式规范 |
 | [references/admin-patterns.md](references/admin-patterns.md) | 后台 UI 模式速查（Tab 独立页面/后台入口/GET 搜索/分页 URL/命名快捷函数/菜单注册） | 查后台 UI 模式 |
+| [references/security-patterns.md](references/security-patterns.md) | 安全模式速查（CAS/幂等设计/GET_LOCK/部分成功回滚/频率限制） | 查并发安全与积分防刷 |
 
 ### 配套完整手册（plugindev/，深入细节时查）
 
@@ -45,6 +47,7 @@ XIUNOX（XIUNO BBS X 重构版）插件开发规范与速查文档。文档面�
 - **查 API 签名** → [references/api-cheatsheet.md](references/api-cheatsheet.md)
 - **查 hook 注入点** → [references/hooks-catalog.md](references/hooks-catalog.md)
 - **前端/htmx 4/安全速查** → [references/frontend-patterns.md](references/frontend-patterns.md)
+- **UI/样式规范速查** → [references/ui-patterns.md](references/ui-patterns.md)（静态资源版本号、Card 组件、Toast vs Modal、视频显示等）
 
 **深入细节（plugindev/，速查不够时查）**：
 - **理解架构原理** → [plugindev/01-architecture.md](../plugindev/01-architecture.md)
@@ -53,6 +56,7 @@ XIUNOX（XIUNO BBS X 重构版）插件开发规范与速查文档。文档面�
 - **查完整 API 速查** → [plugindev/04-api-cheatsheet.md](../plugindev/04-api-cheatsheet.md)
 - **不确定某条规则** → [plugindev/06-ai-collaboration.md](../plugindev/06-ai-collaboration.md)（规则详情）
 - **前端/htmx/安全详解** → [plugindev/05-frontend-security.md](../plugindev/05-frontend-security.md)
+- **UI/样式/弹窗规范** → [plugindev/14-plugin-admin-ui.md](../plugindev/14-plugin-admin-ui.md)（第 15 节：前端 UI 偏好规范）
 - **运行时安全/崩溃自动禁用** → [plugindev/07-runtime-safety.md](../plugindev/07-runtime-safety.md)
 - **登录安全/账号锁定** → [plugindev/08-login-security.md](../plugindev/08-login-security.md)
 - **头像渲染/头像角标/头像框扩展** → [plugindev/12-avatar-component.md](../plugindev/12-avatar-component.md)

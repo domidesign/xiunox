@@ -25,6 +25,7 @@
 | 编辑器工具栏按钮集成 | [11-editor-toolbar-integration.md](11-editor-toolbar-integration.md)（★hook 机制加按钮） |
 | 头像组件使用与扩展 | [12-avatar-component.md](12-avatar-component.md)（★统一头像渲染 + hook 扩展） |
 | 开发后台/前台 UI 界面 | [14-plugin-admin-ui.md](14-plugin-admin-ui.md)（★UI 规范总览：Tab 独立页面 / x-card / 三栏布局 / 后台入口 / 搜索分页 / 弹窗） |
+| 并发安全 / 积分防刷 / 重放攻击防护 | [15-concurrency-security.md](15-concurrency-security.md)（★CAS 模式 / 幂等设计 / GET_LOCK / 部分成功回滚） |
 | [插件互斥机制开发者指南](plugin-mutex-guide.md) | 主题插件互斥、功能插件冲突避免、目录命名规范 |
 
 文件命名带数字前缀，可按顺序读，也可单查。

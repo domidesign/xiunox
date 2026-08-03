@@ -20,6 +20,7 @@
 | [10. 命名快捷函数完整列表](#10-命名快捷函数完整列表) | `admin_url` / `admin_plugin_*` / `frontend_*` | `model/route.func.php` |
 | [11. 弹窗规范](#11-弹窗规范) | toast vs Modal 场景区分 | `view/js/xiuno-modern.js` |
 | [12. 真实示例对照](#12-真实示例对照) | xnx_checkin / xnx_friendlink 规范点对照表 | — |
+| [15. 前端 UI 偏好规范](#15-前端-ui-偏好规范) | Toast vs Modal 场景区分 / 视频内联 / 卡片规范 / Tab 导航 / 表单交互 | — |
 
 ---
 
@@ -302,6 +303,96 @@ Card 内列表项用 `py-*` / `mb-*` 间距分隔，**禁止用 `border-top` / `
 ```
 
 > **禁止用 `border` 的场景**：卡片容器、列表分隔、区块分隔。如需视觉分区，用 `x-card` 的阴影、背景色差异（`bg-body-tertiary`）或间距（`my-*`/`gap-*`）替代。
+
+### 3.5 右侧栏插件模块 card header 规范
+
+> **范本来源**：首页右侧栏「幸运抽奖」(`xnx_lottery`)、「热门话题」(`xnx_tag`)、「友情链接」(`xnx_friendlink`) 三个卡片样式统一。所有插件右侧栏模块卡片必须照此对齐。
+
+#### 适用范围
+
+凡通过以下任一方式注入右侧栏的插件卡片，均受本规范约束：
+
+- 通过 hook 注入首页 `view/htm/sidebar_right.inc.htm` 的卡片（`index_site_brief_after.htm` / `sidebar_friendlink_after.htm` 等）
+- 通过 hook 注入帖子详情页右侧栏的卡片（`thread_side_after.htm` 等）
+- 插件独立页（`/xnx_checkin.html`、`/dice.html` 等）`<div class="col-xl-3">` 右侧栏内的卡片
+- 详情页底部「相关帖子」等附属于帖子页的卡片
+
+#### 强制格式
+
+```html
+<div class="x-card card mt-3">
+    <div class="card-body">
+        <h3 class="card-title small"><i class="ti ti-xxx"></i> 标题</h3>
+    </div>
+    <div class="card-body">
+        <!-- 卡片正文 -->
+    </div>
+</div>
+```
+
+#### 关键约定
+
+| 项 | 规范 | 反例 |
+|---|---|---|
+| 外层 class 顺序 | `x-card card mt-3`（x-card 在前） | `card x-card`（顺序倒置） |
+| 标题容器 | **不用 `card-header`**，直接 `<div class="card-body">` 包 `<h3>` | `<div class="card-header bg-transparent border-0 pb-0">` |
+| 标题标签 | `<h3 class="card-title small">` | `<h5 class="fw-bold">` / `<h6 class="fw-semibold">` |
+| 标题字重 | 由 `card-title small` 控制，**不附加 `fw-bold`/`fw-semibold`/`mb-0`** | `fw-bold` |
+| 图标间距 | 图标后用 HTML 自然空格 + 文字，**不加 `me-1`/`me-2`** | `me-2` |
+| 图标着色 | 可选，写在 `<i>` 上（如 `text-warning`/`text-primary`） | 强制无色或单独包 span |
+| 副标题 | 紧跟主标题，用 `<small class="text-muted ms-2">副标题</small>` 放在同一个 `<h3>` 内 | 单独成行 `<small>` |
+
+#### 副标题处理
+
+部分卡片需附副标题（如「盈亏排行榜 · 实时更新」），主副标题放在同一个 `<h3>` 内，不另起一行：
+
+```html
+<h3 class="card-title small">
+    <i class="ti ti-trophy text-warning"></i> 盈亏排行榜
+    <small class="text-muted ms-2">实时更新</small>
+</h3>
+```
+
+#### 范本对照（首页右侧栏）
+
+| 插件 | 卡片 | 源文件 |
+|---|---|---|
+| `xnx_lottery` | 幸运抽奖 | `plugin/xnx_lottery/view/htm/lottery_sidebar.htm` |
+| `xnx_tag` | 热门话题 | `plugin/xnx_tag/hook/index_site_brief_after.htm`（hook 内联） |
+| `xnx_friendlink` | 友情链接 | `plugin/xnx_friendlink/hook/sidebar_friendlink_after.htm` |
+
+#### 反例（已迁移至范本）
+
+```html
+<!-- ❌ 反例 A：card-header + h6 + fw-semibold + me-1（xnx_related 旧写法） -->
+<div class="x-card card mt-3 mb-3">
+    <div class="card-header bg-transparent border-bottom-0 py-2">
+        <h6 class="mb-0 fw-semibold"><i class="ti ti-link me-1"></i>相关帖子</h6>
+    </div>
+    <div class="card-body">...</div>
+</div>
+
+<!-- ❌ 反例 B：card-header + h5 + fw-bold + me-2（xnx_checkin 旧写法） -->
+<div class="card x-card" id="xo-mood-stats-card">
+    <div class="card-header bg-transparent border-0 pb-0">
+        <h5 class="mb-0 fw-bold">
+            <i class="ti ti-mood-happy me-2 text-warning"></i>今日心情
+        </h5>
+    </div>
+    <div class="card-body">...</div>
+</div>
+
+<!-- ❌ 反例 C：副标题单独成行（xnx_dice 旧写法） -->
+<div class="card x-card mt-3">
+    <div class="card-header bg-transparent border-0 pb-0">
+        <h6 class="mb-0 fw-bold">
+            <i class="ti ti-trophy me-2 text-warning"></i>盈亏排行榜
+        </h6>
+        <small class="text-muted" style="font-size:0.7em">实时更新</small>
+    </div>
+    <div class="card-body">...</div>
+</div>
+```
 
 ---
 
@@ -1026,3 +1117,81 @@ XN.alert('提示内容', { type: 'danger', title: '确认删除' });
 | 后台入口按钮 | 插件列表"设置"按钮自动出现 | 侧边栏 hook 注入链接 |
 | 分页 | 手动拼接（`{page}` 不编码） | `url()` + `$params`（独立入口 URL 无 `.htm` 路由参数问题） |
 | 适用场景 | 配置项 + 记录列表 | 独立 CRUD 列表 + 审核流程 + 批量操作 |
+
+---
+
+## 15. 前端 UI 偏好规范
+
+> 速查版见 [../xiunox-plugin-dev/references/ui-patterns.md](../xiunox-plugin-dev/references/ui-patterns.md)
+
+### 15.1 Toast vs Modal 场景区分
+
+**Toast（轻提示）**：操作结果反馈，3 秒自动消失
+- 操作成功（保存成功/已复制/已删除）
+- 操作失败（网络错误/保存失败/权限不足）
+- 普通信息提示（请先选择/已加载完成）
+- 警告提示（请填写完整/余额不足）
+
+**Modal（弹窗）**：需要用户确认或详细阅读
+- 需要确认的操作（删除/卸载/重置等不可逆操作）→ `XN.confirm()`
+- 重要错误或长文本提示 → `XN.alert()`
+- 需要用户输入文本（重命名/填写原因）→ `XN.prompt()`
+- 关键业务提示（将扣除积分/将影响 N 个用户）→ `XN.confirm()` 或 `XN.alert()`
+
+```js
+// Toast 示例
+XN.toast('保存成功', 'success');
+XN.toast('网络错误', 'danger');
+XN.toast('余额不足', 'warning');
+XN.toast('信息提示', 'info', 5000);
+
+// Confirm Modal 示例
+XN.confirm('确定要删除吗？删除后不可恢复。').then(function() {
+    // 执行删除
+});
+
+// Alert Modal 示例
+XN.alert('这是一个重要的提示内容。', { type: 'danger', title: '错误提示' });
+
+// Prompt Modal 示例
+XN.prompt('请输入新名称：', '当前名称').then(function(name) {
+    if (name) { /* 保存 */ }
+});
+```
+
+### 15.2 视频与附件显示
+
+- **视频**：作为内联播放器显示在正文位置，不出现在附件列表中，不显示下载链接
+- **附件列表**：仅显示图片、文档等非视频附件
+- **附件内视频过滤**：`<?php if ($att['type'] === 'video') continue; ?>`
+
+### 15.3 Tab 导航
+
+- 每个子 Tab 前加图标（`ti ti-xxx`）
+- 单个 Tab 可点击展开/折叠
+- Tab 之间用独立 URL 跳转，不是 DOM 切换
+
+### 15.4 表单交互
+
+- 提交时禁用提交按钮 + 显示 loading 状态，防重复提交
+- htmx 表单用 `hx-on::before-request` 禁用、`hx-on::after-request` 恢复
+
+### 15.5 按钮规范
+
+- 禁止在按钮上使用 `w-100` 类
+- 主要操作用 `btn-primary`、次要用 `btn-secondary`、危险用 `btn-danger`
+- 按钮间距用 `d-flex gap-2`
+
+### 15.6 个人签名与侧边栏
+
+- 个人签名放在统计信息上方，浅色背景（`bg-light`），与论坛描述样式一致
+- 右侧边栏放置帖子目录（替代"最新帖子"区域）
+
+### 15.7 静态资源版本号
+
+插件 JS/CSS 必须带版本号：
+- Hook 文件用 `$static_version`（`header.inc.htm` 已定义）
+- 视图文件用 `$conf['static_version']`
+- 推荐用 `filemtime()` 动态版本号
+
+详见 [05-frontend-security.md 第 1.5 节](05-frontend-security.md#15-前端-ui-偏好规范)

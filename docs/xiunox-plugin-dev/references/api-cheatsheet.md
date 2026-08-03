@@ -343,4 +343,39 @@ echo '<script>var x = '.esc_js($value).';</script>';
 
 ---
 
-> 详细说明与完整 API 见 [plugindev/04-api-cheatsheet.md](../../plugindev/04-api-cheatsheet.md)
+## 9. 邮件发送（异步推荐）
+
+### 核心函数
+
+| 函数 | 签名 | 说明 |
+|---|---|---|
+| `xn_send_mail` | `xn_send_mail($smtp, $from_name, $to_email, $subject, $body, $options)` | 同步发送，阻塞直到完成。返回 TRUE 或错误字符串 |
+| `xn_send_mail_async` | `xn_send_mail_async($smtp, $from_name, $to_email, $subject, $body, $options)` | **异步发送，立即返回 TRUE**，不阻塞页面。内部用 `register_shutdown_function` + `fastcgi_finish_request` 实现 |
+| `xn_smtp_get` | `xn_smtp_get()` | 从 `smtp.conf.php` 获取随机 SMTP 配置，无配置返回 FALSE |
+
+### 辅助函数
+
+| 函数 | 签名 | 说明 |
+|---|---|---|
+| `xn_email_rate_check` | `xn_email_rate_check($email, $ip = '')` | 频率检查。通过返回 TRUE，超限返回错误消息字符串 |
+| `xn_email_rate_record` | `xn_email_rate_record($email, $ip = '')` | 记录发送，供下次频率检查 |
+| `xn_email_template` | `xn_email_template($key, $vars)` | 渲染邮件模板，返回 `['subject'=>..., 'body'=>...]` |
+
+### 推荐用法
+
+```php
+// 异步发送（推荐）：立即返回，不阻塞页面跳转
+xn_send_mail_async($smtp, $from_name, $email, $subject, $body, ['is_html' => TRUE]);
+
+// 频率限制检查
+$rate = xn_email_rate_check($email, $longip);
+if ($rate !== TRUE) message(-1, $rate);
+
+// 实际发送结果需查 email_log 表
+xn_email_rate_record($email, $longip);
+message(0, '验证码已发送');
+```
+
+> ⚠️ `xn_send_mail_async()` 立即返回 TRUE，无法同步获取结果。验证结果请查 `bbs_email_log` 表。
+>
+> 详细说明（`$options` 参数、频率规则、模板格式）见 [plugindev/04-api-cheatsheet.md](../../plugindev/04-api-cheatsheet.md#11-邮件发送-api)
