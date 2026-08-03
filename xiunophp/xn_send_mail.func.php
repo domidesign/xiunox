@@ -187,6 +187,32 @@ function xn_email_log_write($to_email, $subject, $smtp_host, $status, $error_msg
 }
 
 /**
+ * 异步发送邮件
+ *
+ * 通过 register_shutdown_function 在响应发送给客户端后再调用 xn_send_mail，
+ * 避免阻塞当前请求（如登录响应、API 响应）。
+ *
+ * ponytail: 这是"伪异步"——PHP-FPM 进程仍会等 shutdown 函数执行完才回收，
+ * 仅对用户感知不阻塞。真异步需 queue + worker，本次不引入。
+ *
+ * 调用方无法拿到返回值；失败信息由 xn_send_mail() 内部写入 email_log 表
+ * （xn_email_log_write）与 xn_error，此处仅兜底防御未捕获异常。
+ *
+ * 参数与 xn_send_mail() 完全一致。
+ */
+function xn_send_mail_async($smtp, $from_name, $to_email, $subject, $body, $options = array()) {
+    register_shutdown_function(function() use ($smtp, $from_name, $to_email, $subject, $body, $options) {
+        try {
+            xn_send_mail($smtp, $from_name, $to_email, $subject, $body, $options);
+        } catch (\Throwable $e) {
+            // ponytail: async 模式脱离请求上下文，xn_send_mail 内部已 try/catch PHPMailerException
+            // 并写入 email_log；此处仅兜底未捕获异常（如 SMTP 配置异常抛 Error），避免 fatals
+            error_log('[xn_send_mail_async] ' . $e->getMessage());
+        }
+    });
+}
+
+/**
  * 从 smtp.conf.php 获取 SMTP 配置并随机选择一个
  * 统一的 SMTP 配置获取入口
  *

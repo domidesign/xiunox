@@ -628,6 +628,16 @@ function user_token_get() {
 	return $_uid;
 }
 
+// 判断两个 IP 是否同 C 段（/24）
+// ponytail: 用于 token IP 校验容错——多 IP 出口服务器下同 /24 网段视为可信
+function user_ip_same_c_segment($ip1, $ip2) {
+	$long1 = ip2long($ip1);
+	$long2 = ip2long($ip2);
+	if($long1 === false || $long2 === false) return $ip1 === $ip2;
+	// /24 掩码：保留前 24 位，后 8 位忽略
+	return ($long1 & 0xFFFFFF00) === ($long2 & 0xFFFFFF00);
+}
+
 // 用户
 function user_token_get_do() {
 	global $time, $ip, $conf;
@@ -644,7 +654,10 @@ function user_token_get_do() {
 	if(count($arr) != 4) return FALSE;
 	list($_ip, $_time, $_uid, $_pwd) = $arr;
 	// IP 校验（防止 token 被盗后跨 IP 复用）
-	if($ip != $_ip) return FALSE;
+	// ponytail: 放宽为同 C 段匹配——多 IP 出口服务器（如负载均衡/多网卡）下，
+	// 同 /24 网段视为可信，避免 IP 漂移导致用户被强制退出。
+	// 天花板：攻击者需在受害者的同 C 段内才能复用 token，与同网吧/同公司内威胁等级相当。
+	if(!user_ip_same_c_segment($ip, $_ip)) return FALSE;
 	//if($time - $_time > 86400) return FALSE;
 	// 检查密码是否被修改。
 	if($time - $_time > 1800) {

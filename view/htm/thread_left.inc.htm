@@ -1,6 +1,6 @@
 <?php if($page == 1): ?>
 <!-- 帖子详情页左侧操作栏（替换全局导航） -->
-<div class="thread-action-bar" style="position:sticky;top:5rem">
+<div class="thread-action-bar" style="position:sticky;top:5rem;z-index:10">
     <!--{hook thread_action_bar_top.htm}-->
     <div class="d-flex flex-column align-items-center gap-3 py-3">
         <?php if((!empty($thread['closed']) || (isset($thread['audit_status']) && $thread['audit_status'] != 1)) && (empty($uid) || $gid > 5)) { ?>

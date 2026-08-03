@@ -401,15 +401,12 @@ if(empty($action)) {
 			message(-1, $rate_check);
 		}
 
-		$r = xn_send_mail($smtp, $conf['sitename'], $email, $subject, $message, array('is_html'=>TRUE));
-
-		if($r !== TRUE) {
-			// xn_send_mail 失败时返回错误字符串（非 FALSE），需用 !== TRUE 判断
-			$err_detail = is_string($r) ? $r : '邮件发送失败，请检查邮箱配置';
-			message(-1, '邮件发送失败：' . $err_detail);
-		}
-
+		// 频率记录：先记录防止绕过频率限制连续调用
 		xn_email_rate_record($email, $longip);
+
+		// 伪异步发送：通过 register_shutdown_function 在响应返回客户端后再执行 SMTP 发送
+		// ponytail: 异步模式无法获取返回值，邮件失败由 xn_send_mail() 内部写入 email_log 表
+		xn_send_mail_async($smtp, $conf['sitename'], $email, $subject, $message, array('is_html'=>TRUE));
 
 		// hook my_send_email_code_end.php
 
