@@ -233,6 +233,12 @@ if(!empty($conflicts)) {
 }
 	
 	$msg = lang('plugin_install_sucessfully', array('name'=>$name));
+
+	// 递增 static_version，强制浏览器刷新 JS/CSS 缓存
+	if (function_exists('conf_bump_static_version')) {
+		conf_bump_static_version();
+	}
+
 	message(0, $msg, array('redirect_url' => admin_plugin_url()));
 	} else {
 		// GET: 已改为弹窗确认，直接返回列表页
@@ -388,8 +394,13 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 
 		admin_log_create('plugin_upgrade', 'plugin', $dir, '升级插件：' . $name);
 
+		// 递增 static_version，强制浏览器刷新 JS/CSS 缓存
+		if (function_exists('conf_bump_static_version')) {
+			conf_bump_static_version();
+		}
+
 		$msg = lang('plugin_upgrade_sucessfully', array('name'=>$name));
-	message(0, $msg, array('redirect_url' => admin_plugin_url()));
+		message(0, $msg, array('redirect_url' => admin_plugin_url()));
 	} else {
 		// GET: 已改为弹窗确认，直接返回列表页
 		$dir = param_word(2);
@@ -736,12 +747,17 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 		}
 
 		plugin_clear_tmp_dir();
-		plugin_lock_end();
+	plugin_lock_end();
 
-		admin_log_create('plugin_upgrade', 'plugin', $pluginDir, '上传升级插件：'.$pluginName);
+	admin_log_create('plugin_upgrade', 'plugin', $pluginDir, '上传升级插件：'.$pluginName);
 
-		$msg = lang('plugin_upload_upgrade_success', array('name'=>$pluginName, 'version'=>$newVersion));
-		message(0, $msg, array('redirect_url' => admin_plugin_url()));
+	// 递增 static_version，强制浏览器刷新 JS/CSS 缓存
+	if (function_exists('conf_bump_static_version')) {
+		conf_bump_static_version();
+	}
+
+	$msg = lang('plugin_upload_upgrade_success', array('name'=>$pluginName, 'version'=>$newVersion));
+	message(0, $msg, array('redirect_url' => admin_plugin_url()));
 	}
 
 } elseif($action == 'scanner') {
@@ -826,6 +842,10 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 	if (!empty($result['ok'])) {
 		$name = isset($plugins[$dir]['name']) ? $plugins[$dir]['name'] : $dir;
 		admin_log_create('plugin_install', 'plugin', $dir, '安装官方插件：' . $name);
+		// 递增 static_version，强制浏览器刷新 JS/CSS 缓存
+		if (function_exists('conf_bump_static_version')) {
+			conf_bump_static_version();
+		}
 		message(0, lang('plugin_marketplace_install_success', array('name' => $name)));
 	} else {
 		message(-1, isset($result['message']) ? $result['message'] : lang('plugin_marketplace_download_failed'));
@@ -850,6 +870,10 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 	if (!empty($result['ok'])) {
 		$name = isset($plugins[$dir]['name']) ? $plugins[$dir]['name'] : $dir;
 		admin_log_create('plugin_upgrade', 'plugin', $dir, '升级官方插件：' . $name);
+		// 递增 static_version，强制浏览器刷新 JS/CSS 缓存
+		if (function_exists('conf_bump_static_version')) {
+			conf_bump_static_version();
+		}
 		message(0, lang('plugin_marketplace_upgrade_success', array('name' => $name, 'version' => $version)));
 	} else {
 		$msg = isset($result['message']) ? $result['message'] : lang('plugin_marketplace_download_failed');
