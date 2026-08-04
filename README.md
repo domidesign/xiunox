@@ -2,7 +2,7 @@
 
 > **当前版本：v1.1.0**
 
-基于 [Xiuno BBS 4.0.4](xiunobbs4.0.4.md) 原版打造的现代化重构版本 XIUNOX。
+基于 [Xiuno BBS 4.0.4](docs/xiunobbs4.0.4.md) 原版打造的现代化重构版本 XIUNOX。
 （项目前期曾使用 Xiuno BBS v4.5+、Xiuno Next 作为项目名称，现已更名为 XIUNOX）
 
 全面适配 PHP 8 + MySQL 8，采用 Bootstrap 5.3 与 HTMX 4 构建现代无刷新 UI，
@@ -68,7 +68,7 @@ xiunobbs/
 
 ## 快速开始
 
-详见 [安装教程](install.md)。
+详见 [安装教程](docs/install.md)。
 
 ## 使用文档
 
@@ -78,7 +78,7 @@ xiunobbs/
 ## 插件开发
 
 详见 [插件开发手册](docs/plugindev/README.md)（多文件版，推荐）；
-旧版 [plugindev.md](plugindev.md) 保留作为历史参考。
+旧版 [plugindev.md](docs/plugindev.md) 保留作为历史参考。
 
 ## 多语言支持
 

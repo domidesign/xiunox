@@ -404,9 +404,12 @@ if(empty($action)) {
 		// 频率记录：先记录防止绕过频率限制连续调用
 		xn_email_rate_record($email, $longip);
 
-		// 伪异步发送：通过 register_shutdown_function 在响应返回客户端后再执行 SMTP 发送
-		// ponytail: 异步模式无法获取返回值，邮件失败由 xn_send_mail() 内部写入 email_log 表
-		xn_send_mail_async($smtp, $conf['sitename'], $email, $subject, $message, array('is_html'=>TRUE));
+		// 同步发送：SMTP 握手 + 发送完成后再返回响应，确保用户查邮箱时邮件已到达
+		// ponytail: 同步模式会阻塞请求 1-5 秒（SMTP 握手），前端按钮配合 loading 状态避免重复点击
+		$send_result = xn_send_mail($smtp, $conf['sitename'], $email, $subject, $message, array('is_html'=>TRUE));
+		if($send_result !== TRUE) {
+			message(-1, lang('send_failed') . '：' . $send_result);
+		}
 
 		// hook my_send_email_code_end.php
 

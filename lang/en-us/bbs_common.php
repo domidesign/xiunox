@@ -134,6 +134,7 @@ return array(
 	'discard_draft'=>'Discard draft',
 	'captcha_error'=>'Captcha error',
 	'captcha_sent'=>'Captcha sent',
+	'sending'=>'Sending...',
 	'post_reply_interval_short'=>'Reply interval too short, please try again in {seconds} seconds',
 	'post_same_thread_frequent'=>'Replying too frequently in the same thread, please try again in {seconds} seconds',
 	'post_reply_rate_limited'=>'Replying too frequently, please try again in {seconds} seconds',

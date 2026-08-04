@@ -138,6 +138,73 @@ chmod -R 0777 upload/ plugin/ tmp/ log/ conf/
 
 > **安全提示**：0777 允许任意用户写入，存在安全隐患。生产环境务必优先使用 chown 方案，仅在本地开发或无法确定 Web 服务器用户时才使用 0777。
 
+### 1.4 PHP 函数禁用配置（disable_functions）
+
+> **重要**：宝塔、1Panel、aaPanel 等面板默认会通过 `disable_functions` 禁用一批"危险函数"，部分默认禁用项会破坏 XiunoX 核心功能。**PHP 8+ 中 `@` 错误抑制符无法捕获 `Error: Call to undefined function`**，被禁用的函数一旦被调用，脚本会直接崩溃，Web 服务器返回 502 Bad Gateway。
+
+#### 必需函数（禁止禁用，否则核心功能崩溃）
+
+| 函数 | 用途 | 禁用后果 |
+|------|------|----------|
+| `chmod` | 缓存系统设置文件权限（`cache_file->set()` 写文件后调用） | **缓存写入即崩溃**，在线升级、登录、发帖等所有写操作返回 502 |
+| `mkdir` / `rmdir` | 创建/删除目录（`tmp/`、`upload/` 子目录、插件临时目录） | 上传、安装插件、清缓存失败 |
+| `touch` | 创建锁文件、缓存文件 | 维护模式、在线升级锁失效 |
+| `unlink` | 删除文件、清理缓存 | 缓存清理失败，升级流程卡死 |
+| `file_get_contents` / `file_put_contents` | 文件读写基础函数 | 站点完全不可用 |
+| `copy` / `rename` | 文件复制与移动 | 在线升级覆盖文件失败、插件上传失败 |
+| `set_time_limit` | 延长脚本执行时间（AI 流式响应、在线升级下载） | AI 对话超时崩溃、在线升级下载步骤 502 |
+| `putenv` | 部分扩展（如 Sendmail 邮件）需要读取环境变量 | 邮件发送失败 |
+| `ob_start` / `ob_end_flush` / `flush` | 输出缓冲控制（AI SSE 流式响应必需） | AI 流式响应不工作 |
+| `setlocale` | 本地化字符处理、排序 | 多语言字符显示异常 |
+
+#### 可选函数（禁用后部分功能不可用，但已加守卫不会崩溃）
+
+| 函数 | 用途 | 禁用后果 |
+|------|------|----------|
+| `shell_exec` / `exec` / `system` | `AttachmentService` 调用 `ffprobe` 探测视频元数据（宽高、时长） | 视频缩略图不显示，发帖不受影响 |
+| `passthru` / `popen` / `proc_open` | 命令执行类（项目仅用于视频元数据探测，已加 `function_exists` 守卫） | 同上 |
+| `opcache_reset` | 清理 OPcache 字节码（升级、插件启用后必需） | 升级后新代码不生效，需手动重启 PHP-FPM |
+| `mime_content_type` | 文件类型检测（PHP 8.0+ 默认启用，极少被禁用） | 附件类型识别退化为扩展名判断 |
+
+#### 建议的 `disable_functions` 配置
+
+宝塔等面板的「禁用函数」页面通常会列出默认禁用项，**请逐一移除以下函数**：`chmod`、`mkdir`、`rmdir`、`touch`、`unlink`、`set_time_limit`、`putenv`、`copy`、`rename`。
+
+保留以下安全相关禁用项即可（XiunoX 不使用）：
+
+```ini
+disable_functions = exec,system,passthru,shell_exec,popen,proc_open,pcntl_exec,show_source,highlight_file,phpinfo
+```
+
+> **注意**：如果需要视频缩略图功能，请同时移除 `exec`、`shell_exec`、`system`、`passthru`、`popen`、`proc_open` 的禁用（XiunoX 已用 `function_exists` 守卫，禁用后只是不显示视频缩略图，不会崩溃）。
+
+#### 验证配置
+
+修改 `php.ini` 或面板「禁用函数」后，重启 PHP-FPM：
+
+```bash
+# systemd 系统
+sudo systemctl restart php8.5-fpm
+
+# 宝塔面板
+# 软件商店 → PHP 8.5 → 重启
+```
+
+验证必需函数是否可用：
+
+```bash
+php -r "foreach(['chmod','mkdir','touch','unlink','set_time_limit','putenv'] as \$f){echo \$f.': '.(function_exists(\$f)?'OK':'DISABLED').PHP_EOL;}"
+```
+
+预期输出全部为 `OK`，若有 `DISABLED` 则需继续在面板中移除该函数。
+
+#### 常见踩坑
+
+- **502 Bad Gateway 且日志含 `Call to undefined function chmod()`**：`chmod` 被禁用，移除即可
+- **AI 对话流式响应中断、502**：`set_time_limit` 被禁用，移除即可
+- **升级后页面无变化**：`opcache_reset` 被禁用，手动 `systemctl restart php8.5-fpm` 后再升级
+- **宝塔面板修改后仍不生效**：宝塔有「PHP-FPM 配置」和「PHP 配置」两处禁用函数，必须同步修改
+
 ---
 
 ## 2. 安装步骤
@@ -1002,7 +1069,7 @@ VS Code `launch.json`：
 
 ### 9.7 代码结构速查
 
-详见 [docs/README.md](docs/README.md) 了解项目分层：
+详见 [README.md](../README.md) 了解项目分层：
 - `route/` — 前台路由
 - `admin/route/` — 后台路由
 - `api/v1/` — API 端点

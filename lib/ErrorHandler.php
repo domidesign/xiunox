@@ -266,37 +266,77 @@ class ErrorHandler
         // 禁用插件只写 db bbs_plugin 表（唯一权威源），不再 file_replace_var 写 conf.json
 
         // 1. 写数据库 enable=0
-        global $db, $tablepre, $time;
-        if (is_object($db) && function_exists('db_update') && isset($tablepre)) {
+        // ponytail: 检查 $_SERVER['db']（与 db_update 内部一致），不依赖 global $db（fatal 时可能未声明）
+        // db_update 失败必须记录日志，否则会出现"显示已禁用但实际未禁用"的假阳性
+        $db_disabled_ok = FALSE;
+        $now = time();
+        if (isset($_SERVER['db']) && is_object($_SERVER['db']) && function_exists('db_update')) {
             try {
-                db_update('plugin', array('dir' => $plugin_dir), array('enable' => 0, 'update_time' => $time));
+                db_update('plugin', array('dir' => $plugin_dir), array('enable' => 0, 'update_time' => $now));
+                // 验证写入是否成功（db_update 静默返回 FALSE 时不抛异常，需主动校验）
+                $verify = function_exists('db_find_one') ? db_find_one('plugin', array('dir' => $plugin_dir)) : array();
+                if (!empty($verify) && (int)$verify['enable'] === 0) {
+                    $db_disabled_ok = TRUE;
+                } else {
+                    xn_log("autoDisableCrashedPlugin: db_update executed but verify failed for [{$plugin_dir}]", 'plugin_crash_error');
+                }
             } catch (\Throwable $e) {
-                // 忽略数据库错误
+                xn_log("autoDisableCrashedPlugin: db_update failed for [{$plugin_dir}]: " . $e->getMessage(), 'plugin_crash_error');
             }
+        } else {
+            xn_log("autoDisableCrashedPlugin: db not available, skip disable for [{$plugin_dir}]", 'plugin_crash_error');
         }
 
         // 2. 清 tmp 编译缓存，触发下次请求重新编译（已禁用插件的 hook 不会被编译进去）
+        // ponytail: PHP 8+ 中 @ 不捕获 Error（disabled functions 抛 Error），xn_unlink 内部用 @unlink
+        // 若 unlink 被禁用会终止脚本，故用 function_exists 守卫 + try/catch 兜底
         global $conf;
+        $tmp_files_deleted = FALSE;
+        $tmp_files_invalidated = 0;
         if (isset($conf['tmp_path'])) {
             $tmp_path = $conf['tmp_path'];
-            if (function_exists('xn_unlink')) {
-                // 核心编译产物
-                @xn_unlink($tmp_path . 'index.inc.php');
-                // 编译后的 model/route/view 文件（含插件 hook 注入）
-                foreach((array)glob($tmp_path . 'model_*.func.php') as $f) @xn_unlink($f);
-                foreach((array)glob($tmp_path . 'route_*.php') as $f) @xn_unlink($f);
-                foreach((array)glob($tmp_path . 'view_htm_*.htm') as $f) @xn_unlink($f);
-                foreach((array)glob($tmp_path . 'plugin_*.php') as $f) @xn_unlink($f);
+            $tmp_patterns = array(
+                'index.inc.php',
+                'model_*.func.php',
+                'route_*.php',
+                'view_htm_*.htm',
+                'plugin_*.php',
+            );
+            $deleted_any = FALSE;
+            foreach ($tmp_patterns as $pattern) {
+                $files = glob($tmp_path . $pattern);
+                if (empty($files)) continue;
+                foreach ($files as $f) {
+                    // 删除前先 opcache_invalidate（文件还在，可强制当前 worker 丢弃旧字节码）
+                    // ponytail: opcache_invalidate 仅当前 worker 生效，其他 worker 需依赖 validate_timestamps 或重启 FPM
+                    if (function_exists('opcache_invalidate') && is_file($f)) {
+                        try { @opcache_invalidate($f, true); $tmp_files_invalidated++; } catch (\Throwable $e) {}
+                    }
+                    try {
+                        if (function_exists('unlink') && is_file($f)) {
+                            @unlink($f);
+                            $deleted_any = TRUE;
+                        }
+                    } catch (\Throwable $e) {
+                        xn_log("autoDisableCrashedPlugin: unlink failed for {$f}: " . $e->getMessage(), 'plugin_crash_error');
+                    }
+                }
             }
+            $tmp_files_deleted = $deleted_any;
             // 确保 tmp 目录存在（rmdir_recusive 可能已删除）
             if (!is_dir($tmp_path)) {
-                @mkdir($tmp_path, 0755, TRUE);
+                if (function_exists('mkdir')) {
+                    @mkdir($tmp_path, 0755, TRUE);
+                }
             }
         }
 
         // 3. 同步清理数据缓存 + OPcache（与 plugin_clear_tmp_dir() 保持一致）
         // ponytail: PHP-FPM 多进程环境下，只清 tmp/ 不足以让其他 worker 进程丢弃旧字节码
         // 若不清理 OPcache，worker 仍执行已包含禁用插件 hook 的旧字节码，导致循环崩溃
+        // ponytail: opcache_reset() 只清当前 worker 进程的 OPcache，其他 worker 不受影响
+        //   依赖 tmp/ 文件 mtime 变化触发其他 worker 的 validate_timestamps 重载（若启用）
+        //   若 validate_timestamps=0，其他 worker 需重启 PHP-FPM 才能丢弃旧字节码
         if(class_exists('CacheService', false)) {
             try {
                 CacheService::clearByType(array('data', 'opcache'));
@@ -306,6 +346,26 @@ class ErrorHandler
         } else {
             if(function_exists('opcache_reset')) { @opcache_reset(); }
             if(function_exists('cache_truncate')) { @cache_truncate(); }
+        }
+
+        // 4. 重置计数（避免后续每次崩溃都重复执行禁用逻辑并显示"已自动禁用"消息）
+        // ponytail: 即使 db_update 失败也重置计数，避免 1 小时内反复刷"已禁用"消息误导用户
+        //   若 db 真的没禁用成功，下次崩溃会重新计数到阈值再次尝试禁用（覆盖 db_update 偶发失败场景）
+        if (function_exists('cache_delete')) {
+            @cache_delete($cache_key);
+        } elseif (function_exists('cache_set')) {
+            @cache_set($cache_key, 0, 3600);
+        }
+
+        // 日志汇总：记录禁用结果，便于排查"显示已禁用但实际没禁用"问题
+        // ponytail: PHP-FPM 多 worker + validate_timestamps=0 环境下，其他 worker 仍可能执行旧字节码
+        //   需重启 PHP-FPM 才能彻底生效，此处日志提示管理员关注
+        xn_log("autoDisableCrashedPlugin done: plugin=[{$plugin_dir}] db_ok={$db_disabled_ok} tmp_deleted={$tmp_files_deleted} opcache_invalidated={$tmp_files_invalidated} fpm_workers_warning=may_need_fpm_restart_if_validate_timestamps_off", 'plugin_crash_error');
+
+        // 若 db 未禁用成功，不返回 plugin_dir（不显示"已自动禁用"消息，避免误导用户）
+        // ponytail: db 失败时用户看到的应该是"服务器内部错误"，由管理员手动排查
+        if (!$db_disabled_ok) {
+            return null;
         }
 
         return $plugin_dir;

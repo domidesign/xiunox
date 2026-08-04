@@ -134,6 +134,7 @@ return array(
 	'discard_draft'=>'放弃草稿',
 	'captcha_error'=>'验证码错误',
 	'captcha_sent'=>'验证码已发送',
+	'sending'=>'发送中...',
 	'post_reply_interval_short'=>'回复间隔太短，请{seconds}秒后再试',
 	'post_same_thread_frequent'=>'在同一主题回复太频繁，请{seconds}秒后再试',
 	'post_reply_rate_limited'=>'回复过于频繁，请{seconds}秒后再试',

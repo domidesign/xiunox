@@ -76,6 +76,9 @@ function sendVerifyCode(btn, extraData) {
 	if(csrfToken) data.csrf_token = csrfToken.getAttribute('content');
 
 	var originalText = btn.textContent;
+	// 同步发送期间显示 loading 文本并禁用按钮，避免用户重复点击（SMTP 握手需 1-5 秒）
+	btn.disabled = true;
+	btn.textContent = bbs_lang.sending || 'Sending...';
 
 	XN.post(url, data, function(code, msg) {
 		if(code == 0) {
@@ -83,7 +86,6 @@ function sendVerifyCode(btn, extraData) {
 			// 倒计时秒数从后端返回的 wait 字段获取，默认 60 秒
 			var countdown = (this && this.wait) ? parseInt(this.wait) : 60;
 			if(isNaN(countdown) || countdown < 1) countdown = 60;
-			btn.disabled = true;
 			btn.textContent = countdown + 's';
 			var timer = setInterval(function() {
 				countdown--;
@@ -96,6 +98,9 @@ function sendVerifyCode(btn, extraData) {
 				}
 			}, 1000);
 		} else {
+			// 失败恢复按钮可点击，便于用户重试
+			btn.disabled = false;
+			btn.textContent = originalText;
 			if(typeof XN.toast === 'function') XN.toast(msg || bbs_lang.send_failed, 'danger');
 		}
 	});

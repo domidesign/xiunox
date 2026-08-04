@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API 调试台</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 20px; background: #f5f7fa; color: #333; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 { margin: 0 0 20px; font-size: 20px; color: #1a73e8; }
+  .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 16px; }
+  .card h2 { margin: 0 0 16px; font-size: 15px; color: #202124; border-left: 3px solid #1a73e8; padding-left: 10px; }
+  .row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .field { flex: 1; min-width: 200px; }
+  label { display: block; font-size: 12px; color: #5f6368; margin-bottom: 4px; font-weight: 500; }
+  input, select, textarea { width: 100%; padding: 8px 10px; border: 1px solid #dadce0; border-radius: 4px; font-size: 13px; font-family: inherit; }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: #1a73e8; }
+  textarea { font-family: monospace; resize: vertical; }
+  button { padding: 8px 16px; background: #1a73e8; color: #fff; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; font-weight: 500; }
+  button:hover { background: #1557b0; }
+  button.secondary { background: #fff; color: #1a73e8; border: 1px solid #1a73e8; }
+  button.secondary:hover { background: #e8f0fe; }
+  button:disabled { background: #ccc; cursor: not-allowed; }
+  button.small { padding: 4px 10px; font-size: 12px; }
+  .log { background: #202124; color: #e8eaed; padding: 12px; border-radius: 4px; font-family: "SF Mono", Consolas, monospace; font-size: 12px; line-height: 1.6; max-height: 500px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+  .log .ok { color: #34a853; }
+  .log .err { color: #ea4335; }
+  .log .warn { color: #fbbc04; }
+  .log .info { color: #8ab4f8; }
+  .log .step { color: #f9a825; font-weight: bold; }
+  .log .url { color: #c792ea; }
+  .status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .status-2xx { background: #e6f4ea; color: #137333; }
+  .status-4xx { background: #fce8e6; color: #c5221f; }
+  .status-5xx { background: #fef7e0; color: #b06000; }
+  .status-err { background: #fce8e6; color: #c5221f; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .hint { font-size: 12px; color: #5f6368; margin-top: 8px; padding: 8px 10px; background: #e8f0fe; border-radius: 4px; }
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid #dadce0; margin-bottom: 16px; flex-wrap: wrap; }
+  .tab { padding: 8px 16px; cursor: pointer; font-size: 13px; color: #5f6368; border-bottom: 2px solid transparent; }
+  .tab.active { color: #1a73e8; border-bottom-color: #1a73e8; font-weight: 500; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .result-block { margin-top: 12px; border-top: 1px dashed #dadce0; padding-top: 12px; }
+  .token-display { font-family: monospace; font-size: 11px; background: #f1f3f4; padding: 8px; border-radius: 4px; word-break: break-all; margin-top: 8px; }
+  .file-list { margin-top: 8px; }
+  .file-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: #f1f3f4; border-radius: 4px; margin-bottom: 4px; font-size: 12px; }
+  .file-item .key { font-family: monospace; color: #1a73e8; }
+  .file-item .del { color: #ea4335; cursor: pointer; }
+  .attach-keys { font-family: monospace; font-size: 11px; background: #fef7e0; padding: 6px 8px; border-radius: 4px; margin-top: 6px; word-break: break-all; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>API 调试台</h1>
+
+  <div class="card">
+    <h2>1. 登录获取 Token</h2>
+    <div class="row">
+      <div class="field">
+        <label>API 站点地址（如 https://example.com，不要带末尾 /）</label>
+        <input type="text" id="baseUrl" placeholder="https://your-site.com" data-save>
+      </div>
+      <div class="field">
+        <label>X-App-Id</label>
+        <input type="text" id="appId" placeholder="app_xxx" data-save>
+      </div>
+      <div class="field">
+        <label>X-App-Secret（服务端模式，留空则走客户端模式）</label>
+        <input type="password" id="appSecret" placeholder="可选，填了走服务端认证" data-save>
+      </div>
+    </div>
+    <div class="hint">客户端模式（只填 App-Id）：安全靠 Bearer token，限流更严。服务端模式（填 App-Secret）：完整认证，支持 skip_captcha / skip_rate_limit 等能力。表单数据自动保存在浏览器本地。</div>
+    <div class="row">
+      <div class="field">
+        <label>邮箱 / 用户名</label>
+        <input type="text" id="email" placeholder="admin@example.com" data-save>
+      </div>
+      <div class="field">
+        <label>密码</label>
+        <input type="password" id="password" placeholder="password" data-save>
+      </div>
+      <div class="field" style="max-width: 120px;">
+        <label>&nbsp;</label>
+        <button id="btnLogin" style="width:100%">登录</button>
+      </div>
+    </div>
+    <div class="hint">提示：本页面直接从浏览器调用 /api/v1/auth/login。登录成功会自动填充下方 Token，供后续所有接口使用。</div>
+    <div id="loginResult" style="display:none;" class="result-block">
+      <div>HTTP 状态：<span id="loginStatus"></span></div>
+      <div>响应体：</div>
+      <pre class="log" id="loginResp"></pre>
+      <div id="tokenBlock" style="display:none;">
+        <div style="margin-top:8px;font-size:12px;color:#5f6368;">提取的 access_token：</div>
+        <div class="token-display" id="tokenDisplay"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. 接口测试（自动带 Token）</h2>
+    <div class="tabs">
+      <div class="tab active" data-tab="thread">发新帖</div>
+      <div class="tab" data-tab="post">发回复</div>
+      <div class="tab" data-tab="attach">上传附件</div>
+      <div class="tab" data-tab="getpost">查帖子列表</div>
+      <div class="tab" data-tab="custom">自定义</div>
+    </div>
+
+    <!-- 发新帖 -->
+    <div class="tab-content active" id="tab-thread">
+      <div class="row">
+        <div class="field" style="max-width:300px;">
+          <label>版块（先点"加载版块"获取列表）</label>
+          <div class="actions">
+            <select id="threadForum" style="flex:1;"><option value="">请先加载版块</option></select>
+            <button id="btnLoadForums" class="small secondary">加载版块</button>
+          </div>
+        </div>
+        <div class="field" style="max-width:120px;">
+          <label>或手动填 fid</label>
+          <input type="number" id="threadFid" value="1" data-save>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>subject（标题）</label>
+          <input type="text" id="threadSubject" value="API 测试发帖" data-save>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>message（内容，支持 BBCode/HTML）</label>
+          <textarea id="threadMessage" rows="4" data-save>这是通过 API 调试台发送的测试内容。</textarea>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>attach_keys（可选，逗号分隔，从"上传附件"tab 获取）</label>
+          <input type="text" id="threadAttachKeys" placeholder="如 attach_xxx,attach_yyy">
+        </div>
+      </div>
+      <div class="actions">
+        <button id="btnThread" class="secondary">发送 POST /api/v1/thread</button>
+      </div>
+    </div>
+
+    <!-- 发回复 -->
+    <div class="tab-content" id="tab-post">
+      <div class="row">
+        <div class="field" style="max-width:150px;">
+          <label>tid（主题ID）</label>
+          <input type="number" id="postTid" value="1" data-save>
+        </div>
+        <div class="field">
+          <label>message（回复内容）</label>
+          <input type="text" id="postMessage" value="test reply from api_test" data-save>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>attach_keys（可选）</label>
+          <input type="text" id="postAttachKeys" placeholder="如 attach_xxx,attach_yyy">
+        </div>
+      </div>
+      <div class="actions">
+        <button id="btnPost" class="secondary">发送 POST /api/v1/post</button>
+      </div>
+    </div>
+
+    <!-- 上传附件 -->
+    <div class="tab-content" id="tab-attach">
+      <div class="row">
+        <div class="field">
+          <label>选择文件（支持图片/视频/普通文件）</label>
+          <input type="file" id="attachFile">
+        </div>
+        <div class="field" style="max-width:120px;">
+          <label>&nbsp;</label>
+          <button id="btnUpload" class="secondary" style="width:100%">上传</button>
+        </div>
+      </div>
+      <div class="hint">上传成功后会返回 attach_key，复制到发帖/回复的 attach_keys 字段即可关联附件。</div>
+      <div class="file-list" id="attachList"></div>
+      <div id="attachResult" style="display:none;" class="result-block">
+        <div>HTTP 状态：<span id="attachStatus"></span></div>
+        <div>响应体：</div>
+        <pre class="log" id="attachResp"></pre>
+      </div>
+    </div>
+
+    <!-- 查帖子列表 -->
+    <div class="tab-content" id="tab-getpost">
+      <div class="row">
+        <div class="field" style="max-width:150px;">
+          <label>tid</label>
+          <input type="number" id="getPostTid" value="1" data-save>
+        </div>
+        <div class="field" style="max-width:100px;">
+          <label>page</label>
+          <input type="number" id="getPostPage" value="1" data-save>
+        </div>
+        <div class="field" style="max-width:100px;">
+          <label>pagesize</label>
+          <input type="number" id="getPostPagesize" value="10" data-save>
+        </div>
+      </div>
+      <button id="btnGetPost" class="secondary">发送 GET /api/v1/post?tid=xxx</button>
+    </div>
+
+    <!-- 自定义 -->
+    <div class="tab-content" id="tab-custom">
+      <div class="row">
+        <div class="field" style="max-width:100px;">
+          <label>Method</label>
+          <select id="customMethod">
+            <option>GET</option><option selected>POST</option><option>PUT</option><option>DELETE</option>
+          </select>
+        </div>
+        <div class="field" style="max-width:200px;">
+          <label>路径（/api/v1/ 之后）</label>
+          <input type="text" id="customPath" value="post" placeholder="如 post / thread / auth/login" data-save>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Body（JSON）</label>
+          <textarea id="customBody" rows="3" data-save>{"tid":1,"message":"test"}</textarea>
+        </div>
+      </div>
+      <button id="btnCustom" class="secondary">发送</button>
+    </div>
+
+    <div id="apiResult" style="display:none;" class="result-block">
+      <div>请求：<span id="apiReqUrl" class="url"></span></div>
+      <div>HTTP 状态：<span id="apiStatus"></span></div>
+      <div>响应头（部分）：</div>
+      <pre class="log" id="apiHeaders" style="max-height:120px;"></pre>
+      <div>响应体：</div>
+      <pre class="log" id="apiResp"></pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>3. 日志输出（每一步的详情）</h2>
+    <div class="actions" style="margin-bottom:8px;">
+      <button id="btnClearLog" class="secondary" style="font-size:12px;">清空日志</button>
+      <button id="btnClearStorage" class="secondary" style="font-size:12px;">清空本地存储</button>
+    </div>
+    <pre class="log" id="logBox">等待操作...</pre>
+  </div>
+</div>
+
+<script>
+let currentToken = '';
+let uploadedAttachKeys = [];
+
+const $ = id => document.getElementById(id);
+const logBox = $('logBox');
+
+function log(msg, cls = '') {
+  const span = `<span class="${cls}">${escapeHtml(msg)}</span>`;
+  logBox.innerHTML += span + '\n';
+  logBox.scrollTop = logBox.scrollHeight;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function statusBadge(code) {
+  let cls = 'status-err';
+  if (code >= 200 && code < 300) cls = 'status-2xx';
+  else if (code >= 400 && code < 500) cls = 'status-4xx';
+  else if (code >= 500) cls = 'status-5xx';
+  return `<span class="status ${cls}">${code}</span>`;
+}
+function formatJson(text) {
+  try { return JSON.stringify(JSON.parse(text), null, 2); }
+  catch(e) { return text; }
+}
+// 构建公共请求头（包含 X-App-Id + 可选 X-App-Secret + 可选 Authorization）
+function buildHeaders(withAuth) {
+  const h = { 'X-App-Id': $('appId').value.trim() };
+  const secret = $('appSecret').value.trim();
+  if (secret) h['X-App-Secret'] = secret;
+  if (withAuth && currentToken) h['Authorization'] = 'Bearer ' + currentToken;
+  return h;
+}
+
+// Tab 切换
+document.querySelectorAll('.tab').forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    $('tab-' + t.dataset.tab).classList.add('active');
+  };
+});
+
+$('btnClearLog').onclick = () => { logBox.innerHTML = '已清空\n'; };
+
+// === 本地存储：自动保存和恢复带 data-save 属性的字段 ===
+const STORAGE_KEY = 'api_test_form_v1';
+
+// 页面加载时恢复数据
+function loadForm() {
+  try {
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    document.querySelectorAll('[data-save]').forEach(el => {
+      const id = el.id;
+      if (data[id] !== undefined) el.value = data[id];
+    });
+    if (Object.keys(data).length > 0) log('[i] 已从本地存储恢复 ' + Object.keys(data).length + ' 个字段', 'info');
+  } catch(e) { /* 静默失败 */ }
+}
+
+// 自动保存（输入时防抖）
+let saveTimer = null;
+function saveForm() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const data = {};
+    document.querySelectorAll('[data-save]').forEach(el => { data[el.id] = el.value; });
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+  }, 300);
+}
+document.querySelectorAll('[data-save]').forEach(el => {
+  el.addEventListener('input', saveForm);
+  el.addEventListener('change', saveForm);
+});
+
+// 清空本地存储
+$('btnClearStorage').onclick = () => {
+  if (!confirm('确定清空所有保存的表单数据？此操作不可撤销。')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  document.querySelectorAll('[data-save]').forEach(el => { el.value = ''; });
+  log('[!] 已清空本地存储', 'warn');
+};
+
+// 页面加载时恢复
+loadForm();
+
+// 1. 登录
+$('btnLogin').onclick = async () => {
+  const base = $('baseUrl').value.replace(/\/+$/, '');
+  const appId = $('appId').value.trim();
+  const email = $('email').value.trim();
+  const password = $('password').value;
+
+  if (!base || !appId || !email || !password) {
+    log('[!] 请填完 baseUrl / appId / email / password', 'err');
+    return;
+  }
+
+  log('========================================', 'step');
+  log('[STEP 1] 登录', 'step');
+  log(`URL: ${base}/api/v1/auth/login`, 'url');
+  log(`Headers: X-App-Id=${appId}${$('appSecret').value.trim() ? ', X-App-Secret=***' : ''}, Content-Type=application/json`);
+
+  $('btnLogin').disabled = true;
+  $('btnLogin').textContent = '登录中...';
+
+  try {
+    const headers = buildHeaders(false);
+    headers['Content-Type'] = 'application/json';
+    const resp = await fetch(`${base}/api/v1/auth/login`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ email, password })
+    });
+
+    const text = await resp.text();
+    log(`HTTP ${resp.status} ${resp.statusText}`, resp.ok ? 'ok' : 'err');
+
+    $('loginResult').style.display = 'block';
+    $('loginStatus').innerHTML = statusBadge(resp.status);
+    $('loginResp').textContent = formatJson(text);
+
+    let parsed = null;
+    try { parsed = JSON.parse(text); } catch(e) { log('[!] 响应不是 JSON！原始内容如上', 'warn'); }
+
+    if (parsed && parsed.code === 0 && parsed.data && parsed.data.access_token) {
+      currentToken = parsed.data.access_token;
+      $('tokenBlock').style.display = 'block';
+      $('tokenDisplay').textContent = currentToken;
+      log(`✓ 登录成功，access_token 长度=${currentToken.length}`, 'ok');
+      log(`  uid=${parsed.data.uid}, expires_in=${parsed.data.expires_in}`, 'info');
+    } else if (parsed && parsed.code === -1003) {
+      log('[!] 账号或 IP 被锁定（message -1003）', 'warn');
+      log(`  message: ${parsed.message || ''}`, 'warn');
+    } else if (parsed && parsed.code != null) {
+      log(`[!] 登录失败 code=${parsed.code} msg=${parsed.msg||parsed.message||''}`, 'err');
+    } else {
+      log('[!] 响应格式异常，未能提取 access_token', 'err');
+    }
+  } catch (e) {
+    log(`[!] 请求失败: ${e.message}`, 'err');
+    log('  常见原因：CORS 跨域 / 网络不通 / 站点 URL 错误', 'warn');
+    $('loginResult').style.display = 'block';
+    $('loginStatus').innerHTML = '<span class="status status-err">NETWORK</span>';
+    $('loginResp').textContent = e.stack || e.message;
+  } finally {
+    $('btnLogin').disabled = false;
+    $('btnLogin').textContent = '登录';
+  }
+};
+
+// 加载版块列表
+$('btnLoadForums').onclick = async () => {
+  const base = $('baseUrl').value.replace(/\/+$/, '');
+  if (!base) { log('[!] 请先填写 baseUrl', 'err'); return; }
+  if (!currentToken) { log('[!] 没有 token，请先登录', 'err'); return; }
+
+  log('========================================', 'step');
+  log('[STEP] 加载版块列表', 'step');
+  log(`URL: ${base}/api/v1/forum/tree`, 'url');
+
+  try {
+    const resp = await fetch(`${base}/api/v1/forum/tree`, {
+      headers: buildHeaders(true)
+    });
+    const text = await resp.text();
+    log(`HTTP ${resp.status}`, resp.ok ? 'ok' : 'err');
+
+    const parsed = JSON.parse(text);
+    if (parsed.code === 0 && Array.isArray(parsed.data)) {
+      const select = $('threadForum');
+      select.innerHTML = '<option value="">-- 选择版块 --</option>';
+      // 递归展平版块（含子版块）
+      function flatten(forums, depth) {
+        forums.forEach(f => {
+          const prefix = depth > 0 ? '  '.repeat(depth) + '└ ' : '';
+          const opt = document.createElement('option');
+          opt.value = f.fid;
+          opt.textContent = `${prefix}${f.name} (fid=${f.fid})`;
+          select.appendChild(opt);
+          if (f.children && f.children.length) flatten(f.children, depth + 1);
+        });
+      }
+      flatten(parsed.data, 0);
+      log(`✓ 加载到 ${parsed.data.length} 个顶级版块`, 'ok');
+    } else {
+      log(`[!] 加载失败: ${parsed.msg||parsed.message||''}`, 'err');
+      $('apiResult').style.display = 'block';
+      $('apiResp').textContent = formatJson(text);
+    }
+  } catch (e) {
+    log(`[!] 请求失败: ${e.message}`, 'err');
+  }
+};
+
+// 版块下拉选择同步到 fid 输入框
+$('threadForum').onchange = () => {
+  const val = $('threadForum').value;
+  if (val) $('threadFid').value = val;
+};
+
+// 2. API 调用（JSON）
+async function callApi(method, path, body) {
+  const base = $('baseUrl').value.replace(/\/+$/, '');
+  if (!base) { log('[!] 请先填写 baseUrl', 'err'); return null; }
+  if (!currentToken) { log('[!] 没有 token，请先登录', 'err'); return null; }
+
+  log('========================================', 'step');
+  log(`[STEP] ${method} ${path}`, 'step');
+  log(`URL: ${base}/api/v1/${path}`, 'url');
+  log(`Headers: Authorization=Bearer ${currentToken.slice(0,16)}...(${currentToken.length})${$('appSecret').value.trim() ? ', X-App-Secret=***' : ''}`);
+
+  const headers = buildHeaders(true);
+  if (body && method !== 'GET') headers['Content-Type'] = 'application/json';
+
+  const url = method === 'GET' && body ? `${base}/api/v1/${path}?${body}` : `${base}/api/v1/${path}`;
+
+  try {
+    const resp = await fetch(url, {
+      method,
+      headers,
+      body: (body && method !== 'GET') ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined
+    });
+    const text = await resp.text();
+
+    log(`HTTP ${resp.status} ${resp.statusText}`, resp.ok ? 'ok' : 'err');
+
+    $('apiResult').style.display = 'block';
+    $('apiReqUrl').textContent = `${method} ${url}`;
+    $('apiStatus').innerHTML = statusBadge(resp.status);
+
+    const interesting = ['content-type', 'x-ratelimit-remaining', 'x-api-version', 'location'];
+    const headerLines = [];
+    resp.headers.forEach((v, k) => {
+      if (interesting.includes(k.toLowerCase())) headerLines.push(`${k}: ${v}`);
+    });
+    $('apiHeaders').textContent = headerLines.join('\n') || '(无重要头)';
+    $('apiResp').textContent = formatJson(text);
+
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.code === 0) log(`✓ 成功 code=0`, 'ok');
+      else if (parsed.code === 401) log(`[!] 401 未授权: ${parsed.msg||parsed.message||''}`, 'err');
+      else log(`code=${parsed.code} msg=${parsed.msg||parsed.message||''}`, 'warn');
+      return parsed;
+    } catch(e) {
+      log('[!] 响应不是 JSON，可能是 HTML 错误页', 'warn');
+      return null;
+    }
+  } catch (e) {
+    log(`[!] 请求失败: ${e.message}`, 'err');
+    return null;
+  }
+}
+
+// 发新帖
+$('btnThread').onclick = () => {
+  const fid = parseInt($('threadFid').value);
+  const subject = $('threadSubject').value;
+  const message = $('threadMessage').value;
+  const attach_keys = $('threadAttachKeys').value.trim();
+  if (!fid || !subject || !message) {
+    log('[!] fid / subject / message 不能为空', 'err'); return;
+  }
+  const body = { fid, subject, message };
+  if (attach_keys) body.attach_keys = attach_keys;
+  callApi('POST', 'thread', body);
+};
+
+// 发回复
+$('btnPost').onclick = () => {
+  const tid = parseInt($('postTid').value);
+  const message = $('postMessage').value;
+  const attach_keys = $('postAttachKeys').value.trim();
+  if (!tid || !message) { log('[!] tid / message 不能为空', 'err'); return; }
+  const body = { tid, message };
+  if (attach_keys) body.attach_keys = attach_keys;
+  callApi('POST', 'post', body);
+};
+
+// 查帖子列表
+$('btnGetPost').onclick = () => {
+  const tid = $('getPostTid').value;
+  const page = $('getPostPage').value;
+  const pagesize = $('getPostPagesize').value;
+  callApi('GET', 'post', `tid=${tid}&page=${page}&pagesize=${pagesize}`);
+};
+
+// 上传附件
+$('btnUpload').onclick = async () => {
+  const base = $('baseUrl').value.replace(/\/+$/, '');
+  if (!base) { log('[!] 请先填写 baseUrl', 'err'); return; }
+  if (!currentToken) { log('[!] 没有 token，请先登录', 'err'); return; }
+  const fileInput = $('attachFile');
+  if (!fileInput.files || !fileInput.files[0]) { log('[!] 请选择文件', 'err'); return; }
+  const file = fileInput.files[0];
+
+  log('========================================', 'step');
+  log('[STEP] 上传附件', 'step');
+  log(`URL: ${base}/api/v1/attach`, 'url');
+  log(`File: ${file.name} (${file.size} bytes, ${file.type})`);
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const resp = await fetch(`${base}/api/v1/attach`, {
+      method: 'POST',
+      headers: buildHeaders(true), // 不设 Content-Type，让浏览器自动加 multipart boundary
+      body: formData
+    });
+    const text = await resp.text();
+    log(`HTTP ${resp.status}`, resp.ok ? 'ok' : 'err');
+
+    $('attachResult').style.display = 'block';
+    $('attachStatus').innerHTML = statusBadge(resp.status);
+    $('attachResp').textContent = formatJson(text);
+
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.code === 0 && parsed.data) {
+        const key = parsed.data.attach_key || parsed.data.key || parsed.data.url;
+        if (key) {
+          uploadedAttachKeys.push(key);
+          updateAttachList();
+          log(`✓ 上传成功，attach_key=${key}`, 'ok');
+        }
+      } else {
+        log(`[!] 上传失败: ${parsed.msg||parsed.message||''}`, 'err');
+      }
+    } catch(e) {
+      log('[!] 响应不是 JSON', 'warn');
+    }
+  } catch (e) {
+    log(`[!] 请求失败: ${e.message}`, 'err');
+  }
+};
+
+function updateAttachList() {
+  const list = $('attachList');
+  if (uploadedAttachKeys.length === 0) { list.innerHTML = ''; return; }
+  list.innerHTML = '<div style="font-size:12px;color:#5f6368;margin-bottom:4px;">已上传的 attach_key（点击复制到发帖/回复框）：</div>';
+  uploadedAttachKeys.forEach((key, i) => {
+    const item = document.createElement('div');
+    item.className = 'file-item';
+    item.innerHTML = `<span class="key">${escapeHtml(key)}</span><span class="del" data-idx="${i}">✕ 删除</span>`;
+    list.appendChild(item);
+  });
+  const keysStr = uploadedAttachKeys.join(',');
+  const keysDiv = document.createElement('div');
+  keysDiv.className = 'attach-keys';
+  keysDiv.textContent = '全部 keys: ' + keysStr;
+  list.appendChild(keysDiv);
+
+  // 绑定复制和删除
+  list.querySelectorAll('.key').forEach(el => {
+    el.style.cursor = 'pointer';
+    el.title = '点击复制';
+    el.onclick = () => {
+      navigator.clipboard.writeText(el.textContent).then(() => {
+        log(`已复制: ${el.textContent}`, 'info');
+      });
+    };
+  });
+  list.querySelectorAll('.del').forEach(el => {
+    el.onclick = () => {
+      const idx = parseInt(el.dataset.idx);
+      uploadedAttachKeys.splice(idx, 1);
+      updateAttachList();
+      log('已删除一个 attach_key', 'warn');
+    };
+  });
+}
+
+// 自定义
+$('btnCustom').onclick = () => {
+  const method = $('customMethod').value;
+  const path = $('customPath').value.replace(/^\/+/, '');
+  const bodyRaw = $('customBody').value.trim();
+  let body = bodyRaw;
+  if (bodyRaw && method !== 'GET') {
+    try { body = JSON.parse(bodyRaw); } catch(e) { /* 保持字符串 */ }
+  }
+  callApi(method, path, body);
+};
+</script>
+</body>
+</html>

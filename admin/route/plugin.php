@@ -45,9 +45,12 @@ if($action == 'local') {
 		// 检测是否存在 upgrade.php（用于显示升级按钮）
 		$plugin['has_upgrade_file'] = is_file(APP_PATH."plugin/$dir/upgrade.php");
 
-		// 检测是否需要升级：已安装 + conf.json.version 与 db.version 不一致 + 存在 upgrade.php
+		// 检测是否需要升级：已安装 + conf.json.version 与 db.version 不一致
+		// ponytail: 不要求 has_upgrade_file——纯 JS/CSS/语言包/模板修改的插件没有 upgrade.php，
+		//   递增版本号也应显示升级按钮，让用户点击后同步 db 版本号 + 清缓存（强制刷新静态资源）
+		//   违反 project_rules"任何插件修改必须递增 version 触发需升级提示"会导致版本号形同虚设
 		$plugin['need_upgrade'] = 0;
-		if (!empty($plugin['installed']) && !empty($plugin['has_upgrade_file'])) {
+		if (!empty($plugin['installed'])) {
 			$_code_ver = isset($plugin['version']) ? $plugin['version'] : '';
 			$_db_ver = isset($plugin['db_version']) ? $plugin['db_version'] : '';
 			if ($_code_ver !== '' && $_code_ver !== $_db_ver) {
