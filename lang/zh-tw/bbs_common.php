@@ -132,6 +132,7 @@ return array(
 	'discard_draft'=>'放棄草稿',
 	'captcha_error'=>'驗證碼錯誤',
 	'captcha_sent'=>'驗證碼已發送',
+	'sending'=>'發送中...',
 	'post_reply_interval_short'=>'回覆間隔太短，請{seconds}秒後再試',
 	'post_same_thread_frequent'=>'在同壹主題回覆太頻繁，請{seconds}秒後再試',
 	'post_reply_rate_limited'=>'回覆過於頻繁，請{seconds}秒後再試',

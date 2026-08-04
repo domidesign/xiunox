@@ -314,6 +314,9 @@ jsend_code_btn.addEventListener('click', function() {
 		return;
 	}
 	jsend_code_btn.disabled = true;
+	// 同步发送期间显示 loading 文本，SMTP 握手需 1-5 秒
+	var originalText = jsend_code_btn.textContent;
+	jsend_code_btn.textContent = <?php echo json_encode(lang('sending'));?>;
 	var body = new URLSearchParams();
 	body.append('email', email);
 	var csrfMeta = document.querySelector('meta[name="csrf-token"]');
@@ -347,10 +350,12 @@ jsend_code_btn.addEventListener('click', function() {
 		} else {
 			if(typeof XN.toast === 'function') XN.toast(msg || 'Error', 'danger');
 			jsend_code_btn.disabled = false;
+			jsend_code_btn.textContent = originalText;
 		}
 	}).catch(function() {
 		if(typeof XN.toast === 'function') XN.toast('Error', 'danger');
 		jsend_code_btn.disabled = false;
+		jsend_code_btn.textContent = originalText;
 	});
 });
 

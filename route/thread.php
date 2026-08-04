@@ -995,7 +995,10 @@ $header['mobile_link'] = forum_url($fid);
 $header['keywords'] = '';
 // SEO: description 优先用正文前 120 字摘要，正文为空时回退到标题
 // ponytail: strip_tags 后需 html_entity_decode 解码 &nbsp;/&amp; 等，否则 SERP 显示实体字面量
+// ponytail: 移除 BBCode 标签块（如 [hidden]...[/hidden]），strip_tags 不处理方括号标签
 $_seo_desc = isset($first['message']) ? strip_tags($first['message']) : '';
+$_seo_desc = preg_replace('/\[[a-z][a-z0-9_]*(?:\s+[^\]]*)?\].*?\[\/\1\]/si', '', $_seo_desc);
+$_seo_desc = preg_replace('/\[\/?[a-z][a-z0-9_]*(?:\s+[^\]]*)?\]/si', '', $_seo_desc);
 $_seo_desc = html_entity_decode($_seo_desc, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 $_seo_desc = trim(preg_replace('/\s+/', ' ', $_seo_desc));
 $header['description'] = $_seo_desc !== '' ? mb_substr($_seo_desc, 0, 120, 'UTF-8') : $thread['subject'];

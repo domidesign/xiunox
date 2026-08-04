@@ -98,6 +98,9 @@
                 $plugin['install_time'] = array_value($plugin, 'install_time', 0);
                 $plugin['enable_time'] = array_value($plugin, 'enable_time', 0);
                 $plugin['type'] = array_value($plugin, 'type', 0);
+                // 显示版本号：已安装显示 db_version（已安装版本），未安装 fallback 到 code_ver
+                // ponytail: 显示 db_version 让用户能确认升级生效（1.0.0→1.0.1），避免"已显示新版但还有升级按钮"的困惑
+                $display_version = !empty($plugin['db_version']) ? $plugin['db_version'] : $plugin['version'];
             ?>
             <div class="col-12 col-md-6 col-lg-4 col-xl-3">
                 <div class="x-card card   hover-shadow">
@@ -111,7 +114,7 @@
                             <div class="flex-grow-1">
                                 <div class="mb-1  fw-medium	  text-truncate text-xl" title="<?php echo esc_attr($plugin['name'] ?? '');?>"><?php echo esc_html($plugin['name'] ?? '');?></div>
                                 <div class="d-flex flex-wrap gap-1 align-items-center">
-                                    <span class="badge bg-secondary">v<?php echo esc_html($plugin['version'] ?? '');?></span>
+                                    <span class="badge bg-secondary">v<?php echo esc_html($display_version ?? '');?></span>
                                     <span class="badge <?php echo $plugin['type'] == 1 ? 'bg-warning' : 'bg-primary';?>">
                                         <?php echo $plugin['type'] == 1 ? lang('admin_template_type') : lang('admin_plugin_type');?>
                                     </span>

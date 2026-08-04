@@ -391,9 +391,12 @@ switch ($action) {
             // 设置频率限制标记
             cache_set($rate_key, 1, $interval);
 
-            // 伪异步发送：通过 register_shutdown_function 在响应返回客户端后再执行 SMTP 发送
-            // ponytail: 异步模式无法获取返回值，邮件失败由 xn_send_mail() 内部写入 email_log 表
-            xn_send_mail_async($smtp, $conf['sitename'], $email, $subject, $message, array('is_html' => TRUE));
+            // 同步发送：SMTP 握手 + 发送完成后再返回响应，确保用户查邮箱时邮件已到达
+            // ponytail: 同步模式会阻塞请求 1-5 秒（SMTP 握手），API 客户端需配合超时设置
+            $send_result = xn_send_mail($smtp, $conf['sitename'], $email, $subject, $message, array('is_html' => TRUE));
+            if ($send_result !== TRUE) {
+                ApiResponse::error(500, lang('send_failed') . '：' . $send_result);
+            }
 
             ApiResponse::success(array('wait' => $interval), 'send_code_successfully');
 
