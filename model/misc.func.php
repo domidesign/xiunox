@@ -710,6 +710,48 @@ function user_ban_hidden_notice_html() {
 	return '<div class="alert alert-warning py-2 px-3 mb-2 small"><i class="ti ti-eye-off me-1"></i>' . lang('user_ban_content_hidden') . '</div>';
 }
 
+/**
+ * 递增 conf/conf.php 中的 static_version 末段数字
+ * 用于在线重装、插件升级/安装等场景，强制浏览器刷新 JS/CSS 缓存
+ * 核心升级走 UpgradeService::adjustConfig()，不调用此函数（避免与 conf 整体写回冲突）
+ * @return array {ok, old, new, message}
+ */
+function conf_bump_static_version() {
+	$confFile = APP_PATH . 'conf/conf.php';
+	if (!is_writable($confFile)) {
+		return array('ok' => false, 'old' => '', 'new' => '', 'message' => 'conf/conf.php 不可写');
+	}
+
+	// ponytail: 直接读文件而非运行时 $conf，避免 index.php 覆盖 version 后状态不一致
+	$conf = include $confFile;
+	if (!is_array($conf)) {
+		return array('ok' => false, 'old' => '', 'new' => '', 'message' => 'conf/conf.php 格式异常');
+	}
+
+	$currentSv = isset($conf['static_version']) ? $conf['static_version'] : '?1.0';
+	if (preg_match('/^(.*?)(\d+)$/', $currentSv, $m)) {
+		$newSv = $m[1] . (((int)$m[2]) + 1);
+	} else {
+		$newSv = '?' . (defined('XIUNOX_VERSION') ? XIUNOX_VERSION : '1.0');
+	}
+
+	$conf['static_version'] = $newSv;
+	$content = "<?php\nreturn " . var_export($conf, true) . ";\n?>";
+	if (file_put_contents($confFile, $content) === false) {
+		return array('ok' => false, 'old' => $currentSv, 'new' => '', 'message' => '写入 conf/conf.php 失败');
+	}
+
+	// 同步运行时 $conf（本次请求后续渲染仍用旧值会导致页面资源版本不匹配）
+	if (isset($GLOBALS['conf'])) {
+		$GLOBALS['conf']['static_version'] = $newSv;
+	}
+	if (isset($_SERVER['conf'])) {
+		$_SERVER['conf']['static_version'] = $newSv;
+	}
+
+	return array('ok' => true, 'old' => $currentSv, 'new' => $newSv, 'message' => 'static_version: ' . $currentSv . ' -> ' . $newSv);
+}
+
 // hook model_misc_end.php
 
 ?>

@@ -374,6 +374,7 @@ class OnlineUpgradeService {
         $steps = $service->getSteps();
         $results = [];
         $allOk = true;
+        $configStepOk = false; // 跟踪 config 步骤是否成功（决定是否需要兜底递增 static_version）
 
         foreach ($steps as $step) {
             $stepId = isset($step['id']) ? $step['id'] : '';
@@ -381,7 +382,12 @@ class OnlineUpgradeService {
             if (empty($stepId)) {
                 continue;
             }
-            $r = $service->executeStep($stepId);
+            // ponytail: try/catch 防止单步 fatal error 中断 foreach，确保 config 步骤仍能执行
+            try {
+                $r = $service->executeStep($stepId);
+            } catch (\Throwable $e) {
+                $r = ['ok' => false, 'message' => '异常: ' . $e->getMessage()];
+            }
             $results[] = [
                 'id' => $stepId,
                 'name' => $stepName,
@@ -390,13 +396,23 @@ class OnlineUpgradeService {
             ];
             if (empty($r['ok'])) {
                 $allOk = false;
+            } elseif ($stepId === 'config') {
+                $configStepOk = true;
             }
+        }
+
+        // 兜底：config 步骤失败时（fatal error 导致 foreach 中断或 adjustConfig 写入失败），
+        // 仍需递增 static_version，否则浏览器走旧缓存
+        $svMsg = '';
+        if (!$configStepOk && function_exists('conf_bump_static_version')) {
+            $svRes = conf_bump_static_version();
+            $svMsg = $svRes['ok'] ? '；' . $svRes['message'] : '';
         }
 
         return [
             'ok' => $allOk,
             'results' => $results,
-            'message' => $allOk ? '数据库升级全部成功' : '部分数据库升级步骤失败',
+            'message' => ($allOk ? '数据库升级全部成功' : '部分数据库升级步骤失败') . $svMsg,
         ];
     }
 
@@ -524,9 +540,16 @@ class OnlineUpgradeService {
         $cacheRes = $this->clearCaches(['data', 'tmp', 'opcache']);
         $cacheMsg = ($cacheRes['ok'] && $cacheRes['message']) ? '；已清 ' . $cacheRes['message'] : '';
 
+        // 递增 static_version，强制浏览器刷新 JS/CSS 缓存（重装必然伴随静态资源覆盖）
+        $svMsg = '';
+        if (function_exists('conf_bump_static_version')) {
+            $svRes = conf_bump_static_version();
+            $svMsg = $svRes['ok'] ? '；' . $svRes['message'] : '';
+        }
+
         return [
             'ok' => true,
-            'message' => "已重装当前版本 {$currentVersion}：" . $extractRes['message'] . $cacheMsg,
+            'message' => "已重装当前版本 {$currentVersion}：" . $extractRes['message'] . $cacheMsg . $svMsg,
         ];
     }
 
