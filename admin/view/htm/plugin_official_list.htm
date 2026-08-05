@@ -158,39 +158,19 @@
 					</div>
 
 					<!-- 右下角：操作按钮 -->
-				<div class="d-flex flex-wrap gap-2">
-					<?php if($status == 'not_installed' && !empty($p['free']) && !empty($p['zip_url'])):?>
-					<!-- 免费插件未安装且有 zip_url：在线安装按钮（兼容旧 manifest） -->
-					<form method="post" action="<?php echo url('plugin-official_install-'.$p['dir'].'-'.$p['version']);?>" style="display:inline" class="js-confirm-install" data-name="<?php echo esc_attr($p['name']);?>">
-						<?php echo CsrfService::input();?>
-						<button type="submit" class="btn btn-sm btn-outline-primary rounded-pill">
-							<i class="ti ti-download"></i> <?php echo lang('plugin_marketplace_install_btn');?>
-						</button>
-					</form>
-
-				<?php elseif($status == 'latest'):?>
+			<div class="d-flex flex-wrap gap-2">
+				<?php if($status == 'latest'):?>
 					<!-- 已安装且为最新版本：置灰按钮 -->
 					<button type="button" class="btn btn-sm btn-outline-primary rounded-pill" disabled>
 						<i class="ti ti-check"></i> <?php echo lang('plugin_marketplace_latest');?>
 					</button>
-
-				<?php elseif($status == 'need_upgrade' && !empty($p['free']) && !empty($p['zip_url'])):?>
-					<!-- 免费插件有新版本且有 zip_url：在线升级按钮（兼容旧 manifest） -->
-					<form method="post" action="<?php echo url('plugin-official_upgrade-'.$p['dir'].'-'.$p['version']);?>" style="display:inline" class="js-confirm-upgrade" data-name="<?php echo esc_attr($p['name']);?>" data-version="<?php echo esc_attr($p['version']);?>">
-						<?php echo CsrfService::input();?>
-						<button type="submit" class="btn btn-sm btn-outline-warning rounded-pill">
-							<i class="ti ti-arrow-up"></i> <?php echo lang('plugin_marketplace_upgrade_btn');?>
-						</button>
-					</form>
-
-				<?php elseif($status == 'not_installed' || $status == 'need_upgrade'):?>
-					<!-- v1.14.15: 无 zip_url 的插件（免费/付费）统一跳转应用中心详情页下载 -->
+				<?php else:?>
+					<!-- 所有其他状态（未安装/付费/有新版本）统一跳转应用中心详情页下载 -->
 					<a href="<?php echo esc_attr(!empty($p['homepage']) ? $p['homepage'] : $p['detail_url']);?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary rounded-pill">
 						<i class="ti ti-external-link"></i> <?php echo lang('plugin_marketplace_goto_download');?>
 					</a>
-
 				<?php endif;?>
-				</div>
+			</div>
 				</div>
 				</div>
 			</div>
@@ -276,48 +256,6 @@ function handlePluginIconError(img) {
 	img.src = 'data:image/svg+xml,' + encodeURIComponent(svg);
 	img.onerror = null;
 }
-
-// 安装/升级前确认弹窗（XN.confirm 基于 Bootstrap 5 Modal）
-// 拦截表单 submit → 弹窗确认 → 通过后用原生 form.submit() 提交（不再触发 submit 事件）
-(function() {
-	var langInstallTitle = <?php echo json_encode(lang('plugin_marketplace_install_confirm_title'));?>;
-	var langInstallBody  = <?php echo json_encode(lang('plugin_marketplace_install_confirm_body'));?>;
-	var langInstallBtn   = <?php echo json_encode(lang('plugin_marketplace_install_confirm_btn'));?>;
-	var langUpgradeTitle = <?php echo json_encode(lang('plugin_marketplace_upgrade_confirm_title'));?>;
-	var langUpgradeBody  = <?php echo json_encode(lang('plugin_marketplace_upgrade_confirm_body'));?>;
-	var langUpgradeBtn   = <?php echo json_encode(lang('plugin_marketplace_upgrade_confirm_btn'));?>;
-
-	function bindConfirm(selector, title, bodyTpl, okText) {
-		document.addEventListener('submit', function(e) {
-			var form = e.target.closest(selector);
-			if (!form || form.dataset.confirmed === '1') return;
-			e.preventDefault();
-			var name = form.getAttribute('data-name') || '';
-			var version = form.getAttribute('data-version') || '';
-			var body = bodyTpl.replace('{name}', name).replace('{version}', version);
-			XN.confirm(body, function() {
-				// 标记已确认，避免重复弹窗
-				form.dataset.confirmed = '1';
-				// 禁用提交按钮，避免重复提交
-				var btn = form.querySelector('button[type="submit"]');
-				if (btn) {
-					btn.disabled = true;
-					btn.classList.add('disabled');
-				}
-				// 原生 submit 不触发 submit 事件，直接提交
-				HTMLFormElement.prototype.submit.call(form);
-			}, {
-				title: title,
-				type: 'warning',
-				okText: okText,
-				cancelText: (typeof lang !== 'undefined' && lang.close) || '取消'
-			});
-		}, true); // 捕获阶段，确保最先拦截
-	}
-
-	bindConfirm('form.js-confirm-install', langInstallTitle, langInstallBody, langInstallBtn);
-	bindConfirm('form.js-confirm-upgrade', langUpgradeTitle, langUpgradeBody, langUpgradeBtn);
-})();
 </script>
 
 <?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
