@@ -196,7 +196,8 @@ function sess_write($sid, $data) {
 	
 	// 判断数据是否超长
 	$len = strlen($data);
-	if($len > 255 && $g_session['bigdata'] == 0) {
+	// ponytail: $g_session 可能为空数组（sess_read/sess_new 异常时），用 ?? 0 守卫避免 PHP8 Undefined array key
+	if($len > 255 && ($g_session['bigdata'] ?? 0) == 0) {
 		// INSERT IGNORE 避免并发请求重复插入同 sid 导致主键冲突
 		// ponytail: 并发场景下多个请求可能同时进入此分支，IGNORE 让第二个静默成功
 		$_t = $db->tablepre ?? '';
@@ -207,7 +208,7 @@ function sess_write($sid, $data) {
 	if($len <= 255) {
 		$update = array_diff_value($arr, $g_session);
 		db_update('session', array('sid'=>$sid), $update);
-		if(!empty($g_session) && $g_session['bigdata'] == 1) {
+		if(!empty($g_session) && ($g_session['bigdata'] ?? 0) == 1) {
 			db_delete('session_data', array('sid'=>$sid));
 		}
 	} else {

@@ -84,7 +84,7 @@ function avatar_component($uid, $size = 'md', $gid = 0) {
  *     - extra_class      string  附加到 L1 的 class（如 'border border-2 border-white'）
  *     - link_uid         int     传 uid 自动包裹 <a href="user-{uid}"> 链接
  *     - show_group_icon  bool    false 时隐藏用户组角标（默认 true）
- *     - show_hooks       bool    false 时跳过两个 hook 点（默认 true，性能敏感场景可关闭）
+ *     - show_hooks       bool    false 时跳过两个 hook 点（默认 true，性能敏感场景可关闭；xs 尺寸强制关闭）
  *     - lazy             bool    false 时关闭 lazy loading / decoding async（默认 true，首屏可关闭）
  *     - badge_position   string  角标位置 hint，传给 badges hook（top-left/top-right/bottom-left/bottom-right，默认 bottom-right）
  *     - _uid             int     内部用，供 hook 识别头像所属用户（由 avatar_component() 自动传入）
@@ -107,6 +107,9 @@ function avatar_component_from_data($avatar_url, $size = 'md', $group_icon_class
     $lazy             = !isset($options['lazy'])            || $options['lazy']            !== false;
     $badge_position   = isset($options['badge_position']) ? $options['badge_position'] : 'bottom-right';
     $uid              = isset($options['_uid']) ? intval($options['_uid']) : 0;
+
+    // ponytail: xs（24px）及以下尺寸禁止 hook 注入，角标/头像框在小头像上会挤占空间且无法辨识
+    $allow_hooks = $show_hooks && $size !== 'xs';
 
     // 头像形状（rounded|circle|square）
     $shape = function_exists('avatar_component_get_shape') ? avatar_component_get_shape() : 'rounded';
@@ -136,7 +139,7 @@ function avatar_component_from_data($avatar_url, $size = 'md', $group_icon_class
 
     // 角标 hook（badges）—— 注入到 L2 内、avatar-group-icon 之后（累加模式）
     $badges_html = '';
-    if ($show_hooks && function_exists('plugin_hook')) {
+    if ($allow_hooks && function_exists('plugin_hook')) {
         $_hook_data = array(
             'uid'            => $uid,
             'gid'            => $gid,
@@ -151,7 +154,7 @@ function avatar_component_from_data($avatar_url, $size = 'md', $group_icon_class
 
     // 头像框 hook（frame）—— 注入到 L1 内、L2 之后（覆盖模式）
     $frame_html = '';
-    if ($show_hooks && function_exists('plugin_hook')) {
+    if ($allow_hooks && function_exists('plugin_hook')) {
         $_hook_data = array(
             'uid'        => $uid,
             'gid'        => $gid,

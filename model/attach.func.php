@@ -296,7 +296,15 @@ function attach_assoc_post($pid, $pageToken = '') {
 	$day = date($attach_dir_save_rule, $time);
 	$attach_path = $conf['upload_path'].'attach/'.$day;
 	$attach_url = $conf['upload_url'].'attach/'.$day;
-	!is_dir($attach_path) AND mkdir($attach_path, 0777, TRUE);
+	// ponytail: mkdir 守卫 — PHP 8+ 禁用 mkdir 时抛 Error（@ 不捕获 Error），且失败时后续 xn_copy 必然失败导致孤儿附件
+	if(!is_dir($attach_path)) {
+		if(function_exists('mkdir')) {
+			@mkdir($attach_path, 0777, TRUE);
+		}
+		if(!is_dir($attach_path)) {
+			xn_log("attach_assoc_post: mkdir failed, dir:$attach_path, pid:$pid, tid:$tid (check upload/attach permission)", 'php_error');
+		}
+	}
 	
 	// ===== 方案1：从 session 中读取临时文件信息（原有逻辑） =====
 	// 修复孤儿附件：只处理 message 中实际存在的临时文件
@@ -354,7 +362,9 @@ function attach_assoc_post($pid, $pageToken = '') {
 				$thumb_src_path = $conf['upload_path'].'tmp/'.$thumb_relative;
 				if(is_file($thumb_src_path)) {
 					$thumb_dest_dir = $path.'/thumb';
-					!is_dir($thumb_dest_dir) AND mkdir($thumb_dest_dir, 0777, TRUE);
+					if(!is_dir($thumb_dest_dir) && function_exists('mkdir')) {
+						@mkdir($thumb_dest_dir, 0777, TRUE);
+					}
 					$thumb_filename = file_name($file['thumb_url']);
 					$thumb_dest_path = $thumb_dest_dir.'/'.$thumb_filename;
 					$thumb_dest_url = $url.'/thumb/'.$thumb_filename;
