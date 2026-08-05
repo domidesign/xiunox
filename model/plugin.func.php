@@ -811,10 +811,23 @@ function plugin_db_init($dir, $conf = array()) {
             'disable_time' => 0,
             'create_time' => $time,
             'update_time' => $time,
+            'author_name' => '',
+            'author_homepage' => '',
         );
         $db->insert($tablepre.'plugin', $arr);
     }
     return $arr;
+}
+
+// 更新插件作者信息（同步自远程 manifest.json）
+// ponytail: 远程 manifest.json 没有的插件不写入（调用方负责判断），此处仅执行 db 写入
+function plugin_db_set_author($dir, $author_name, $author_homepage) {
+    global $db, $tablepre, $time;
+    $db->update($tablepre.'plugin', array('dir'=>$dir), array(
+        'author_name' => $author_name,
+        'author_homepage' => $author_homepage,
+        'update_time' => $time,
+    ));
 }
 
 // 更新插件安装状态
@@ -878,12 +891,16 @@ function plugin_read_by_dir_with_db($dir) {
         $plugin['disable_time'] = isset($db_data['disable_time']) ? $db_data['disable_time'] : 0;
         $plugin['type'] = isset($db_data['type']) ? $db_data['type'] : 0;
         $plugin['db_version'] = isset($db_data['version']) ? $db_data['version'] : '';
+        $plugin['author_name'] = isset($db_data['author_name']) ? $db_data['author_name'] : '';
+        $plugin['author_homepage'] = isset($db_data['author_homepage']) ? $db_data['author_homepage'] : '';
     } else {
         $plugin['install_time'] = 0;
         $plugin['enable_time'] = 0;
         $plugin['disable_time'] = 0;
         $plugin['type'] = plugin_is_theme($dir, $plugin) ? 1 : 0;
         $plugin['db_version'] = '';
+        $plugin['author_name'] = '';
+        $plugin['author_homepage'] = '';
     }
 
     return $plugin;

@@ -204,7 +204,16 @@ if($action == 'local') {
 	
 	// 安装插件 / install plugin
 	plugin_install($dir);
-	
+
+	// 同步作者信息：优先读 6h 缓存（无远程延迟），缓存命中时遍历 manifest 写入 author_name/author_homepage
+	// ponytail: FTP/压缩包安装不走 OfficialPluginService，需在此补同步；manifest 无此插件则保持空值
+	try {
+		$_sync_service = new OfficialPluginService();
+		$_sync_service->syncInstalledPluginsAuthorInfo(false);
+	} catch (\Throwable $e) {
+		xn_log('plugin_install sync author error: ' . $e->getMessage(), 'plugin_install_error');
+	}
+
 	$installfile = APP_PATH."plugin/$dir/install.php";
 	if(is_file($installfile)) {
 		// 注入安全 IO 包装，限制插件文件操作范围
@@ -381,6 +390,15 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 		plugin_check_dependency($dir, 'install');
 
 		plugin_install($dir);
+
+		// 同步作者信息：优先读 6h 缓存（无远程延迟），缓存命中时遍历 manifest 写入 author_name/author_homepage
+		// ponytail: FTP/压缩包升级不走 OfficialPluginService，需在此补同步
+		try {
+			$_sync_service = new OfficialPluginService();
+			$_sync_service->syncInstalledPluginsAuthorInfo(false);
+		} catch (\Throwable $e) {
+			xn_log('plugin_upgrade sync author error: ' . $e->getMessage(), 'plugin_upgrade_error');
+		}
 
 		$upgradefile = APP_PATH."plugin/$dir/upgrade.php";
 		if(is_file($upgradefile)) {
@@ -640,6 +658,14 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 		// 安装（写 conf.json + 数据库 + 清缓存，不执行 install.php）
 		plugin_install($pluginDir);
 
+		// 同步作者信息：优先读 6h 缓存（无远程延迟），manifest 无此插件则保持空值
+		try {
+			$_sync_service = new OfficialPluginService();
+			$_sync_service->syncInstalledPluginsAuthorInfo(false);
+		} catch (\Throwable $e) {
+			xn_log('plugin_upload_install sync author error: ' . $e->getMessage(), 'plugin_install_error');
+		}
+
 		// 执行 install.php
 		$installFile = APP_PATH."plugin/$pluginDir/install.php";
 		if(is_file($installFile)) {
@@ -704,9 +730,17 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 
 		try {
 			// 写 conf.json + 数据库状态（不执行 install.php）
-			plugin_install($pluginDir);
+		plugin_install($pluginDir);
 
-			// 执行 upgrade.php 迁移脚本
+		// 同步作者信息：优先读 6h 缓存（无远程延迟），manifest 无此插件则保持空值
+		try {
+			$_sync_service = new OfficialPluginService();
+			$_sync_service->syncInstalledPluginsAuthorInfo(false);
+		} catch (\Throwable $e) {
+			xn_log('plugin_upload_upgrade sync author error: ' . $e->getMessage(), 'plugin_upgrade_error');
+		}
+
+		// 执行 upgrade.php 迁移脚本
 			$upgradeFile = APP_PATH."plugin/$pluginDir/upgrade.php";
 			if(is_file($upgradeFile)) {
 				require_once APP_PATH.'lib/xn_safe_io.php';
@@ -783,6 +817,10 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 
 		// 比对本地版本 / compare with local plugins
 		$official_plugins = $service->compareWithLocal($manifest, $plugins);
+
+		// 同步已安装插件的作者信息到 bbs_plugin（manifest 已在内存中，无额外远程调用）
+		// ponytail: 避免远程查询延迟——清单已在手，直接写 db，本地列表页只读 db
+		$service->syncAuthorInfoFromManifest($manifest);
 	} else {
 		$fetch_error = isset($result['message']) ? $result['message'] : 'Unknown error';
 	}

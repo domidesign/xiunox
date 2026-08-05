@@ -136,6 +136,13 @@ class OfficialPluginService {
 
         $result = $this->fetchManifest(true);
         $result['purge_status'] = $purgeResult;
+
+        // 刷新成功后同步已安装插件的作者信息到 bbs_plugin（manifest 刚拉取，无额外远程调用）
+        if (!empty($result['ok']) && !empty($result['data'])) {
+            $synced = $this->syncAuthorInfoFromManifest($result['data']);
+            $result['author_synced'] = $synced;
+        }
+
         return $result;
     }
 
@@ -400,6 +407,14 @@ class OfficialPluginService {
             // 清除清单缓存（强制下次刷新时重新比对版本）
             $this->clearManifestCache();
 
+            // 同步作者信息到 bbs_plugin（manifest 已在内存中，无额外远程调用）
+            if (function_exists('plugin_db_set_author')) {
+                plugin_db_set_author($dir,
+                    isset($pluginInfo['author']) ? (string)$pluginInfo['author'] : '',
+                    isset($pluginInfo['author_homepage']) ? (string)$pluginInfo['author_homepage'] : ''
+                );
+            }
+
             return ['ok' => true, 'message' => '安装成功'];
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => '安装异常：' . $e->getMessage()];
@@ -563,6 +578,14 @@ class OfficialPluginService {
                 plugin_db_set_version($dir, $version);
             }
 
+            // 同步作者信息到 bbs_plugin（manifest 已在内存中，无额外远程调用）
+            if (function_exists('plugin_db_set_author')) {
+                plugin_db_set_author($dir,
+                    isset($pluginInfo['author']) ? (string)$pluginInfo['author'] : '',
+                    isset($pluginInfo['author_homepage']) ? (string)$pluginInfo['author_homepage'] : ''
+                );
+            }
+
             // 清缓存
             $this->clearManifestCache();
 
@@ -635,6 +658,66 @@ class OfficialPluginService {
             $result[$dir] = ['status' => 'need_upgrade', 'manifest' => $p];
         }
         return $result;
+    }
+
+    /**
+     * 同步已安装插件的作者信息到 bbs_plugin 表
+     *
+     * 优化策略（避免远程查询延迟）：
+     *   - 优先读 6h 缓存（无远程调用），缓存失效才走远程
+     *   - manifest 中有的插件才写入 author_name/author_homepage
+     *   - manifest 中没有的插件不写入（保持空值，显示时 fallback 到 conf.json author）
+     *
+     * @param bool $forceFetch true 时强制刷新 manifest（仅手动触发时传 true）
+     * @return array ['ok'=>bool, 'synced'=>int, 'message'=>string]
+     */
+    public function syncInstalledPluginsAuthorInfo(bool $forceFetch = false): array {
+        $manifestRes = $this->fetchManifest($forceFetch);
+        if (!$manifestRes['ok'] || empty($manifestRes['data'])) {
+            return ['ok' => false, 'synced' => 0, 'message' => $manifestRes['message'] ?: '清单获取失败'];
+        }
+        $synced = $this->syncAuthorInfoFromManifest($manifestRes['data']);
+        return [
+            'ok' => true,
+            'synced' => $synced,
+            'from_cache' => !empty($manifestRes['from_cache']),
+            'message' => "同步 {$synced} 个插件的作者信息",
+        ];
+    }
+
+    /**
+     * 从 manifest 数据同步作者信息到 bbs_plugin 表
+     *
+     * 遍历 manifest 中的插件，对本地已安装的插件更新 author_name/author_homepage。
+     * manifest 中没有的插件不写入（保持现有值）。
+     *
+     * @param array $manifest fetchManifest 返回的 manifest 数据
+     * @return int 同步的插件数量
+     */
+    public function syncAuthorInfoFromManifest(array $manifest): int {
+        if (!function_exists('plugin_db_set_author') || !function_exists('plugin_db_get')) {
+            return 0;
+        }
+        $plugins = isset($manifest['plugins']) && is_array($manifest['plugins']) ? $manifest['plugins'] : [];
+        if (empty($plugins)) {
+            return 0;
+        }
+
+        $synced = 0;
+        foreach ($plugins as $p) {
+            $dir = isset($p['dir']) ? $p['dir'] : '';
+            if ($dir === '') continue;
+
+            // 仅更新本地已存在记录的插件（远程 manifest 没有的不写入）
+            $dbRow = plugin_db_get($dir);
+            if (empty($dbRow)) continue;
+
+            $authorName = isset($p['author']) ? (string)$p['author'] : '';
+            $authorHomepage = isset($p['author_homepage']) ? (string)$p['author_homepage'] : '';
+            plugin_db_set_author($dir, $authorName, $authorHomepage);
+            $synced++;
+        }
+        return $synced;
     }
 
     // ===================== 私有方法 =====================

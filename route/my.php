@@ -1215,7 +1215,7 @@ if(empty($action)) {
 } elseif($action == 'notify_unread_count') {
 
 	// 通知未读数 API（AJAX 调用）
-	!$uid AND exit(json_encode(array('code' => -1, 'message' => '未登录')));
+	!$uid AND exit(json_encode(array('code' => -1, 'message' => lang('please_login'))));
 	$total = notify_count_unread($uid);
 	header('Content-Type: application/json; charset=utf-8');
 	echo json_encode(array('code' => 0, 'data' => array('total' => $total)));
@@ -1228,7 +1228,7 @@ if(empty($action)) {
 	// 通知系统已合并，仅查询 notify 表
 	$notifylist = notify_find_latest($uid, 5);
 	if(empty($notifylist)) {
-		echo '<div class="text-center text-body-secondary small py-4"><i class="ti ti-bell-off fs-4 d-block mb-1 opacity-50"></i>暂无通知</div>';
+		echo '<div class="text-center text-body-secondary small py-4"><i class="ti ti-bell-off fs-4 d-block mb-1 opacity-50"></i>' . lang('no_notify') . '</div>';
 		exit;
 	}
 
@@ -1242,7 +1242,7 @@ if(empty($action)) {
 		$_is_report = in_array($item['type'], array('report_auto_audit', 'report_result', 'report_penalty'));
 		$typeLabel = NotifyTypeRegistry::get_label($item['type']);
 		$unreadClass = empty($item['is_read']) ? ' notice-unread' : '';
-		$unreadDot = empty($item['is_read']) ? '<span class="badge bg-primary rounded-pill flex-shrink-0" style="font-size:0.5rem;padding:2px 5px;">新</span>' : '';
+		$unreadDot = empty($item['is_read']) ? '<span class="badge bg-primary rounded-pill flex-shrink-0" style="font-size:0.5rem;padding:2px 5px;">' . lang('new') . '</span>' : '';
 		$href = !empty($item['url']) ? $item['url'] : my_notify_url();
 		// v1.6.0: audit_pending 类型显示具体内容（应用名等），而非仅显示"待审核"标签
 		if($_is_audit) {
@@ -1255,12 +1255,12 @@ if(empty($action)) {
 		$html .= '<a href="' . htmlspecialchars($href) . '" class="dropdown-item d-flex align-items-center gap-2 px-3 py-2 notice-dropdown-item' . $unreadClass . '" data-nid="' . $item['nid'] . '" data-source="notify" hx-boost="false">';
 		if($_is_audit) {
 			$html .= '<span class="rounded-circle flex-shrink-0 bg-info bg-opacity-10 d-flex align-items-center justify-content-center" style="width:24px;height:24px;"><i class="ti ti-shield-check text-info" style="font-size:0.8rem;"></i></span>';
-			$html .= '<span class="fw-semibold" style="font-size:0.8rem;">审核通知</span>';
+			$html .= '<span class="fw-semibold" style="font-size:0.8rem;">' . lang('notify_label_audit') . '</span>';
 		} elseif($_is_report) {
 			$html .= '<span class="rounded-circle flex-shrink-0 bg-warning bg-opacity-10 d-flex align-items-center justify-content-center" style="width:24px;height:24px;"><i class="ti ti-flag text-warning" style="font-size:0.8rem;"></i></span>';
-			$html .= '<span class="fw-semibold" style="font-size:0.8rem;">举报通知</span>';
+			$html .= '<span class="fw-semibold" style="font-size:0.8rem;">' . lang('notify_label_report') . '</span>';
 		} else {
-		$username = isset($item['from_username']) ? $item['from_username'] : '系统';
+		$username = isset($item['from_username']) ? $item['from_username'] : lang('notify_label_system');
 		$_from_uid = isset($item['from_uid']) ? intval($item['from_uid']) : 0;
 		if($_from_uid == 0) {
 			// 系统通知：用铃铛图标替代默认头像
@@ -1687,7 +1687,7 @@ elseif($action == 'credits_check') {
 	$fid = param('fid', 0);
 	if(empty($event) || $uid <= 0) {
 		header('Content-Type: application/json; charset=utf-8');
-		echo json_encode(array('code' => -1, 'message' => '参数错误'));
+		echo json_encode(array('code' => -1, 'message' => lang('parameters_error')));
 		exit;
 	}
 	include_once APP_PATH . 'service/CreditsRuleService.php';

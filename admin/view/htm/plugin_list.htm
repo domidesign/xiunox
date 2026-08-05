@@ -133,65 +133,91 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <p class="text-secondary small mb-3 plugin-brief"><?php echo $plugin['brief'] ? esc_html($plugin['brief']) : '&nbsp;';?></p>
-                        
-                        <!-- 操作按钮 -->
-                        <div class="d-flex flex-wrap gap-2 justify-content-end">
-                            <?php if($plugin['setting_url'] && $plugin['enable']):?>
-                                <a class="btn btn-sm btn-outline  rounded-pill" 
-                                   href="<?php echo admin_plugin_setting_url($dir);?>">
-                                    <i class="ti ti-settings"></i> <?php echo lang('admin_btn_settings')?>
-                                </a>
-                            <?php endif;?>
-                            
-                            <?php if(!$plugin['installed'] && $plugin['downloaded']):?>
-                                <button type="button" class="btn btn-sm btn-outline rounded-pill"
-                                   data-install-url="<?php echo admin_plugin_install_url($dir);?>"
-                                   onclick="preInstallScan('<?php echo esc_attr($dir);?>', '<?php echo esc_attr($plugin['name'] ?? '');?>', this)">
-                                    <i class="ti ti-download"></i> <?php echo lang('admin_btn_install')?>
-                                </button>
-                            <?php endif;?>
-                            
-                            <?php if($plugin['installed'] && $plugin['enable']):?>
-                                <button type="button" class="btn btn-sm btn-outline rounded-pill"
-                                    data-action="disable"
-                                    data-dir="<?php echo esc_attr($dir);?>"
-                                    data-name="<?php echo esc_attr($plugin['name'] ?? '');?>"
-                                    data-url="<?php echo admin_plugin_disable_url($dir);?>">
-                                    <i class="ti ti-player-pause"></i> <?php echo lang('admin_btn_disable')?>
-                                </button>
+
+                        <?php
+                            // 作者信息：优先用 db 中同步自 manifest 的 author_name（带 appcenter 链接）
+                            // fallback 到 conf.json 的 author 字段（纯文本，无链接）
+                            $_author_name = !empty($plugin['author_name']) ? $plugin['author_name'] : (!empty($plugin['author']) ? $plugin['author'] : '');
+                            $_author_homepage = !empty($plugin['author_homepage']) ? $plugin['author_homepage'] : '';
+                        ?>
+
+                        <!-- 底部：左下角作者 + 右下角操作按钮（与插件市场布局一致） -->
+                        <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                            <!-- 左下角：作者名 + appcenter 链接 -->
+                            <?php if(!empty($_author_name)):?>
+                            <div class="d-flex align-items-center gap-1 text-secondary small">
+                                <i class="ti ti-user"></i>
+                                <?php if(!empty($_author_homepage)):?>
+                                    <a href="<?php echo esc_attr($_author_homepage);?>" target="_blank" rel="noopener" class="text-decoration-none text-secondary" title="<?php echo esc_attr($_author_name);?>">
+                                        <?php echo esc_html($_author_name);?>
+                                    </a>
+                                <?php else:?>
+                                    <span><?php echo esc_html($_author_name);?></span>
+                                <?php endif;?>
+                            </div>
+                            <?php else:?>
+                            <span></span>
                             <?php endif;?>
 
-                            <?php if($plugin['installed'] && !$plugin['enable']):?>
-                                <button type="button" class="btn btn-sm btn-outline rounded-pill"
-                                    data-action="enable"
-                                    data-dir="<?php echo esc_attr($dir);?>"
-                                    data-name="<?php echo esc_attr($plugin['name'] ?? '');?>"
-                                    data-url="<?php echo admin_plugin_enable_url($dir);?>">
-                                    <i class="ti ti-player-play"></i> <?php echo lang('admin_btn_enable')?>
-                                </button>
-                            <?php endif;?>
+                            <!-- 右下角：操作按钮 -->
+                            <div class="d-flex flex-wrap gap-2">
+                                <?php if($plugin['setting_url'] && $plugin['enable']):?>
+                                    <a class="btn btn-sm btn-outline  rounded-pill"
+                                       href="<?php echo admin_plugin_setting_url($dir);?>">
+                                        <i class="ti ti-settings"></i> <?php echo lang('admin_btn_settings')?>
+                                    </a>
+                                <?php endif;?>
 
-                            <?php if($plugin['installed']):?>
-                                <button type="button" class="btn btn-sm btn-outline rounded-pill"
-                                    data-action="unstall"
-                                    data-dir="<?php echo esc_attr($dir);?>"
-                                    data-name="<?php echo esc_attr($plugin['name'] ?? '');?>"
-                                    data-url="<?php echo admin_plugin_unstall_url($dir);?>">
-                                    <i class="ti ti-trash"></i> <?php echo lang('admin_btn_uninstall')?>
-                                </button>
-                            <?php endif;?>
+                                <?php if(!$plugin['installed'] && $plugin['downloaded']):?>
+                                    <button type="button" class="btn btn-sm btn-outline rounded-pill"
+                                       data-install-url="<?php echo admin_plugin_install_url($dir);?>"
+                                       onclick="preInstallScan('<?php echo esc_attr($dir);?>', '<?php echo esc_attr($plugin['name'] ?? '');?>', this)">
+                                        <i class="ti ti-download"></i> <?php echo lang('admin_btn_install')?>
+                                    </button>
+                                <?php endif;?>
 
-                            <?php if($plugin['installed'] && !empty($plugin['need_upgrade'])):?>
-                                <button type="button" class="btn btn-sm btn-danger rounded-pill"
-                                    data-action="upgrade"
-                                    data-dir="<?php echo esc_attr($dir);?>"
-                                    data-name="<?php echo esc_attr($plugin['name'] ?? '');?>"
-                                    data-url="<?php echo admin_plugin_upgrade_url($dir);?>">
-                                    <i class="ti ti-arrow-up"></i> <?php echo lang('admin_btn_upgrade')?>
-                                </button>
-                            <?php endif;?>
+                                <?php if($plugin['installed'] && $plugin['enable']):?>
+                                    <button type="button" class="btn btn-sm btn-outline rounded-pill"
+                                        data-action="disable"
+                                        data-dir="<?php echo esc_attr($dir);?>"
+                                        data-name="<?php echo esc_attr($plugin['name'] ?? '');?>"
+                                        data-url="<?php echo admin_plugin_disable_url($dir);?>">
+                                        <i class="ti ti-player-pause"></i> <?php echo lang('admin_btn_disable')?>
+                                    </button>
+                                <?php endif;?>
+
+                                <?php if($plugin['installed'] && !$plugin['enable']):?>
+                                    <button type="button" class="btn btn-sm btn-outline rounded-pill"
+                                        data-action="enable"
+                                        data-dir="<?php echo esc_attr($dir);?>"
+                                        data-name="<?php echo esc_attr($plugin['name'] ?? '');?>"
+                                        data-url="<?php echo admin_plugin_enable_url($dir);?>">
+                                        <i class="ti ti-player-play"></i> <?php echo lang('admin_btn_enable')?>
+                                    </button>
+                                <?php endif;?>
+
+                                <?php if($plugin['installed']):?>
+                                    <button type="button" class="btn btn-sm btn-outline rounded-pill"
+                                        data-action="unstall"
+                                        data-dir="<?php echo esc_attr($dir);?>"
+                                        data-name="<?php echo esc_attr($plugin['name'] ?? '');?>"
+                                        data-url="<?php echo admin_plugin_unstall_url($dir);?>">
+                                        <i class="ti ti-trash"></i> <?php echo lang('admin_btn_uninstall')?>
+                                    </button>
+                                <?php endif;?>
+
+                                <?php if($plugin['installed'] && !empty($plugin['need_upgrade'])):?>
+                                    <button type="button" class="btn btn-sm btn-danger rounded-pill"
+                                        data-action="upgrade"
+                                        data-dir="<?php echo esc_attr($dir);?>"
+                                        data-name="<?php echo esc_attr($plugin['name'] ?? '');?>"
+                                        data-url="<?php echo admin_plugin_upgrade_url($dir);?>">
+                                        <i class="ti ti-arrow-up"></i> <?php echo lang('admin_btn_upgrade')?>
+                                    </button>
+                                <?php endif;?>
+                            </div>
                         </div>
                     </div>
                 </div>

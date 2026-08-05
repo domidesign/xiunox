@@ -437,7 +437,7 @@ class NotifyTypeRegistry {
         self::register('announcement', array(
             'tab'   => 'announcement',
             'icon'  => 'speakerphone',
-            'label' => '公告',
+            'label' => self::lang_or('notify_label_announcement', '公告'),
             // 无 message_callback：notify_format 中走默认分支（优先 message 字段，其次 content）
         ));
 
@@ -445,7 +445,7 @@ class NotifyTypeRegistry {
         self::register('system', array(
             'tab'   => 'system',
             'icon'  => 'file-text',
-            'label' => '系统通知',
+            'label' => self::lang_or('notify_label_system_notice', '系统通知'),
             // 无 message_callback：走默认分支
         ));
 
@@ -455,8 +455,8 @@ class NotifyTypeRegistry {
             'label' => self::lang_or('notify_type_label_audit_pending', '审核中'),
             'message_callback' => function($notify, $prefetched = array()) {
                 return array(
-                    'summary' => '审核中',
-                    'message' => $notify['content'] ? $notify['content'] : '您的内容正在审核中',
+                    'summary' => self::lang_or('notify_summary_under_review', '审核中'),
+                    'message' => $notify['content'] ? $notify['content'] : self::lang_or('notify_content_under_review', '您的内容正在审核中'),
                 );
             },
         ));
@@ -467,8 +467,8 @@ class NotifyTypeRegistry {
             'label' => self::lang_or('notify_type_label_audit_approve', '审核通过'),
             'message_callback' => function($notify, $prefetched = array()) {
                 return array(
-                    'summary' => '审核通过',
-                    'message' => $notify['content'] ? $notify['content'] : '您的内容已通过审核',
+                    'summary' => self::lang_or('notify_summary_approved', '审核通过'),
+                    'message' => $notify['content'] ? $notify['content'] : self::lang_or('notify_content_approved', '您的内容已通过审核'),
                 );
             },
         ));
@@ -479,8 +479,8 @@ class NotifyTypeRegistry {
             'label' => self::lang_or('notify_type_label_audit_reject', '审核驳回'),
             'message_callback' => function($notify, $prefetched = array()) {
                 return array(
-                    'summary' => '审核驳回',
-                    'message' => $notify['content'] ? $notify['content'] : '您的内容未通过审核',
+                    'summary' => self::lang_or('notify_summary_rejected', '审核驳回'),
+                    'message' => $notify['content'] ? $notify['content'] : self::lang_or('notify_content_rejected', '您的内容未通过审核'),
                 );
             },
         ));
@@ -501,11 +501,11 @@ class NotifyTypeRegistry {
         self::register('report_auto_audit', array(
             'tab'   => 'system',
             'icon'  => 'flag',
-            'label' => '举报审核',
+            'label' => self::lang_or('notify_type_report_audit', '举报审核'),
             'message_callback' => function($notify, $prefetched = array()) {
                 return array(
-                    'summary' => '举报审核',
-                    'message' => $notify['content'] ? $notify['content'] : '举报内容已自动审核处理',
+                    'summary' => self::lang_or('notify_type_report_audit', '举报审核'),
+                    'message' => $notify['content'] ? $notify['content'] : self::lang_or('notify_report_auto_audit_done', '举报内容已自动审核处理'),
                 );
             },
         ));
@@ -513,11 +513,11 @@ class NotifyTypeRegistry {
         self::register('report_result', array(
             'tab'   => 'system',
             'icon'  => 'flag',
-            'label' => '举报处理结果',
+            'label' => self::lang_or('notify_type_report_result', '举报处理结果'),
             'message_callback' => function($notify, $prefetched = array()) {
                 return array(
-                    'summary' => '举报处理结果',
-                    'message' => $notify['content'] ? $notify['content'] : '您的举报已处理',
+                    'summary' => self::lang_or('notify_type_report_result', '举报处理结果'),
+                    'message' => $notify['content'] ? $notify['content'] : self::lang_or('notify_report_handled', '您的举报已处理'),
                 );
             },
         ));
@@ -525,11 +525,11 @@ class NotifyTypeRegistry {
         self::register('report_penalty', array(
             'tab'   => 'system',
             'icon'  => 'flag',
-            'label' => '违规处理',
+            'label' => self::lang_or('notify_type_report_penalty', '违规处理'),
             'message_callback' => function($notify, $prefetched = array()) {
                 return array(
-                    'summary' => '违规处理',
-                    'message' => $notify['content'] ? $notify['content'] : '您的内容因违反社区规范已被处理',
+                    'summary' => self::lang_or('notify_type_report_penalty', '违规处理'),
+                    'message' => $notify['content'] ? $notify['content'] : self::lang_or('notify_content_violation_handled', '您的内容因违反社区规范已被处理'),
                 );
             },
         ));
@@ -538,14 +538,14 @@ class NotifyTypeRegistry {
         self::register('pm', array(
             'tab'   => 'other',
             'icon'  => 'mail',
-            'label' => '私信',
+            'label' => self::lang_or('notify_type_pm', '私信'),
             // 无 message_callback：走默认分支
         ));
 
         self::register('other', array(
             'tab'   => 'other',
             'icon'  => 'bell',
-            'label' => '通知',
+            'label' => self::lang_or('notify_label_other', '通知'),
             // 无 message_callback：走默认分支
         ));
     }

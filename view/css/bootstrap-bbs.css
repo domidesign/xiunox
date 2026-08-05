@@ -1629,6 +1629,9 @@ a.hover-bg-body-secondary:hover {
     border: none;
     box-shadow: none;
 }
+.form-control:focus {
+    box-shadow: none;
+}
 
 #header .input-group-search .btn {
     border: none;
