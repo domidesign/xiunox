@@ -158,39 +158,39 @@
 					</div>
 
 					<!-- 右下角：操作按钮 -->
-					<div class="d-flex flex-wrap gap-2">
-						<?php if($status == 'not_installed' && !empty($p['free'])):?>
-						<!-- 免费插件未安装：安装按钮（点击弹窗确认后再提交） -->
-						<form method="post" action="<?php echo url('plugin-official_install-'.$p['dir'].'-'.$p['version']);?>" style="display:inline" class="js-confirm-install" data-name="<?php echo esc_attr($p['name']);?>">
-							<?php echo CsrfService::input();?>
-							<button type="submit" class="btn btn-sm btn-outline-primary rounded-pill">
-								<i class="ti ti-download"></i> <?php echo lang('plugin_marketplace_install_btn');?>
-							</button>
-						</form>
-
-					<?php elseif($status == 'latest'):?>
-						<!-- 已安装且为最新版本：置灰按钮（与付费插件"前往下载"按钮样式统一） -->
-						<button type="button" class="btn btn-sm btn-outline-primary rounded-pill" disabled>
-							<i class="ti ti-check"></i> <?php echo lang('plugin_marketplace_latest');?>
+				<div class="d-flex flex-wrap gap-2">
+					<?php if($status == 'not_installed' && !empty($p['free']) && !empty($p['zip_url'])):?>
+					<!-- 免费插件未安装且有 zip_url：在线安装按钮（兼容旧 manifest） -->
+					<form method="post" action="<?php echo url('plugin-official_install-'.$p['dir'].'-'.$p['version']);?>" style="display:inline" class="js-confirm-install" data-name="<?php echo esc_attr($p['name']);?>">
+						<?php echo CsrfService::input();?>
+						<button type="submit" class="btn btn-sm btn-outline-primary rounded-pill">
+							<i class="ti ti-download"></i> <?php echo lang('plugin_marketplace_install_btn');?>
 						</button>
+					</form>
 
-					<?php elseif($status == 'need_upgrade' && !empty($p['free'])):?>
-						<!-- 免费插件有新版本（启用/禁用均可升级）：升级按钮（点击弹窗确认后再提交） -->
-						<form method="post" action="<?php echo url('plugin-official_upgrade-'.$p['dir'].'-'.$p['version']);?>" style="display:inline" class="js-confirm-upgrade" data-name="<?php echo esc_attr($p['name']);?>" data-version="<?php echo esc_attr($p['version']);?>">
-							<?php echo CsrfService::input();?>
-							<button type="submit" class="btn btn-sm btn-outline-warning rounded-pill">
-								<i class="ti ti-arrow-up"></i> <?php echo lang('plugin_marketplace_upgrade_btn');?>
-							</button>
-						</form>
+				<?php elseif($status == 'latest'):?>
+					<!-- 已安装且为最新版本：置灰按钮 -->
+					<button type="button" class="btn btn-sm btn-outline-primary rounded-pill" disabled>
+						<i class="ti ti-check"></i> <?php echo lang('plugin_marketplace_latest');?>
+					</button>
 
-					<?php elseif(!$p['free']):?>
-						<!-- 付费插件：跳转外链（含已安装有新版本场景，付费无法在线升级，只能前往下载新版） -->
-						<a href="<?php echo esc_attr($p['homepage']);?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary rounded-pill">
-							<i class="ti ti-external-link"></i> <?php echo lang('plugin_marketplace_goto_download');?>
-						</a>
+				<?php elseif($status == 'need_upgrade' && !empty($p['free']) && !empty($p['zip_url'])):?>
+					<!-- 免费插件有新版本且有 zip_url：在线升级按钮（兼容旧 manifest） -->
+					<form method="post" action="<?php echo url('plugin-official_upgrade-'.$p['dir'].'-'.$p['version']);?>" style="display:inline" class="js-confirm-upgrade" data-name="<?php echo esc_attr($p['name']);?>" data-version="<?php echo esc_attr($p['version']);?>">
+						<?php echo CsrfService::input();?>
+						<button type="submit" class="btn btn-sm btn-outline-warning rounded-pill">
+							<i class="ti ti-arrow-up"></i> <?php echo lang('plugin_marketplace_upgrade_btn');?>
+						</button>
+					</form>
 
-					<?php endif;?>
-					</div>
+				<?php elseif($status == 'not_installed' || $status == 'need_upgrade'):?>
+					<!-- v1.14.15: 无 zip_url 的插件（免费/付费）统一跳转应用中心详情页下载 -->
+					<a href="<?php echo esc_attr(!empty($p['homepage']) ? $p['homepage'] : $p['detail_url']);?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary rounded-pill">
+						<i class="ti ti-external-link"></i> <?php echo lang('plugin_marketplace_goto_download');?>
+					</a>
+
+				<?php endif;?>
+				</div>
 				</div>
 				</div>
 			</div>
