@@ -523,6 +523,8 @@ CREATE TABLE bbs_plugin (
   disable_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '最后禁用时间',
   create_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '记录创建时间',
   update_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '记录更新时间',
+  author_name varchar(50) NOT NULL DEFAULT '' COMMENT '作者昵称（同步自远程 manifest.json）',
+  author_homepage varchar(255) NOT NULL DEFAULT '' COMMENT '作者 appcenter 地址（同步自远程 manifest.json）',
   PRIMARY KEY (dir),
   KEY type (type),
   KEY enable (enable),

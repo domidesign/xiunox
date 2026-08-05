@@ -1,13 +1,13 @@
 # XIUNOX_Email 邮件服务
 
 > **适用人群**：站长 / 开发者
-> **最后更新**：2026-08-02
+> **最后更新**：2026-08-05
 
 ## 概述
 
-XIUNOX_Email 是 Xiuno X 论坛系统的核心邮件服务模块，基于 **PHPMailer 7.x** 实现，支持多 SMTP 服务器配置、异步发送和邮件模板渲染。服务采用双通道投递机制——站内通知与邮件并行发送，确保管理员审核消息不遗漏。
+XIUNOX_Email 是 Xiuno X 论坛系统的核心邮件服务模块，基于 **PHPMailer 7.x** 实现，支持多 SMTP 服务器配置和邮件模板渲染。服务采用双通道投递机制——站内通知与邮件并行发送，确保管理员审核消息不遗漏。
 
-SMTP 配置存储在 `conf/smtp.conf.php` 中，支持配置多个服务器节点，发送时随机选择有效节点实现负载均衡。异步机制通过 `register_shutdown_function()` + `fastcgi_finish_request()` 实现，在 HTTP 响应返回浏览器后再执行 SMTP 发送，不阻塞主流程的响应时间。
+SMTP 配置存储在 `conf/smtp.conf.php` 中，支持配置多个服务器节点，发送时随机选择有效节点实现负载均衡。所有邮件发送统一走同步 `xn_send_mail()`，调用方可立即拿到发送结果（TRUE 成功 / 错误字符串），失败原因同时写入 `bbs_email_log` 表。
 
 ## 站长指南
 
@@ -39,7 +39,7 @@ SMTP 配置存储在 `conf/smtp.conf.php` 中，支持配置多个服务器节�
 
 - 同一邮箱 60 秒内只能发送 1 次，每日上限 5 次
 - 同一 IP 每小时发送上限 10 次
-- 异步发送模式下，发送结果需查看后台「邮件日志」确认
+- 发送失败时调用方立即拿到错误字符串，同时写入后台「邮件日志」
 - SMTP 密码请使用邮箱服务商提供的**授权码**，而非登录密码
 - 邮件中所有链接自动转为绝对 URL，确保邮件客户端可正确跳转
 
@@ -79,7 +79,7 @@ AdminNotifyService::notifyUser($uid, '审核结果', '<p>您的认证已通过</
 |------|----------|------|
 | `AdminNotifyService::audit()` | 插件产生待审核项 | 自动通知所有 gid=1,2 的管理员 |
 | `AdminNotifyService::clearDebounce()` | 审核完成、待办清零 | 清除防抖标记，允许下次通知 |
-| `xn_send_mail_async()` | 需要异步发送邮件 | 不阻塞主流程，发送结果查 email_log |
+| `xn_send_mail()` | 同步发送邮件 | 立即返回结果，失败时返回错误字符串 |
 
 ### 扩展方式
 
@@ -108,12 +108,17 @@ $tpl = xn_email_template('user_create_code', array(
 **3. 直接调用发送函数**
 
 ```php
-// 同步发送（阻塞主流程）
-xn_send_mail($smtp, '站点名称', 'user@example.com', '主题', '<p>HTML正文</p>', array('is_html'=>true));
-
-// 异步发送（推荐，不阻塞）
-xn_send_mail_async($smtp, '站点名称', 'user@example.com', '主题', '<p>HTML正文</p>');
+// 同步发送：立即拿到结果
+$r = xn_send_mail($smtp, '站点名称', 'user@example.com', '主题', '<p>HTML正文</p>', array('is_html'=>true));
+if ($r === TRUE) {
+    // 发送成功
+} else {
+    // 发送失败，$r 为错误字符串
+    error_log('邮件发送失败：' . $r);
+}
 ```
+
+> ⚠️ **`xn_send_mail_async()` 已于 2026-08-05 移除**：原伪异步通过 `register_shutdown_function` 实现，PHP-FPM 进程仍被占用且失败时错误被静默吞掉，调用方无法判断邮件是否真发出。所有场景统一用同步 `xn_send_mail()`。
 
 ### 代码示例
 
@@ -150,8 +155,8 @@ if ($audit_done) {
 3. **邮件发送频率限制是多少？**
    同一邮箱 60 秒内限发 1 次、每日限发 5 次，同一 IP 每小时限发 10 次。这些限制可通过 `SecurityConfigService` 在后台安全设置中调整。
 
-4. **异步发送如何确认结果？**
-   异步函数立即返回 TRUE，实际发送结果需在后台「邮件日志」页面查看（表：`bbs_email_log`），包含收件人、主题、SMTP 主机、成功/失败状态及错误信息。
+4. **如何确认发送结果？**
+   `xn_send_mail()` 同步返回结果：TRUE 表示成功，错误字符串表示失败（如 "SMTP connect() failed"）。所有发送结果（含成功/失败）同时写入后台「邮件日志」页面（表：`bbs_email_log`），包含收件人、主题、SMTP 主机、状态及错误信息。
 
 5. **SMTP 配置文件在哪里？**
    配置文件路径为 `conf/smtp.conf.php`，格式为 PHP 数组。系统也会自动读取 `conf/smtp.conf.default.php` 作为模板参考，但实际生效的配置需写入 `smtp.conf.php`。

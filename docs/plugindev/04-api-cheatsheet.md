@@ -614,7 +614,7 @@ echo $pagination;
 
 ## 11. 邮件发送 API
 
-### 同步发送
+### 同步发送（统一推荐）
 
 | 函数 | 签名 | 说明 |
 |---|---|---|
@@ -638,32 +638,7 @@ if ($r === TRUE) {
 }
 ```
 
-### 异步发送（推荐）
-
-| 函数 | 签名 | 说明 |
-|---|---|---|
-| `xn_send_mail_async` | `xn_send_mail_async($smtp, $from_name, $to_email, $subject, $body, $options = array())` | **立即返回 TRUE**，不阻塞页面响应。实际发送在 `register_shutdown_function` 回调中执行 |
-
-**核心原理**：利用 PHP 的 `register_shutdown_function()` 注册回调，在脚本结束、HTTP 响应已发送给浏览器后再执行 SMTP 发送。配合 `fastcgi_finish_request()` 加速响应返回。
-
-**适用场景**：
-- 验证码邮件（登录/注册/找回密码）
-- 通知类邮件（审核通知、系统告警等）
-- 任何不需要同步等待发送结果的场景
-
-```php
-// 异步发送，立即返回，不阻塞登录/注册页面跳转
-xn_send_mail_async($smtp, $conf['sitename'], $email, $subject, $body, array('is_html' => TRUE));
-
-// 立即给用户反馈
-message(0, '验证码已发送，请查收邮箱');
-```
-
-**注意事项**：
-- ⚠️ **此函数立即返回 `TRUE`，调用方无法同步获取发送结果**
-- ⚠️ 如需验证发送结果，请查询 `bbs_email_log` 表
-- ⚠️ 依赖 PHP-FPM SAPI；在 CLI 或其他 SAPI 下会退化为同步发送
-- ⚠️ 不建议用于必须立即确认的关键业务邮件（如付费凭证、订单确认）
+> ⚠️ **已移除 `xn_send_mail_async()`**（2026-08-05）：原函数通过 `register_shutdown_function` 注册伪异步回调，PHP-FPM 进程仍被占用且失败时错误被 `try/catch` 静默吞掉，调用方无法判断邮件是否真发出。所有邮件场景（找回密码、管理员通知、登录提醒等）统一改用同步 `xn_send_mail()`，可立即拿到返回值并写入 `bbs_email_log` 表。登录等低频操作多等 1-2 秒可接受；若需真异步请引入 queue + worker。
 
 ### 频率限制
 
@@ -682,8 +657,13 @@ $rate_check = xn_email_rate_check($email, $longip);
 if ($rate_check !== TRUE) {
     message(-1, $rate_check);
 }
-xn_send_mail_async($smtp, ...);
-xn_email_rate_record($email, $longip);
+$r = xn_send_mail($smtp, $conf['sitename'], $email, $subject, $body, array('is_html' => TRUE));
+if ($r === TRUE) {
+    xn_email_rate_record($email, $longip);
+    message(0, '验证码已发送');
+} else {
+    message(-1, '发送失败：' . $r);
+}
 ```
 
 ### 模板

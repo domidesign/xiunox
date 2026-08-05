@@ -182,9 +182,9 @@ if($action == 'mark_read') {
 	$html = '';
 	foreach($notifylist as $item) {
 		$unreadClass = empty($item['is_read']) ? ' notice-unread' : '';
-		$unreadDot = empty($item['is_read']) ? ' <span class="badge bg-primary rounded-pill flex-shrink-0" style="font-size:0.5rem;padding:2px 5px;">新</span>' : '';
+		$unreadDot = empty($item['is_read']) ? ' <span class="badge bg-primary rounded-pill flex-shrink-0" style="font-size:0.5rem;padding:2px 5px;">' . lang('new') . '</span>' : '';
 		$avatar_url = isset($item['from_avatar_url']) ? $item['from_avatar_url'] : default_avatar_url();
-		$username = isset($item['from_username']) ? $item['from_username'] : '系统';
+		$username = isset($item['from_username']) ? $item['from_username'] : lang('notify_label_system');
 		$href = !empty($item['url']) ? $item['url'] : my_notify_url();
 
 		// 提取具体内容摘要：优先用 message（去除 HTML 标签和用户名前缀），其次用 summary，兜底用 typeLabel
@@ -259,13 +259,13 @@ if($action == 'mark_read') {
 	$active = 'default';
 
 	$notice_menu = array(
-		0 => array('url'=>notice_list_url(), 'name'=>'全部', 'class'=>'info', 'icon'=>''),
-		'announcement' => array('url'=>notice_list_url('announcement'), 'name'=>'公告', 'class'=>'info', 'icon'=>'speakerphone'),
-		'system' => array('url'=>notice_list_url('system'), 'name'=>'系统', 'class'=>'danger', 'icon'=>'file-text'),
-		'like' => array('url'=>notice_list_url('like'), 'name'=>'点赞', 'class'=>'danger', 'icon'=>'heart'),
-		'reply' => array('url'=>notice_list_url('reply'), 'name'=>'评论', 'class'=>'primary', 'icon'=>'message'),
-		'favorite' => array('url'=>notice_list_url('favorite'), 'name'=>'收藏', 'class'=>'warning', 'icon'=>'star'),
-		'follow' => array('url'=>notice_list_url('follow'), 'name'=>'关注', 'class'=>'success', 'icon'=>'user-plus'),
+		0 => array('url'=>notice_list_url(), 'name'=>lang('all'), 'class'=>'info', 'icon'=>''),
+		'announcement' => array('url'=>notice_list_url('announcement'), 'name'=>lang('notify_menu_announcement'), 'class'=>'info', 'icon'=>'speakerphone'),
+		'system' => array('url'=>notice_list_url('system'), 'name'=>lang('notify_menu_system'), 'class'=>'danger', 'icon'=>'file-text'),
+		'like' => array('url'=>notice_list_url('like'), 'name'=>lang('notify_menu_like'), 'class'=>'danger', 'icon'=>'heart'),
+		'reply' => array('url'=>notice_list_url('reply'), 'name'=>lang('notify_menu_reply'), 'class'=>'primary', 'icon'=>'message'),
+		'favorite' => array('url'=>notice_list_url('favorite'), 'name'=>lang('notify_menu_favorite'), 'class'=>'warning', 'icon'=>'star'),
+		'follow' => array('url'=>notice_list_url('follow'), 'name'=>lang('notify_menu_follow'), 'class'=>'success', 'icon'=>'user-plus'),
 	);
 
 	$cond = array();
@@ -290,7 +290,7 @@ if($action == 'mark_read') {
 		$message_text = param('message', '', FALSE);
 		$url = param('url');
 
-		empty($message_text) AND message(-1, '公告内容不能为空');
+		empty($message_text) AND message(-1, lang('notify_publish_empty'));
 
 		// 通知系统已合并，使用 notify_create 写入全局公告（uid=0）
 		// from_uid 使用管理员 uid，type='announcement'
@@ -323,27 +323,34 @@ if($action == 'mark_read') {
 			$nid = notify__create($arr);
 		}
 
-		$nid === FALSE AND message(-1, '发布失败');
+		$nid === FALSE AND message(-1, lang('notify_publish_failed'));
 
-		message(0, '公告发布成功');
+		// ponytail: 清前台公告缓存，避免 60s 延迟
+		CacheHelper::delete('notice_announcements');
+		message(0, lang('notify_publish_success'));
 	}
 
 } elseif($action == 'announcements') {
 
 	// 前台获取最新公告（全局 uid=0 的 announcement 类型）
-	$announcements = db_find('notify', array('uid'=>0, 'type'=>'announcement'), array('nid'=>-1), 1, 3, 'nid');
-	$list = array();
-	if($announcements) {
-		foreach($announcements as $a) {
-			$list[] = array(
-				'nid' => $a['nid'],
-				'message' => $a['message'],
-				'url' => isset($a['url']) ? $a['url'] : '',
-				'icon' => isset($a['icon']) && $a['icon'] ? $a['icon'] : 'ti-speakerphone',
-				'create_date' => $a['create_date'],
-			);
+	// ponytail: 此接口被 footer.inc.htm 全站 fetch，QPS≈页面浏览量，宝塔 PHP-FPM worker 偶发饿死触发 500。
+	// 加 60s 缓存把 QPS 降到每分钟 1 次。publish/delete 写入后主动清缓存，无延迟。
+	$list = CacheHelper::remember('notice_announcements', 60, function() {
+		$announcements = db_find('notify', array('uid'=>0, 'type'=>'announcement'), array('nid'=>-1), 1, 3, 'nid');
+		$list = array();
+		if($announcements) {
+			foreach($announcements as $a) {
+				$list[] = array(
+					'nid' => $a['nid'],
+					'message' => $a['message'],
+					'url' => isset($a['url']) ? $a['url'] : '',
+					'icon' => isset($a['icon']) && $a['icon'] ? $a['icon'] : 'ti-speakerphone',
+					'create_date' => $a['create_date'],
+				);
+			}
 		}
-	}
+		return $list;
+	});
 	message(0, $list);
 
 } elseif($action == 'announcement_list') {
@@ -367,11 +374,11 @@ if($action == 'mark_read') {
 			}
 			echo '<div class="text-body-tertiary" style="font-size:.75rem">'.date('Y-m-d H:i', $a['create_date']).'</div>';
 			echo '</div>';
-			echo '<button type="button" class="btn btn-sm btn-outline-danger flex-shrink-0 confirm" data-nid="'.$a['nid'].'" title="删除"><i class="ti ti-trash"></i></button>';
+			echo '<button type="button" class="btn btn-sm btn-outline-danger flex-shrink-0 confirm" data-nid="'.$a['nid'].'" title="'.lang('delete').'"><i class="ti ti-trash"></i></button>';
 			echo '</div>';
 		}
 	} else {
-		echo '<div class="text-center text-body-secondary py-4"><i class="ti ti-bell-off fs-4 d-block mb-1 opacity-50"></i>暂无公告</div>';
+		echo '<div class="text-center text-body-secondary py-4"><i class="ti ti-bell-off fs-4 d-block mb-1 opacity-50"></i>'.lang('no_announcement').'</div>';
 	}
 	exit;
 
@@ -386,6 +393,8 @@ if($gid != 1) message(-1, lang('insufficient_privilege'));
 	$nid = param('nid');
 	$r = notify__delete($nid);
 	$r === FALSE AND message(-1, lang('notice_delete_notice_failed'));
+	// ponytail: 清前台公告缓存，避免删除后仍显示
+	CacheHelper::delete('notice_announcements');
 	message(0, lang('notice_delete_notice_sucessfully'));
 }
 

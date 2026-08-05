@@ -1777,11 +1777,14 @@ class UpgradeService {
           type tinyint(1) NOT NULL DEFAULT 0 COMMENT '类型: 0=插件, 1=模板',
           installed tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否已安装',
           enable tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否已启用',
+          version varchar(32) NOT NULL DEFAULT '' COMMENT '已安装版本号（来自 conf.json）',
           install_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '安装时间',
           enable_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '最后启用时间',
           disable_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '最后禁用时间',
           create_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '记录创建时间',
           update_time int(11) unsigned NOT NULL DEFAULT 0 COMMENT '记录更新时间',
+          author_name varchar(50) NOT NULL DEFAULT '' COMMENT '作者昵称（同步自远程 manifest.json）',
+          author_homepage varchar(255) NOT NULL DEFAULT '' COMMENT '作者 appcenter 地址（同步自远程 manifest.json）',
           PRIMARY KEY (dir),
           KEY type (type),
           KEY enable (enable),
@@ -1795,6 +1798,16 @@ class UpgradeService {
             plugin_init();
             plugin_db_init_all();
             $results[] = ['name' => 'plugin.init', 'ok' => true, 'message' => '初始化现有插件数据完成'];
+        }
+
+        // 为已有表补充 author_name / author_homepage 字段（存量站点升级）
+        $authorColumns = [
+            ['plugin', 'author_name', "ALTER TABLE `{$tablepre}plugin` ADD COLUMN `author_name` varchar(50) NOT NULL DEFAULT '' COMMENT '作者昵称（同步自远程 manifest.json）'"],
+            ['plugin', 'author_homepage', "ALTER TABLE `{$tablepre}plugin` ADD COLUMN `author_homepage` varchar(255) NOT NULL DEFAULT '' COMMENT '作者 appcenter 地址（同步自远程 manifest.json）'"],
+        ];
+        foreach ($authorColumns as $col) {
+            $ac = $this->addColumn($col[0], $col[1], $col[2], $tablepre);
+            $results[] = ['name' => $col[0].'.'.$col[1], 'ok' => $ac['ok'], 'message' => $ac['message']];
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
@@ -1825,7 +1838,7 @@ class UpgradeService {
             ['id' => 'group_audit_permissions', 'name' => '审核权限', 'description' => '添加用户组审核权限字段（发帖审核/回帖审核/资料审核），创建个人资料审核表'],
             ['id' => 'security_settings', 'name' => '安全设置', 'description' => '初始化安全配置项、敏感词库文件、验证码配置、审核字段、IP/邮箱黑名单表'],
             ['id' => 'admin_log_table', 'name' => '管理操作日志表', 'description' => '创建管理操作日志表，用于记录附件删除等后台操作'],
-            ['id' => 'plugin_table', 'name' => '插件管理表', 'description' => '创建插件管理表，支持插件时间记录和排序'],
+            ['id' => 'plugin_table', 'name' => '插件管理表', 'description' => '创建插件管理表，支持插件时间记录、排序、作者信息（author_name/author_homepage）'],
             ['id' => 'email_log', 'name' => '邮件发送日志表', 'description' => '创建邮件发送日志表，记录邮件发送状态、错误信息等'],
             ['id' => 'friendlink_digest', 'name' => '精华帖', 'description' => '添加帖子精华字段（digest, digest_date, user.digests, forum.digests），创建精华帖索引表'],
             ['id' => 'soft_delete', 'name' => '软删除字段', 'description' => '为 thread 和 post 表添加 is_deleted, deleted_date, deleted_by 字段及索引，支持软删除功能'],

@@ -60,7 +60,7 @@
 | 从前台生成 admin URL 用 `admin_url()` | `url()`/`admin_plugin_setting_url()` 前台调用不带 `admin/` 前缀 |
 | `db_*` 函数传表名禁止含前缀 | 内部已拼 `$d->tablepre . $table`，传 `'xnx_oauth_bind'` 而非 `'bbs_xnx_oauth_bind'`（例外：`install.php`/`uninstall.php`/`upgrade.php` 原生 SQL 需手动拼 `$db->tablepre`） |
 | API 层写操作调核心 `post_create()`/`post_update()`/`thread_create()` | 禁止用 `PostService::createPost()` 等薄封装（跳过 `message_fmt`/计数/缓存失效） |
-| **邮件发送用 `xn_send_mail_async()`** | 验证码、通知类邮件用 `xn_send_mail_async()` 异步发送；仅关键业务邮件（付费凭证等）用 `xn_send_mail()` 同步发送 |
+| **邮件发送统一用 `xn_send_mail()`** | 所有场景（验证码、通知、登录提醒等）同步发送，立即拿到返回值（TRUE/错误字符串）。`xn_send_mail_async()` 已于 2026-08-05 移除（伪异步且吞错误） |
 | **状态转换用 CAS（Compare-And-Swap）** | `UPDATE ... WHERE status=旧值`，检查 `affected_rows`；批量操作用逐条 CAS。详见 [security-patterns.md](security-patterns.md) |
 | **业务实体唯一性用 UNIQUE 约束** | 如 `UNIQUE KEY invitee_uid`，INSERT 用 `INSERT IGNORE` 兜底并发冲突 |
 | **检查 `CreditsService::add()/sub()` 返回值** | 返回 `array('ok'=>bool)`，add 失败时不记录 reward，回滚时只回滚实际入账的积分 |

@@ -132,6 +132,25 @@ include APP_PATH.'model/plugin.func.php';
 // model.inc.php 和 index.inc.php 需要走 _include() 以支持插件 hook 注入
 // _include() 已修复原子写入，不再有并发截断问题
 include _include(APP_PATH.'model.inc.php');
+
+// 兜底：确保已启用插件的 Service 类被加载
+// ponytail: model.inc.php 的 model_inc_file hook 注入可能因 tmp 缓存陈旧而丢失
+// （tmp/model.inc.php 未重新编译，但 tmp/model_xxx.func.php 重新编译注入了 Service 调用），
+// 两者不一致会导致 Class not found fatal 崩溃，触发插件自动禁用机制。
+// 此处用 class_exists 守卫兜底，已加载的类不会重复 include；插件 model/ 目录文件均为纯类定义（无 hook 占位符），直接 include 安全
+$_plugin_paths_fallback = plugin_paths_enabled();
+foreach ($_plugin_paths_fallback as $_path_fb => $_pconf_fb) {
+	$_model_dir_fb = $_path_fb . '/model';
+	if (!is_dir($_model_dir_fb)) continue;
+	foreach (glob($_model_dir_fb . '/*.php') as $_service_file_fb) {
+		$_class_name_fb = ucfirst(basename($_service_file_fb, '.php'));
+		if (!class_exists($_class_name_fb, false)) {
+			include_once $_service_file_fb;
+		}
+	}
+}
+unset($_plugin_paths_fallback, $_path_fb, $_pconf_fb, $_model_dir_fb, $_service_file_fb, $_class_name_fb);
+
 // ErrorHandler 已在 xiunophp.php 启动时注册（lib/ErrorHandler.php），此处不再重复
 require_once APP_PATH.'lib/avatar_component.php';
 
