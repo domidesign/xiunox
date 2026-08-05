@@ -2024,6 +2024,11 @@ return array(
 	// 在线升级
 	'admin_online_upgrade'=>'在线升级',
 	'admin_online_upgrade_title'=>'在线代码升级',
+	'admin_db_upgrade'=>'数据库升级',
+	'admin_db_upgrade_title'=>'数据库结构升级',
+	'admin_db_upgrade_btn'=>'升级数据库',
+	'admin_db_upgrade_desc'=>'执行数据库结构升级，同步代码与数据库版本',
+	'admin_db_upgrade_notice'=>'<strong>何时使用此功能？</strong><ul class="mb-0 mt-1"><li>从 Xiuno BBS 4.0 升级到 XIUNOX 时</li><li>跨版本升级后，数据库结构未同步更新时</li><li>重新安装当前版本，修复/重建数据库结构时</li><li>后台功能异常，提示字段不存在或表结构缺失时</li><li>系统提示需要执行数据库升级时</li></ul><div class="mt-1 text-warning">⚠️ 执行前请先备份数据库，升级过程中请勿关闭页面。</div>',
 	'admin_online_upgrade_check'=>'检查更新',
 	'admin_online_upgrade_checking'=>'正在检查...',
 	'admin_online_upgrade_latest'=>'当前已是最新版本',

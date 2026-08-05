@@ -1949,6 +1949,11 @@ return array(
 	// 在線升級
 	'admin_online_upgrade'=>'在線升級',
 	'admin_online_upgrade_title'=>'在線代碼升級',
+	'admin_db_upgrade'=>'資料庫升級',
+	'admin_db_upgrade_title'=>'資料庫結構升級',
+	'admin_db_upgrade_btn'=>'升級資料庫',
+	'admin_db_upgrade_desc'=>'執行資料庫結構升級，同步程式碼與資料庫版本',
+	'admin_db_upgrade_notice'=>'<strong>何時使用此功能？</strong><ul class="mb-0 mt-1"><li>從 Xiuno BBS 4.0 升級到 XIUNOX 時</li><li>跨版本升級後，資料庫結構未同步更新時</li><li>重新安裝當前版本，修復/重建資料庫結構時</li><li>後台功能異常，提示欄位不存在或資料表結構缺失時</li><li>系統提示需要執行資料庫升級時</li></ul><div class="mt-1 text-warning">⚠️ 執行前請先備份資料庫，升級過程中請勿關閉頁面。</div>',
 	'admin_online_upgrade_check'=>'檢查更新',
 	'admin_online_upgrade_checking'=>'正在檢查...',
 	'admin_online_upgrade_latest'=>'當前已是最新版本',

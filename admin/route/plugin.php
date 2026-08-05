@@ -205,13 +205,14 @@ if($action == 'local') {
 	// 安装插件 / install plugin
 	plugin_install($dir);
 
-	// 同步作者信息：优先读 6h 缓存（无远程延迟），缓存命中时遍历 manifest 写入 author_name/author_homepage
-	// ponytail: FTP/压缩包安装不走 OfficialPluginService，需在此补同步；manifest 无此插件则保持空值
+	// 同步作者信息：强制刷新 manifest（安装是低频操作，确保拉到最新数据）
+	// ponytail: 传 true 跳过 6h 缓存，避免旧 manifest（无 author_homepage 字段）导致写空值
 	try {
 		$_sync_service = new OfficialPluginService();
-		$_sync_service->syncInstalledPluginsAuthorInfo(false);
+		$_sync_result = $_sync_service->syncInstalledPluginsAuthorInfo(true);
+		xn_log('plugin_install sync author[dir=' . $dir . ']: ' . json_encode($_sync_result, JSON_UNESCAPED_UNICODE), 'plugin_author_sync_error');
 	} catch (\Throwable $e) {
-		xn_log('plugin_install sync author error: ' . $e->getMessage(), 'plugin_install_error');
+		xn_log('plugin_install sync author error[dir=' . $dir . ']: ' . $e->getMessage(), 'plugin_install_error');
 	}
 
 	$installfile = APP_PATH."plugin/$dir/install.php";
@@ -391,13 +392,13 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 
 		plugin_install($dir);
 
-		// 同步作者信息：优先读 6h 缓存（无远程延迟），缓存命中时遍历 manifest 写入 author_name/author_homepage
-		// ponytail: FTP/压缩包升级不走 OfficialPluginService，需在此补同步
+		// 同步作者信息：强制刷新 manifest（升级是低频操作，确保拉到最新数据）
 		try {
 			$_sync_service = new OfficialPluginService();
-			$_sync_service->syncInstalledPluginsAuthorInfo(false);
+			$_sync_result = $_sync_service->syncInstalledPluginsAuthorInfo(true);
+			xn_log('plugin_upgrade sync author[dir=' . $dir . ']: ' . json_encode($_sync_result, JSON_UNESCAPED_UNICODE), 'plugin_author_sync_error');
 		} catch (\Throwable $e) {
-			xn_log('plugin_upgrade sync author error: ' . $e->getMessage(), 'plugin_upgrade_error');
+			xn_log('plugin_upgrade sync author error[dir=' . $dir . ']: ' . $e->getMessage(), 'plugin_upgrade_error');
 		}
 
 		$upgradefile = APP_PATH."plugin/$dir/upgrade.php";
@@ -418,6 +419,7 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 		}
 
 		$msg = lang('plugin_upgrade_sucessfully', array('name'=>$name));
+
 		message(0, $msg, array('redirect_url' => admin_plugin_url()));
 	} else {
 		// GET: 已改为弹窗确认，直接返回列表页
@@ -658,12 +660,13 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 		// 安装（写 conf.json + 数据库 + 清缓存，不执行 install.php）
 		plugin_install($pluginDir);
 
-		// 同步作者信息：优先读 6h 缓存（无远程延迟），manifest 无此插件则保持空值
+		// 同步作者信息：强制刷新 manifest（上传安装是低频操作，确保拉到最新数据）
 		try {
 			$_sync_service = new OfficialPluginService();
-			$_sync_service->syncInstalledPluginsAuthorInfo(false);
+			$_sync_result = $_sync_service->syncInstalledPluginsAuthorInfo(true);
+			xn_log('plugin_upload_install sync author[dir=' . $pluginDir . ']: ' . json_encode($_sync_result, JSON_UNESCAPED_UNICODE), 'plugin_author_sync_error');
 		} catch (\Throwable $e) {
-			xn_log('plugin_upload_install sync author error: ' . $e->getMessage(), 'plugin_install_error');
+			xn_log('plugin_upload_install sync author error[dir=' . $pluginDir . ']: ' . $e->getMessage(), 'plugin_install_error');
 		}
 
 		// 执行 install.php
@@ -732,12 +735,13 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 			// 写 conf.json + 数据库状态（不执行 install.php）
 		plugin_install($pluginDir);
 
-		// 同步作者信息：优先读 6h 缓存（无远程延迟），manifest 无此插件则保持空值
+		// 同步作者信息：强制刷新 manifest（上传升级是低频操作，确保拉到最新数据）
 		try {
 			$_sync_service = new OfficialPluginService();
-			$_sync_service->syncInstalledPluginsAuthorInfo(false);
+			$_sync_result = $_sync_service->syncInstalledPluginsAuthorInfo(true);
+			xn_log('plugin_upload_upgrade sync author[dir=' . $pluginDir . ']: ' . json_encode($_sync_result, JSON_UNESCAPED_UNICODE), 'plugin_author_sync_error');
 		} catch (\Throwable $e) {
-			xn_log('plugin_upload_upgrade sync author error: ' . $e->getMessage(), 'plugin_upgrade_error');
+			xn_log('plugin_upload_upgrade sync author error[dir=' . $pluginDir . ']: ' . $e->getMessage(), 'plugin_upgrade_error');
 		}
 
 		// 执行 upgrade.php 迁移脚本
