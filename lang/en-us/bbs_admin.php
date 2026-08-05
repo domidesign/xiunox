@@ -1962,6 +1962,11 @@ return array(
 	// Online Upgrade
 	'admin_online_upgrade'=>'Online Upgrade',
 	'admin_online_upgrade_title'=>'Online Code Upgrade',
+	'admin_db_upgrade'=>'Database Upgrade',
+	'admin_db_upgrade_title'=>'Database Structure Upgrade',
+	'admin_db_upgrade_btn'=>'Upgrade Database',
+	'admin_db_upgrade_desc'=>'Execute database structure upgrade, sync code and database version',
+	'admin_db_upgrade_notice'=>'<strong>When to use this?</strong><ul class="mb-0 mt-1"><li>Upgrading from Xiuno BBS 4.0 to XIUNOX</li><li>Database structure not synced after cross-version upgrade</li><li>Reinstalling current version to repair/rebuild database structure</li><li>Backend errors with missing fields or table structure</li><li>System prompts database upgrade required</li></ul><div class="mt-1 text-warning">⚠️ Back up your database before execution. Do not close the page during upgrade.</div>',
 	'admin_online_upgrade_check'=>'Check for Updates',
 	'admin_online_upgrade_checking'=>'Checking...',
 	'admin_online_upgrade_latest'=>'You are running the latest version',

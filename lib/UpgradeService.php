@@ -1821,40 +1821,71 @@ class UpgradeService {
 
     public function getSteps(): array {
         return [
+            // ===== 1. 基础设施 =====
             ['id' => 'check', 'name' => '前置检查', 'description' => '检查 PHP 版本、磁盘空间、文件权限'],
             ['id' => 'backup', 'name' => '备份', 'description' => '备份数据库和配置文件'],
+
+            // ===== 2. 字符集升级（先转字符集，避免后续加字段后重复转换） =====
+            ['id' => 'utf8mb4', 'name' => 'UTF8MB4 字符集升级', 'description' => '将数据库表从 utf8 转换为 utf8mb4，支持 emoji 等四字节字符'],
+
+            // ===== 3. 核心表结构（基础字段，后续步骤依赖） =====
             ['id' => 'db_structure', 'name' => '数据库结构升级', 'description' => '添加安全增强字段（password_hash, login_attempts 等）和登录日志表'],
             ['id' => 'social_tables', 'name' => '社交功能表升级', 'description' => '新增点赞、收藏、关注、通知表，添加版块分区、帖子互动、用户社交字段'],
             ['id' => 'migrate', 'name' => '数据库迁移', 'description' => '添加附件扩展字段、API 令牌表等'],
+
+            // ===== 4. API 体系 =====
             ['id' => 'api_v1', 'name' => 'API v1 表升级', 'description' => 'api_token 双令牌字段、帖子点赞/收藏/举报表'],
             ['id' => 'api_app', 'name' => 'API 应用认证表', 'description' => '创建 API 应用表，自动生成默认应用凭据'],
+
+            // ===== 5. 积分系统 =====
             ['id' => 'credits_system', 'name' => '积分系统', 'description' => '创建积分日志表，添加积分系统配置项'],
             ['id' => 'credits_rule', 'name' => '积分规则引擎', 'description' => '创建积分规则表，初始化内置事件规则'],
-            ['id' => 'search_indexes', 'name' => '全文搜索索引', 'description' => '为帖子标题和内容添加 FULLTEXT 索引（支持中文分词搜索）'],
+
+            // ===== 6. 字段扩展（依赖核心表结构） =====
             ['id' => 'icon_color_fields', 'name' => '图标与颜色字段', 'description' => '添加用户组图标/颜色、版块图标字段，迁移旧数据并设置默认值'],
-            ['id' => 'notice_is_read', 'name' => '通知系统', 'description' => '创建 notify 表（含 is_read 字段）及 user 关联字段，或为已有表添加 is_read 列和索引（notice 表已废弃）'],
-            ['id' => 'permission_system', 'name' => '权限系统', 'description' => '创建 group_permission 表，迁移旧权限数据，支持统一权限管理'],
+            ['id' => 'nickname_field', 'name' => '昵称字段迁移', 'description' => '将现有用户名复制到昵称字段，支持用户名不可修改、昵称可修改（依赖 db_structure 的 nickname 字段）'],
             ['id' => 'forum_management', 'name' => '版块管理优化', 'description' => '增加发帖审核/回帖审核权限字段，扩展版块图标字段支持图片路径'],
-            ['id' => 'group_audit_permissions', 'name' => '审核权限', 'description' => '添加用户组审核权限字段（发帖审核/回帖审核/资料审核），创建个人资料审核表'],
-            ['id' => 'security_settings', 'name' => '安全设置', 'description' => '初始化安全配置项、敏感词库文件、验证码配置、审核字段、IP/邮箱黑名单表'],
-            ['id' => 'admin_log_table', 'name' => '管理操作日志表', 'description' => '创建管理操作日志表，用于记录附件删除等后台操作'],
-            ['id' => 'plugin_table', 'name' => '插件管理表', 'description' => '创建插件管理表，支持插件时间记录、排序、作者信息（author_name/author_homepage）'],
-            ['id' => 'email_log', 'name' => '邮件发送日志表', 'description' => '创建邮件发送日志表，记录邮件发送状态、错误信息等'],
-            ['id' => 'friendlink_digest', 'name' => '精华帖', 'description' => '添加帖子精华字段（digest, digest_date, user.digests, forum.digests），创建精华帖索引表'],
             ['id' => 'soft_delete', 'name' => '软删除字段', 'description' => '为 thread 和 post 表添加 is_deleted, deleted_date, deleted_by 字段及索引，支持软删除功能'],
             ['id' => 'user_ban_system', 'name' => '用户封禁系统', 'description' => '为 user 表添加 ban_type/ban_reason/ban_admin_uid/ban_time 字段，创建封禁历史记录表和 IP 黑名单表'],
-            ['id' => 'migrate_banned_ip', 'name' => 'IP黑名单数据迁移', 'description' => '将 banned_ip 表数据迁移到 IpBlacklistService（kv 存储，支持 CIDR 和范围格式）'],
-            ['id' => 'cache_system', 'name' => '缓存系统优化', 'description' => '迁移旧缓存配置到 setting，清理过时驱动（xcache/apc/yac），初始化默认缓存配置'],
-            ['id' => 'nickname_field', 'name' => '昵称字段迁移', 'description' => '将现有用户名复制到昵称字段，支持用户名不可修改、昵称可修改'],
-            ['id' => 'notify_merge', 'name' => '通知系统合并', 'description' => '扩展 notify 表字段（message/icon/url 等），将 notice 表数据迁移到 notify 表，删除旧 notice 表'],
-            ['id' => 'utf8mb4', 'name' => 'UTF8MB4 字符集升级', 'description' => '将数据库表从 utf8 转换为 utf8mb4，支持 emoji 等四字节字符'],
-            ['id' => 'password', 'name' => '密码升级', 'description' => '标记旧密码需登录后自动升级'],
-            ['id' => 'config', 'name' => '配置调整', 'description' => '更新版本号，新增配置项'],
-            ['id' => 'user_group_resync', 'name' => '用户组重同步', 'description' => '修复存量用户组与积分不匹配（遍历所有积分用户组用户，按当前 credits 重新计算用户组）'],
-            ['id' => 'recompile', 'name' => '插件重编译', 'description' => '清空缓存，重编译所有插件'],
+
+            // ===== 7. 通知系统 =====
+            ['id' => 'notice_is_read', 'name' => '通知系统', 'description' => '创建 notify 表（含 is_read 字段）及 user 关联字段，或为已有表添加 is_read 列和索引（notice 表已废弃）'],
+            ['id' => 'notify_merge', 'name' => '通知系统合并', 'description' => '扩展 notify 表字段（message/icon/url 等），将 notice 表数据迁移到 notify 表，删除旧 notice 表（依赖 notice_is_read）'],
+
+            // ===== 8. 权限与审核 =====
+            ['id' => 'permission_system', 'name' => '权限系统', 'description' => '创建 group_permission 表，迁移旧权限数据，支持统一权限管理'],
+            ['id' => 'group_audit_permissions', 'name' => '审核权限', 'description' => '添加用户组审核权限字段（发帖审核/回帖审核/资料审核），创建个人资料审核表'],
+
+            // ===== 9. 安全（migrate_banned_ip 依赖 user_ban_system） =====
+            ['id' => 'security_settings', 'name' => '安全设置', 'description' => '初始化安全配置项、敏感词库文件、验证码配置、审核字段、IP/邮箱黑名单表'],
+            ['id' => 'migrate_banned_ip', 'name' => 'IP黑名单数据迁移', 'description' => '将 banned_ip 表数据迁移到 IpBlacklistService（kv 存储，支持 CIDR 和范围格式，依赖 user_ban_system）'],
+
+            // ===== 10. 搜索与功能扩展 =====
+            ['id' => 'search_indexes', 'name' => '全文搜索索引', 'description' => '为帖子标题和内容添加 FULLTEXT 索引（支持中文分词搜索）'],
+            ['id' => 'friendlink_digest', 'name' => '精华帖', 'description' => '添加帖子精华字段（digest, digest_date, user.digests, forum.digests），创建精华帖索引表'],
+
+            // ===== 11. 日志表（独立，无依赖） =====
+            ['id' => 'admin_log_table', 'name' => '管理操作日志表', 'description' => '创建管理操作日志表，用于记录附件删除等后台操作'],
+            ['id' => 'email_log', 'name' => '邮件发送日志表', 'description' => '创建邮件发送日志表，记录邮件发送状态、错误信息等'],
+            ['id' => 'ai_call_log', 'name' => 'AI 调用日志表', 'description' => '创建 xnx_ai_call_log 表，统一记录核心与插件的 AI 调用日志'],
+
+            // ===== 12. 插件表（独立，无依赖） =====
+            ['id' => 'plugin_table', 'name' => '插件管理表', 'description' => '创建插件管理表，支持插件时间记录、排序、作者信息（author_name/author_homepage）'],
+
+            // ===== 13. 性能优化（所有表结构定型后） =====
             ['id' => 'perf_indexes', 'name' => '性能索引优化', 'description' => '为用户帖子列表、回帖列表等高频查询添加联合索引，消除全表扫描'],
             ['id' => 'fid_field_type', 'name' => 'fid 字段类型统一', 'description' => '统一所有表的 fid 字段为 smallint(5) unsigned，避免 JOIN 隐式类型转换导致索引失效'],
-            ['id' => 'ai_call_log', 'name' => 'AI 调用日志表', 'description' => '创建 xnx_ai_call_log 表，统一记录核心与插件的 AI 调用日志'],
+
+            // ===== 14. 缓存系统（表结构完成后迁移配置） =====
+            ['id' => 'cache_system', 'name' => '缓存系统优化', 'description' => '迁移旧缓存配置到 setting，清理过时驱动（xcache/apc/yac），初始化默认缓存配置'],
+
+            // ===== 15. 逻辑层（数据修复，无表结构变更） =====
+            ['id' => 'password', 'name' => '密码升级', 'description' => '标记旧密码需登录后自动升级'],
+            ['id' => 'user_group_resync', 'name' => '用户组重同步', 'description' => '修复存量用户组与积分不匹配（遍历所有积分用户组用户，按当前 credits 重新计算用户组）'],
+
+            // ===== 16. 收尾 =====
+            ['id' => 'config', 'name' => '配置调整', 'description' => '更新版本号，新增配置项'],
+            ['id' => 'recompile', 'name' => '插件重编译', 'description' => '清空缓存，重编译所有插件'],
         ];
     }
 

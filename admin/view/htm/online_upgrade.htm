@@ -51,6 +51,9 @@ $csrfToken = CsrfService::getToken();
 			<button type="button" class="btn btn-outline-secondary" id="reinstallBtn" onclick="reinstall()">
 				<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>
 			</button>
+			<a href="<?php echo url('upgrade');?>" class="btn btn-outline-warning">
+				<i class="ti ti-database-upgrade"></i><?php echo lang('admin_db_upgrade_btn');?>
+			</a>
 		</div>
 
 			<!-- 前置检查告警 -->
