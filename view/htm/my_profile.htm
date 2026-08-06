@@ -10,6 +10,11 @@
 				// 待审字段提示
 				$pending_nickname = !empty($pending_profile_fields) && in_array('nickname', $pending_profile_fields);
 				$pending_signature = !empty($pending_profile_fields) && in_array('signature', $pending_profile_fields);
+				// 次数用尽同样禁用对应字段（limit>0 才启用限制，limit=0 表示不限次数）
+				$nickname_exhausted = $nickname_change_limit > 0 && $nickname_remaining <= 0;
+				$signature_exhausted = $signature_change_limit > 0 && $signature_remaining <= 0;
+				$nickname_disabled = $pending_nickname || $nickname_exhausted;
+				$signature_disabled = $pending_signature || $signature_exhausted;
 				?>
 				<?php if($pending_nickname || $pending_signature): ?>
 				<div class="alert alert-info d-flex align-items-center mb-3" role="alert">
@@ -24,46 +29,57 @@
 					</div>
 				</div>
 				<?php endif; ?>
-				<form hx-post="<?php echo my_profile_url();?>" hx-target="#profile-msg" hx-swap="innerHTML" id="profile_form">
-					<?php echo CsrfService::input(); ?>
-					<div id="profile-msg"></div>
-					<div class="mb-3">
-						<label class="form-label fw-medium"><?php echo lang('username');?></label>
-						<input type="text" class="form-control" value="<?php echo esc_html($user['username']);?>" disabled>
-						<div class="form-text text-body-secondary"><?php echo lang('username_cannot_modify');?></div>
-					</div>
-					<div class="mb-3">
-					<label class="form-label fw-medium"><?php echo lang('nickname');?></label>
-					<input type="text" class="form-control" name="nickname" value="<?php echo esc_html($user['nickname'] ?? $user['username']);?>" required<?php echo $pending_nickname ? ' disabled' : '';?>>
-					<?php if($pending_nickname): ?><div class="form-text text-warning"><i class="ti ti-clock-hour-4 me-1"></i><?php echo lang('field_audit_pending');?></div><?php endif; ?>
-					<?php if(!$pending_nickname && $nickname_change_limit > 0): ?>
-					<div class="form-text text-body-secondary"><i class="ti ti-info-circle me-1"></i><?php echo lang('nickname_remaining_tip', array('remaining'=>$nickname_remaining, 'limit'=>$nickname_change_limit));?></div>
-					<?php endif; ?>
-					<div class="invalid-feedback"></div>
-				</div>
 				<div class="mb-3">
-				<label class="form-label fw-medium d-flex justify-content-between align-items-center">
-					<span><?php echo lang('signature');?></span>
-					<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="sig-preview-toggle"><i class="ti ti-eye me-1"></i><?php echo lang('signature_preview');?></button>
-				</label>
-				<textarea class="form-control rounded-1" name="signature" id="signature_input" rows="3" placeholder="<?php echo lang('signature_placeholder');?>"<?php echo $pending_signature ? ' disabled' : '';?>><?php echo esc_html($user['signature'] ?? '');?></textarea>
-				<div class="form-text text-body-secondary"><i class="ti ti-info-circle me-1"></i><?php echo lang('signature_html_tip');?></div>
-			  
-				<?php if($pending_signature): ?><div class="form-text text-warning"><i class="ti ti-clock-hour-4 me-1"></i><?php echo lang('field_audit_pending');?></div><?php endif; ?>
-				<?php if(!$pending_signature && $signature_change_limit > 0): ?>
-				<div class="form-text text-body-secondary"><i class="ti ti-info-circle me-1"></i><?php echo lang('signature_remaining_tip', array('remaining'=>$signature_remaining, 'limit'=>$signature_change_limit));?></div>
-				<?php endif; ?>
-				<div class="invalid-feedback"></div>
-				<!-- 签名预览区域 -->
-				<div id="sig-preview-box" class="mt-2 d-none">
-					<div class="form-text text-body-secondary mb-1"><i class="ti ti-eye me-1"></i><?php echo lang('signature_preview');?></div>
-					<div class="border rounded-1 p-2 bg-body-tertiary small" id="sig-preview-content" style="min-height:2.5rem;max-height:8rem;overflow-y:auto">
-						<span class="text-body-tertiary"><?php echo lang('signature_preview_empty');?></span>
-					</div>
+					<label class="form-label fw-medium"><?php echo lang('username');?></label>
+					<input type="text" class="form-control" value="<?php echo esc_html($user['username']);?>" disabled>
+					<div class="form-text text-body-secondary"><?php echo lang('username_cannot_modify');?></div>
 				</div>
-			</div>
+				<!-- 昵称修改：独立表单，签名次数用完不影响昵称修改 -->
+				<form hx-post="<?php echo my_profile_url();?>" hx-target="#nickname-msg" hx-swap="innerHTML" id="nickname_form">
+					<?php echo CsrfService::input(); ?>
+					<div id="nickname-msg"></div>
+					<div class="mb-3">
+						<label class="form-label fw-medium"><?php echo lang('nickname');?></label>
+						<input type="text" class="form-control" name="nickname" value="<?php echo esc_html($user['nickname'] ?? $user['username']);?>" required<?php echo $nickname_disabled ? ' disabled' : '';?>>
+						<?php if($pending_nickname): ?><div class="form-text text-warning"><i class="ti ti-clock-hour-4 me-1"></i><?php echo lang('field_audit_pending');?></div><?php endif; ?>
+						<?php if($nickname_exhausted): ?><div class="form-text text-danger"><i class="ti ti-alert-circle me-1"></i><?php echo lang('nickname_exhausted');?></div><?php endif; ?>
+						<?php if(!$nickname_disabled && $nickname_change_limit > 0): ?>
+						<div class="form-text text-body-secondary remaining-tip"><i class="ti ti-info-circle me-1"></i><?php echo lang('nickname_remaining_tip', array('remaining'=>$nickname_remaining));?></div>
+						<?php endif; ?>
+						<div class="invalid-feedback"></div>
+					</div>
 					<div>
-						<button type="submit" class="btn btn-primary" id="profile_submit" data-loading-text="<?php echo lang('submiting');?>..."<?php echo (!empty($pending_profile_fields) && ($pending_nickname || $pending_signature)) ? ' disabled' : '';?>><?php echo lang('save_profile');?></button>
+						<button type="submit" class="btn btn-primary" id="nickname_submit" data-loading-text="<?php echo lang('submiting');?>..."<?php echo $nickname_disabled ? ' disabled' : '';?>><?php echo lang('save_nickname');?></button>
+					</div>
+				</form>
+				<hr>
+				<!-- 签名修改：独立表单 -->
+				<form hx-post="<?php echo my_profile_url();?>" hx-target="#signature-msg" hx-swap="innerHTML" id="signature_form">
+					<?php echo CsrfService::input(); ?>
+					<div id="signature-msg"></div>
+					<div class="mb-3">
+						<label class="form-label fw-medium d-flex justify-content-between align-items-center">
+							<span><?php echo lang('signature');?></span>
+							<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="sig-preview-toggle"><i class="ti ti-eye me-1"></i><?php echo lang('signature_preview');?></button>
+						</label>
+						<textarea class="form-control rounded-1" name="signature" id="signature_input" rows="3" placeholder="<?php echo lang('signature_placeholder');?>"<?php echo $signature_disabled ? ' disabled' : '';?>><?php echo esc_html($user['signature'] ?? '');?></textarea>
+						<div class="form-text text-body-secondary"><i class="ti ti-info-circle me-1"></i><?php echo lang('signature_html_tip');?></div>
+						<?php if($pending_signature): ?><div class="form-text text-warning"><i class="ti ti-clock-hour-4 me-1"></i><?php echo lang('field_audit_pending');?></div><?php endif; ?>
+						<?php if($signature_exhausted): ?><div class="form-text text-danger"><i class="ti ti-alert-circle me-1"></i><?php echo lang('signature_exhausted');?></div><?php endif; ?>
+						<?php if(!$signature_disabled && $signature_change_limit > 0): ?>
+						<div class="form-text text-body-secondary remaining-tip"><i class="ti ti-info-circle me-1"></i><?php echo lang('signature_remaining_tip', array('remaining'=>$signature_remaining));?></div>
+						<?php endif; ?>
+						<div class="invalid-feedback"></div>
+						<!-- 签名预览区域 -->
+						<div id="sig-preview-box" class="mt-2 d-none">
+							<div class="form-text text-body-secondary mb-1"><i class="ti ti-eye me-1"></i><?php echo lang('signature_preview');?></div>
+							<div class="border rounded-1 p-2 bg-body-tertiary small" id="sig-preview-content" style="min-height:2.5rem;max-height:8rem;overflow-y:auto">
+								<span class="text-body-tertiary"><?php echo lang('signature_preview_empty');?></span>
+							</div>
+						</div>
+					</div>
+					<div>
+						<button type="submit" class="btn btn-primary" id="signature_submit" data-loading-text="<?php echo lang('submiting');?>..."<?php echo $signature_disabled ? ' disabled' : '';?>><?php echo lang('save_signature');?></button>
 					</div>
 				</form>
 				<!--{hook my_profile_end.htm}-->
@@ -117,72 +133,189 @@
 	}
 })();
 
-// 基本资料表单提交
-var profileForm = document.getElementById('profile_form');
-var profileSubmit = document.getElementById('profile_submit');
-var profileSubmitOriginal = profileSubmit.innerHTML;
+// 基本资料表单提交：昵称/签名两个独立表单，各自提交/确认/次数消耗/loading/结果处理
+// ponytail: XN.confirm 是异步 Bootstrap Modal，须设置 _htmxConfirmAsync 并手动 issueRequest/dropRequest
+function bindProfileForm(opts) {
+	var form = document.getElementById(opts.formId);
+	var submitBtn = document.getElementById(opts.submitId);
+	if(!form || !submitBtn) return;
+	var input = form.querySelector('[name="' + opts.fieldName + '"]');
+	var initialValue = input ? input.value : '';
+	var submitOriginal = submitBtn.innerHTML;
 
-// 提交前禁用按钮，防止重复提交
-profileForm.addEventListener('htmx:before:request', function(e) {
-	profileSubmit.disabled = true;
-	profileSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('submiting');?>...';
+	// 提交前确认：无修改拦截 + 变更确认 + 次数消耗提示
+	form.addEventListener('htmx:confirm', function(e) {
+		var changed = input && input.value.trim() !== initialValue.trim();
+		// 未做任何修改：阻止提交并提示
+		if(!changed) {
+			e.preventDefault();
+			e.detail.dropRequest();
+			if(typeof XN !== 'undefined' && XN.toast) {
+				XN.toast('<?php echo lang('profile_no_change');?>', 'warning');
+			}
+			return;
+		}
+		// 兜底：XN.confirm 不可用（bootstrap 加载失败等）时直接放行，避免请求被卡住
+		if(typeof XN === 'undefined' || typeof XN.confirm !== 'function') {
+			return;
+		}
+		e.preventDefault();
+		// 变更字段列表（独立表单只含一个字段）
+		var listItems = ['<li>' + opts.label + '：<code>' + XN.escapeHtml(input.value.trim()) + '</code></li>'];
+		var body = '<ul class="mb-2 ps-3 text-start">' + listItems.join('') + '</ul>';
+		// 次数消耗 / 审核提示（审核模式同样消耗次数，两者同时显示）
+		var notes = [];
+		if(opts.limit > 0) {
+			notes.push('<div class="text-body-secondary small"><i class="ti ti-info-circle me-1"></i>' + opts.consumedTip + '</div>');
+		}
+		<?php if(!empty($need_profile_audit)): ?>
+		notes.push('<div class="text-warning small"><i class="ti ti-clock-hour-4 me-1"></i><?php echo lang('profile_confirm_audit');?></div>');
+		<?php endif; ?>
+		body += notes.join('');
+
+		window._htmxConfirmAsync = true;
+		try {
+			XN.confirm('<?php echo lang('profile_confirm_message');?>', function() {
+				window._htmxConfirmAsync = false;
+				e.detail.issueRequest();
+			}, {
+				title: '<?php echo lang('profile_confirm_title');?>',
+				type: 'info',
+				body: body,
+				cancelCallback: function() {
+					window._htmxConfirmAsync = false;
+					e.detail.dropRequest();
+				}
+			});
+		} catch(err) {
+			// ponytail: 确认框弹出异常时必须放行请求，避免 _htmxConfirmAsync 卡死
+			window._htmxConfirmAsync = false;
+			e.detail.issueRequest();
+			if(typeof console !== 'undefined' && console.error) console.error('profile confirm failed:', err);
+		}
+	});
+
+	// 审核模式提交成功：message(0) 的 htmx 响应为 HX-Trigger 头触发 htmxSuccess（无 JSON 返回），
+	// 延迟刷新页面以展示待审禁用态
+	<?php if(!empty($need_profile_audit)): ?>
+	form.addEventListener('htmxSuccess', function() {
+		setTimeout(function() {
+			window.location.reload();
+		}, 1500);
+	});
+	<?php endif; ?>
+
+	// 提交前禁用按钮，防止重复提交
+	form.addEventListener('htmx:before:request', function(e) {
+		submitBtn.disabled = true;
+		submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span><?php echo lang('submiting');?>...';
+	});
+
+	// 请求完成后处理响应
+	form.addEventListener('htmx:after:request', function(e) {
+		var response = e.detail && e.detail.xhr;
+		if(!response || response.status !== 200) {
+			// 失败时恢复按钮
+			submitBtn.disabled = false;
+			submitBtn.innerHTML = submitOriginal;
+			return;
+		}
+		try {
+			var res = JSON.parse(response.responseText);
+			if(parseInt(res.code) === 0) {
+				// 成功：签名表单同步更新左侧卡片签名展示（签名支持HTML，直接渲染服务端净化后的内容）
+				if(opts.fieldName === 'signature') {
+					var sigDisplay = document.querySelector('.user-signature-display');
+					if(sigDisplay) {
+						var newSig = input.value.trim();
+						if(newSig) {
+							sigDisplay.innerHTML = '<i class="ti ti-quote me-1"></i>' + newSig;
+							sigDisplay.style.display = '';
+						} else {
+							sigDisplay.style.display = 'none';
+						}
+					}
+				}
+				// 判断是否需要审核（消息包含"审核"字样）
+				var needAudit = res.message && res.message.indexOf('审核') >= 0;
+				if(needAudit) {
+					// 需要审核：禁用表单字段，显示审核状态，刷新页面
+					submitBtn.innerHTML = '<i class="ti ti-clock-hour-4 me-1"></i>' + res.message;
+					submitBtn.classList.remove('btn-primary');
+					submitBtn.classList.add('btn-warning');
+					// 刷新页面以显示审核状态
+					setTimeout(function() {
+						window.location.reload();
+					}, 1500);
+				} else {
+					// 直接成功：即时更新剩余次数提示，次数用完时禁用输入区与按钮
+					if(opts.limit > 0) {
+						var tipEl = form.querySelector('.remaining-tip');
+						if(tipEl) {
+							var newRemaining = opts.remaining - 1;
+							if(newRemaining <= 0) {
+								if(input) input.disabled = true;
+								submitBtn.disabled = true;
+								tipEl.innerHTML = '<i class="ti ti-alert-circle me-1"></i>' + opts.exhaustedLabel;
+								tipEl.classList.remove('text-body-secondary');
+								tipEl.classList.add('text-danger');
+							} else {
+								// 语言包占位符 JS 端用 .replace 替换（禁止直接拼接绕过占位符）
+								tipEl.innerHTML = '<i class="ti ti-info-circle me-1"></i>' + opts.tipLabel.replace('{remaining}', newRemaining);
+							}
+						}
+					}
+					// 同步初始值：已保存的值视为基线，再次点击提示"没有修改任何内容"，避免重复消耗次数
+					if(input) initialValue = input.value.trim();
+					// 显示成功后恢复按钮
+					submitBtn.innerHTML = '<i class="ti ti-check me-1"></i>' + res.message;
+					submitBtn.classList.remove('btn-primary');
+					submitBtn.classList.add('btn-success');
+					setTimeout(function() {
+						// 次数已用完时保持按钮禁用，不再恢复
+						if(!(opts.limit > 0 && opts.remaining - 1 <= 0)) {
+							submitBtn.disabled = false;
+						}
+						submitBtn.innerHTML = submitOriginal;
+						submitBtn.classList.remove('btn-success');
+						submitBtn.classList.add('btn-primary');
+					}, 1500);
+				}
+			} else {
+				// 错误：恢复按钮
+				submitBtn.disabled = false;
+				submitBtn.innerHTML = submitOriginal;
+			}
+		} catch(ex) {
+			submitBtn.disabled = false;
+			submitBtn.innerHTML = submitOriginal;
+		}
+	});
+}
+
+// 昵称表单绑定
+bindProfileForm({
+	formId: 'nickname_form',
+	submitId: 'nickname_submit',
+	fieldName: 'nickname',
+	label: '<?php echo lang('nickname');?>',
+	limit: <?php echo $nickname_change_limit;?>,
+	remaining: <?php echo $nickname_remaining;?>,
+	exhaustedLabel: '<?php echo lang('nickname_exhausted');?>',
+	tipLabel: '<?php echo lang('nickname_remaining_tip');?>',
+	consumedTip: '<?php echo lang('profile_confirm_consumed_nickname', array('limit'=>$nickname_change_limit, 'remaining'=>max(0, $nickname_remaining - 1)));?>'
 });
 
-// 请求完成后处理响应
-profileForm.addEventListener('htmx:after:request', function(e) {
-	var response = e.detail && e.detail.xhr;
-	if(!response || response.status !== 200) {
-		// 失败时恢复按钮
-		profileSubmit.disabled = false;
-		profileSubmit.innerHTML = profileSubmitOriginal;
-		return;
-	}
-	try {
-		var res = JSON.parse(response.responseText);
-		if(parseInt(res.code) === 0) {
-			// 成功：更新签名展示（签名支持HTML，直接渲染服务端净化后的内容）
-			var sigDisplay = this.querySelector('.user-signature-display');
-			var sigInput = this.querySelector('[name="signature"]');
-			if(sigDisplay && sigInput) {
-				var newSig = sigInput.value.trim();
-				if(newSig) {
-					sigDisplay.innerHTML = '<i class="ti ti-quote me-1"></i>' + newSig;
-					sigDisplay.style.display = '';
-				} else {
-					sigDisplay.style.display = 'none';
-				}
-			}
-			// 判断是否需要审核（消息包含"审核"字样）
-			var needAudit = res.message && res.message.indexOf('审核') >= 0;
-			if(needAudit) {
-				// 需要审核：禁用表单字段，显示审核状态，刷新页面
-				profileSubmit.innerHTML = '<i class="ti ti-clock-hour-4 me-1"></i>' + res.message;
-				profileSubmit.classList.remove('btn-primary');
-				profileSubmit.classList.add('btn-warning');
-				// 刷新页面以显示审核状态
-				setTimeout(function() {
-					window.location.reload();
-				}, 1500);
-			} else {
-				// 直接成功：显示成功后恢复按钮
-				profileSubmit.innerHTML = '<i class="ti ti-check me-1"></i>' + res.message;
-				profileSubmit.classList.remove('btn-primary');
-				profileSubmit.classList.add('btn-success');
-				setTimeout(function() {
-					profileSubmit.disabled = false;
-					profileSubmit.innerHTML = profileSubmitOriginal;
-					profileSubmit.classList.remove('btn-success');
-					profileSubmit.classList.add('btn-primary');
-				}, 1500);
-			}
-		} else {
-			// 错误：恢复按钮
-			profileSubmit.disabled = false;
-			profileSubmit.innerHTML = profileSubmitOriginal;
-		}
-	} catch(ex) {
-		profileSubmit.disabled = false;
-		profileSubmit.innerHTML = profileSubmitOriginal;
-	}
+// 签名表单绑定
+bindProfileForm({
+	formId: 'signature_form',
+	submitId: 'signature_submit',
+	fieldName: 'signature',
+	label: '<?php echo lang('signature');?>',
+	limit: <?php echo $signature_change_limit;?>,
+	remaining: <?php echo $signature_remaining;?>,
+	exhaustedLabel: '<?php echo lang('signature_exhausted');?>',
+	tipLabel: '<?php echo lang('signature_remaining_tip');?>',
+	consumedTip: '<?php echo lang('profile_confirm_consumed_signature', array('limit'=>$signature_change_limit, 'remaining'=>max(0, $signature_remaining - 1)));?>'
 });
 </script>

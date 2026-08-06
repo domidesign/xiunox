@@ -1130,7 +1130,10 @@ function post_message_fmt(&$arr, $gid) {
 
 	// 入库的时候进行转换，编辑的时候，自行调取 message, 或者 message_fmt
 	$arr['doctype'] == 0 && $arr['message_fmt'] = xn_html_purify($arr['message']);
-	$arr['doctype'] == 1 && $arr['message_fmt'] = xn_txt_to_html($arr['message']);
+	if($arr['doctype'] == 1) {
+		// 容错：纯文本类型但内容明显是结构化 HTML（如粘贴自富文本编辑器/快速回复框）时，按 HTML 解析，避免页面显示 <p> 源码
+		$arr['message_fmt'] = post_message_looks_html($arr['message']) ? xn_html_purify($arr['message']) : xn_txt_to_html($arr['message']);
+	}
 
 	// 将 @提及 span 转换为可点击链接（在 message_fmt 上操作，不影响原始 message）
 	// AIEditor 生成格式：<span class="mention" data-type="mention" data-id="UID" data-label="USERNAME">@USERNAME</span>
@@ -1152,6 +1155,14 @@ function post_message_fmt(&$arr, $gid) {
 	
 	// 对引用进行处理
 	!empty($arr['quotepid']) && $arr['quotepid'] > 0 && $arr['message_fmt'] = post_quote($arr['quotepid']).$arr['message_fmt'];
+}
+
+// 判断内容是否明显为富文本 HTML（成对闭合的常用标签 或 <br>），避免纯文本里手打的 <p> 字面量被误解析
+function post_message_looks_html($s) {
+	if(!is_string($s) || $s === '') return false;
+	if(strpos($s, '<br') !== false) return true;
+	if(preg_match('#<(p|div|span|a|strong|em|b|i|u|h[1-6]|ul|ol|li|blockquote|pre|code|table|tr|td|img)[^>]*>.*?</\1>#is', $s)) return true;
+	return false;
 }
 
 // 获取内容的简介 0: html, 1: txt; 2: markdown; 3: ubb

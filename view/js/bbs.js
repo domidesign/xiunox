@@ -67,6 +67,21 @@ function sendVerifyCode(btn, extraData) {
 		if(emailInput && emailInput.value) {
 			data.email = emailInput.value;
 		}
+		// 注册场景：用户名/密码未填写时禁止发送邮件验证码，防止验证码被恶意滥用
+		var usernameInput = form.querySelector('input[name="username"]');
+		var passwordInput = form.querySelector('input[name="password"]');
+		if(usernameInput && passwordInput) {
+			if(!usernameInput.value) {
+				if(typeof XN.toast === 'function') XN.toast(bbs_lang.please_input_username, 'warning');
+				return;
+			}
+			if(!passwordInput.value) {
+				if(typeof XN.toast === 'function') XN.toast(bbs_lang.please_input_password, 'warning');
+				return;
+			}
+			data.username = usernameInput.value;
+			data.password = passwordInput.value;
+		}
 	}
 
 	if(extraData) {

@@ -824,6 +824,12 @@ if(empty($action)) {
 
 		$email = param('email');
 
+		// 未填写用户名/密码时禁止发送邮件验证码，防止验证码被恶意滥用
+		$username = param('username');
+		$password = param('password', '', FALSE);
+		empty($username) AND message('username', lang('please_input_username'));
+		empty($password) AND message('password', lang('please_input_password'));
+
 		empty($email) AND message('email', lang('please_input_email'));
 		!is_email($email, $err) AND message('email', $err);
 		empty($conf['user_create_email_on']) AND message(-1, lang('email_verify_not_on'));

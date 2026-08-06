@@ -392,8 +392,8 @@ class AttachmentService {
      * 上传 MIME 校验（静态入口，供路由层调用，支持 fileinfo 不可用时的降级）
      *
      * 行为由 security_upload_strict_mime 配置控制：
-     * - 严格模式（默认 1）：fileinfo 不可用 → 拒绝上传（与旧版行为一致，安全优先）
-     * - 兼容模式（0）：fileinfo 不可用时降级
+     * - 严格模式（1）：fileinfo 不可用 → 拒绝上传（安全优先）
+     * - 兼容模式（默认 0）：fileinfo 不可用时降级
      *     · 图片：用 getimagesize() 读取真实 MIME，命中白名单才通过
      *     · 非图片：仅依赖扩展名白名单（调用方已校验），跳过 MIME 校验
      *
@@ -408,7 +408,7 @@ class AttachmentService {
         if(!class_exists('SecurityConfigService')) {
             include_once APP_PATH.'lib/security/SecurityConfigService.php';
         }
-        $strict = intval(SecurityConfigService::get('security_upload_strict_mime', 1));
+        $strict = intval(SecurityConfigService::get('security_upload_strict_mime', 0));
 
         // fileinfo 可用：两种模式都走严格校验
         if(function_exists('finfo_open')) {

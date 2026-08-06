@@ -107,6 +107,8 @@
 <script>
 // 当前词库类型
 var currentType = '<?php echo $word_type;?>';
+// CSRF token：admin/index.inc.php 对 POST 统一校验，AJAX 必须携带（与 security_audit.htm 同款做法）
+var csrfToken = <?php echo json_encode($header['csrf_token'] ?? '');?>;
 // 预生成的两种词库 URL（避免手动拼接 & 在不同伪静态模式下出错）
 var wordTypeUrls = {
 	'sensitive': '<?php echo addslashes(admin_security_url('words', array('word_type'=>'sensitive')));?>',
@@ -134,6 +136,7 @@ function ajaxPost(url, data, cb) {
 		credentials: 'same-origin',
 		headers: {
 			'X-Requested-With': 'XMLHttpRequest',
+			'X-CSRF-Token': csrfToken,
 			'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
 		}
 	}).then(function(res) { return res.text(); }).then(function(text) {
@@ -151,7 +154,7 @@ function ajaxPost(url, data, cb) {
 document.querySelectorAll('.word-delete').forEach(function(btn) {
 	btn.addEventListener('click', function() {
 		var word = this.getAttribute('data-word');
-		XN.confirm('<?php echo lang('admin_confirm_delete_word')?>' + word + '？', function() {
+		XN.confirm(('<?php echo lang('admin_confirm_delete_word')?>').replace('{word}', word), function() {
 			ajaxPost('<?php echo admin_security_url('words');?>', { word_action: 'delete', word: word, word_type: currentType }, function(code, message) {
 				if(code == 0) {
 					showToast(message, 'success');

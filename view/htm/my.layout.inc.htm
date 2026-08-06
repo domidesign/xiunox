@@ -142,7 +142,7 @@
 						<span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:0.65em"><?php echo $user['groupname'];?></span>
 					</div>
 					<?php if(!empty($user['signature'])) { ?>
-				<p class="text-body-secondary small mb-0"><?php echo $user['signature'];?></p>
+				<p class="text-body-secondary small mb-0 user-signature-display"><?php echo $user['signature'];?></p>
 				<?php } ?>
 					<div class="d-flex gap-2 gap-sm-4 mt-2 justify-content-around justify-content-sm-start">
 					<span class="d-flex flex-column flex-sm-row align-items-center align-items-sm-baseline"><span class="fw-bold text-primary"><?php echo $user['threads'];?></span><small class="text-body-secondary"><?php echo lang('threads_label');?></small></span>
