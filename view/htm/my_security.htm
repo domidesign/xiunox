@@ -6,6 +6,7 @@
 		<div class="x-card card">
 			<div class="card-body">
 				<h6 class="fw-medium mb-3"><i class="ti ti-mail"></i> <?php echo lang('modify_email');?></h6>
+				<?php $_user_has_password = !empty($user['password']) || !empty($user['password_hash']);?>
 				<form hx-post="<?php echo my_email_url();?>" hx-target="#email-msg" hx-swap="innerHTML" id="email_form">
 					<?php echo CsrfService::input(); ?>
 					<div id="email-msg"></div>
@@ -13,6 +14,13 @@
 						<label class="form-label text-body-secondary"><?php echo lang('current_email');?></label>
 						<input type="text" class="form-control" value="<?php echo esc_html($user['email']);?>" disabled>
 					</div>
+					<?php if($_user_has_password): ?>
+					<div class="mb-3">
+						<label class="form-label"><?php echo lang('current_password');?></label>
+						<input type="password" class="form-control" name="password" placeholder="<?php echo lang('current_password');?>" required>
+						<div class="invalid-feedback"></div>
+					</div>
+					<?php endif; ?>
 					<div class="mb-3">
 						<label class="form-label"><?php echo lang('new_email');?></label>
 						<input type="email" class="form-control" name="email_new" id="email_new" placeholder="<?php echo lang('please_input_new_email');?>" required>
@@ -39,10 +47,12 @@
 				<form hx-post="<?php echo my_password_url();?>" hx-target="#password-msg" hx-swap="innerHTML" id="password_form">
 					<?php echo CsrfService::input(); ?>
 					<div id="password-msg"></div>
+					<?php if($_user_has_password): ?>
 					<div class="mb-3">
 						<input type="password" class="form-control" name="password_old" placeholder="<?php echo lang('password_old');?>" required>
 						<div class="invalid-feedback"></div>
 					</div>
+					<?php endif; ?>
 					<div class="mb-3">
 						<input type="password" class="form-control" name="password_new" placeholder="<?php echo lang('password_new');?>" required>
 						<div class="invalid-feedback"></div>
@@ -69,6 +79,54 @@
 <?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
 
 <script>
+// 表单提交防重：capture 阶段同步拦截快速双击，请求期间禁用按钮显示 loading，
+// 网络错误/超时/请求结束后恢复（与 post.htm 发帖防重模式一致的精简版）
+// ponytail: 30s 超时后仅恢复按钮不 abort 请求——改邮箱验证码一次性消费、改密码成功后 token
+// 失效并跳转，重复提交由后端幂等兜底，无需 htmx:abort
+function xnx_form_guard(formId, btnId) {
+	var form = document.getElementById(formId);
+	var btn = document.getElementById(btnId);
+	if(!form || !btn) return;
+	var loadingText = btn.getAttribute('data-loading-text') || '';
+	var originalText = btn.textContent;
+	var timer = null;
+	var busy = false;
+	// capture 阶段：htmx:before:request 是异步的，无法拦截快速双击产生的两次 submit 事件，
+	// 必须在 submit 阶段同步置位（同 post.htm/thread_js.inc.htm 的 isSubmitting 模式）
+	form.addEventListener('submit', function(evt) {
+		if(busy) {
+			evt.preventDefault();
+			evt.stopPropagation();
+			return;
+		}
+		busy = true;
+		btn.disabled = true;
+		if(loadingText) btn.textContent = loadingText;
+	}, true);
+	function restore() {
+		if(timer) { clearTimeout(timer); timer = null; }
+		busy = false;
+		btn.disabled = false;
+		btn.textContent = originalText;
+	}
+	// 请求前启动超时兜底：服务器卡死/网络无响应时按钮不永久卡在 loading
+	form.addEventListener('htmx:before:request', function() {
+		if(timer) clearTimeout(timer);
+		timer = setTimeout(function() {
+			restore();
+			if(typeof XN.toast === 'function') XN.toast('<?php echo lang('request_timeout');?>', 'danger');
+		}, 30000);
+	});
+	// htmx 4 冒号事件名；网络层错误（DNS/连接失败）早于 after:request 触发，立即恢复
+	form.addEventListener('htmx:response:error', function() {
+		restore();
+		if(typeof XN.toast === 'function') XN.toast('<?php echo lang('network_request_failed');?>', 'danger');
+	});
+	// 一定触发（即使 swap 失败），成功/失败统一恢复按钮
+	form.addEventListener('htmx:after:request', restore);
+}
+xnx_form_guard('email_form', 'email_submit');
+xnx_form_guard('password_form', 'password_submit');
 var jsend_code_btn = document.getElementById('send_code_btn');
 var send_code_timer = 0;
 jsend_code_btn.addEventListener('click', function() {

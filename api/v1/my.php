@@ -81,20 +81,9 @@ switch ($action) {
             ApiResponse::success($userData);
 
         } elseif ($method === 'PUT') {
-            $nickname = param('nickname', '');
-            // 签名支持HTML：第三参数FALSE取消基础htmlspecialchars转义，由xn_signature_purify统一净化
-            $signature = param('signature', '', FALSE);
-
-            // 签名 HTML 净化与长度检查
-            if ($signature !== '') {
-                $signature = xn_signature_purify($signature);
-                if (mb_strlen(strip_tags($signature)) > 255) {
-                    ApiResponse::validationError('signature_length_too_long');
-                }
-            }
-            if (!empty($nickname) && mb_strlen($nickname) > 32) {
-                ApiResponse::validationError('nickname_length_too_long');
-            }
+            // 昵称/签名按字段存在性独立处理（与 route/my.php 保持一致）：签名次数用完只拦截签名提交，昵称提交不受影响
+            $submit_nickname = array_key_exists('nickname', $_POST);
+            $submit_signature = array_key_exists('signature', $_POST);
 
             // 检查个人资料审核权限
             if (!class_exists('PermissionService')) {
@@ -103,64 +92,82 @@ switch ($action) {
             $need_profile_audit = !PermissionService::check('allow_direct_profile');
 
             $update = array();
-            if (!empty($nickname) && $nickname != $user['nickname']) {
-                // 昵称保留词检查
-                if (!class_exists('SensitiveWordFilter')) {
-                    include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
+            if ($submit_nickname) {
+                $nickname = param('nickname', '');
+                if (!empty($nickname) && mb_strlen($nickname) > 32) {
+                    ApiResponse::validationError('nickname_length_too_long');
                 }
-                $nickname_check = SensitiveWordFilter::content_check($nickname, SensitiveWordFilter::TYPE_RESERVED);
-                if (!$nickname_check['pass']) {
-                    ApiResponse::validationError('昵称包含保留词：' . implode('、', $nickname_check['matched_keywords']));
-                }
-                // 昵称全局唯一性检查
-                $exists = db_find_one('user', array('nickname' => $nickname));
-                if (!empty($exists) && $exists['uid'] != $uid) {
-                    ApiResponse::validationError('nickname_is_in_use');
-                }
-                // 昵称修改频率限制：30天内最多N次
-                if (!class_exists('SecurityConfigService')) {
-                    include_once APP_PATH . 'lib/security/SecurityConfigService.php';
-                }
-                $nickname_change_limit = intval(SecurityConfigService::get('security_nickname_change_limit', 1));
-                if ($nickname_change_limit > 0 && db_check_column_exists('user', 'nickname') && db_check_table_exists('nickname_change_log')) {
-                    $thirty_days_ago = time() - 30 * 86400;
-                    $recent_changes = db_count('nickname_change_log', array('uid' => $uid, 'change_time' => array('>' => $thirty_days_ago)));
-                    if ($recent_changes >= $nickname_change_limit) {
-                        $last_log = db_find_one('nickname_change_log', array('uid' => $uid, 'change_time' => array('>' => $thirty_days_ago)), array('change_time' => -1));
-                        $last_change_time = $last_log ? $last_log['change_time'] : time();
-                        $remain_days = 30 - intval((time() - $last_change_time) / 86400);
-                        $remain_days = $remain_days > 0 ? $remain_days : 1;
-                        ApiResponse::validationError('昵称修改过于频繁，' . $remain_days . ' 天后再试');
+                if (!empty($nickname) && $nickname != $user['nickname']) {
+                    // 昵称保留词检查
+                    if (!class_exists('SensitiveWordFilter')) {
+                        include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
                     }
+                    $nickname_check = SensitiveWordFilter::content_check($nickname, SensitiveWordFilter::TYPE_RESERVED);
+                    if (!$nickname_check['pass']) {
+                        ApiResponse::validationError('昵称包含保留词：' . implode('、', $nickname_check['matched_keywords']));
+                    }
+                    // 昵称全局唯一性检查
+                    $exists = db_find_one('user', array('nickname' => $nickname));
+                    if (!empty($exists) && $exists['uid'] != $uid) {
+                        ApiResponse::validationError('nickname_is_in_use');
+                    }
+                    // 昵称修改频率限制：30天内最多N次
+                    if (!class_exists('SecurityConfigService')) {
+                        include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+                    }
+                    $nickname_change_limit = intval(SecurityConfigService::get('security_nickname_change_limit', 1));
+                    if ($nickname_change_limit > 0 && db_check_column_exists('user', 'nickname') && db_check_table_exists('nickname_change_log')) {
+                        $thirty_days_ago = time() - 30 * 86400;
+                        $recent_changes = db_count('nickname_change_log', array('uid' => $uid, 'change_time' => array('>' => $thirty_days_ago)));
+                        if ($recent_changes >= $nickname_change_limit) {
+                            $last_log = db_find_one('nickname_change_log', array('uid' => $uid, 'change_time' => array('>' => $thirty_days_ago)), array('change_time' => -1));
+                            $last_change_time = $last_log ? $last_log['change_time'] : time();
+                            $remain_days = 30 - intval((time() - $last_change_time) / 86400);
+                            $remain_days = $remain_days > 0 ? $remain_days : 1;
+                            ApiResponse::validationError('昵称修改过于频繁，' . $remain_days . ' 天后再试');
+                        }
+                    }
+                    $update['nickname'] = $nickname;
                 }
-                $update['nickname'] = $nickname;
             }
-            if (db_check_column_exists('user', 'signature') && $signature != $user['signature']) {
-                // 签名内容敏感词检查
-                if (!class_exists('SensitiveWordFilter')) {
-                    include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
-                }
-                $sig_check = SensitiveWordFilter::content_check($signature, SensitiveWordFilter::TYPE_SENSITIVE);
-                if (!$sig_check['pass']) {
-                    ApiResponse::validationError('签名包含敏感词：' . implode('、', $sig_check['matched_keywords']));
-                }
-                // 签名修改频率限制
-                if (!class_exists('SecurityConfigService')) {
-                    include_once APP_PATH . 'lib/security/SecurityConfigService.php';
-                }
-                $signature_change_limit = intval(SecurityConfigService::get('security_signature_change_limit', 3));
-                if ($signature_change_limit > 0 && db_check_table_exists('signature_change_log')) {
-                    $thirty_days_ago = time() - 30 * 86400;
-                    $recent_changes = db_count('signature_change_log', array('uid' => $uid, 'change_time' => array('>' => $thirty_days_ago)));
-                    if ($recent_changes >= $signature_change_limit) {
-                        $last_log = db_find_one('signature_change_log', array('uid' => $uid, 'change_time' => array('>' => $thirty_days_ago)), array('change_time' => -1));
-                        $last_change_time = $last_log ? $last_log['change_time'] : time();
-                        $remain_days = 30 - intval((time() - $last_change_time) / 86400);
-                        $remain_days = $remain_days > 0 ? $remain_days : 1;
-                        ApiResponse::validationError('签名修改过于频繁，' . $remain_days . ' 天后再试');
+            if ($submit_signature) {
+                // 签名支持HTML：第三参数FALSE取消基础htmlspecialchars转义，由xn_signature_purify统一净化
+                $signature = param('signature', '', FALSE);
+                // 签名 HTML 净化与长度检查
+                if ($signature !== '') {
+                    $signature = xn_signature_purify($signature);
+                    if (mb_strlen(strip_tags($signature)) > 255) {
+                        ApiResponse::validationError('signature_length_too_long');
                     }
                 }
-                $update['signature'] = $signature;
+                // 签名变更判定：旧值同样净化归一化后比较，避免净化规范化差异把"未实际修改的签名"误判为变更消耗次数（与 route/my.php 保持一致）
+                if (db_check_column_exists('user', 'signature') && $signature != xn_signature_purify(isset($user['signature']) ? $user['signature'] : '')) {
+                    // 签名内容敏感词检查
+                    if (!class_exists('SensitiveWordFilter')) {
+                        include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
+                    }
+                    $sig_check = SensitiveWordFilter::content_check($signature, SensitiveWordFilter::TYPE_SENSITIVE);
+                    if (!$sig_check['pass']) {
+                        ApiResponse::validationError('签名包含敏感词：' . implode('、', $sig_check['matched_keywords']));
+                    }
+                    // 签名修改频率限制
+                    if (!class_exists('SecurityConfigService')) {
+                        include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+                    }
+                    $signature_change_limit = intval(SecurityConfigService::get('security_signature_change_limit', 3));
+                    if ($signature_change_limit > 0 && db_check_table_exists('signature_change_log')) {
+                        $thirty_days_ago = time() - 30 * 86400;
+                        $recent_changes = db_count('signature_change_log', array('uid' => $uid, 'change_time' => array('>' => $thirty_days_ago)));
+                        if ($recent_changes >= $signature_change_limit) {
+                            $last_log = db_find_one('signature_change_log', array('uid' => $uid, 'change_time' => array('>' => $thirty_days_ago)), array('change_time' => -1));
+                            $last_change_time = $last_log ? $last_log['change_time'] : time();
+                            $remain_days = 30 - intval((time() - $last_change_time) / 86400);
+                            $remain_days = $remain_days > 0 ? $remain_days : 1;
+                            ApiResponse::validationError('签名修改过于频繁，' . $remain_days . ' 天后再试');
+                        }
+                    }
+                    $update['signature'] = $signature;
+                }
             }
 
             if (!empty($update)) {
@@ -267,6 +274,22 @@ switch ($action) {
             }
         }
 
+        // 改密成功后发送通知邮件到当前邮箱，防止撞库/社工后静默改密
+        // 发送失败不影响改密结果，仅记录日志
+        if (!empty($user['email']) && filter_var($user['email'], FILTER_VALIDATE_EMAIL)) {
+            include_once XIUNOPHP_PATH . 'xn_send_mail.func.php';
+            if (function_exists('xn_email_template') && function_exists('xn_smtp_get')) {
+                $_tpl = xn_email_template('password_change_notify', array('sitename' => $conf['sitename'], 'username' => esc_html($user['username']), 'time' => date('Y-m-d H:i:s', time())));
+                $_smtp = xn_smtp_get();
+                if (!empty($_smtp)) {
+                    $_send = xn_send_mail($_smtp, $conf['sitename'], $user['email'], $_tpl['subject'], $_tpl['body'], array('is_html' => TRUE));
+                    if ($_send !== TRUE) {
+                        xn_log('api my_password: change notify failed: ' . $_send, 'security');
+                    }
+                }
+            }
+        }
+
         ApiResponse::success(null, 'password_modify_successfully');
         break;
 
@@ -279,6 +302,17 @@ switch ($action) {
             ));
 
         } elseif ($method === 'PUT') {
+            // 修改邮箱属于账号敏感操作，有密码的用户必须验证当前登录密码
+            // 防止 API token 泄露后直接改绑邮箱接管账号；
+            // 无密码用户（如纯 OAuth 绑定账号）无密码可验，由新邮箱验证码 + 旧邮箱通知兜底
+            $hasPassword = !empty($user['password']) || !empty($user['password_hash']);
+            if ($hasPassword) {
+                $password = param('password', '', FALSE);
+                if (!user_login_verify($password, $user)) {
+                    ApiResponse::validationError('old_password_incorrect');
+                }
+            }
+
             $email_new = param('email_new', '');
             $email_code = param('email_code', '');
 
@@ -313,6 +347,9 @@ switch ($action) {
                 ApiResponse::validationError('email_is_in_use');
             }
 
+            // 先保存旧邮箱，供改绑成功后发送通知
+            $oldEmail = $user['email'];
+
             $r = user_update($uid, array('email' => $email_new));
             if ($r === FALSE) {
                 ApiResponse::error(500, 'modify_failed');
@@ -321,6 +358,22 @@ switch ($action) {
             // 清理验证码缓存
             cache_delete($cache_code_key);
             cache_delete($cache_target_key);
+
+            // 改绑成功后通知旧邮箱，让原主人在密码已泄露（撞库）场景下第一时间察觉
+            // 发送失败不影响改绑结果，仅记录日志
+            if (!empty($oldEmail) && $oldEmail != $email_new && filter_var($oldEmail, FILTER_VALIDATE_EMAIL)) {
+                include_once XIUNOPHP_PATH . 'xn_send_mail.func.php';
+                if (function_exists('xn_email_template') && function_exists('xn_smtp_get')) {
+                    $_tpl = xn_email_template('email_change_notify', array('sitename' => $conf['sitename'], 'username' => esc_html($user['username']), 'old_email' => $oldEmail, 'new_email' => $email_new, 'time' => date('Y-m-d H:i:s', time())));
+                    $_smtp = xn_smtp_get();
+                    if (!empty($_smtp)) {
+                        $_send = xn_send_mail($_smtp, $conf['sitename'], $oldEmail, $_tpl['subject'], $_tpl['body'], array('is_html' => TRUE));
+                        if ($_send !== TRUE) {
+                            xn_log('api my_email: change notify failed: ' . $_send, 'security');
+                        }
+                    }
+                }
+            }
 
             ApiResponse::success(null, 'modify_successfully');
 

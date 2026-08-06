@@ -72,6 +72,7 @@ $_ban_is_admin = in_array($gid, array(1, 2));
             <!--{hook thread_subject_badge_after.htm}-->
             <span itemprop="name"><?php echo esc_html($thread['subject']);?></span>
             <!--{hook thread_subject_end.htm}-->
+            <a href="javascript:void(0);" id="copyThreadLinkBtn" class="text-body-secondary text-decoration-none ms-2" style="font-size:12px;vertical-align:middle;cursor:pointer" title="<?php echo lang('copy_link');?>" role="button" tabindex="0" aria-label="<?php echo lang('copy_link');?>">[<?php echo lang('copy_link');?>]</a>
         </h1>
         <!--{hook thread_subject_after.htm}-->
         <div class="d-flex justify-content-between align-items-center small">

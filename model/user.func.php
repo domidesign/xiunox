@@ -840,8 +840,12 @@ function user_change_password($uid, $new_password, $old_password = '', $is_admin
 			return FALSE;
 		}
 	} else {
-		// 普通模式：验证旧密码
-		if(empty($old_password) || !user_login_verify($old_password, $user)) {
+		// 普通模式：
+		// 已有密码的用户必须验证旧密码；
+		// 无密码用户（如纯 OAuth 绑定账号，password/password_hash 均为空）跳过旧密码验证，
+		// 此时本调用等同于"首次设置密码"，旧密码无从谈起，安全由已登录会话保证
+		$has_password = !empty($user['password']) || !empty($user['password_hash']);
+		if($has_password && (empty($old_password) || !user_login_verify($old_password, $user))) {
 			return FALSE;
 		}
 	}

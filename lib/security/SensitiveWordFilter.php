@@ -247,7 +247,10 @@ class SensitiveWordFilter {
 
         // 追加
         $content = trim($content) . "\n" . $word;
-        file_put_contents($file, $content, LOCK_EX);
+        if (file_put_contents($file, $content, LOCK_EX) === false) {
+            xn_log('sensitive word add write failed: ' . $file, 'error_sensitive_word.php');
+            return false;
+        }
 
         // 重新加载
         self::reload($type);
@@ -271,7 +274,10 @@ class SensitiveWordFilter {
             return trim($w) !== $word;
         });
 
-        file_put_contents($file, implode("\n", $words) . "\n", LOCK_EX);
+        if (file_put_contents($file, implode("\n", $words) . "\n", LOCK_EX) === false) {
+            xn_log('sensitive word delete write failed: ' . $file, 'error_sensitive_word.php');
+            return false;
+        }
         self::reload($type);
         return true;
     }
@@ -302,7 +308,10 @@ class SensitiveWordFilter {
             }
         }
 
-        file_put_contents($file, implode("\n", $existing) . "\n", LOCK_EX);
+        if (file_put_contents($file, implode("\n", $existing) . "\n", LOCK_EX) === false) {
+            xn_log('sensitive word import write failed: ' . $file, 'error_sensitive_word.php');
+            return 0;
+        }
         self::reload($type);
         return $count;
     }
@@ -359,7 +368,10 @@ class SensitiveWordFilter {
     public static function clear_words(string $type = self::TYPE_SENSITIVE): bool {
         $type = self::normalize_type($type);
         $file = self::get_words_file($type);
-        file_put_contents($file, '', LOCK_EX);
+        if (file_put_contents($file, '', LOCK_EX) === false) {
+            xn_log('sensitive word clear write failed: ' . $file, 'error_sensitive_word.php');
+            return false;
+        }
         self::reload($type);
         return true;
     }

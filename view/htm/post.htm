@@ -1124,9 +1124,31 @@ function openExtRefModal() {
     });
 
     if (fidSelect) {
-        fidSelect.addEventListener('change', refresh);
+        fidSelect.addEventListener('change', function() {
+            refresh();
+            // ponytail: 选择版块后 replaceState 更新 URL，让浏览器后退时 PHP 端能根据 fid 渲染正确初始状态
+            // 用 replaceState 而非 pushState，避免版块切换污染后退栈（用户离开发帖页后一次后退即返回上一页）
+            var fid = parseInt(fidSelect.value, 10) || 0;
+            if (fid > 0 && window.history && history.replaceState) {
+                // ponytail: url() 会根据 url_rewrite_on 自动追加后缀（.htm 或 .html），参数传路由名即可，禁止带后缀避免双重拼接
+                var tpl = '<?php echo url('thread-create-__FID__'); ?>';
+                var newUrl = tpl.replace('__FID__', fid);
+                var currentState = history.state || {};
+                if (currentState.fid !== fid) {
+                    history.replaceState({fid: fid}, '', newUrl);
+                }
+            }
+        });
     }
     refresh();
+
+    // ponytail: bfcache 后退恢复时重新计算 Tab 显隐（DOM 已被浏览器恢复，只需重新同步显隐状态）
+    // 不走 bfcache 时（页面重新加载）PHP 端根据 URL 中 fid 渲染正确初始状态，无需此处介入
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) {
+            refresh();
+        }
+    });
 })();
 </script>
 <?php } ?>

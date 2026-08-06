@@ -286,7 +286,7 @@ function addIpBlacklist() {
 function removeIpBlacklist(btn) {
     var el = btn.closest('[data-ip]');
     var ip = el.getAttribute('data-ip');
-    XN.confirm('<?php echo lang('admin_confirm_remove_ip_blacklist')?>' + ip + '？', function() {
+    XN.confirm(('<?php echo lang('admin_confirm_remove_ip_blacklist')?>').replace('{ip}', ip), function() {
     XN.post('<?php echo admin_security_url('blacklist');?>/ip_blacklist_remove', { ip: ip }, function(code, message) {
         if (code == 0) {
             el.remove();
@@ -344,7 +344,7 @@ function addIpWhitelist() {
 function removeIpWhitelist(btn) {
     var el = btn.closest('[data-ip]');
     var ip = el.getAttribute('data-ip');
-    XN.confirm('<?php echo lang('admin_confirm_remove_ip_whitelist')?>' + ip + '？', function() {
+    XN.confirm(('<?php echo lang('admin_confirm_remove_ip_whitelist')?>').replace('{ip}', ip), function() {
     XN.post('<?php echo admin_security_url('blacklist');?>/ip_whitelist_remove', { ip: ip }, function(code, message) {
         if (code == 0) {
             el.remove();
@@ -399,7 +399,7 @@ function addDomain() {
 function removeDomain(btn) {
     var el = btn.closest('[data-domain]');
     var domain = el.getAttribute('data-domain');
-    XN.confirm('<?php echo lang('admin_confirm_remove_domain')?>' + domain + '？', function() {
+    XN.confirm(('<?php echo lang('admin_confirm_remove_domain')?>').replace('{domain}', domain), function() {
     XN.post('<?php echo admin_security_url('blacklist');?>/email_remove', { domain: domain }, function(code, message) {
         if (code == 0) {
             el.remove();

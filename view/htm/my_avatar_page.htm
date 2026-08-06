@@ -8,37 +8,41 @@
 		<!-- 头像设置 -->
 		<div class="x-card card">
 			<div class="card-body">
-				<?php $pending_avatar = !empty($pending_profile_fields) && in_array('avatar', $pending_profile_fields); ?>
+				<?php
+				$pending_avatar = !empty($pending_profile_fields) && in_array('avatar', $pending_profile_fields);
+				// 当前头像展示块（含恢复默认按钮）：审核中显示于顶部，正常时显示在对应操作 Tab 内
+				$_avatar_cur_html = '<div class="text-center mb-4">'
+					. '<img id="avatar_img" class="rounded-1 border border-3" style="width:128px;height:128px;object-fit:cover;" src="' . $user['avatar_url'] . '" alt="" onerror="this.onerror=null;this.src=\'' . default_avatar_url() . '\'">'
+					. '<div class="mt-2">'
+					. '<button type="button" class="btn btn-sm btn-outline-secondary" id="avatar_reset_btn"'
+					. ($pending_avatar ? ' disabled' : '')
+					. '><i class="ti ti-arrow-back-up"></i> ' . lang('reset_default')
+					. '</button></div></div>';
+				?>
 				<?php if($pending_avatar): ?>
 				<div class="alert alert-info d-flex align-items-center mb-3" role="alert">
 					<i class="ti ti-clock-hour-4 me-2"></i>
 					<div><?php echo lang('avatar_audit_pending_tip');?></div>
 				</div>
+				<?php echo $_avatar_cur_html; ?>
 				<?php endif; ?>
 
-				<!-- 当前头像 -->
-				<div class="text-center mb-4">
-					<img id="avatar_img" class="rounded-1 border border-3" style="width:128px;height:128px;object-fit:cover;" src="<?php echo $user['avatar_url'];?>" alt="" onerror="this.onerror=null;this.src='<?php echo default_avatar_url();?>'">
-					<div class="mt-2">
-						<button type="button" class="btn btn-sm btn-outline-secondary" id="avatar_reset_btn"<?php echo $pending_avatar ? ' disabled' : '';?>>
-							<i class="ti ti-arrow-back-up"></i> <?php echo lang('reset_default');?>
-						</button>
-					</div>
-				</div>
-
 				<?php if(!$pending_avatar): ?>
-				<!-- 子 Tab：上传 / 预设 -->
-				<ul class="nav nav-pills mb-3 justify-content-center" role="tablist">
+				<!-- 子 Tab：上传 / 预设（nav-tabs 样式，避免误认为按钮） -->
+				<ul class="nav nav-tabs mb-3" role="tablist">
 					<?php if($allowattach) { ?>
-					<li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#avatar-upload-tab" type="button"><i class="ti ti-upload"></i> <?php echo lang('upload_avatar');?></button></li>
+					<li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#avatar-upload-tab" type="button"><i class="ti ti-upload me-1"></i> <?php echo lang('upload_avatar');?></button></li>
 					<?php } ?>
-					<li class="nav-item"><button class="nav-link<?php echo !$allowattach ? ' active' : '';?>" data-bs-toggle="pill" data-bs-target="#avatar-preset-tab" type="button"><i class="ti ti-grid-dots"></i> <?php echo lang('preset_avatar_tab');?></button></li>
+					<li class="nav-item"><button class="nav-link<?php echo !$allowattach ? ' active' : '';?>" data-bs-toggle="pill" data-bs-target="#avatar-preset-tab" type="button"><i class="ti ti-grid-dots me-1"></i> <?php echo lang('preset_avatar_tab');?></button></li>
 				</ul>
 
 				<div class="tab-content">
 					<?php if($allowattach) { ?>
 				<!-- 上传头像 Tab -->
 				<div class="tab-pane fade show active" id="avatar-upload-tab">
+					<!-- 当前头像 -->
+					<?php echo $_avatar_cur_html; ?>
+
 					<!-- 上传限制提示 -->
 					<div class="alert alert-light border d-flex flex-wrap justify-content-center gap-3 mb-3 py-2 small">
 						<span class="text-body-secondary">
@@ -87,6 +91,10 @@
 
 					<!-- 预设头像 Tab -->
 					<div class="tab-pane fade<?php echo !$allowattach ? ' show active' : '';?>" id="avatar-preset-tab">
+						<?php if(!$allowattach): ?>
+						<!-- 当前头像 -->
+						<?php echo $_avatar_cur_html; ?>
+						<?php endif; ?>
 						<?php
 						$preset_list = avatar_preset_files();
 						$current_preset = ($user['avatar'] < 0) ? abs($user['avatar']) : 0;

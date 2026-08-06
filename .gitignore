@@ -25,6 +25,7 @@ upload/avatar/*
 RULES.md
 AGENTS.md
 .trae/
+.workbuddy/
 
 # Plugins (keep directory, ignore contents)
 plugin/*

@@ -59,6 +59,12 @@
 </script>
 
 <script>
+    // 判断内容是否明显为结构化 HTML（成对闭合标签 / <br>），用于快速回复/手机 postbar 提交时动态识别 doctype
+    function postMessageLooksHtml(s) {
+        if (!s) return false;
+        if (s.indexOf('<br') !== -1) return true;
+        return /<(p|div|span|a|strong|em|b|i|u|h[1-6]|ul|ol|li|blockquote|pre|code|table|tr|td|img)[^>]*>[\s\S]*?<\/\1>/i.test(s);
+    }
     function resize_image() {
         var jmessagelist = document.querySelectorAll('div.message');
         var first_width = jmessagelist.length ? jmessagelist[0].getBoundingClientRect().width : 0;
@@ -433,6 +439,13 @@
         }, REPLY_TIMEOUT_MS);
     });
 
+    // ponytail: message 明显是结构化 HTML（如粘贴富文本源码）时把 doctype 改为 0，避免入库后按纯文本转义显示 <p> 源码
+    form.addEventListener('htmx:config:request', function(event) {
+        var p = event.detail.parameters;
+        var msg = p && p.message;
+        if (msg && postMessageLooksHtml(msg)) p.doctype = '0';
+    });
+
     // ponytail: 网络层错误（DNS/连接超时/服务器无响应）专用监听
     // htmx 4 事件名为 htmx:response:error（冒号分隔），旧 2.x 的 htmx:response-error 已废弃不触发
     form.addEventListener('htmx:response:error', function(e) {
@@ -605,25 +618,22 @@
                 correctLevel: QRCode.CorrectLevel.M
             });
         }
-        // 复制帖子网址
-        var copyBtn = document.getElementById('copyThreadUrlBtn');
-        if (copyBtn) {
-            copyBtn.addEventListener('click', function () {
-                var url = this.getAttribute('data-url');
-                var okMsg = '<?php echo lang('copied_to_clipboard');?>';
-                var failMsg = '<?php echo lang('copy_failed');?>';
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(url).then(function () {
-                        XN.toast(okMsg, 'success');
-                    }).catch(function () {
-                        fallbackCopy(url, okMsg, failMsg);
-                    });
-                } else {
-                    fallbackCopy(url, okMsg, failMsg);
-                }
-            });
+        // 复制帖子（标题+网址+出处），右侧扫码区与主标题「复制链接」共用
+        var shareText = <?php echo json_encode($thread['subject']."\n".$thread_url."\n（出处：".$conf['sitename'].' '.(isset($forum['name']) ? $forum['name'] : '').'）');?>;
+        var copyOkMsg = '<?php echo lang('copied_to_clipboard');?>';
+        var copyFailMsg = '<?php echo lang('copy_failed');?>';
+        function copyThreadShare() {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(shareText).then(function () {
+                    XN.toast(copyOkMsg, 'success');
+                }).catch(function () {
+                    fallbackCopy(shareText);
+                });
+            } else {
+                fallbackCopy(shareText);
+            }
         }
-        function fallbackCopy(text, okMsg, failMsg) {
+        function fallbackCopy(text) {
             var ta = document.createElement('textarea');
             ta.value = text;
             ta.style.position = 'fixed';
@@ -632,12 +642,16 @@
             ta.select();
             try {
                 document.execCommand('copy');
-                XN.toast(okMsg, 'success');
+                XN.toast(copyOkMsg, 'success');
             } catch (e) {
-                XN.toast(failMsg, 'error');
+                XN.toast(copyFailMsg, 'error');
             }
             document.body.removeChild(ta);
         }
+        var copyBtn = document.getElementById('copyThreadUrlBtn');
+        if (copyBtn) copyBtn.addEventListener('click', copyThreadShare);
+        var copyLinkBtn = document.getElementById('copyThreadLinkBtn');
+        if (copyLinkBtn) copyLinkBtn.addEventListener('click', copyThreadShare);
     })();
 </script>
 
@@ -1005,7 +1019,7 @@ document.body.addEventListener('htmx:after:swap', function(e) {
         // 构造表单数据
         var formData = new FormData();
         if (csrfInput) formData.append('csrf_token', csrfInput.value);
-        formData.append('doctype', '1');
+        formData.append('doctype', postMessageLooksHtml(msg) ? '0' : '1');
         formData.append('quotepid', postbarQuotepid);
         formData.append('message', msg);
         if (postbarNeedCaptcha && postbarCaptchaInput) {

@@ -35,7 +35,10 @@ if($action == 'forum') {
                     'credits_change' => param('credits_change_' . $event, 0),
                     'golds_change' => param('golds_change_' . $event, 0),
                     'rmbs_change' => param('rmbs_change_' . $event, 0),
-                    'enabled' => param('enabled_' . $event, 0),
+                    // ponytail: 版块规则模板只有 override 开关（勾选即启用此条版块规则），
+                    // 无 enabled checkbox，硬编码为 1。误用 param('enabled_xxx',0) 会因模板缺字段恒存 0，
+                    // 导致 getRule 把版块规则当作禁用处理（不回退全局也不发放积分）。
+                    'enabled' => 1,
                     'daily_limit' => param('daily_limit_' . $event, 0),
                 );
             } else {
