@@ -121,6 +121,9 @@ return array(
 
 	'for_safe_input_password_again'=>'為了您的安全，請再次輸入賬戶密碼',
 
+	// 二次驗證登錄頁
+	'admin_login_back_site'=>'返回站點',
+
 	'sitename'=>'站點名稱',
 	'sitesubtitle'=>'站點副標題',
 	'sitesubtitle_tips'=>'顯示在瀏覽器標題欄站點名稱後，如 slogan：不只是一個論壇。留空則不顯示',

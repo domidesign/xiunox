@@ -41,7 +41,17 @@ function _include($srcfile) {
 	global $conf;
 	$len = strlen(APP_PATH);
 	$tmpfile = $conf['tmp_path'].substr(str_replace('/', '_', $srcfile), $len);
-	if(!is_file($tmpfile) || DEBUG > 1 || !empty($conf['cache_disable'])) {
+	$_need_compile = !is_file($tmpfile) || DEBUG > 1 || !empty($conf['cache_disable']);
+	// 源码文件比编译缓存新时重新编译
+	// 避免修改模板/模型文件后必须手动清理缓存（后台「清理缓存」或删除 tmp/）才能生效
+	if(!$_need_compile && is_file($srcfile)) {
+		$_src_mtime = @filemtime($srcfile);
+		$_tmp_mtime = @filemtime($tmpfile);
+		if($_src_mtime > $_tmp_mtime) {
+			$_need_compile = true;
+		}
+	}
+	if($_need_compile) {
 		// 开始编译
 		$s = plugin_compile_srcfile($srcfile);
 

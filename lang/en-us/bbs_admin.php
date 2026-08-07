@@ -121,6 +121,9 @@ return array(
 
 	'for_safe_input_password_again'=>'Please input password again for security',
 
+	// Two-step verification login page
+	'admin_login_back_site'=>'Back to Site',
+
 	'sitename'=>'Site Name',
 	'sitesubtitle'=>'Site Subtitle',
 	'sitesubtitle_tips'=>'Shown after the site name in the browser title bar, e.g. slogan: Not just a forum. Leave empty to hide',

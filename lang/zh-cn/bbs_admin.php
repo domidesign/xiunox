@@ -120,6 +120,9 @@ return array(
 	'dev_team_info'=>'开发团队信息',
 	
 	'for_safe_input_password_again'=>'为了您的安全，请再次输入账户密码',
+
+	// 二次验证登录页
+	'admin_login_back_site'=>'返回站点',
 	
 	// 设置
 	'sitename'=>'站点名称',

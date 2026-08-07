@@ -1,4 +1,4 @@
-@charset "UTF-8";
+﻿@charset "UTF-8";
 
 :root {
     --admin-sidebar-width: auto;
@@ -28,7 +28,7 @@ a:hover {
     border: none;
 }
 
-/* ===== nav-tabs active 椭圆指示条 ===== */
+/* ===== nav-tabs active 妞渾鎸囩ず鏉?===== */
 .nav-tabs .nav-link {
     position: relative;
 }
@@ -49,7 +49,7 @@ a:hover {
     transform: translateX(-50%) scaleX(1);
 }
 
-/* 导航Tab横向滚动（移动端不换行，可左右滑动） */
+/* 瀵艰埅Tab妯悜婊氬姩锛堢Щ鍔ㄧ涓嶆崲琛岋紝鍙乏鍙虫粦鍔級 */
 .nav-tabs-scroll {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -111,7 +111,7 @@ a {
     border-radius: var(--bs-border-radius);
 }
 
-/* pagination-boxed: ç‹¬ç«‹æ–¹å—æŒ‰é’®ï¼Œæ— è¿žæŽ¥è¾¹æ¡† */
+/* pagination-boxed: 莽鈥孤€姑︹€撀姑ヂ濃€斆ε掆€懊┾€櫬寂捗︹€斅犆颗久ε铰ッ韭姑β♀€?*/
 .pagination-boxed {
     gap: 4px;
 }
@@ -407,7 +407,7 @@ a {
     background: rgba(37, 99, 235, 0.15) !important;
 }
 
-/* 表格最小宽度（配合 table-responsive 实现移动端横向滚动，防止列压缩不可读） */
+/* 琛ㄦ牸鏈€灏忓搴︼紙閰嶅悎 table-responsive 瀹炵幇绉诲姩绔í鍚戞粴鍔紝闃叉鍒楀帇缂╀笉鍙锛?*/
 .table-responsive .table-min-w-sm { min-width: 576px; }
 .table-responsive .table-min-w-md { min-width: 768px; }
 .table-responsive .table-min-w-lg { min-width: 992px; }
@@ -791,7 +791,7 @@ a {
     border-color: rgba(var(--bs-danger-rgb), .15);
 }
 
-/* ===== 站点健康诊断 ===== */
+/* ===== 绔欑偣鍋ュ悍璇婃柇 ===== */
 .health-score-section {
     display: flex; flex-direction: column; align-items: center;
     padding: 2rem 1rem 1.5rem;
@@ -850,4 +850,201 @@ a {
 .health-action-bar { display: flex; justify-content: flex-end; padding: 1rem 0; }
 .plugin-grid a{
     color: var(--bs-body-color);
+}
+
+
+/* =====================================================
+   Admin Login Page（二次验证登录页，独立整页，极简居中卡片）
+   ===================================================== */
+.admin-login-page {
+    background-color: var(--x-page-bg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    overflow-x: hidden;
+}
+
+/* 顶栏 */
+.admin-login-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.875rem 1.25rem;
+    z-index: 20;
+}
+
+.admin-login-brand {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.admin-login-brand img {
+    height: 1.75rem;
+    max-width: 160px;
+    object-fit: contain;
+}
+
+.admin-login-topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.admin-login-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--bs-border-color);
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    font-size: 1.125rem;
+    cursor: pointer;
+    text-decoration: none;
+    transition: color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.admin-login-icon-btn:hover {
+    color: var(--bs-primary);
+    border-color: rgba(var(--bs-primary-rgb), 0.5);
+    transform: translateY(-1px);
+}
+
+.admin-login-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--bs-body-color);
+    text-decoration: none;
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.admin-login-link:hover {
+    color: var(--bs-primary);
+    background: rgba(var(--bs-primary-rgb), 0.06);
+}
+
+/* 居中主容器 */
+.admin-login-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem 1rem 3rem;
+}
+
+/* 登录卡片 */
+.admin-login-card {
+    width: 100%;
+    max-width: 24rem;
+    padding: 1.875rem 1.75rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.875rem;
+    background: var(--bs-body-bg);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+}
+
+/* 卡片头部 */
+.admin-login-card-head {
+    margin-bottom: 1.75rem;
+}
+
+.admin-login-icon {
+    width: 3rem;
+    height: 3rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    font-size: 1.5rem;
+    color: var(--bs-primary);
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    margin-bottom: 0.875rem;
+}
+
+/* 标题 */
+.admin-login-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--bs-body-color);
+    margin: 0;
+}
+
+
+/* 输入框 */
+.admin-login-input .input-group-text {
+    background: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+    border-right: none;
+    color: var(--bs-secondary-color);
+    padding-left: 0.875rem;
+}
+
+.admin-login-input .form-control {
+    border-color: var(--bs-border-color);
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    padding: 0.625rem 0.75rem;
+    font-size: 0.9375rem;
+}
+
+.admin-login-input .form-control::placeholder {
+    color: var(--bs-secondary-color);
+    opacity: 0.75;
+}
+
+.admin-login-input .form-control:focus {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.18);
+    z-index: 3;
+}
+
+.admin-login-eye {
+    background: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+    border-left: none;
+    color: var(--bs-secondary-color);
+    z-index: 3;
+}
+
+.admin-login-eye:hover,
+.admin-login-eye:focus {
+    color: var(--bs-primary);
+    background: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+}
+
+/* 提交按钮 */
+.admin-login-submit {
+    border-radius: 0.5rem;
+    padding: 0.6875rem 1rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    box-shadow: 0 6px 16px rgba(var(--bs-primary-rgb), 0.25);
+    margin-top: 0.25rem;
+}
+
+.admin-login-submit:disabled {
+    opacity: 0.65;
+    box-shadow: none;
+}
+
+/* 移动端 */
+@media (max-width: 575.98px) {
+    .admin-login-main {
+        align-items: flex-start;
+        padding: 1rem 0.75rem 2rem;
+    }
+
+    .admin-login-card {
+        padding: 1.5rem 1.25rem;
+    }
 }

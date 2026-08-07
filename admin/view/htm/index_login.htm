@@ -1,48 +1,123 @@
-<?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
+<?php $conf = G('conf');?>
+<?php $header = G('header');?>
+<?php
+// 二次验证页：独立整页（不引入 header/sidebar/topnav，避免未登录时暴露后台导航结构）
+$static_version = $conf['static_version'];
+?>
+<!DOCTYPE html>
+<html lang="<?php echo $conf['lang'];?>">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="renderer" content="webkit">
+	<meta name="robots" content="noindex, nofollow">
+	<meta name="csrf-token" content="<?php echo isset($header['csrf_token']) ? esc_attr($header['csrf_token']) : '';?>">
+	<title><?php echo esc_html(lang('admin_login'));?></title>
+	<link rel="shortcut icon" href="../view/img/favicon.ico" />
+	<link rel="icon" sizes="32x32" href="../view/img/favicon.ico">
+	<link rel="Bookmark" href="../view/img/favicon.ico" />
 
-<!--{hook admin_index_login_start.htm}-->
+	<!--{hook admin_header_bootstrap_before.htm}-->
+	<link href="../view/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+	<link rel="stylesheet" href="../view/css/theme.css<?php echo $static_version;?>">
+	<!--{hook admin_header_bootstrap_after.htm}-->
+	<link rel="stylesheet" href="view/css/admin.css<?php echo $static_version;?>">
+	<link rel="stylesheet" href="../view/vendor/tabler-icons/tabler-icons.min.css">
+	<link rel="stylesheet" href="../view/vendor/tabler-icons/tabler-icons-filled.min.css">
 
-<div class="mx-auto" style="max-width:28rem">
-	<div class="x-card card">
-		<div class="card-body">
-			<h4 class="card-title justify-content-center"><i class="ti ti-lock"></i> <?php echo lang('admin_login');?></h4>
-			<form action="<?php echo url('index-login');?>" method="post" id="form">
+	<!--{hook admin_index_login_head.htm}-->
+
+	<script>
+	// 主题脚本必须内联同步执行，防止 FOUC（闪烁）
+	(function(){
+		var defaultTheme = <?php echo json_encode($conf['default_theme'] ?? 'light');?>;
+		var defaultBrand = <?php echo json_encode($conf['theme_brand'] ?? 'blue');?>;
+		var theme, themeColor;
+		try {
+			theme = localStorage.getItem('theme') || defaultTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+		} catch(e) {
+			theme = defaultTheme || 'light';
+		}
+		try {
+			themeColor = localStorage.getItem('theme-color') || defaultBrand || 'blue';
+		} catch(e) {
+			themeColor = defaultBrand || 'blue';
+		}
+		document.documentElement.setAttribute('data-bs-theme', theme);
+		document.documentElement.setAttribute('data-theme', themeColor);
+	})();
+	</script>
+</head>
+
+<body class="admin-login-page">
+
+	<!--{hook admin_index_login_start.htm}-->
+
+	<header class="admin-login-topbar">
+		<a class="admin-login-brand" href="../" title="<?php echo esc_attr($conf['sitename'] ?? '');?>">
+			<img src="../view/img/logo.png" alt="<?php echo esc_attr($conf['sitename'] ?? '');?>">
+		</a>
+		<div class="admin-login-topbar-actions">
+			<button type="button" class="admin-login-icon-btn" id="themeToggleBtn" aria-label="Toggle theme" title="<?php echo esc_attr(lang('admin_theme_appearance'));?>">
+				<i class="ti ti-sun" id="loginThemeIconLight"></i>
+				<i class="ti ti-moon d-none" id="loginThemeIconDark"></i>
+			</button>
+			<a class="admin-login-link" href="../"><i class="ti ti-arrow-left"></i> <?php echo lang('admin_login_back_site');?></a>
+		</div>
+	</header>
+
+	<main class="admin-login-main">
+		<div class="admin-login-card">
+
+			<div class="admin-login-card-head text-center">
+				<div class="admin-login-icon">
+					<i class="ti ti-shield-lock"></i>
+				</div>
+				<h1 class="admin-login-title"><?php echo lang('admin_login');?></h1>
+			</div>
+
+			<form action="<?php echo admin_login_url();?>" method="post" id="form">
 				<?php echo CsrfService::input(); ?>
 				<input type="hidden" name="next" value="<?php echo htmlspecialchars($return_url);?>">
-				<div class="mb-3 fs-6"><?php echo lang('for_safe_input_password_again');?>：</div>
+
 				<div class="mb-3">
-				<div class="input-group">
-					<span class="input-group-text"><i class="ti ti-lock text-secondary"></i></span>
-					<input type="password" class="form-control" placeholder="<?php echo lang('password');?>" id="password" name="password" />
+					<div class="input-group admin-login-input">
+						<span class="input-group-text"><i class="ti ti-lock"></i></span>
+						<input type="password" class="form-control" placeholder="<?php echo lang('password');?>" id="password" name="password" autocomplete="current-password" autofocus>
+						<button type="button" class="btn btn-outline-secondary admin-login-eye" id="passwordToggle" tabindex="-1" aria-label="Toggle password visibility">
+							<i class="ti ti-eye" id="passwordEye"></i>
+							<i class="ti ti-eye-off d-none" id="passwordEyeOff"></i>
+						</button>
+					</div>
 				</div>
-			</div>
-			<?php if(!empty($admin_show_captcha) && !empty($captcha_image)) { ?>
-			<div class="mb-3">
-				<label class="form-label"><?php echo lang('captcha_label');?></label>
-				<div class="input-group">
-					<input type="text" class="form-control" name="captcha" id="captcha" maxlength="6" autocomplete="off">
-					<img class="captcha-img" id="captcha-img" src="<?php echo $captcha_image;?>" onclick="adminCaptchaRefresh()" style="cursor:pointer;height:38px;" title="<?php echo lang('click_to_refresh');?>">
+
+				<?php if(!empty($admin_show_captcha) && !empty($captcha_image)) { ?>
+				<div class="mb-3">
+					<div class="input-group admin-login-input">
+						<span class="input-group-text"><i class="ti ti-shield-check"></i></span>
+						<input type="text" class="form-control" name="captcha" id="captcha" maxlength="6" autocomplete="off" placeholder="<?php echo lang('captcha_label');?>">
+						<img class="captcha-img" id="captcha-img" src="<?php echo $captcha_image;?>" onclick="adminCaptchaRefresh()" style="cursor:pointer;height:40px;border-radius:0 .5rem .5rem 0;" title="<?php echo lang('click_to_refresh');?>">
+					</div>
 				</div>
-			</div>
-			<?php } ?>
-			<div class="mb-3">
-				<button type="submit" class="btn btn-primary w-100" id="submit" data-loading-text="<?php echo lang('submiting');?>..."><?php echo lang('login');?></button>
-			</div>
+				<?php } ?>
+
+				<button type="submit" class="btn btn-primary w-100 admin-login-submit" id="submit" data-loading-text="<?php echo lang('submiting');?>...">
+					<span id="submitText"><?php echo lang('login');?></span>
+				</button>
 			</form>
+
 		</div>
-	</div>
-</div>
+	</main>
 
-<!--{hook admin_index_login_end.htm}-->
+	<div id="toast-container" style="position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 
-<?php include _include(ADMIN_PATH.'view/htm/footer.inc.htm');?>
+	<!--{hook admin_index_login_end.htm}-->
 
 <script>
 // ponytail: 后台登录页是关键修复页面，必须独立于 xiuno-modern.js
 // （旧版本站点可能没有 xiuno-modern.js，导致 $ is not defined 死循环，连登录都进不去），全程使用原生 JS
 
-// ponytail: 独立实现 showToast，不依赖 xiuno-modern.js 的 showToast/XN.toast
-// 复用 footer.inc.htm 已渲染的 #toast-container（若无则 fallback 到 alert）
+// 独立实现 showToast，不依赖 xiuno-modern.js 的 showToast/XN.toast
 function showToast(message, type) {
 	var container = document.getElementById('toast-container');
 	if (!container) { alert(message); return; }
@@ -50,6 +125,8 @@ function showToast(message, type) {
 	toastEl.className = 'toast show align-items-center text-white bg-' + (type === 'success' ? 'success' : (type === 'error' ? 'danger' : 'secondary'));
 	toastEl.setAttribute('role', 'alert');
 	toastEl.style.minWidth = '200px';
+	toastEl.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)';
+	toastEl.style.borderRadius = '0.5rem';
 	var body = document.createElement('div');
 	body.className = 'd-flex';
 	var inner = document.createElement('div');
@@ -66,6 +143,27 @@ function showToast(message, type) {
 	container.appendChild(toastEl);
 	setTimeout(function() { if (toastEl.parentNode) toastEl.remove(); }, 4000);
 }
+
+// Flash toast：读取 PRG 重定向时设置的 flash cookie（如令牌失效提示），显示后清除
+(function() {
+	function getCookie(name) {
+		var value = "; " + document.cookie;
+		var parts = value.split("; " + name + "=");
+		if (parts.length == 2) return parts.pop().split(";").shift();
+		return '';
+	}
+	function deleteCookie(name) {
+		document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+	}
+	var flashMsg = getCookie('flash_msg');
+	var flashType = getCookie('flash_type') || 'error';
+	if (flashMsg) {
+		try { flashMsg = decodeURIComponent(flashMsg); } catch(e) {}
+		deleteCookie('flash_msg');
+		deleteCookie('flash_type');
+		showToast(flashMsg, flashType);
+	}
+})();
 
 function buildQuery(data) {
 	var parts = [];
@@ -123,6 +221,7 @@ function ajax(opts) {
 
 var jform = document.getElementById('form');
 var jsubmit = document.getElementById('submit');
+var jsubmitText = document.getElementById('submitText');
 var jpassword = document.getElementById('password');
 if (jpassword) jpassword.focus();
 
@@ -144,7 +243,7 @@ function adminCaptchaRefresh() {
 	var img = document.getElementById('captcha-img');
 	if(!img) return;
 	ajax({
-		url: '<?php echo url('index-login');?>?captcha_refresh=1',
+		url: '<?php echo admin_login_url();?>?captcha_refresh=1',
 		type: 'GET',
 		dataType: 'text',
 		success: function(r) {
@@ -174,21 +273,67 @@ function startCountdown(seconds) {
 	btn.disabled = true;
 	var updateBtn = function() {
 		if(seconds > 0) {
-			btn.innerHTML = '<?php echo lang('submiting');?>... ' + seconds + 's';
+			if (jsubmitText) jsubmitText.textContent = '<?php echo lang('submiting');?>... ' + seconds + 's';
 			seconds--;
 			setTimeout(updateBtn, 1000);
 		} else {
 			btn.disabled = false;
-			btn.innerHTML = '<?php echo lang('login');?>';
+			if (jsubmitText) jsubmitText.textContent = '<?php echo lang('login');?>';
 		}
 	};
 	updateBtn();
 }
 
+// 密码可见性切换
+(function() {
+	var toggle = document.getElementById('passwordToggle');
+	if (toggle) {
+		toggle.addEventListener('click', function() {
+			var input = document.getElementById('password');
+			if (!input) return;
+			var show = input.type === 'password';
+			input.type = show ? 'text' : 'password';
+			var eye = document.getElementById('passwordEye');
+			var eyeOff = document.getElementById('passwordEyeOff');
+			if (eye) eye.classList.toggle('d-none', show);
+			if (eyeOff) eyeOff.classList.toggle('d-none', !show);
+		});
+	}
+})();
+
+// 主题切换（明亮/暗黑）
+(function() {
+	var btn = document.getElementById('themeToggleBtn');
+	if (!btn) return;
+	var iconLight = document.getElementById('loginThemeIconLight');
+	var iconDark = document.getElementById('loginThemeIconDark');
+	function safeGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+	function safeSet(key, val) { try { localStorage.setItem(key, val); } catch (e) {} }
+	var darkMQ = window.matchMedia('(prefers-color-scheme: dark)');
+	var stored = safeGet('theme') || 'auto';
+	function apply(mode) {
+		var effective = mode;
+		if (mode === 'auto') effective = darkMQ.matches ? 'dark' : 'light';
+		document.documentElement.setAttribute('data-bs-theme', effective);
+		var isDark = effective === 'dark';
+		if (iconLight) iconLight.classList.toggle('d-none', isDark);
+		if (iconDark) iconDark.classList.toggle('d-none', !isDark);
+	}
+	var cycle = function() {
+		var modes = ['auto', 'light', 'dark'];
+		var cur = modes.indexOf(safeGet('theme') || 'auto');
+		var next = modes[(cur + 1) % modes.length];
+		safeSet('theme', next);
+		apply(next);
+	};
+	btn.addEventListener('click', cycle);
+	apply(stored);
+})();
+
 jform.addEventListener('submit', function(e) {
 	e.preventDefault();
 	jsubmit.disabled = true;
-	jsubmit.innerHTML = '<?php echo lang('submiting');?>...';
+	if (jsubmitText) jsubmitText.textContent = '<?php echo lang('submiting');?>...';
 	var postdata = new FormData(jform);
 	// 用 ajax 获取完整响应（含 wait 字段用于倒计时）
 	ajax({
@@ -197,10 +342,10 @@ jform.addEventListener('submit', function(e) {
 		data: postdata,
 		dataType: 'text',
 		success: function(r) {
-			if(!r) { showToast('Server Response Empty!', 'error'); jsubmit.disabled = false; jsubmit.innerHTML = '<?php echo lang('login');?>'; return; }
+			if(!r) { showToast('Server Response Empty!', 'error'); jsubmit.disabled = false; if (jsubmitText) jsubmitText.textContent = '<?php echo lang('login');?>'; return; }
 			var s;
 			try { s = JSON.parse(r); } catch(e) { s = null; }
-			if(!s || s.code === undefined) { showToast('Server Response Not JSON', 'error'); jsubmit.disabled = false; jsubmit.innerHTML = '<?php echo lang('login');?>'; return; }
+			if(!s || s.code === undefined) { showToast('Server Response Not JSON', 'error'); jsubmit.disabled = false; if (jsubmitText) jsubmitText.textContent = '<?php echo lang('login');?>'; return; }
 			var code = s.code;
 			var message = s.message;
 			if(code == 0) {
@@ -212,20 +357,20 @@ jform.addEventListener('submit', function(e) {
 				showToast(message, 'error');
 				var wait = parseInt(s.wait) || 0;
 				if(wait > 0) { startCountdown(wait); }
-				else { jsubmit.disabled = false; jsubmit.innerHTML = '<?php echo lang('login');?>'; }
+				else { jsubmit.disabled = false; if (jsubmitText) jsubmitText.textContent = '<?php echo lang('login');?>'; }
 			} else if(code == 'password' || code == 'captcha') {
 				showToast(message, 'error');
 				if(code == 'captcha') { adminCaptchaRefresh(); }
 				else { if (jpassword) jpassword.focus(); }
-				jsubmit.disabled = false; jsubmit.innerHTML = '<?php echo lang('login');?>';
+				jsubmit.disabled = false; if (jsubmitText) jsubmitText.textContent = '<?php echo lang('login');?>';
 			} else {
 				showToast(message, 'error');
-				jsubmit.disabled = false; jsubmit.innerHTML = '<?php echo lang('login');?>';
+				jsubmit.disabled = false; if (jsubmitText) jsubmitText.textContent = '<?php echo lang('login');?>';
 			}
 		},
 		error: function() {
 			showToast('Network error', 'error');
-			jsubmit.disabled = false; jsubmit.innerHTML = '<?php echo lang('login');?>';
+			jsubmit.disabled = false; if (jsubmitText) jsubmitText.textContent = '<?php echo lang('login');?>';
 		}
 	});
 });
@@ -233,3 +378,6 @@ jform.addEventListener('submit', function(e) {
 </script>
 
 <!--{hook admin_index_login_js.htm}-->
+
+</body>
+</html>

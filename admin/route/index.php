@@ -152,7 +152,8 @@ if($action == 'login') {
 	
 	user_token_clear();
 	
-	message(0, lang('logout_successfully'), array('redirect_url' => './'));
+	// 退出后返回前台首页（../ = 站点根目录），不再回后台导致二次跳转
+	message(0, lang('logout_successfully'), array('redirect_url' => '../'));
 
 } elseif ($action == 'phpinfo') {
 
