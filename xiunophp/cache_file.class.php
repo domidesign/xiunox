@@ -19,7 +19,7 @@ class cache_file {
         // 确保缓存目录存在
         if(!is_dir($this->cache_dir)) {
             if(!mkdir($this->cache_dir, 0755, TRUE)) {
-                return $this->error(-1, '创建缓存目录失败：' . $this->cache_dir);
+                return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_mkdir_failed') : '创建缓存目录失败：') . $this->cache_dir);
             }
         }
         return TRUE;
@@ -44,7 +44,7 @@ class cache_file {
         $dir = dirname($path);
         if(!is_dir($dir)) {
             if(!mkdir($dir, 0755, TRUE)) {
-                return $this->error(-1, '创建缓存子目录失败：' . $dir);
+                return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_mkdir_subdir_failed') : '创建缓存子目录失败：') . $dir);
             }
         }
         return TRUE;
@@ -67,7 +67,7 @@ class cache_file {
 
         $r = file_put_contents($filepath, $data, LOCK_EX);
         if($r === FALSE) {
-            return $this->error(-1, '写入缓存文件失败：' . $filepath);
+            return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_write_file_failed') : '写入缓存文件失败：') . $filepath);
         }
         // ponytail: 部分面板（宝塔等）通过 disable_functions 禁用 chmod，
         // PHP 8+ 中 undefined function 是 Error 不被 @ 抑制，会直接崩溃导致 nginx 502
@@ -87,7 +87,7 @@ class cache_file {
 
         $content = file_get_contents($filepath);
         if($content === FALSE) {
-            return $this->error(-1, '读取缓存文件失败：' . $filepath);
+            return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_read_file_failed') : '读取缓存文件失败：') . $filepath);
         }
 
         // 解析过期时间戳和数据
@@ -117,7 +117,7 @@ class cache_file {
 
         $r = @unlink($filepath);
         if(!$r) {
-            return $this->error(-1, '删除缓存文件失败：' . $filepath);
+            return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_delete_file_failed') : '删除缓存文件失败：') . $filepath);
         }
         return TRUE;
     }
@@ -130,7 +130,7 @@ class cache_file {
 
         // 重新创建缓存目录
         if(!mkdir($this->cache_dir, 0755, TRUE)) {
-            return $this->error(-1, '重建缓存目录失败：' . $this->cache_dir);
+            return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_recreate_dir_failed') : '重建缓存目录失败：') . $this->cache_dir);
         }
         return TRUE;
     }

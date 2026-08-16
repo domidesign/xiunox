@@ -158,18 +158,18 @@ class SecurityConfigService {
         }
         $min_length = self::get('security_password_min_length', 6);
         if (mb_strlen($password, 'UTF-8') < $min_length) {
-            return '密码长度不能少于' . $min_length . '个字符';
+            return lang('password_length_too_short', array('minlength' => $min_length));
         }
         $complexity = self::get('security_password_complexity', 'none');
         if ($complexity === 'number' && !preg_match('/[0-9]/', $password)) {
-            return '密码必须包含数字';
+            return lang('password_requires_number');
         } elseif ($complexity === 'mixed') {
             if (!preg_match('/[a-z]/', $password) || !preg_match('/[A-Z]/', $password)) {
-                return '密码必须包含大小写字母';
+                return lang('password_requires_mixed_case');
             }
         } elseif ($complexity === 'special') {
             if (!preg_match('/[a-z]/', $password) || !preg_match('/[A-Z]/', $password) || !preg_match('/[0-9]/', $password) || !preg_match('/[^a-zA-Z0-9]/', $password)) {
-                return '密码必须包含大小写字母、数字和特殊字符';
+                return lang('password_requires_special');
             }
         }
         return '';

@@ -17,12 +17,12 @@ $search_require_login = SecurityConfigService::get('security_search_require_logi
 if (!$suggest && !$ref_suggest && $search_require_login && (empty($uid) || $uid == 0)) {
     $is_htmx = !empty($_SERVER['HTTP_HX_REQUEST']);
     if($is_htmx) {
-        $msg = '请先登录后再搜索';
+        $msg = lang('please_login_to_search');
         echo '<div id="searchResults"><div class="x-card card mt-3"><div class="card-body text-center py-5 text-body-secondary"><i class="ti ti-alert-circle fs-1 mb-3 d-block opacity-25"></i><p class="fs-5 fw-semibold">'.$msg.'</p></div></div></div>';
         echo '<script type="text/javascript">if(typeof XN.toast==="function")XN.toast("'.$msg.'","danger");</script>';
         exit;
     }
-    message(-1, '请先登录后再搜索');
+    message(-1, lang('please_login_to_search'));
 }
 
 // 先解析 keyword 来源，确定 page 在 URL 路径中的位置
@@ -132,12 +132,12 @@ if($keyword_safe) {
                 $remaining = $search_interval - ($time - intval($last_search));
                 $is_htmx = !empty($_SERVER['HTTP_HX_REQUEST']);
                 if($is_htmx) {
-                    $msg = '搜索间隔太短，请' . $remaining . '秒后再试';
+                    $msg = lang('search_interval_too_short', array('seconds'=>$remaining));
                     echo '<div id="searchResults"><div class="x-card card mt-3"><div class="card-body text-center py-5 text-body-secondary"><i class="ti ti-alert-circle fs-1 mb-3 d-block opacity-25"></i><p class="fs-5 fw-semibold">'.$msg.'</p></div></div></div>';
                     echo '<script type="text/javascript">if(typeof XN.toast==="function")XN.toast("'.$msg.'","danger");</script>';
                     exit;
                 }
-                message(-1, '搜索间隔太短，请' . $remaining . '秒后再试');
+                message(-1, lang('search_interval_too_short', array('seconds'=>$remaining)));
             }
             kv_set($search_key, $time);
         }

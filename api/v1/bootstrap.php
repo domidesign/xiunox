@@ -49,12 +49,14 @@ $forumService = new ForumService($db);
 $attachmentService = new AttachmentService($db);
 $notificationService = new NotificationService($db);
 
-// ponytail: API 模式未走 index.inc.php 的语言加载流程，$_SERVER['lang'] 未设置，
+// ponytail: API 模式未走 index.inc.php 的语言加载流程，$_SERVER['lang'] 被 xiunophp.php 预设为空数组，
+// 需用 empty() 判断（isset 恒为 true 会跳过加载）；_include() 返回编译缓存文件路径，
+// 必须用 include 包裹才能拿到 return $lang 的数组（与 index.inc.php 的 include _include(...) 一致）。
 // Service 内部 lang() 调用会返回 'lang[key]' 字面量（如 UserBanService::sendNotice 把字面量存入 notify 表）。
 // 统一加载前台语言包（含 bbs_common.php + 插件 lang hook 注入的键），开销可接受。
-if (!isset($_SERVER['lang'])) {
+if (empty($_SERVER['lang'])) {
     $_lang_dir = APP_PATH . "lang/{$conf['lang']}";
-    $_lang_file = is_file("$_lang_dir/bbs.php") ? _include(APP_PATH . "lang/{$conf['lang']}/bbs.php") : null;
+    $_lang_file = is_file("$_lang_dir/bbs.php") ? include _include(APP_PATH . "lang/{$conf['lang']}/bbs.php") : null;
     if (is_array($_lang_file)) {
         // 积分类型名称动态覆盖（与 index.inc.php 保持一致）
         if (isset($conf['credits_name']) && $conf['credits_name']) {
@@ -66,6 +68,7 @@ if (!isset($_SERVER['lang'])) {
             $_lang_file['admin_credits_type_golds'] = $conf['golds_name'];
         }
         if (isset($conf['rmbs_name']) && $conf['rmbs_name']) {
+            $_lang_file['rmb_label'] = $conf['rmbs_name'];
             $_lang_file['admin_credits_type_rmbs'] = $conf['rmbs_name'];
         }
         $_SERVER['lang'] = $_lang_file;

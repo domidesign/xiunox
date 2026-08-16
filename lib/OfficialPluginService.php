@@ -75,7 +75,7 @@ class OfficialPluginService {
             }
             $data = json_decode($resp['data'], true);
             if (!is_array($data) || !isset($data['plugins']) || !is_array($data['plugins'])) {
-                $lastError = '清单 JSON 解析失败';
+                $lastError = lang('plugin_manifest_parse_failed');
                 continue;
             }
             // 成功拉取 → 写缓存
@@ -100,7 +100,7 @@ class OfficialPluginService {
                 'data' => $cached['data'],
                 'from_cache' => true,
                 'stale' => true,
-                'message' => '清单可能不是最新（' . $lastError . '）',
+                'message' => lang('plugin_manifest_stale', array('error' => $lastError)),
             ];
         }
 
@@ -109,7 +109,7 @@ class OfficialPluginService {
             'data' => null,
             'from_cache' => false,
             'stale' => false,
-            'message' => '无法连接插件市场，请检查网络',
+            'message' => lang('plugin_market_unreachable'),
         ];
     }
 
@@ -182,7 +182,7 @@ class OfficialPluginService {
         $urls = array_unique($urls);
 
         if (empty($urls)) {
-            return ['ok' => true, 'purged' => 0, 'failed' => 0, 'message' => '无需刷新'];
+            return ['ok' => true, 'purged' => 0, 'failed' => 0, 'message' => lang('plugin_no_purge_needed')];
         }
 
         // 将 cdn.jsdelivr.net/gh/ URL 转为 purge.jsdelivr.net/gh/ URL
@@ -199,7 +199,7 @@ class OfficialPluginService {
         }
 
         if (empty($purgeUrls)) {
-            return ['ok' => true, 'purged' => 0, 'failed' => 0, 'message' => '无 jsdelivr URL'];
+            return ['ok' => true, 'purged' => 0, 'failed' => 0, 'message' => lang('plugin_no_jsdelivr_url')];
         }
 
         // 用 cURL multi 并发请求（比串行快 10 倍以上）
@@ -213,8 +213,8 @@ class OfficialPluginService {
                 curl_setopt($ch, CURLOPT_URL, $url);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
                 curl_setopt($ch, CURLOPT_USERAGENT, 'Xiuno-BBS-OfficialPlugin/1.0');
                 curl_multi_add_handle($mh, $ch);
                 $handles[$i] = $ch;
@@ -277,22 +277,22 @@ class OfficialPluginService {
     public function downloadAndInstall(string $dir, string $version): array {
         // 校验：本地不存在
         if (is_dir(APP_PATH . 'plugin/' . $dir)) {
-            return ['ok' => false, 'message' => '插件已存在，请使用升级功能'];
+            return ['ok' => false, 'message' => lang('plugin_already_exists')];
         }
 
         // 校验：plugin/ 目录可写
         if (!is_writable(APP_PATH . 'plugin/')) {
-            return ['ok' => false, 'message' => 'plugin/ 目录不可写'];
+            return ['ok' => false, 'message' => lang('plugin_dir_not_writable')];
         }
 
         // 校验：ZipArchive 可用
         if (!class_exists('ZipArchive')) {
-            return ['ok' => false, 'message' => '未安装 ZipArchive 扩展'];
+            return ['ok' => false, 'message' => lang('plugin_ziparchive_not_installed')];
         }
 
         // 校验：目录名合法性（防御性，防止路径穿越）
         if (!preg_match('#^\w{1,32}$#', $dir)) {
-            return ['ok' => false, 'message' => '插件目录名不合法'];
+            return ['ok' => false, 'message' => lang('plugin_dir_name_invalid')];
         }
 
         try {
@@ -309,10 +309,10 @@ class OfficialPluginService {
                 }
             }
             if (!$pluginInfo) {
-                return ['ok' => false, 'message' => "清单中未找到插件 {$dir} 版本 {$version}"];
+                return ['ok' => false, 'message' => lang('plugin_not_in_manifest', array('dir' => $dir, 'version' => $version))];
             }
             if (empty($pluginInfo['free']) || empty($pluginInfo['zip_url'])) {
-                return ['ok' => false, 'message' => '该插件不支持在线安装（付费或缺少 zip_url）'];
+                return ['ok' => false, 'message' => lang('plugin_not_support_online_install')];
             }
 
             // 确保 tmp/ 目录存在
@@ -335,7 +335,7 @@ class OfficialPluginService {
                 }
             }
             if (!$r['ok']) {
-                return ['ok' => false, 'message' => '下载插件包失败，请检查网络：' . $r['message']];
+                return ['ok' => false, 'message' => lang('plugin_download_failed', array('error' => $r['message']))];
             }
 
             // 解压到临时目录
@@ -355,7 +355,7 @@ class OfficialPluginService {
             $pluginRoot = $this->findPluginRoot($extractDir);
             if ($pluginRoot === '') {
                 $this->recursiveDelete($extractDir);
-                return ['ok' => false, 'message' => 'zip 包结构错误：未找到 conf.json'];
+                return ['ok' => false, 'message' => lang('plugin_zip_structure_error')];
             }
 
             // 移动到 plugin/{dir}/
@@ -367,7 +367,7 @@ class OfficialPluginService {
                 if (is_dir($pluginPath)) {
                     $this->recursiveDelete($pluginPath);
                 }
-                return ['ok' => false, 'message' => '移动插件文件失败'];
+                return ['ok' => false, 'message' => lang('plugin_move_failed')];
             }
 
             // 重新初始化插件列表，让 $plugins 全局数组识别到新插件
@@ -378,13 +378,13 @@ class OfficialPluginService {
             // 调用 plugin_install（复用 model/plugin.func.php 的安装逻辑：写 db + 清缓存）
             if (!function_exists('plugin_install')) {
                 if (is_dir($pluginPath)) $this->recursiveDelete($pluginPath);
-                return ['ok' => false, 'message' => 'plugin_install 函数未定义'];
+                return ['ok' => false, 'message' => lang('plugin_install_func_missing')];
             }
             $installResult = plugin_install($dir);
             if ($installResult !== true && $installResult !== 1) {
                 // plugin_install 返回 FALSE 表示 $plugins[$dir] 不存在（识别失败）
                 if (is_dir($pluginPath)) $this->recursiveDelete($pluginPath);
-                return ['ok' => false, 'message' => 'plugin_install 调用失败（插件未识别）'];
+                return ['ok' => false, 'message' => lang('plugin_install_call_failed')];
             }
 
             // 执行 install.php（与 admin/route/plugin.php 上传安装流程一致）
@@ -415,9 +415,9 @@ class OfficialPluginService {
                 );
             }
 
-            return ['ok' => true, 'message' => '安装成功'];
+            return ['ok' => true, 'message' => lang('plugin_install_success')];
         } catch (\Throwable $e) {
-            return ['ok' => false, 'message' => '安装异常：' . $e->getMessage()];
+            return ['ok' => false, 'message' => lang('plugin_install_exception', array('error' => $e->getMessage()))];
         }
     }
 
@@ -443,17 +443,17 @@ class OfficialPluginService {
     public function downloadAndUpgrade(string $dir, string $version): array {
         // 校验：本地存在
         if (!is_dir(APP_PATH . 'plugin/' . $dir)) {
-            return ['ok' => false, 'message' => '本地插件不存在，请使用安装功能'];
+            return ['ok' => false, 'message' => lang('plugin_not_installed_local')];
         }
 
         // 校验：ZipArchive 可用
         if (!class_exists('ZipArchive')) {
-            return ['ok' => false, 'message' => '未安装 ZipArchive 扩展'];
+            return ['ok' => false, 'message' => lang('plugin_ziparchive_not_installed')];
         }
 
         // 校验：目录名合法性
         if (!preg_match('#^\w{1,32}$#', $dir)) {
-            return ['ok' => false, 'message' => '插件目录名不合法'];
+            return ['ok' => false, 'message' => lang('plugin_dir_name_invalid')];
         }
 
         // 若插件已启用：先自动禁用（升级过程会替换文件 + 清缓存，
@@ -483,17 +483,17 @@ class OfficialPluginService {
                 }
             }
             if (!$pluginInfo) {
-                return ['ok' => false, 'message' => "清单中未找到插件 {$dir} 版本 {$version}"];
+                return ['ok' => false, 'message' => lang('plugin_not_in_manifest', array('dir' => $dir, 'version' => $version))];
             }
             if (empty($pluginInfo['free']) || empty($pluginInfo['zip_url'])) {
-                return ['ok' => false, 'message' => '该插件不支持在线升级'];
+                return ['ok' => false, 'message' => lang('plugin_not_support_online_upgrade')];
             }
 
             // 备份本地插件目录（rename 而非 copy，与 OnlineUpgradeService 风格一致）
             // 注意：必须先备份再解压新版本，符合「先移动新版本文件再清理 tmp 目录」规则
             $backupPath = $this->backupPluginDir($dir);
             if ($backupPath === '') {
-                return ['ok' => false, 'message' => '备份本地插件目录失败'];
+                return ['ok' => false, 'message' => lang('plugin_backup_failed')];
             }
 
             // 下载新版本 zip
@@ -515,7 +515,7 @@ class OfficialPluginService {
             if (!$r['ok']) {
                 // 下载失败 → 回滚备份
                 $this->restorePluginDir($dir, $backupPath);
-                return ['ok' => false, 'message' => '下载插件包失败，请检查网络：' . $r['message']];
+                return ['ok' => false, 'message' => lang('plugin_download_failed', array('error' => $r['message']))];
             }
 
             // 解压
@@ -536,7 +536,7 @@ class OfficialPluginService {
             if ($pluginRoot === '') {
                 $this->recursiveDelete($extractDir);
                 $this->restorePluginDir($dir, $backupPath);
-                return ['ok' => false, 'message' => 'zip 包结构错误：未找到 conf.json'];
+                return ['ok' => false, 'message' => lang('plugin_zip_structure_error')];
             }
 
             // 移动新版本到 plugin/{dir}/（此时 plugin/{dir}/ 已被备份 rename 走，不存在）
@@ -549,7 +549,7 @@ class OfficialPluginService {
                     $this->recursiveDelete($pluginPath);
                 }
                 $this->restorePluginDir($dir, $backupPath);
-                return ['ok' => false, 'message' => '移动插件文件失败'];
+                return ['ok' => false, 'message' => lang('plugin_move_failed')];
             }
 
             // 重新初始化插件列表（让 $plugins 全局数组加载新 conf.json）
@@ -599,13 +599,13 @@ class OfficialPluginService {
                 plugin_enable($dir);
             }
 
-            return ['ok' => true, 'message' => '升级成功'];
+            return ['ok' => true, 'message' => lang('plugin_upgrade_success')];
         } catch (\Throwable $e) {
             // 异常时回滚到备份
             if ($backupPath !== '' && is_dir($backupPath)) {
                 $this->restorePluginDir($dir, $backupPath);
             }
-            return ['ok' => false, 'message' => '升级失败，已回滚到旧版本：' . $e->getMessage()];
+            return ['ok' => false, 'message' => lang('plugin_upgrade_failed_rollback', array('error' => $e->getMessage()))];
         }
     }
 
@@ -674,14 +674,14 @@ class OfficialPluginService {
     public function syncInstalledPluginsAuthorInfo(bool $forceFetch = false): array {
         $manifestRes = $this->fetchManifest($forceFetch);
         if (!$manifestRes['ok'] || empty($manifestRes['data'])) {
-            return ['ok' => false, 'synced' => 0, 'message' => $manifestRes['message'] ?: '清单获取失败'];
+            return ['ok' => false, 'synced' => 0, 'message' => $manifestRes['message'] ?: lang('plugin_manifest_fetch_failed')];
         }
         $synced = $this->syncAuthorInfoFromManifest($manifestRes['data']);
         return [
             'ok' => true,
             'synced' => $synced,
             'from_cache' => !empty($manifestRes['from_cache']),
-            'message' => "同步 {$synced} 个插件的作者信息",
+            'message' => lang('plugin_author_sync_done', array('n' => $synced)),
         ];
     }
 
@@ -738,8 +738,8 @@ class OfficialPluginService {
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
             curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
             curl_setopt($ch, CURLOPT_USERAGENT, 'Xiuno-BBS-OfficialPlugin/1.0');
             $data = curl_exec($ch);
             $errno = curl_errno($ch);
@@ -748,17 +748,17 @@ class OfficialPluginService {
             // PHP 8.0+ curl 句柄自动释放，curl_close() 在 8.5 已废弃
             if (PHP_VERSION_ID < 80000) curl_close($ch);
             if ($errno !== 0) {
-                return ['ok' => false, 'data' => '', 'message' => 'cURL 错误[' . $errno . ']: ' . $errmsg];
+                return ['ok' => false, 'data' => '', 'message' => lang('plugin_curl_error', array('code' => $errno, 'message' => $errmsg))];
             }
             if ($httpCode >= 400) {
-                return ['ok' => false, 'data' => '', 'message' => 'HTTP 状态码 ' . $httpCode];
+                return ['ok' => false, 'data' => '', 'message' => lang('plugin_http_status', array('code' => $httpCode))];
             }
             return ['ok' => true, 'data' => $data, 'message' => ''];
         }
 
         // 回退 file_get_contents
         if (!ini_get('allow_url_fopen')) {
-            return ['ok' => false, 'data' => '', 'message' => '未开启 allow_url_fopen 且无 cURL'];
+            return ['ok' => false, 'data' => '', 'message' => lang('plugin_no_curl_no_url_fopen')];
         }
         $ctx = stream_context_create([
             'http' => [
@@ -767,15 +767,15 @@ class OfficialPluginService {
                 'ignore_errors' => true,
             ],
             'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
+                'verify_peer' => true,
+                'verify_peer_name' => true,
             ],
         ]);
         $data = @file_get_contents($url, false, $ctx);
         if ($data === false) {
             $error = error_get_last();
-            $errMsg = !empty($error['message']) ? $error['message'] : '未知错误';
-            return ['ok' => false, 'data' => '', 'message' => 'file_get_contents 失败: ' . $errMsg];
+            $errMsg = !empty($error['message']) ? $error['message'] : lang('unknown_error');
+            return ['ok' => false, 'data' => '', 'message' => lang('plugin_file_get_contents_failed', array('error' => $errMsg))];
         }
         return ['ok' => true, 'data' => $data, 'message' => ''];
     }
@@ -796,7 +796,7 @@ class OfficialPluginService {
         }
         $data = $resp['data'];
         if ($data === '' || $data === null) {
-            return ['ok' => false, 'message' => '下载内容为空'];
+            return ['ok' => false, 'message' => lang('plugin_download_empty')];
         }
         // 确保目标目录存在
         $destDir = dirname($destPath);
@@ -807,11 +807,11 @@ class OfficialPluginService {
         }
         $r = @file_put_contents($destPath, $data);
         if ($r === false) {
-            return ['ok' => false, 'message' => '写入文件失败：' . $destPath];
+            return ['ok' => false, 'message' => lang('download_write_file_failed', array('path' => $destPath))];
         }
         if ($r <= 0) {
             @unlink($destPath);
-            return ['ok' => false, 'message' => '下载文件大小为 0'];
+            return ['ok' => false, 'message' => lang('plugin_download_zero_size')];
         }
         return ['ok' => true, 'message' => ''];
     }
@@ -934,24 +934,24 @@ class OfficialPluginService {
      */
     private function extractZip(string $zipPath, string $extractDir): array {
         if (!is_file($zipPath)) {
-            return ['ok' => false, 'message' => 'zip 文件不存在'];
+            return ['ok' => false, 'message' => lang('plugin_zip_not_exists')];
         }
         $zip = new ZipArchive();
         $openRes = $zip->open($zipPath);
         if ($openRes !== true) {
-            return ['ok' => false, 'message' => 'ZipArchive::open 失败，错误码：' . $openRes];
+            return ['ok' => false, 'message' => lang('plugin_zip_open_failed', array('code' => $openRes))];
         }
         // 防目录穿越：禁止 zip 内文件名包含 ../ 或 ..\
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $entryName = $zip->getNameIndex($i);
             if (strpos($entryName, '../') !== false || strpos($entryName, '..\\') !== false) {
                 $zip->close();
-                return ['ok' => false, 'message' => 'zip 包含路径穿越的文件名'];
+                return ['ok' => false, 'message' => lang('plugin_zip_path_traversal')];
             }
         }
         if (!$zip->extractTo($extractDir)) {
             $zip->close();
-            return ['ok' => false, 'message' => '解压失败'];
+            return ['ok' => false, 'message' => lang('plugin_extract_failed')];
         }
         $zip->close();
         return ['ok' => true, 'message' => ''];

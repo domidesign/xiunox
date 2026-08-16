@@ -116,7 +116,7 @@ if($action == 'providers') {
 
 		// hook admin_ai_providers_post_end.php
 
-		admin_log_create('ai_providers', 'ai', '', '修改AI提供商配置');
+		admin_log_create('ai_providers', 'ai', '', lang('admin_op_ai_providers'));
 		message(0, lang('save_successfully'));
 	}
 
@@ -215,7 +215,7 @@ if($action == 'providers') {
 
 		// hook admin_ai_features_post_end.php
 
-		admin_log_create('ai_features', 'ai', '', '修改AI功能配置');
+		admin_log_create('ai_features', 'ai', '', lang('admin_op_ai_features'));
 		message(0, lang('save_successfully'));
 	}
 
@@ -267,7 +267,7 @@ if($action == 'providers') {
 
 		// hook admin_ai_editor_post_end.php
 
-		admin_log_create('ai_editor', 'ai', '', '修改AI编辑器配置');
+		admin_log_create('ai_editor', 'ai', '', lang('admin_op_ai_editor'));
 		message(0, lang('save_successfully'));
 	}
 

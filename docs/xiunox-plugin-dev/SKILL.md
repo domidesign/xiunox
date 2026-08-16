@@ -19,6 +19,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 - 用户要求做插件架构设计、查 hook 注入点、查 API 签名、查前端模式
 - 用户要求排查插件冲突、互斥规则、目录命名规范问题
 - 用户要求接入 DiscoverService / NavService / EditorService / UserBanService 等系统级服务
+- 用户要求做主题插件 / 改前台版式 / 换肤样式（仿某 App 风格的主题模板，`type:"theme"`）
 
 ### ❌ 不要使用本 Skill
 
@@ -64,6 +65,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | 插件目录名单段（不含 `_`） | 至少两段 `作者_功能标识`；主题类第二段必须为 `theme` |
 | 卸载脚本用 `unstall.php`（旧拼写） | `uninstall.php`（标准拼写） |
 | 直接修改 `lib/` 核心 Service 文件注册表 | 通过插件 `<service>_register.php` 自注册 |
+| `model/*.func.php` 函数库（xiuno 原版写法） | `model/XxxService.php` 静态类方法；`model/` 只放 Service 类（类名=文件名），由 `index.php` 兜底自动加载，`hook/model_inc_file.php` 可选 |
 
 ### ✅ 必须项
 
@@ -128,7 +130,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 
 1. 选 hook 注入点：查 [references/hooks-catalog.md](references/hooks-catalog.md) 找精确位置
 2. 设计数据模型：表名带前缀（`{$db->tablepre}my_plugin`）、字段用 `utf8mb4`、统计字段直接 `db_count` 目标条件（禁止 A-B 相减）
-3. 设计 Service 类：静态方法模式，通过 `hook/model_inc_file.php` 注册到 model 加载列表
+3. 设计 Service 类：静态方法模式，放 `model/` 目录由 `index.php` 兜底自动加载（类名=文件名）；`hook/model_inc_file.php` 可选双保险
 4. 设计路由：自定义路由通过 `hook/model_route_table_end.php` 注册到 `$routes`
 5. 设计前端：发帖辅助功能挂 `post_ref_thread_after.htm`（PC）+ `*_mobile.htm`（手机端），卡片样式与"引用帖子"一致
 6. 确认 `conf.json` 字段：`name`/`brief`/`version`（X.Y.Z 三位制）/`bbs_version`（X.Y 两位制，与当前 `XIUNOX_VERSION` 前两段一致）/`type`（`"plugin"`/`"theme"`），不含 `id`/`installed`/`enable`
@@ -142,7 +144,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 3. **`uninstall.php`** — 标准拼写（非 `unstall.php`）+ `DROP TABLE` + `kv_delete()`/`setting_delete()`
 4. **`upgrade.php`**（如需结构变更）— `SHOW COLUMNS` + `ALTER TABLE` 幂等；递增 `conf.json.version`
 5. **`model/XxxService.php`** — 静态方法模式；构造函数调 `CacheHelper::registerKeys()`
-6. **`hook/model_inc_file.php`** — 注册 Service：`APP_PATH.'plugin/<dir>/model/XxxService.php',`（每行逗号结尾）
+6. **`hook/model_inc_file.php`**（可选双保险）— 注册 Service：`APP_PATH.'plugin/<dir>/model/XxxService.php',`（每行逗号结尾）；`index.php` 兜底逻辑已自动扫描 `model/*.php`，不写本 hook 也能加载；**禁止** `model/*.func.php` 函数库（xiuno 原版写法，会与自动扫描冲突导致函数重声明 fatal）
 7. **`hook/` 其他 hook 文件** — PHP hook 以 `<?php exit;` 开头；`.htm` hook 以 `<?php` 开头；禁止 `return;`
 8. **`route/` 路由文件** — `param(1, 'list')` 取 action；`include _include()` 加载模板
 9. **`view/htm/` 模板** — 后台模板首尾 include `_include(ADMIN_PATH . 'view/htm/header.inc.htm')`/`footer.inc.htm`；前台用 `APP_PATH`
@@ -194,7 +196,9 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | 查编辑器工具栏按钮集成 | [../plugindev/11-editor-toolbar-integration.md](../plugindev/11-editor-toolbar-integration.md) |
 | 查头像组件使用与扩展 | [../plugindev/12-avatar-component.md](../plugindev/12-avatar-component.md) |
 | 查后台/前台 UI 规范总览 | [../plugindev/14-plugin-admin-ui.md](../plugindev/14-plugin-admin-ui.md) |
+| 查存储驱动扩展 / 云存储插件开发 | [../plugindev/16-storage-driver-extension.md](../plugindev/16-storage-driver-extension.md) |
 | 查插件互斥机制 / 目录命名 | [../plugindev/plugin-mutex-guide.md](../plugindev/plugin-mutex-guide.md) |
+| 查主题插件开发 / overwrite / 主题色适配 / dark 模式 | [../plugindev/17-theme-plugin-guide.md](../plugindev/17-theme-plugin-guide.md) |
 | 查完整手册入口 | [../plugindev/README.md](../plugindev/README.md) |
 
 ## Hook 选择速查
@@ -213,6 +217,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | 注册前台路由 | `index_route_case_end.php` |
 | 注册插件路由表 | `model_route_table_end.php` |
 | 注册后台路由 | `admin_index_route_case_end.php` |
+| 注册存储驱动 | `admin_setting_upload_driver_register.php` + `storage_save.php` + `storage_serve.php` + `storage_delete.php` |
 | 后台侧边栏入口（顶部） | `admin_sidebar_start.htm` |
 | 后台侧边栏入口（底部） | `admin_sidebar_end.htm` |
 | 首页侧边栏组件 | `index_site_brief_after.htm` |
@@ -236,6 +241,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | hook 不生效 / 未触发 | 1. 检查 hook 文件名（含扩展名）是否与源码标记 `// hook xxx.php` 完全一致 2. 检查 `conf.json.hooks_rank` 键名是否含扩展名 3. 清 `tmp/` 编译缓存（含 OPcache：`CacheService::clearByType(['data','opcache'])`） 4. 检查插件是否启用（db `bbs_plugin` 表） |
 | 修改后无变化 | 1. 清 `tmp/` 编译缓存（`_include()` 不比较 mtime） 2. 改了 `static/*.js`/`*.css` 递增 `conf/conf.php` 的 `static_version` 3. 改了语言键清 `tmp/lang_*_bbs.php` 4. 硬刷新浏览器（Ctrl+F5） |
 | 白屏 / fatal | 1. 检查 `.htm` hook 是否误用 `<?php exit;`（应只用 `<?php`） 2. 检查 hook 是否用了 `return;`（应用 `if` 包裹） 3. 检查单行注释是否含 `?>` 4. 检查 `esc_textarea()` 调用（不存在，用 `esc_html()`） 5. 检查早期 hook 的 `esc_*` 是否有 `function_exists` 兜底 6. **检查 hook 文件内是否含 `// hook xxx` 注释**（会被编译器多趟循环误匹配为 hook 占位符，第二趟重复拼接引发 ParseError；改用 `// hook: xxx` 或 `// xxx` 格式） |
+| 函数重声明 fatal（`Cannot redeclare xxx()`） | 1. 检查 `model/` 目录是否有 `*.func.php` 函数库文件（xiuno 原版写法，与 `index.php` 兜底自动扫描冲突）→ 改为 `XxxService.php` 静态类方法 2. 检查是否同时写了 `hook/model_inc_file.php` 注入 + 兜底自动扫描同一文件（`class_exists` 守卫已去重，但类名与文件名不一致时守卫失效） |
 | 扫描器 fatal 拦截安装 | 1. 查 [references/ai-rules.md](references/ai-rules.md) 「扫描器规则分级」定位分类 2. fatal 类（jQuery/Alpine.js/PHP8 语法/危险函数/`hook_htm_header`/`app_path_in_url` 等）不可跳过 3. `conf_version` 拦截：`bbs_version` 必须与当前 `XIUNOX_VERSION` 前两段一致 |
 | `Class not found` | Service 调用核心类前未 `include_once`：`if (!class_exists('XxxService')) { include_once APP_PATH.'lib/XxxService.php'; }`；访问静态属性/常量前必须先确保类加载 |
 | 表前缀重复 / Table not found | `db_*` 函数 `$table` 参数不含前缀（传 `'my_plugin'` 非 `'bbs_my_plugin'`）；取前缀用 `$db->tablepre`，禁止 `$conf['db']['tablepre']` |

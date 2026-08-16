@@ -619,7 +619,7 @@
             });
         }
         // 复制帖子（标题+网址+出处），右侧扫码区与主标题「复制链接」共用
-        var shareText = <?php echo json_encode($thread['subject']."\n".$thread_url."\n（出处：".$conf['sitename'].' '.(isset($forum['name']) ? $forum['name'] : '').'）');?>;
+        var shareText = <?php echo json_encode($thread['subject']."\n".$thread_url."\n".lang('source_from_format', array('sitename' => $conf['sitename'], 'forum' => (isset($forum['name']) ? $forum['name'] : ''))));?>;
         var copyOkMsg = '<?php echo lang('copied_to_clipboard');?>';
         var copyFailMsg = '<?php echo lang('copy_failed');?>';
         function copyThreadShare() {
@@ -996,7 +996,7 @@ document.body.addEventListener('htmx:after:swap', function(e) {
         if (postbarSubmitting) return;
         var msg = postbarMsg.value.trim();
         if (!msg) {
-            XN.toast('请输入回复内容', 'danger');
+            XN.toast('<?php echo lang('please_input_reply_content');?>', 'danger');
             return;
         }
         // 验证码检查
@@ -1007,7 +1007,7 @@ document.body.addEventListener('htmx:after:swap', function(e) {
                 if (postbarCaptchaRow) postbarCaptchaRow.classList.remove('d-none');
                 postbarCaptchaRefresh();
                 postbarCaptchaInput.focus();
-                XN.toast('请输入验证码', 'danger');
+                XN.toast('<?php echo lang('please_input_captcha');?>', 'danger');
                 return;
             }
         }
@@ -1045,13 +1045,13 @@ document.body.addEventListener('htmx:after:swap', function(e) {
                     postbarMsg.value = '';
                     postbarQuotepid = 0;
                     if (postbarQuoteBar) postbarQuoteBar.classList.add('d-none');
-                    XN.toast(json.message || '回复成功', 'success');
+                    XN.toast(json.message || '<?php echo lang('reply_successfully');?>', 'success');
                     // 刷新评论列表
                     if (typeof htmx !== 'undefined') {
                         htmx.trigger('#postlist', 'refresh');
                     }
                 } else {
-                    XN.toast(json.message || '回复失败', 'danger');
+                    XN.toast(json.message || '<?php echo lang('reply_failed');?>', 'danger');
                 }
                 return;
             } catch(e) {
@@ -1124,7 +1124,7 @@ document.body.addEventListener('htmx:after:swap', function(e) {
                 if (postbarQuoteBar) postbarQuoteBar.classList.add('d-none');
             }
         }).catch(function(err) {
-            XN.toast('网络错误，请重试', 'danger');
+            XN.toast('<?php echo lang('network_error_retry');?>', 'danger');
         }).finally(function() {
             postbarSubmitting = false;
             postbarSubmit.disabled = false;

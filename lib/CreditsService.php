@@ -31,9 +31,9 @@ class CreditsService {
      */
     public function add(int $uid, string $type, int $amount, string $reason = '', int $dailyLimit = 0, bool $reasonIsRaw = false): array {
         // 1. 参数校验
-        if ($uid <= 0) return ['ok' => false, 'message' => '无效的用户ID'];
-        if ($amount <= 0) return ['ok' => false, 'message' => '增加金额必须大于0'];
-        if (!$this->isValidType($type)) return ['ok' => false, 'message' => '无效的积分类型'];
+        if ($uid <= 0) return ['ok' => false, 'message' => lang('user_ban_invalid_uid')];
+        if ($amount <= 0) return ['ok' => false, 'message' => lang('credits_add_amount_invalid')];
+        if (!$this->isValidType($type)) return ['ok' => false, 'message' => lang('credits_invalid_type')];
 
         // raw reason 加前缀，显示时原样返回不翻译（管理员/外部手动输入场景）
         if ($reasonIsRaw && $reason !== '') {
@@ -47,7 +47,7 @@ class CreditsService {
         // 3. credits_before_change 钩子
         // ponytail: add() 也用 abs() 强制转正，与 sub() 对称 —— 钩子只能调整量的大小，不能翻转方向（负值变奖励）
         $hookResult = $this->fireBeforeChange($uid, $type, $amount, $reason);
-        if ($hookResult === false) return ['ok' => false, 'message' => '操作被钩子阻止'];
+        if ($hookResult === false) return ['ok' => false, 'message' => lang('credits_hook_blocked')];
         if (is_array($hookResult) && isset($hookResult['amount'])) $amount = abs(intval($hookResult['amount']));
 
         // 4. 行锁 + 事务
@@ -58,7 +58,7 @@ class CreditsService {
             $user = $this->lockUserRow($uid);
             if (empty($user)) {
                 $this->rollback();
-                return ['ok' => false, 'message' => '用户不存在'];
+                return ['ok' => false, 'message' => lang('user_not_exists')];
             }
 
             $oldBalance = intval($user[$type]);
@@ -80,11 +80,11 @@ class CreditsService {
             // 5. credits_after_change 钩子
             $this->fireAfterChange($uid, $type, $amount, $newBalance, $reason);
 
-            return ['ok' => true, 'message' => '积分增加成功', 'balance' => $newBalance, 'change' => $amount];
+            return ['ok' => true, 'message' => lang('credits_add_success'), 'balance' => $newBalance, 'change' => $amount];
 
         } catch (Exception $e) {
             $this->rollback();
-            return ['ok' => false, 'message' => '操作失败: ' . $e->getMessage()];
+            return ['ok' => false, 'message' => lang('operation_failed') . ': ' . $e->getMessage()];
         }
     }
 
@@ -99,9 +99,9 @@ class CreditsService {
      * @return array
      */
     public function sub(int $uid, string $type, int $amount, string $reason = '', int $dailyLimit = 0, bool $reasonIsRaw = false): array {
-        if ($uid <= 0) return ['ok' => false, 'message' => '无效的用户ID'];
-        if ($amount <= 0) return ['ok' => false, 'message' => '扣减金额必须大于0'];
-        if (!$this->isValidType($type)) return ['ok' => false, 'message' => '无效的积分类型'];
+        if ($uid <= 0) return ['ok' => false, 'message' => lang('user_ban_invalid_uid')];
+        if ($amount <= 0) return ['ok' => false, 'message' => lang('credits_sub_amount_invalid')];
+        if (!$this->isValidType($type)) return ['ok' => false, 'message' => lang('credits_invalid_type')];
 
         // raw reason 加前缀，显示时原样返回不翻译（管理员/外部手动输入场景）
         if ($reasonIsRaw && $reason !== '') {
@@ -114,7 +114,7 @@ class CreditsService {
 
         // credits_before_change 钩子
         $hookResult = $this->fireBeforeChange($uid, $type, -$amount, $reason);
-        if ($hookResult === false) return ['ok' => false, 'message' => '操作被钩子阻止'];
+        if ($hookResult === false) return ['ok' => false, 'message' => lang('credits_hook_blocked')];
         if (is_array($hookResult) && isset($hookResult['amount'])) $amount = abs(intval($hookResult['amount']));
 
         try {
@@ -123,7 +123,7 @@ class CreditsService {
             $user = $this->lockUserRow($uid);
             if (empty($user)) {
                 $this->rollback();
-                return ['ok' => false, 'message' => '用户不存在'];
+                return ['ok' => false, 'message' => lang('user_not_exists')];
             }
 
             $oldBalance = intval($user[$type]);
@@ -131,7 +131,7 @@ class CreditsService {
             // 禁止负分检查
             if ($oldBalance < $amount) {
                 $this->rollback();
-                return ['ok' => false, 'message' => '余额不足，当前余额: ' . $oldBalance];
+                return ['ok' => false, 'message' => lang('credits_insufficient_balance_current', array('balance' => $oldBalance))];
             }
 
             $newBalance = $oldBalance - $amount;
@@ -148,11 +148,11 @@ class CreditsService {
 
             $this->fireAfterChange($uid, $type, -$amount, $newBalance, $reason);
 
-            return ['ok' => true, 'message' => '积分扣减成功', 'balance' => $newBalance, 'change' => -$amount];
+            return ['ok' => true, 'message' => lang('credits_sub_success'), 'balance' => $newBalance, 'change' => -$amount];
 
         } catch (Exception $e) {
             $this->rollback();
-            return ['ok' => false, 'message' => '操作失败: ' . $e->getMessage()];
+            return ['ok' => false, 'message' => lang('operation_failed') . ': ' . $e->getMessage()];
         }
     }
 
@@ -160,15 +160,15 @@ class CreditsService {
      * 查询积分余额
      */
     public function get(int $uid, string $type = ''): array {
-        if ($uid <= 0) return ['ok' => false, 'message' => '无效的用户ID'];
+        if ($uid <= 0) return ['ok' => false, 'message' => lang('user_ban_invalid_uid')];
 
         $user = $this->db->findOne('user', ['uid' => $uid]);
-        if (empty($user)) return ['ok' => false, 'message' => '用户不存在'];
+        if (empty($user)) return ['ok' => false, 'message' => lang('user_not_exists')];
 
         $types = $this->conf['credits_types'] ?? ['credits', 'golds', 'rmbs'];
 
         if (!empty($type)) {
-            if (!$this->isValidType($type)) return ['ok' => false, 'message' => '无效的积分类型'];
+            if (!$this->isValidType($type)) return ['ok' => false, 'message' => lang('credits_invalid_type')];
             return ['ok' => true, 'type' => $type, 'balance' => intval($user[$type])];
         }
 
@@ -183,7 +183,7 @@ class CreditsService {
      * 查询积分日志
      */
     public function log(int $uid, int $page = 1, int $pagesize = 20, string $type = ''): array {
-        if ($uid <= 0) return ['ok' => false, 'message' => '无效的用户ID'];
+        if ($uid <= 0) return ['ok' => false, 'message' => lang('user_ban_invalid_uid')];
 
         $cond = ['uid' => $uid];
         if (!empty($type) && $this->isValidType($type)) {
@@ -215,7 +215,7 @@ class CreditsService {
      * 分页基于分组后的条目数
      */
     public function logGrouped(int $uid, int $page = 1, int $pagesize = 10): array {
-        if ($uid <= 0) return ['ok' => false, 'message' => '无效的用户ID'];
+        if ($uid <= 0) return ['ok' => false, 'message' => lang('user_ban_invalid_uid')];
 
         $page = max(1, $page);
         $offset = ($page - 1) * $pagesize;
@@ -248,7 +248,12 @@ class CreditsService {
                 LIMIT {$offset}, {$pagesize}";
         $groups = $this->db->sqlFind($sql);
 
-        $typeNames = ['credits' => '积分', 'golds' => '金币', 'rmbs' => 'RMB'];
+        // ponytail: 积分名称优先取后台配置（credits_name/golds_name/rmbs_name），未配置时回退语言包（已被入口覆盖），再回退硬编码默认值
+        $typeNames = [
+            'credits' => !empty($this->conf['credits_name']) ? $this->conf['credits_name'] : (function_exists('lang') ? lang('credits_label') : '积分'),
+            'golds' => !empty($this->conf['golds_name']) ? $this->conf['golds_name'] : (function_exists('lang') ? lang('golds_label') : '金币'),
+            'rmbs' => !empty($this->conf['rmbs_name']) ? $this->conf['rmbs_name'] : (function_exists('lang') ? lang('rmb_label') : 'RMB'),
+        ];
         $result = [];
         if ($groups) {
             foreach ($groups as $g) {
@@ -283,11 +288,11 @@ class CreditsService {
      * 检查余额是否足够
      */
     public function checkNegative(int $uid, string $type, int $amount): array {
-        if ($uid <= 0) return ['ok' => false, 'message' => '无效的用户ID', 'sufficient' => false];
-        if (!$this->isValidType($type)) return ['ok' => false, 'message' => '无效的积分类型', 'sufficient' => false];
+        if ($uid <= 0) return ['ok' => false, 'message' => lang('user_ban_invalid_uid'), 'sufficient' => false];
+        if (!$this->isValidType($type)) return ['ok' => false, 'message' => lang('credits_invalid_type'), 'sufficient' => false];
 
         $user = $this->db->findOne('user', ['uid' => $uid]);
-        if (empty($user)) return ['ok' => false, 'message' => '用户不存在', 'sufficient' => false];
+        if (empty($user)) return ['ok' => false, 'message' => lang('user_not_exists'), 'sufficient' => false];
 
         $balance = intval($user[$type]);
         $sufficient = $balance >= $amount;
@@ -344,7 +349,7 @@ class CreditsService {
         $count = $row ? intval($row['cnt']) : 0;
 
         if ($count >= $limit) {
-            return ['ok' => false, 'message' => "每日操作次数已达上限({$limit}次)"];
+            return ['ok' => false, 'message' => lang('credits_daily_limit_reached', array('limit' => $limit))];
         }
 
         return ['ok' => true];

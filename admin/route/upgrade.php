@@ -41,8 +41,8 @@ if($action == 'do') {
 
 	// hook admin_upgrade_get_start.php
 
-	$header['title'] = '一键升级';
-	$header['mobile_title'] = '升级';
+	$header['title'] = lang('admin_upgrade_page_title');
+	$header['mobile_title'] = lang('admin_upgrade_mobile_title');
 
 	$prerequisites = $upgradeService->checkPrerequisites();
 	$steps = $upgradeService->getSteps();

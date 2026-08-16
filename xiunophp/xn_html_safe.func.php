@@ -1832,7 +1832,7 @@ function xn_html_purify($html, $config = array()) {
         $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height|style],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,s,ins,mark,dl,dt,dd,video[src|controls|preload|class|style|width|height],source[src|type],audio[controls|preload|class|style],figure,figcaption,iframe[src|width|height|frameborder|class|style]');
         $purifierConfig->set('Attr.AllowedFrameTargets', array('_blank', '_self', '_parent', '_top'));
         $purifierConfig->set('Attr.AllowedRel', array('noopener', 'noreferrer', 'nofollow'));
-        $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,max-width,height,border');
+        $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,max-width,height,border,font-size,font-family,line-height,text-indent,vertical-align,letter-spacing,border-radius,border-color,border-style,border-width');
         $purifierConfig->set('URI.AllowedSchemes', array('http' => true, 'https' => true, 'mailto' => true));
         $purifierConfig->set('AutoFormat.RemoveEmpty', false);
         // 允许 iframe，从后台安全设置读取白名单构建正则
@@ -1874,7 +1874,7 @@ function xn_html_purify($html, $config = array()) {
         $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height|style],video[src|controls|preload|width|style],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style|data-type|data-params],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,s,ins,mark,dl,dt,dd,iframe[src|width|height|frameborder|class|style]');
         $purifierConfig->set('Attr.AllowedFrameTargets', array('_blank', '_self', '_parent', '_top'));
         $purifierConfig->set('Attr.AllowedRel', array('noopener', 'noreferrer', 'nofollow'));
-        $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,max-width,height,border');
+        $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,max-width,height,border,font-size,font-family,line-height,text-indent,vertical-align,letter-spacing,border-radius,border-color,border-style,border-width');
         $purifierConfig->set('URI.AllowedSchemes', array('http' => true, 'https' => true, 'mailto' => true));
         $purifierConfig->set('AutoFormat.RemoveEmpty', false);
         // 允许 iframe，从后台安全设置读取白名单构建正则

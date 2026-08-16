@@ -93,7 +93,7 @@ if($action == 'create') {
 		include_once APP_PATH . 'lib/security/ContentModerationService.php';
 		$moderation_result = ContentModerationService::moderate('post', $message, 'create');
 		if ($moderation_result === 'block') {
-			message(-1, '内容审核未通过，请修改后重新发布');
+			message(-1, lang('post_rejected_desc'));
 		}
 
 		// ===== 回帖间隔检查 =====
@@ -141,10 +141,10 @@ if($action == 'create') {
 		$post_max_length = SecurityConfigService::get('security_post_max_length', 50000);
 		$message_len = mb_strlen($message, 'UTF-8');
 		if ($reply_min_length > 0 && $message_len < $reply_min_length) {
-			message(-1, '回复内容太短，至少需要' . $reply_min_length . '个字');
+			message(-1, lang('post_content_too_short', array('minlength'=>$reply_min_length)));
 		}
 		if ($post_max_length > 0 && $message_len > $post_max_length) {
-			message(-1, '回复内容太长，最多允许 ' . $post_max_length . ' 个字符（含 HTML 格式化标签如 &lt;p&gt;、加粗、图片等；编辑器右下角显示的是纯文本字数，会小于此值，当前 ' . $message_len . ' 字符）');
+			message(-1, lang('post_content_too_long', array('maxlength'=>$post_max_length, 'current'=>$message_len)));
 		}
 
 		// ===== 内容审核服务触发审核 =====
@@ -287,7 +287,7 @@ if($action == 'create') {
 					'type' => 'mention',
 					'tid' => $tid,
 					'pid' => $pid,
-					'content' => '在回复中提及了你',
+					'content' => lang('notify_action_mention_reply'),
 					'create_date' => $time,
 					'is_read' => 0,
 				);
@@ -385,12 +385,12 @@ if($action == 'create') {
 							<a href="<?php echo user_url($post['uid']);?>" class="text-body-secondary fw-semibold small"><?php echo $post['username'];?></a>
 						</span>
 						<?php if(!empty($thread) && $post['uid'] == $thread['uid']): ?>
-						<span class="badge bg-primary ms-1" style="font-size:0.6em">作者</span>
+						<span class="badge bg-primary ms-1" style="font-size:0.6em"><?php echo lang('post_author_label');?></span>
 						<?php endif; ?>
 						<?php if(!empty($post['reply_to_username'])) { ?>
-						<span class="text-body-secondary small"> 回复@<a href="<?php echo user_url(intval($post['reply_to_uid']));?>" class="text-primary"><?php echo esc_html($post['reply_to_username']);?></a>：</span>
+						<span class="text-body-secondary small"> <?php echo lang('reply_quote_prefix');?>@<a href="<?php echo user_url(intval($post['reply_to_uid']));?>" class="text-primary"><?php echo esc_html($post['reply_to_username']);?></a><?php echo lang('colon_separator');?></span>
 						<?php } else { ?>
-						<span class="text-body-secondary small">：</span>
+						<span class="text-body-secondary small"><?php echo lang('colon_separator');?></span>
 						<?php } ?>
 					</div>
 					<div class="small"><?php echo preg_replace('#<blockquote\s+class="blockquote"[^>]*>.*?</blockquote>#is', '', $post['message_fmt']);?></div>
@@ -404,7 +404,7 @@ if($action == 'create') {
 					</div>
 					<div class="d-flex align-items-center gap-2">
 						<?php if($allowpost) { ?>
-						<a href="javascript:void(0)" data-tid="<?php echo $post['tid'];?>" data-pid="<?php echo $post['pid'];?>" data-username="<?php echo $post['username'];?>" class="text-body-secondary post_reply" style="font-size:0.8em"><i class="ti ti-message-2"></i> 回复</a>
+						<a href="javascript:void(0)" data-tid="<?php echo $post['tid'];?>" data-pid="<?php echo $post['pid'];?>" data-username="<?php echo $post['username'];?>" class="text-body-secondary post_reply" style="font-size:0.8em"><i class="ti ti-message-2"></i> <?php echo lang('reply');?></a>
 						<?php } ?>
 						<?php if($allowupdate || $post['allowupdate']) { ?>
 						<a href="<?php echo post_update_url($post['pid']);?>" class="text-body-secondary post_update" hx-boost="false" style="font-size:0.8em"><i class="ti ti-pencil"></i></a>
@@ -420,7 +420,7 @@ if($action == 'create') {
 			$post_html = ob_get_clean();
 		}
 
-		$audit_message = $need_reply_audit ? '回复已提交，等待审核' : lang('create_post_sucessfully');
+		$audit_message = $need_reply_audit ? lang('post_submitted_pending_audit') : lang('create_post_sucessfully');
 
 		// 积分变动描述
 		$change_desc = '';
@@ -429,7 +429,7 @@ if($action == 'create') {
 		}
 		// 每日上限达到：提醒用户本次不发放/扣除积分
 		if(!empty($replyCreditsResult['daily_limit_reached'])) {
-			$change_desc = $replyCreditsResult['message'] . '，本次回复不发放/扣除积分';
+			$change_desc = lang('post_reply_no_credits_tip', array('message'=>$replyCreditsResult['message']));
 		}
 
 		// htmx 请求：区分快速回复（帖子详情页内）和高级回复（独立页面）
@@ -573,14 +573,14 @@ if($action == 'create') {
 		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
 		$allow_edit = SecurityConfigService::get('security_allow_edit', 1);
 		if (empty($allow_edit)) {
-			message(-1, '当前不允许修改帖子');
+			message(-1, lang('post_edit_disabled'));
 		}
 		$edit_time_limit = SecurityConfigService::get('security_edit_time_limit', 60);
 		if ($edit_time_limit > 0) {
 			$elapsed = $time - $post['create_date'];
 			$elapsed_minutes = floor($elapsed / 60);
 			if ($elapsed_minutes > $edit_time_limit) {
-				message(-1, '帖子修改时间已过，仅允许发布后' . $edit_time_limit . '分钟内修改');
+				message(-1, lang('post_edit_time_expired', array('minutes'=>$edit_time_limit)));
 			}
 		}
 	}
@@ -730,18 +730,18 @@ if($action == 'create') {
 	if(!$allowdelete) {
 		if($isfirst) {
 			$sec_allow_delete = SecurityConfigService::get('security_allow_delete', 1);
-			empty($sec_allow_delete) AND message(-1, '当前不允许删除帖子');
+			empty($sec_allow_delete) AND message(-1, lang('post_delete_disabled'));
 			$sec_delete_time_limit = SecurityConfigService::get('security_delete_time_limit', 0);
 			if($sec_delete_time_limit > 0) {
 				$elapsed = $time - $thread['create_date'];
 				$elapsed_minutes = floor($elapsed / 60);
 				if($elapsed_minutes > $sec_delete_time_limit) {
-					message(-1, '帖子删除时间已过，仅允许发布后' . $sec_delete_time_limit . '分钟内删除');
+					message(-1, lang('post_delete_time_expired', array('minutes'=>$sec_delete_time_limit)));
 				}
 			}
 		} else {
 			$sec_allow_delete_reply = SecurityConfigService::get('security_allow_delete_reply', 1);
-			empty($sec_allow_delete_reply) AND message(-1, '当前不允许删除回复');
+			empty($sec_allow_delete_reply) AND message(-1, lang('post_delete_reply_disabled'));
 		}
 	}
 	
@@ -786,7 +786,7 @@ if($action == 'create') {
 		}
 		// 每日上限达到：提醒用户本次不扣除积分
 		if(!empty($deleteCreditsResult['daily_limit_reached'])) {
-			$delete_change_desc = $deleteCreditsResult['message'] . '，本次删除不扣除积分';
+			$delete_change_desc = lang('post_delete_no_credits_tip', array('message'=>$deleteCreditsResult['message']));
 		}
 	}
 

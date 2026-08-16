@@ -116,8 +116,9 @@
 			<div class="mb-4">
 				<label class="form-label fw-medium"><?php echo lang('admin_upload_driver');?></label>
 				<select name="upload_driver" id="upload_driver" class="form-select rounded-pill" style="max-width:300px;">
-					<option value="local" <?php echo $upload_driver == 'local' ? 'selected' : '';?>><?php echo lang('admin_upload_driver_local');?></option>
-					<option value="oss" <?php echo $upload_driver == 'oss' ? 'selected' : '';?>><?php echo lang('admin_upload_driver_oss');?></option>
+					<?php foreach($upload_drivers as $driver_key => $driver_name) { ?>
+					<option value="<?php echo $driver_key;?>" <?php echo $upload_driver == $driver_key ? 'selected' : '';?>><?php echo $driver_name;?></option>
+					<?php } ?>
 				</select>
 				<p class="mt-2 fs-6 text-body-secondary"><?php echo lang('admin_upload_driver_tip');?></p>
 			</div>

@@ -11,7 +11,7 @@ class PluginScannerSuggestion {
      * 根据分类和匹配内容动态生成建议
      */
     public static function build(string $category, string $pattern, ?string $suggestion, string $line): string {
-        $fallback = $suggestion ?? '请人工检查此项兼容性';
+        $fallback = $suggestion ?? lang('scanner_suggestion_manual_check');
 
         switch ($category) {
             case 'bs4_classes':
@@ -31,35 +31,35 @@ class PluginScannerSuggestion {
             case 'dangerous_functions':
                 return self::dangerousFunctions($pattern, $line);
             case 'php_comment_close_tag':
-                return $suggestion ?? '移除注释中的 ?> 或改用块注释 /* */';
+                return $suggestion ?? lang('scanner_suggestion_php_comment_close_tag');
             case 'frontend_md5':
-                return '密码必须明文提交，由服务端 password_md5() 处理；移除前端 MD5 哈希代码';
+                return lang('scanner_suggestion_frontend_md5');
             case 'md5js_global_load':
-                return 'MD5.js 不得全局加载，前端 MD5 哈希已移除';
+                return lang('scanner_suggestion_md5js_global_load');
             case 'password_update_api':
-                return '找回密码必须使用 user__update() 而非 user_update()，因为后者会过滤掉 password 字段';
+                return lang('scanner_password_update_api');
             case 'db_charset':
-                return '数据库连接字符集必须为 utf8mb4（支持 emoji 等 4 字节字符）';
+                return lang('scanner_db_charset');
             case 'service_undefined_var':
-                return 'Service 类中拼接 SQL 表名必须用 $this->tablepre . \'表名\'，不能使用未定义变量';
+                return lang('scanner_service_undefined_var');
             case 'raw_htmlspecialchars':
-                return '禁止裸写 htmlspecialchars，必须用 esc_html() / esc_attr() / esc_js() 统一转义';
+                return lang('scanner_raw_htmlspecialchars');
             case 'heredoc_php_tag':
-                return 'HEREDOC 语法中需使用 {$variable} 语法嵌入 PHP 变量';
+                return lang('scanner_suggestion_heredoc_php_tag_short');
             case 'bs_tab_navigation':
-                return '外层导航（页面跳转）禁止用 Bootstrap Tab，应改为普通 <a> 链接；内层导航才用 tab';
+                return lang('scanner_suggestion_bs_tab_navigation');
             case 'hook_htm_header':
-                return '.htm 模板 hook 文件必须以 <?php 开头（不能是 <?php exit;，否则白屏）';
+                return lang('scanner_suggestion_hook_htm_header');
             case 'db_find_col_string':
-                return 'db_find_one() 第 4 个参数 $col 必须传入数组（如 array(\'fid\', \'uid\')）';
+                return lang('scanner_suggestion_db_find_col_string');
             case 'app_path_in_url':
-                return 'APP_PATH 是文件系统绝对路径，浏览器无法访问，必须用 $conf[\'view_url\'] 生成资源 URL';
+                return lang('scanner_app_path_in_url');
             case 'install_non_idempotent':
-                return 'install.php 所有建表语句必须用 IF NOT EXISTS 保证幂等';
+                return lang('scanner_install_non_idempotent');
             case 'php_superglobal_output':
                 return self::phpSuperglobalOutput($pattern, $line);
             case 'js_eval_call':
-                return 'JS eval() 调用存在代码注入风险，应避免使用；如需解析 JSON 请用 JSON.parse()';
+                return lang('scanner_suggestion_js_eval');
             case 'js_dom_xss':
                 return self::jsDomXss($pattern, $line);
             case 'jquery_html_xss':
@@ -89,16 +89,16 @@ class PluginScannerSuggestion {
 
     private static function dangerousFunctions(string $pattern, string $line): string {
         $map = [
-            '\beval\(' => 'eval() 代码注入风险，避免使用 eval()，改用闭包或 json_decode 解析数据',
-            '\bsystem\(' => 'system() 命令执行风险，避免直接调用系统命令，必须用 escapeshellarg() + escapeshellcmd() 转义',
-            '(?<![_>])\bexec\(' => 'exec() 命令执行风险，避免直接调用系统命令，必须用 escapeshellarg() + escapeshellcmd() 转义',
-            '\bpassthru\(' => 'passthru() 命令执行风险，避免直接调用系统命令',
-            '\bshell_exec\(' => 'shell_exec() 命令执行风险，避免直接调用系统命令',
-            '\bpopen\(' => 'popen() 进程管理风险，避免使用',
-            '\bproc_open\(' => 'proc_open() 进程管理风险，避免使用',
-            '\bpcntl_exec\(' => 'pcntl_exec() 进程执行风险，避免使用',
+            '\beval\(' => lang('scanner_suggestion_danger_eval'),
+            '\bsystem\(' => lang('scanner_suggestion_danger_system'),
+            '(?<![_>])\bexec\(' => lang('scanner_suggestion_danger_exec'),
+            '\bpassthru\(' => lang('scanner_suggestion_danger_passthru'),
+            '\bshell_exec\(' => lang('scanner_suggestion_danger_shell_exec'),
+            '\bpopen\(' => lang('scanner_suggestion_danger_popen'),
+            '\bproc_open\(' => lang('scanner_suggestion_danger_proc_open'),
+            '\bpcntl_exec\(' => lang('scanner_suggestion_danger_pcntl_exec'),
         ];
-        return $map[$pattern] ?? '危险函数调用，请人工检查此项兼容性';
+        return $map[$pattern] ?? lang('scanner_suggestion_danger_fallback');
     }
 
     // ===== BS4 类名 =====
@@ -121,13 +121,13 @@ class PluginScannerSuggestion {
             'form-group' => 'mb-3', 'form-control-label' => 'form-label',
             'custom-select' => 'form-select', 'custom-control' => 'form-check',
             'btn-block' => 'w-100',
-            'input-group-prepend' => '直接使用 input-group-text',
-            'input-group-append' => '直接使用 input-group-text',
+            'input-group-prepend' => lang('scanner_suggestion_bs4_input_group_text'),
+            'input-group-append' => lang('scanner_suggestion_bs4_input_group_text'),
         ];
         if (isset($fixed[$pattern])) return ".{$pattern} → .{$fixed[$pattern]}";
         if ($pattern === '"media"') return '.media → d-flex';
         if ($pattern === '"media-body"') return '.media-body → flex-grow-1';
-        return "BS4 .{$pattern} → BS5 替代类";
+        return lang('scanner_suggestion_bs4_fallback', array('class' => $pattern));
     }
 
     // ===== BS4 data 属性 =====
@@ -157,25 +157,25 @@ class PluginScannerSuggestion {
         if (strpos($pattern, 'fa-[a-z]') !== false) {
             // Font Awesome：提取 fa-xxx 类名
             if (preg_match('/\bfa-([a-z0-9-]+)/i', $line, $m)) {
-                return "fa-{$m[1]} → ti-{$m[1]}（参考 Tabler Icons 查找对应图标）";
+                return lang('scanner_suggestion_icon_fa_concrete', array('old' => $m[1], 'new' => $m[1]));
             }
-            return 'Font Awesome → Tabler Icons ti-*';
+            return lang('scanner_suggestion_icon_fa');
         }
         if (strpos($pattern, 'bi-[a-z]') !== false) {
             // Bootstrap Icons：提取 bi-xxx 类名
             if (preg_match('/\bbi-([a-z0-9-]+)/i', $line, $m)) {
-                return "bi-{$m[1]} → ti-{$m[1]}（参考 Tabler Icons 查找对应图标）";
+                return lang('scanner_suggestion_icon_bi_concrete', array('old' => $m[1], 'new' => $m[1]));
             }
-            return 'Bootstrap Icons → Tabler Icons ti-*';
+            return lang('scanner_suggestion_icon_bi');
         }
         if (strpos($pattern, 'glyphicon glyphicon-') !== false) {
             // Glyphicon：提取 glyphicon glyphicon-xxx 类名
             if (preg_match('/glyphicon\s+glyphicon-([a-z0-9-]+)/i', $line, $m)) {
-                return "glyphicon glyphicon-{$m[1]} → ti-{$m[1]}（参考 Tabler Icons 查找对应图标）";
+                return lang('scanner_suggestion_icon_glyphicon_concrete', array('old' => $m[1], 'new' => $m[1]));
             }
-            return 'Glyphicon → Tabler Icons ti-*';
+            return lang('scanner_suggestion_icon_glyphicon');
         }
-        return '迁移到 Tabler Icons ti-*';
+        return lang('scanner_suggestion_icon_migrate');
     }
 
     // ===== BS3 类名 =====
@@ -184,9 +184,9 @@ class PluginScannerSuggestion {
         $map = [
             'panel-heading' => 'card-header', 'panel-body' => 'card-body',
             'panel-footer' => 'card-footer', 'panel-default' => 'card',
-            'panel-primary' => 'card+ 颜色', 'panel-success' => 'card+ 颜色',
-            'panel-info' => 'card+ 颜色', 'panel-warning' => 'card+ 颜色',
-            'panel-danger' => 'card+ 颜色', 'well' => 'card.card-body',
+            'panel-primary' => lang('scanner_suggestion_bs3_card_color'), 'panel-success' => lang('scanner_suggestion_bs3_card_color'),
+            'panel-info' => lang('scanner_suggestion_bs3_card_color'), 'panel-warning' => lang('scanner_suggestion_bs3_card_color'),
+            'panel-danger' => lang('scanner_suggestion_bs3_card_color'), 'well' => 'card.card-body',
             'glyphicon' => 'Tabler Icons ti-*', 'pull-left' => 'float-start',
             'pull-right' => 'float-end', 'hidden-xs' => 'd-none .d-sm-block',
             'visible-xs' => 'd-sm-none', 'label-default' => 'badge',
@@ -198,9 +198,9 @@ class PluginScannerSuggestion {
         if (isset($map[$pattern])) return ".{$pattern} → .{$map[$pattern]}";
         if ($pattern === 'col-xs-') {
             if (preg_match('/col-xs-(\d+)/i', $line, $m)) return "col-xs-{$m[1]} → col-{$m[1]}";
-            return 'col-xs-* → col-*（xs 断点已移除）';
+            return lang('scanner_suggestion_bs3_col_xs');
         }
-        return "BS3 .{$pattern} → BS5 替代类";
+        return lang('scanner_suggestion_bs3_fallback', array('class' => $pattern));
     }
 
     // ===== Bootstrap jQuery API =====
@@ -214,10 +214,10 @@ class PluginScannerSuggestion {
 
         if ($method === 'button') {
             if (preg_match('/\.button\([\'"](\w+)[\'"]\)/', $line, $m)) {
-                if ($m[1] === 'loading') return ".button('loading') → 原生 JS: const btn=document.querySelector(...); btn.disabled=true; 或 htmx hx-disabled-elt";
-                if ($m[1] === 'reset') return ".button('reset') → 原生 JS: btn.disabled=false; 重置状态";
+                if ($m[1] === 'loading') return lang('scanner_suggestion_bsjs_button_loading');
+                if ($m[1] === 'reset') return lang('scanner_suggestion_bsjs_button_reset');
             }
-            return ".button() → htmx hx-disabled-elt 或原生 JS disabled 属性";
+            return lang('scanner_suggestion_bsjs_button_default');
         }
         if ($method === 'modal') {
             if (preg_match('/\.modal\([\'"](\w+)[\'"]\)/', $line, $m)) {
@@ -225,7 +225,7 @@ class PluginScannerSuggestion {
                 $api = $actions[$m[1]] ?? "{$m[1]}()";
                 return ".modal('{$m[1]}') → bootstrap.Modal.getInstance(el).{$api}";
             }
-            return ".modal() → new bootstrap.Modal(el) 或 htmx hx-get 加载弹窗";
+            return lang('scanner_suggestion_bsjs_modal_default');
         }
         $apiMap = [
             'dropdown' => 'Dropdown', 'tooltip' => 'Tooltip', 'popover' => 'Popover',
@@ -236,7 +236,7 @@ class PluginScannerSuggestion {
             $name = strtolower($cls);
             return ".{$name}() → new bootstrap.{$cls}(el)";
         }
-        return $pattern . ' → Bootstrap 5 原生 API';
+        return lang('scanner_suggestion_bsjs_fallback', array('pattern' => $pattern));
     }
 
     // ===== jQuery =====
@@ -255,26 +255,26 @@ class PluginScannerSuggestion {
 
         if (in_array($method, ['ajax', 'post', 'get'])) {
             if (preg_match('/\$\.x?post\([^,]+,\s*[^,]+,\s*function/i', $line)) {
-                return "$.{$method}() → htmx hx-{$method} 或 XN.ajax()（xiuno-modern.js）";
+                return lang('scanner_suggestion_jq_post_ajax', array('method' => $method));
             }
-            return "$.{$method}() → htmx hx-* 或原生 fetch()";
+            return lang('scanner_suggestion_jq_ajax_fetch', array('method' => $method));
         }
         if ($method === 'document.ready' || $method === 'function(') {
             return "{$pattern} → document.addEventListener('DOMContentLoaded', fn)";
         }
-        if ($method === 'each') return '$.each() → Array.forEach() 或 for...of';
+        if ($method === 'each') return lang('scanner_suggestion_jq_each_replace');
         if ($method === 'fn') {
-            if (preg_match('/\$\.fn\.(\w+)/', $line, $m)) return "$.fn.{$m[1]} → 原生 JS class 或 htmx 组件";
-            return '$.fn → 原生 JS class 或 htmx 组件';
+            if (preg_match('/\$\.fn\.(\w+)/', $line, $m)) return lang('scanner_suggestion_jq_fn_concrete', array('name' => $m[1]));
+            return lang('scanner_suggestion_jq_fn');
         }
         $simple = [
             'extend' => 'Object.assign()', 'trim' => 'String.prototype.trim()',
             'parseJSON' => 'JSON.parse()', 'isArray' => 'Array.isArray()',
-            'isFunction' => 'typeof fn === "function"', 'browser' => '特性检测（如 CSS @supports）',
-            'jQuery' => 'htmx 4 属性或原生 JS',
+            'isFunction' => 'typeof fn === "function"', 'browser' => lang('scanner_suggestion_jq_browser_replace'),
+            'jQuery' => lang('scanner_suggestion_jq_jquery_replace'),
         ];
         if (isset($simple[$method])) return "$.{$method}() → {$simple[$method]}";
-        return "{$pattern} → 迁移到 htmx 4 属性或原生 JS";
+        return lang('scanner_suggestion_jq_fallback', array('pattern' => $pattern));
     }
 
     // ===== PHP 超全局直接输出（反射型 XSS） =====
@@ -282,29 +282,29 @@ class PluginScannerSuggestion {
     private static function phpSuperglobalOutput(string $pattern, string $line): string {
         // 提取具体的超全局名（$_GET/$_POST/$_REQUEST/$_SERVER/$_COOKIE）
         // 区分大小写：PHP 超全局变量必须大写，$_post ≠ $_POST
-        $var = '超全局变量';
+        $var = lang('scanner_suggestion_superglobal_var');
         if (preg_match('/\$_(GET|POST|REQUEST|SERVER|COOKIE)\b/', $line, $m)) {
             $var = '$_' . $m[1];
         }
-        return "直接 {$var} 输出会导致反射型 XSS，必须用 esc_html() / esc_attr() 转义后再输出";
+        return lang('scanner_suggestion_superglobal_output', array('var' => $var));
     }
 
     // ===== JS DOM XSS =====
 
     private static function jsDomXss(string $pattern, string $line): string {
         if (strpos($pattern, 'document\.write') !== false) {
-            return 'document.write() 会直接执行字符串中的 HTML/JS 代码导致 DOM XSS，应使用 document.createElement() + textContent 构建 DOM';
+            return lang('scanner_suggestion_js_dom_write');
         }
         if (strpos($pattern, 'innerHTML') !== false) {
-            return '.innerHTML = 会解析 HTML 导致 DOM XSS，应改用 .textContent =（自动转义）';
+            return lang('scanner_suggestion_js_dom_innerhtml');
         }
         if (strpos($pattern, 'outerHTML') !== false) {
-            return '.outerHTML = 会解析 HTML 导致 DOM XSS，应改用 DOM API（createElement/replaceChild）';
+            return lang('scanner_suggestion_js_dom_outerhtml');
         }
         if (strpos($pattern, 'insertAdjacentHTML') !== false) {
-            return 'insertAdjacentHTML() 会解析 HTML 导致 DOM XSS，应改用 insertAdjacentText() 或 DOM API';
+            return lang('scanner_suggestion_js_dom_insert');
         }
-        return 'JS DOM XSS 风险，避免直接设置 HTML 字符串';
+        return lang('scanner_suggestion_js_dom_fallback');
     }
 
     // ===== jQuery .html() XSS =====
@@ -312,8 +312,8 @@ class PluginScannerSuggestion {
     private static function jqueryHtmlXss(string $pattern, string $line): string {
         // 尝试提取选择器上下文，给出更具体的建议
         if (preg_match('/\$\(window\)\.html\s*\(/i', $line)) {
-            return '$(window).html() 用法异常，应使用 document.body.innerHTML 或 DOM API';
+            return lang('scanner_suggestion_jquery_html_window');
         }
-        return 'jQuery .html() 内部调用 .innerHTML 会导致 DOM XSS；若内容非可信，应改用 .text()（自动转义 HTML 特殊字符）';
+        return lang('scanner_suggestion_jquery_html_xss');
     }
 }

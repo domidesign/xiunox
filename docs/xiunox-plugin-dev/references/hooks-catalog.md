@@ -414,6 +414,7 @@
 |---|---|---|
 | `admin_index_route_case_start.php` | admin switch 最前 | 优先路由 |
 | `admin_index_route_case_end.php` | ✅ **固定**：admin switch 最后 | 注册新的 admin 路由 |
+| `admin_setting_upload_driver_register.php` | ✅ 上传设置页 GET+POST 双调用 | 注册存储驱动选项（插件扩展云存储） |
 
 > 各模块（setting/forum/user/thread/group/log/attach/banned_ip/banned_user/credits_rule/ai/plugin_scanner/upgrade/online_upgrade/health/audit）的路由 hook 遵循 `admin_{模块}_start.php` / `admin_{模块}_end.php` 包裹，各 action 子模块遵循 `admin_{模块}_{action}_get_post.php` / `_get_start.php` / `_get_end.php` / `_post_start.php` / `_post_end.php` 五件套模式。
 
@@ -679,6 +680,9 @@ $data[] = array(
 | `attach_read_start.php` / `attach_read_output_before.php` | 读取开始/输出前 |
 | `attach_download_start.php` / `attach_download_readfile_before.php` / `attach_download_location_before.php` | 下载开始/读文件前/定位前 |
 | `attach_output_before.php` | 输出前 |
+| `storage_save.php` | ✅ 云存储驱动：`attach_assoc_post()` 中 `xn_copy()` 后 | 插件上传文件到云端（`upload_driver != 'local'` 时触发） |
+| `storage_serve.php` | ✅ 云存储驱动：`read`/`download`/`fetch` 的 `readfile()` 前 | 插件重定向到云端 URL 并 exit（`upload_driver != 'local'` 时触发） |
+| `storage_delete.php` | ✅ 云存储驱动：`attach_delete` / `attach_delete_by_pid` / `attach_delete_by_uid` 中 `unlink()` 前 | 插件删除云端文件（`upload_driver != 'local'` 时触发） |
 
 ---
 

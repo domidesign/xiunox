@@ -435,6 +435,11 @@ if(empty($action)) {
 		xn_mkdir(APP_PATH.'upload/avatar', 0777);
 		xn_mkdir(APP_PATH.'upload/forum', 0777);
 
+		// 创建 _include() 编译缓存目录并写入 .htaccess 禁止 Web 访问
+		// tmp/ 下 .htm/.php 产物内容均为 PHP，直接访问会泄露源码或被当 PHP 执行
+		xn_mkdir(APP_PATH.'tmp', 0777);
+		file_put_contents(APP_PATH.'tmp/.htaccess', "<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n");
+
 		// 写入安装锁文件，防止重复安装
 		file_put_contents(INSTALL_PATH.'install.lock', date('Y-m-d H:i:s'));
 

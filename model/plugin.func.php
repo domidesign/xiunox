@@ -60,7 +60,9 @@ function _include($srcfile) {
 		}
 		_atomic_write($tmpfile, $s);
 
-		$s = plugin_compile_srcfile($tmpfile);
+		// 第二趟编译：解析 <template include> 引入的新 hook 标记
+		// ponytail: 直接处理内存字符串 $s，不再读回 tmp 文件，避免 Windows 下杀毒软件/文件系统缓存导致 file_get_contents 失败
+		$s = plugin_compile_hooks($s);
 		_atomic_write($tmpfile, $s);
 
 	}
@@ -131,7 +133,7 @@ function plugin_init() {
 	if (empty($version_field_checked)) {
 		$col_exists = db_sql_find_one("SHOW COLUMNS FROM {$db->tablepre}plugin LIKE 'version'");
 		if (empty($col_exists)) {
-			db_exec("ALTER TABLE {$db->tablepre}plugin ADD COLUMN version varchar(32) NOT NULL DEFAULT '' COMMENT '已安装版本号' AFTER enable");
+			db_exec("ALTER TABLE {$db->tablepre}plugin ADD COLUMN version varchar(32) NOT NULL DEFAULT '' COMMENT 'installed version' AFTER enable");
 		}
 		cache_set('plugin_version_field_checked', 1, 86400);
 	}
@@ -558,20 +560,10 @@ function plugin_paths_enabled() {
 	return $return_paths;
 }
 
-// 编译源文件，把插件合并到该文件，不需要递归，执行的过程中 include _include() 自动会递归。
-function plugin_compile_srcfile($srcfile) {
-	global $conf;
-	// 判断是否开启插件
-	if(!empty($conf['disabled_plugin'])) {
-		$s = file_get_contents($srcfile);
-		return $s;
-	}
-	
-	// 如果有 overwrite，则用 overwrite 替换掉
-	$srcfile = plugin_find_overwrite($srcfile);
-	$s = file_get_contents($srcfile);
-	
-	// 最多支持 10 层
+// 解析字符串中的 hook 标记，把插件 hook 内容内联进去
+// 最多支持 10 层嵌套（hook 内容里可能再含 hook 标记）
+// ponytail: 抽取出来供 _include 第二趟编译直接处理内存字符串，避免在 Windows 下读回刚写入的 tmp 文件失败
+function plugin_compile_hooks($s) {
 	for($i = 0; $i < 10; $i++) {
 		if(strpos($s, '<!--{hook') !== FALSE || strpos($s, '// hook') !== FALSE) {
 			$s = preg_replace('#<!--{hook\s+(.*?)}-->#', '// hook \\1', $s);
@@ -583,6 +575,22 @@ function plugin_compile_srcfile($srcfile) {
 		}
 	}
 	return $s;
+}
+
+// 编译源文件，把插件合并到该文件，不需要递归，执行的过程中 include _include() 自动会递归。
+function plugin_compile_srcfile($srcfile) {
+	global $conf;
+	// 判断是否开启插件
+	if(!empty($conf['disabled_plugin'])) {
+		$s = file_get_contents($srcfile);
+		return $s;
+	}
+
+	// 如果有 overwrite，则用 overwrite 替换掉
+	$srcfile = plugin_find_overwrite($srcfile);
+	$s = file_get_contents($srcfile);
+
+	return plugin_compile_hooks($s);
 }
 
 
@@ -606,8 +614,8 @@ function plugin_find_overwrite($srcfile) {
 			// 有插件尝试覆盖，再检查白名单
 			$protected_paths = array(
 				'conf/', 'xiunophp/', 'lib/', 'admin/', 'api/', 'cli/', 'tool/',
-				'install/', 'log/', 'tmp/', 'upload/',
-				'index.php', 'model.inc.php', 'index.inc.php',
+				'install/', 'log/', 'tmp/', 'upload/', 'model/', 'route/', 'plugin/',
+				'index.php', 'model.inc.php', 'index.inc.php', 'version.php',
 			);
 			$is_protected = false;
 			foreach($protected_paths as $protected) {

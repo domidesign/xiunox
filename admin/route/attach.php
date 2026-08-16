@@ -110,7 +110,6 @@ if($action == 'list') {
 
     $aid = param('aid', 0);
     if(empty($aid)) message(-1, lang('data_empty'));
-
     $attach = attach_read($aid);
     if(empty($attach)) message(-1, lang('item_not_exists', array('item'=>'Attach')));
 
@@ -142,7 +141,7 @@ if($action == 'list') {
         message(-1, lang('admin_attach_no_orphan'));
     }
 
-    message(0, str_replace('{n}', $deleted, lang('admin_attach_clean_success')));
+    message(0, lang('admin_attach_clean_success', array('n'=>$deleted)));
 
 } elseif($action == 'stats') {
     // AJAX 获取统计数据

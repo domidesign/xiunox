@@ -244,16 +244,16 @@ class ForumService {
      */
     public function followForum(int $uid, int $fid): array {
         if (empty($uid) || empty($fid)) {
-            return ['code' => -1, 'msg' => '参数错误'];
+            return ['code' => -1, 'msg' => lang('parameters_error')];
         }
         // 检查版块是否存在
         $forum = $this->db->findOne('forum', ['fid' => $fid]);
         if (empty($forum)) {
-            return ['code' => -1, 'msg' => '版块不存在'];
+            return ['code' => -1, 'msg' => lang('forum_not_exists')];
         }
         $r = forum_follow_create($uid, $fid);
         if ($r === FALSE) {
-            return ['code' => -1, 'msg' => '已关注或操作失败'];
+            return ['code' => -1, 'msg' => lang('forum_follow_already_or_failed')];
         }
         // 清除版块成员缓存
         cache_delete('forum_members_' . $fid);
@@ -273,11 +273,11 @@ class ForumService {
      */
     public function unfollowForum(int $uid, int $fid): array {
         if (empty($uid) || empty($fid)) {
-            return ['code' => -1, 'msg' => '参数错误'];
+            return ['code' => -1, 'msg' => lang('parameters_error')];
         }
         $r = forum_follow_delete($uid, $fid);
         if ($r === FALSE) {
-            return ['code' => -1, 'msg' => '操作失败'];
+            return ['code' => -1, 'msg' => lang('operation_failed')];
         }
         // 清除版块成员缓存
         cache_delete('forum_members_' . $fid);

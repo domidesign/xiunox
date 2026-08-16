@@ -5,7 +5,7 @@
 // hook forum_index_start.php
 
 // 版块总览页面
-$header['title'] = '版块总览' . ' - ' . $conf['sitename'];
+$header['title'] = lang('forum_overview') . ' - ' . $conf['sitename'];
 // keywords/description 用全局默认值（site_keywords/site_description），由 index.inc.php 初始化
 // 专门的 SEO 插件可通过 hook forum_index_start.php 覆盖
 // SEO: canonical

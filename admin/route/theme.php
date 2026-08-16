@@ -47,7 +47,7 @@ if($action == 'list') {
         );
         file_replace_var(APP_PATH.'conf/conf.php', $replace);
 
-        admin_log_create('theme_switch', 'theme', '', '切换主题：' . $default_theme . ' 主题色：' . $theme_brand);
+        admin_log_create('theme_switch', 'theme', '', lang('admin_log_theme_switch', array('theme'=>$default_theme, 'brand'=>$theme_brand)));
 
         message(0, lang('modify_successfully'));
     }
@@ -58,7 +58,7 @@ if($action == 'list') {
 
     $theme = param('theme');
     if(!in_array($theme, $all_themes)) {
-        message(1, '无效的主题');
+        message(1, lang('admin_invalid_theme'));
     }
 
     $replace = array(
@@ -67,9 +67,9 @@ if($action == 'list') {
     );
     file_replace_var(APP_PATH.'conf/conf.php', $replace);
 
-    admin_log_create('theme_switch', 'theme', '', '设置默认主题：' . $theme);
+    admin_log_create('theme_switch', 'theme', '', lang('admin_log_theme_default', array('theme'=>$theme)));
 
-    message(0, '已设为默认');
+    message(0, lang('admin_theme_set_default_done'));
 
 } elseif($action == 'brand') {
 
@@ -78,7 +78,7 @@ if($action == 'list') {
     $theme_brand = param('theme_brand', 'blue');
     $valid_brands = array('blue', 'green', 'purple', 'red', 'orange', 'pink', 'teal', 'indigo', 'cyan', 'lime');
     if(!in_array($theme_brand, $valid_brands)) {
-        message(1, '无效的主题色');
+        message(1, lang('admin_invalid_theme_brand'));
     }
 
     $replace = array(
@@ -86,8 +86,8 @@ if($action == 'list') {
     );
     file_replace_var(APP_PATH.'conf/conf.php', $replace);
 
-    admin_log_create('theme_switch', 'theme', '', '设置默认主题色：' . $theme_brand);
+    admin_log_create('theme_switch', 'theme', '', lang('admin_log_theme_brand', array('brand'=>$theme_brand)));
 
-    message(0, '已设为默认主题色');
+    message(0, lang('admin_theme_brand_done'));
 }
 ?>

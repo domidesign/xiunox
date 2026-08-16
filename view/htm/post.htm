@@ -230,7 +230,7 @@ $_hx_confirm_attr = ($route == 'post' && $action == 'update') ? '' : ' hx-confir
 					
 				</div><div class="form-text text-body-secondary mt-1">
 					<?php echo lang('char_requirement')." {$sec_current_min_length} ".lang('char_unit').lang('char_max_unit')." {$sec_current_max_length} ".lang('char_unit'); ?>
-					<span class="d-block text-body-secondary-emphasis" style="font-size:0.85em;">（含 HTML 格式化标签如 &lt;p&gt;、加粗、图片等；编辑器右下角显示的是纯文本字数，会小于此值）</span>
+					<span class="d-block text-body-secondary-emphasis" style="font-size:0.85em;"><?php echo lang('char_requirement_detail');?></span>
 				</div>
 
 					<!--{hook post_message_after.htm}-->

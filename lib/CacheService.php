@@ -297,7 +297,7 @@ class CacheService
         switch ($type) {
             case 'redis':
                 if (!extension_loaded('Redis')) {
-                    return array('success' => false, 'message' => 'Redis 扩展未安装');
+                    return array('success' => false, 'message' => lang('cache_redis_ext_not_installed'));
                 }
                 try {
                     $redis = new Redis();
@@ -305,13 +305,13 @@ class CacheService
                     $port = isset($conf['port']) ? intval($conf['port']) : 6379;
                     $r = @$redis->connect($host, $port, 2.0); // 2秒超时
                     if (!$r) {
-                        return array('success' => false, 'message' => '连接 Redis 失败');
+                        return array('success' => false, 'message' => lang('cache_redis_connect_failed'));
                     }
                     // 如果有密码，尝试认证
                     if (!empty($conf['password'])) {
                         $auth = @$redis->auth($conf['password']);
                         if (!$auth) {
-                            return array('success' => false, 'message' => 'Redis 认证失败（密码错误）');
+                            return array('success' => false, 'message' => lang('cache_redis_auth_failed'));
                         }
                     }
                     // 选择数据库
@@ -322,10 +322,10 @@ class CacheService
                     try {
                         $ping = @$redis->ping();
                         if ($ping === FALSE) {
-                            return array('success' => false, 'message' => 'Redis 连接验证失败（可能需要认证）');
+                            return array('success' => false, 'message' => lang('cache_redis_verify_failed'));
                         }
                     } catch (\Throwable $pingEx) {
-                        return array('success' => false, 'message' => 'Redis 认证失败：' . $pingEx->getMessage());
+                        return array('success' => false, 'message' => lang('cache_redis_auth_error', array('error' => $pingEx->getMessage())));
                     }
                     // 实际读写测试：确保密码正确且连接真正可用
                     $testKey = 'bbs_test_' . mt_rand();
@@ -334,17 +334,17 @@ class CacheService
                     $got = $redis->get($testKey);
                     $redis->del($testKey);
                     if ($got !== $testVal) {
-                        return array('success' => false, 'message' => 'Redis 读写测试失败（密码可能错误或权限不足）');
+                        return array('success' => false, 'message' => lang('cache_redis_rw_test_failed'));
                     }
                     $redis->close();
-                    return array('success' => true, 'message' => 'Redis 连接成功');
+                    return array('success' => true, 'message' => lang('cache_redis_connected'));
                 } catch (\Throwable $e) {
-                    return array('success' => false, 'message' => 'Redis 连接异常：' . $e->getMessage());
+                    return array('success' => false, 'message' => lang('cache_redis_connect_exception', array('error' => $e->getMessage())));
                 }
 
             case 'memcached':
                 if (!extension_loaded('Memcache') && !extension_loaded('Memcached')) {
-                    return array('success' => false, 'message' => 'Memcached 扩展未安装');
+                    return array('success' => false, 'message' => lang('cache_memcached_ext_not_installed'));
                 }
                 try {
                     $host = isset($conf['host']) ? $conf['host'] : '127.0.0.1';
@@ -358,34 +358,34 @@ class CacheService
                         $mc = new Memcache();
                         $r = $mc->connect($host, $port, 2.0);
                         if (!$r) {
-                            return array('success' => false, 'message' => '连接 Memcached 失败');
+                            return array('success' => false, 'message' => lang('cache_memcached_connect_failed'));
                         }
                         $mc->close();
                     }
-                    return array('success' => true, 'message' => 'Memcached 连接成功');
+                    return array('success' => true, 'message' => lang('cache_memcached_connected'));
                 } catch (Exception $e) {
-                    return array('success' => false, 'message' => 'Memcached 连接异常：' . $e->getMessage());
+                    return array('success' => false, 'message' => lang('cache_memcached_connect_exception', array('error' => $e->getMessage())));
                 }
 
             case 'file':
                 $cache_dir = APP_PATH . 'tmp/cache/';
                 if (!is_dir($cache_dir)) {
                     if (!mkdir($cache_dir, 0755, TRUE)) {
-                        return array('success' => false, 'message' => '无法创建缓存目录：' . $cache_dir);
+                        return array('success' => false, 'message' => lang('cache_dir_create_failed', array('dir' => $cache_dir)));
                     }
                 }
                 if (!is_writable($cache_dir)) {
-                    return array('success' => false, 'message' => '缓存目录不可写：' . $cache_dir);
+                    return array('success' => false, 'message' => lang('cache_dir_not_writable', array('dir' => $cache_dir)));
                 }
-                return array('success' => true, 'message' => '文件缓存目录可写');
+                return array('success' => true, 'message' => lang('cache_file_dir_writable'));
 
             case 'mysql':
             case 'pdo_mysql':
                 // MySQL 缓存使用现有数据库连接，无需额外测试
-                return array('success' => true, 'message' => 'MySQL 缓存使用现有数据库连接');
+                return array('success' => true, 'message' => lang('cache_mysql_uses_existing_connection'));
 
             default:
-                return array('success' => false, 'message' => '不支持的驱动类型：' . $type);
+                return array('success' => false, 'message' => lang('cache_driver_unsupported', array('type' => $type)));
         }
     }
 
@@ -515,7 +515,7 @@ class CacheService
                 cache_truncate();
             }
             $runtime = NULL;
-            $cleared[] = "数据缓存（{$deletedCount} 个键）";
+            $cleared[] = lang('cache_data_cache_cleared', array('n' => $deletedCount));
         }
 
         if (in_array('tmp', $types)) {
@@ -537,7 +537,7 @@ class CacheService
                     }
                 }
             }
-            $cleared[] = "编译缓存（{$count} 个文件）";
+            $cleared[] = lang('cache_tmp_cache_cleared', array('n' => $count));
         }
 
         if (in_array('opcache', $types) && function_exists('opcache_reset')) {
@@ -590,7 +590,7 @@ class CacheService
     public static function warmupCache($target = 'all')
     {
         if (!class_exists('CacheHelper', false)) {
-            return array('success' => 0, 'fail' => 0, 'details' => array('CacheHelper 未加载'));
+            return array('success' => 0, 'fail' => 0, 'details' => array(lang('cache_helper_not_loaded')));
         }
         return CacheHelper::warmup($target);
     }

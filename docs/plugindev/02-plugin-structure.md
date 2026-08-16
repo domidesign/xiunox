@@ -32,7 +32,7 @@ plugin/my_plugin/
 │   │   └── setting.htm
 │   ├── css/               # 插件 CSS
 │   └── js/                # 插件 JS
-├── model/                 # 插件 Service/Model 类
+├── model/                 # 插件 Service 类（类名=文件名，禁止 *.func.php）
 │   └── MyService.php
 ├── lang/                  # 独立语言包（按需）
 │   └── zh-cn.php
@@ -121,7 +121,7 @@ plugin/my_plugin/
 
 这几个 hook 不是普通注入点，编译器对它们有专门处理：
 
-### `model_inc_file.php` —— 注册插件 Service
+### `model_inc_file.php` —— 注册插件 Service（可选）
 
 内容拼进 `model.inc.php` 的 `$include_model_files` 数组。**每行必须是一个逗号结尾的文件路径**：
 
@@ -131,6 +131,12 @@ APP_PATH.'plugin/my_plugin/model/MyService.php',
 ```
 
 这样插件的 `MyService` 类就全局可用了（在路由/hook/setting 里 `MyService::xxx()` 直接调）。
+
+> 💡 **v1.1.4+ 起本 hook 为可选的双保险**：`index.php` / `api/v1/index.php` 启动时会自动扫描已启用插件的 `model/*.php` 加载 Service 类（`class_exists` 守卫去重），不写本 hook 也能正常加载。保留 hook 可作为兜底（应对 tmp 缓存陈旧导致自动扫描失效的极端场景），但不强制要求。
+>
+> ⚠️ **XIUNOX 规范：`model/` 目录只放 Service 类文件（类名 = 文件名，如 `MyService.php` → `class MyService`）**，禁止放 `*.func.php` 函数库（xiuno 原版写法）。原因：自动扫描会过滤 `*.func.php` 不加载，且 `*.func.php` 与 hook 注入两套机制混用会导致函数重声明 fatal。函数库应改为静态类方法（`MyService::xxx()` 代替 `my_plugin_xxx()` 全局函数）。
+>
+> 详见 [09-model-loading-refactor.md §3.4 兜底加载逻辑](09-model-loading-refactor.md)。
 
 ### `index_route_case_end.php` —— 注册新路由
 

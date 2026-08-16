@@ -66,10 +66,10 @@
         <table class="table table-sm table-hover api-info-table mb-4">
             <tr><td><?php echo lang('admin_api_base_url'); ?></td><td><code><?php echo $baseUrl;?>api/v1/</code></td></tr>
             <tr><td><?php echo lang('api_response_format');?></td><td><code>JSON {"code": 0, "msg": "ok", "data": {...}}</code></td></tr>
-            <tr><td><?php echo lang('api_auth_method');?></td><td><code>X-App-Id: &lt;appid&gt;</code>（应用标识，所有请求必需，可公开）<br><code>X-App-Secret: &lt;secret&gt;</code>（应用密钥，仅服务端调用时携带，<strong class="text-danger">不可暴露给浏览器</strong>）<br><code>Authorization: Bearer &lt;token&gt;</code>（用户认证，Authenticated/Admin 级别必需）</td></tr>
-            <tr><td>认证模式</td><td><span class="badge bg-info">客户端模式</span> 仅 X-App-Id（浏览器/UniApp），限流30次/分 &nbsp; <span class="badge bg-primary">服务端模式</span> X-App-Id + X-App-Secret，限流按应用配置</td></tr>
-            <tr><td>权限级别</td><td><span class="badge bg-success">Public</span> 仅需应用凭证 &nbsp; <span class="badge bg-warning text-dark">Authenticated</span> 应用+用户令牌 &nbsp; <span class="badge bg-danger">Admin</span> 应用+管理员令牌</td></tr>
-            <tr><td><?php echo lang('api_token_expire');?></td><td>Access Token <?php echo $accessTokenExpire;?> 小时 / Refresh Token <?php echo $tokenExpire;?> 天（滑动续期） / 绝对过期上限 <?php echo $tokenAbsoluteExpire > 0 ? $tokenAbsoluteExpire.' 天' : '不限';?></td></tr>
+            <tr><td><?php echo lang('api_auth_method');?></td><td><code>X-App-Id: &lt;appid&gt;</code><?php echo lang('api_auth_xappid_desc');?><br><code>X-App-Secret: &lt;secret&gt;</code><?php echo lang('api_auth_xappsecret_desc');?><br><code>Authorization: Bearer &lt;token&gt;</code><?php echo lang('api_auth_bearer_desc');?></td></tr>
+            <tr><td><?php echo lang('api_auth_mode');?></td><td><span class="badge bg-info"><?php echo lang('api_auth_mode_client');?></span> <?php echo lang('api_auth_mode_client_desc');?> &nbsp; <span class="badge bg-primary"><?php echo lang('api_auth_mode_server');?></span> <?php echo lang('api_auth_mode_server_desc');?></td></tr>
+            <tr><td><?php echo lang('api_auth_level');?></td><td><span class="badge bg-success">Public</span> <?php echo lang('api_auth_level_public_desc');?> &nbsp; <span class="badge bg-warning text-dark">Authenticated</span> <?php echo lang('api_auth_level_authenticated_desc');?> &nbsp; <span class="badge bg-danger">Admin</span> <?php echo lang('api_auth_level_admin_desc');?></td></tr>
+            <tr><td><?php echo lang('api_token_expire');?></td><td>Access Token <?php echo $accessTokenExpire;?> <?php echo lang('unit_hour');?> / Refresh Token <?php echo $tokenExpire;?> <?php echo lang('day');?> <?php echo lang('api_token_sliding_renewal');?> / <?php echo lang('api_token_absolute_expire_label');?> <?php echo $tokenAbsoluteExpire > 0 ? $tokenAbsoluteExpire.' '.lang('day') : lang('admin_api_unlimited');?></td></tr>
         </table>
 
         <?php foreach($apiGroups as $key => $group): ?>
@@ -87,14 +87,14 @@
                 <?php
                 $level = isset($ep['level']) ? $ep['level'] : 'Public';
                 $levelColors = ['Public' => 'bg-success', 'Authenticated' => 'bg-warning text-dark', 'Admin' => 'bg-danger'];
-                $levelLabels = ['Public' => '公开', 'Authenticated' => '需认证', 'Admin' => '管理员'];
+                $levelLabels = ['Public' => lang('api_level_public'), 'Authenticated' => lang('api_level_authenticated'), 'Admin' => lang('api_level_admin')];
                 $levelColor = isset($levelColors[$level]) ? $levelColors[$level] : 'bg-secondary';
                 $levelLabel = isset($levelLabels[$level]) ? $levelLabels[$level] : $level;
                 ?>
                 <span class="badge <?php echo $levelColor;?> api-level-badge"><?php echo $levelLabel;?></span>
                 <?php if(!empty($ep['scope'])):
                 $scopeColors = ['public' => 'bg-secondary', 'readonly' => 'bg-primary', 'readwrite' => 'bg-warning text-dark', 'admin' => 'bg-danger'];
-                $scopeLabels = ['public' => '公开范围', 'readonly' => '只读', 'readwrite' => '读写', 'admin' => '管理'];
+                $scopeLabels = ['public' => lang('api_scope_public'), 'readonly' => lang('admin_api_app_scope_readonly'), 'readwrite' => lang('admin_api_app_scope_readwrite'), 'admin' => lang('api_scope_admin')];
                 $scopeColor = isset($scopeColors[$ep['scope']]) ? $scopeColors[$ep['scope']] : 'bg-secondary';
                 $scopeLabel = isset($scopeLabels[$ep['scope']]) ? $scopeLabels[$ep['scope']] : $ep['scope'];
                 ?>

@@ -119,9 +119,48 @@ foreach ($include_model_files as $model_files) {
 
 3. **model 文件仍走 `_include()`**
    - model 文件通过 `_include()` 加载，支持 hook 注入和编译缓存
-   - 插件 Service 类通过 `hook/model_inc_file.php` 注册
+   - 插件 Service 类可通过 `hook/model_inc_file.php` 注册（可选，详见 3.4）
 
-### 3.3 代码迁移清单
+### 3.3 兜底加载逻辑（v1.1.4+）
+
+**背景**：仅靠 `model.inc.php` 的 `model_inc_file.php` hook 注入加载 Service 类，存在 tmp 缓存陈旧风险——`tmp/model.inc.php` 未重新编译（hook 注入丢失），但 `tmp/model_xxx.func.php` 重新编译注入了 Service 调用，两者不一致会导致 `Class not found` fatal 崩溃，触发插件自动禁用机制。
+
+**机制**：`index.php` / `api/v1/index.php` 启动时，遍历 `plugin_paths_enabled()` 返回的已启用插件，扫描其 `model/*.php` 文件，用 `class_exists($class, false)` 守卫后 `include_once` 加载：
+
+```php
+$_plugin_paths_fallback = plugin_paths_enabled();
+foreach ($_plugin_paths_fallback as $_path_fb => $_pconf_fb) {
+    $_model_dir_fb = $_path_fb . '/model';
+    if (!is_dir($_model_dir_fb)) continue;
+    foreach (glob($_model_dir_fb . '/*.php') as $_service_file_fb) {
+        // 跳过 xiuno 原版 *.func.php 函数库文件：由 model_inc_file hook 注入加载，不自动扫描
+        if (substr($_service_file_fb, -9) === '.func.php') continue;
+        $_class_name_fb = ucfirst(basename($_service_file_fb, '.php'));
+        if (!class_exists($_class_name_fb, false)) {
+            include_once $_service_file_fb;
+        }
+    }
+}
+```
+
+**关键规则**：
+
+| 规则 | 说明 |
+|---|---|
+| **`model/` 只放 Service 类** | 类名 = 文件名（如 `MyService.php` → `class MyService`），由 `class_exists` 守卫推断类名去重 |
+| **禁止 `model/*.func.php`** | xiuno 原版函数库写法，自动扫描会**跳过**不加载（避免与 hook 注入冲突导致函数重声明 fatal）；函数库应改为静态类方法 |
+| **`hook/model_inc_file.php` 可选** | 兜底逻辑已自动覆盖，hook 注入是冗余的双保险；保留可应对兜底逻辑失效的极端场景，但不强制 |
+| **类名必须与文件名一致** | 否则 `class_exists(ucfirst(basename), false)` 守卫失效，可能导致重复 include（但 `include_once` 会兜底去重） |
+
+**第三方插件从 xiuno 原版迁移到 XIUNOX**：
+
+1. `model/xxx.func.php` 全局函数库 → 改写为 `model/XxxService.php` 静态类方法
+2. 删除 `hook/model_inc_file.php`（或保留作为双保险，但路径需指向新的 Service 类）
+3. 调用点 `xxx_func()` → `XxxService::func()`
+
+> 📖 详见 [02-plugin-structure.md §model_inc_file.php](02-plugin-structure.md)
+
+### 3.4 代码迁移清单
 
 | 检查项 | 操作 |
 |---|---|
@@ -196,5 +235,5 @@ Xiuno 项目历史包袱较重，整体迁移到 composer  autoload 成本较高
 ## 七、相关文档
 
 - [01-architecture.md](01-architecture.md) — 插件架构原理（已更新 model 加载机制章节）
-- [02-plugin-structure.md](02-plugin-structure.md) — 插件结构（已删除 model.min.php 清理示例）
+- [02-plugin-structure.md](02-plugin-structure.md) — 插件结构（已删除 model.min.php 清理示例；`model_inc_file.php` 标注为可选；明确禁止 `model/*.func.php`）
 - [07-runtime-safety.md](07-runtime-safety.md) — 运行时安全 / 崩溃自动禁用

@@ -116,6 +116,16 @@ class EditorService {
         $aiGeneratingText = lang('editor_ai_generating');
         $aiGeneratingToast = lang('editor_ai_generating_wait');
 
+        // 上传/附件/删除相关提示文案（注入到下方 JS 模板）
+        $uploadSuccess = addslashes(lang('editor_upload_success'));
+        $uploadFailed = addslashes(lang('upload_failed'));
+        $responseParseFail = addslashes(lang('editor_response_parse_fail'));
+        $networkError = addslashes(lang('editor_network_error'));
+        $imageUseImageBtn = addslashes(lang('editor_image_use_image_btn'));
+        $videoUseVideoBtn = addslashes(lang('editor_video_use_video_btn'));
+        $attachmentFallback = addslashes(lang('attachment'));
+        $deleteLabel = addslashes(lang('delete'));
+
         return <<<HTML
 <style>
 .aieditor-container {border:1px solid var(--border-color, #ddd);border-radius:4px;min-height:300px;resize:vertical;overflow:hidden;}
@@ -231,12 +241,12 @@ class EditorService {
                 }
                 showProgressComplete();
                 if (typeof XN !== 'undefined' && XN.toast) {
-                    XN.toast('上传成功', 'success');
+                    XN.toast('{$uploadSuccess}', 'success');
                 }
             },
             onError: function(file, error) {
                 showProgressError();
-                var errMsg = error || '上传失败';
+                var errMsg = error || '{$uploadFailed}';
                 if (typeof errMsg === 'string' && errMsg.match(/^lang\[(.+)\]$/)) {
                     errMsg = RegExp.$1.replace(/_/g, ' ');
                 }
@@ -322,7 +332,7 @@ class EditorService {
         li.className = 'editor-attachment-item';
         li.setAttribute('aid', msg.aid || '');
         var url = msg.url || '';
-        var name = msg.orgfilename || '附件';
+        var name = msg.orgfilename || '{$attachmentFallback}';
         var size = msg.filesize ? UploadService.formatFileSize(msg.filesize) : '';
         var nameHtml = name;
         if (url) {
@@ -331,7 +341,7 @@ class EditorService {
         li.innerHTML = '<span class="att-icon"><i class="ti ti-paperclip"></i></span>' +
             '<span class="att-name" title="' + name + '">' + nameHtml + '</span>' +
             (size ? '<span class="att-size">' + size + '</span>' : '') +
-            '<button type="button" class="btn btn-sm btn-outline-danger rounded-pill py-0 px-2" title="删除" onclick="deleteAttach(this, \'' + (msg.aid || 0) + '\')"><i class="ti ti-trash" style="font-size:12px;"></i></button>';
+            '<button type="button" class="btn btn-sm btn-outline-danger rounded-pill py-0 px-2" title="{$deleteLabel}" onclick="deleteAttach(this, \'' + (msg.aid || 0) + '\')"><i class="ti ti-trash" style="font-size:12px;"></i></button>';
         attachmentList.appendChild(li);
     }
 
@@ -356,12 +366,12 @@ class EditorService {
                             showProgressComplete();
                             var msg = json.message || {};
                             if (typeof XN !== 'undefined' && XN.toast) {
-                                XN.toast('上传成功', 'success');
+                                XN.toast('{$uploadSuccess}', 'success');
                             }
                             resolve(onSuccess(msg));
                         } else {
                             showProgressError();
-                            var errMsg = json.message || '上传失败';
+                            var errMsg = json.message || '{$uploadFailed}';
                             // 处理 lang[key] 格式的未翻译消息
                             if (typeof errMsg === 'string' && errMsg.match(/^lang\[(.+)\]$/)) {
                                 errMsg = RegExp.$1.replace(/_/g, ' ');
@@ -374,24 +384,24 @@ class EditorService {
                     } catch(e) {
                         showProgressError();
                         if (typeof XN !== 'undefined' && XN.toast) {
-                            XN.toast('响应解析失败', 'danger');
+                            XN.toast('{$responseParseFail}', 'danger');
                         }
-                        reject('响应解析失败');
+                        reject('{$responseParseFail}');
                     }
                 } else {
                     showProgressError();
                     if (typeof XN !== 'undefined' && XN.toast) {
-                        XN.toast('上传失败', 'danger');
+                        XN.toast('{$uploadFailed}', 'danger');
                     }
-                    reject('上传失败');
+                    reject('{$uploadFailed}');
                 }
             };
             xhr.onerror = function() {
                 showProgressError();
                 if (typeof XN !== 'undefined' && XN.toast) {
-                    XN.toast('网络错误', 'danger');
+                    XN.toast('{$networkError}', 'danger');
                 }
-                reject('网络错误');
+                reject('{$networkError}');
             };
             var fd = new FormData();
             fd.append('file', file);
@@ -821,15 +831,15 @@ class EditorService {
                     // 附件按钮不允许上传图片和视频，提示用户使用对应按钮
                     if (UploadService && UploadService.isImageFile(file)) {
                         if (typeof XN !== 'undefined' && XN.toast) {
-                            XN.toast('图片请使用图片按钮上传', 'warning');
+                            XN.toast('{$imageUseImageBtn}', 'warning');
                         }
-                        return Promise.reject('图片请使用图片按钮上传');
+                        return Promise.reject('{$imageUseImageBtn}');
                     }
                     if (UploadService && UploadService.isVideoFile && UploadService.isVideoFile(file)) {
                         if (typeof XN !== 'undefined' && XN.toast) {
-                            XN.toast('视频请使用视频按钮上传', 'warning');
+                            XN.toast('{$videoUseVideoBtn}', 'warning');
                         }
-                        return Promise.reject('视频请使用视频按钮上传');
+                        return Promise.reject('{$videoUseVideoBtn}');
                     }
                     // 兜底：通过文件扩展名判断
                     var fileName = (file.name || '').toLowerCase();
@@ -838,15 +848,15 @@ class EditorService {
                     var ext = fileName.substr(fileName.lastIndexOf('.'));
                     if (imgExts.indexOf(ext) !== -1) {
                         if (typeof XN !== 'undefined' && XN.toast) {
-                            XN.toast('图片请使用图片按钮上传', 'warning');
+                            XN.toast('{$imageUseImageBtn}', 'warning');
                         }
-                        return Promise.reject('图片请使用图片按钮上传');
+                        return Promise.reject('{$imageUseImageBtn}');
                     }
                     if (videoExts.indexOf(ext) !== -1) {
                         if (typeof XN !== 'undefined' && XN.toast) {
-                            XN.toast('视频请使用视频按钮上传', 'warning');
+                            XN.toast('{$videoUseVideoBtn}', 'warning');
                         }
-                        return Promise.reject('视频请使用视频按钮上传');
+                        return Promise.reject('{$videoUseVideoBtn}');
                     }
                     // 方案B：附件不自动插入编辑器 a 链接，只添加到附件列表
                     return uploadFile(file, uploadUrl, function(msg) {

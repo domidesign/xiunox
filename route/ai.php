@@ -66,7 +66,7 @@ if($action == 'chat') {
         if(intval($count) >= $rate_limit) {
             header('HTTP/1.1 429 Too Many Requests');
             header('Content-Type: application/json; charset=utf-8');
-            echo json_encode(array('code' => 1, 'message' => '请求过于频繁，请稍后再试'));
+            echo json_encode(array('code' => 1, 'message' => lang('ai_rate_limited')));
             exit;
         }
         cache_set($rate_key, intval($count) + 1, 60);
@@ -100,7 +100,7 @@ if($action == 'chat') {
     if(empty($config) || empty($config['apiKey']) || empty($config['url']) || empty($config['model'])) {
         header('HTTP/1.1 400 Bad Request');
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(array('code' => 1, 'message' => 'AI 配置不完整，请在个人设置中配置'));
+        echo json_encode(array('code' => 1, 'message' => lang('ai_config_incomplete')));
         exit;
     }
 

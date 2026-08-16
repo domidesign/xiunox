@@ -154,10 +154,18 @@ function user_login_verify($password, $user) {
 		if(hash_equals($user['password'], md5(md5($password).$user['salt']))) {
 			// 自动升级：清空旧字段，写入 bcrypt(明文) 到 password_hash
 			if(db_check_column_exists('user', 'password_hash')) {
+				$_hash = password_hash($password, PASSWORD_DEFAULT);
 				user__update($user['uid'], array(
 					'password' => '',
-					'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+					'password_hash' => $_hash,
 				));
+				// 同步静态缓存，避免同请求内 user_read_cache 读到旧 md5 密码，
+				// 导致 token 密码指纹（md5(password_hash)）与数据库不一致
+				global $g_static_users;
+				if(isset($g_static_users[$user['uid']])) {
+					$g_static_users[$user['uid']]['password'] = '';
+					$g_static_users[$user['uid']]['password_hash'] = $_hash;
+				}
 			}
 			return TRUE;
 		}
@@ -437,8 +445,6 @@ function user_format(&$user) {
 	// 已注销（匿名化）用户：display_name 统一显示「已注销用户」，防止泄露原 username 规律
 	if(user_is_anonymized($user)) {
 		$label = lang('deleted_user_label');
-		// 兜底：语言包缺失时 lang() 返回字面量
-		if($label === 'deleted_user_label') $label = '已注销用户';
 		$user['display_name'] = $label;
 		$user['username'] = $label;
 		$user['nickname'] = $label;
@@ -628,6 +634,25 @@ function user_token_get() {
 	return $_uid;
 }
 
+// 登录态丢失排查日志
+// ponytail: 只记失败路径（token 校验失败/强制下线/主动退出），游客无 token 的请求不记，避免日志刷盘。
+//   同一 uid+原因 300 秒去重，防止 token 损坏时每个请求都写一条。
+function user_login_trace($reason, $uid = 0, $extra = array()) {
+	static $_seen = array();
+	$_key = $reason . '-' . intval($uid);
+	$_now = time();
+	if(isset($_seen[$_key]) && $_now - $_seen[$_key] < 300) return;
+	$_seen[$_key] = $_now;
+	$_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
+	$_ua = isset($_SERVER['HTTP_USER_AGENT']) ? xn_substr($_SERVER['HTTP_USER_AGENT'], 0, 80) : '';
+	$_ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
+	$_msg = "[login-lost] reason={$reason} uid=" . intval($uid) . " ip={$_ip} uri={$_uri} ua={$_ua}";
+	foreach((array)$extra as $_k => $_v) {
+		$_msg .= " {$_k}={$_v}";
+	}
+	xn_log($_msg, 'user_login_error');
+}
+
 // 判断两个 IP 是否同 C 段（/24）
 // ponytail: 用于 token IP 校验容错——多 IP 出口服务器下同 /24 网段视为可信
 function user_ip_same_c_segment($ip1, $ip2) {
@@ -649,21 +674,32 @@ function user_token_get_do() {
 	$tokenkey = md5(xn_key());
 	$used_v2 = false;
 	$s = xn_decrypt($token, $tokenkey, $used_v2);
-	if(empty($s)) return FALSE;
+	if(empty($s)) {
+		user_login_trace('token_decrypt_fail', 0, array('token_prefix' => xn_substr($token, 0, 8)));
+		return FALSE;
+	}
 	$arr = explode("\t", $s);
-	if(count($arr) != 4) return FALSE;
+	if(count($arr) != 4) {
+		user_login_trace('token_format_bad', 0, array('token_prefix' => xn_substr($token, 0, 8)));
+		return FALSE;
+	}
 	list($_ip, $_time, $_uid, $_pwd) = $arr;
-	// IP 校验（防止 token 被盗后跨 IP 复用）
-	// ponytail: 放宽为同 C 段匹配——多 IP 出口服务器（如负载均衡/多网卡）下，
-	// 同 /24 网段视为可信，避免 IP 漂移导致用户被强制退出。
-	// 天花板：攻击者需在受害者的同 C 段内才能复用 token，与同网吧/同公司内威胁等级相当。
-	if(!user_ip_same_c_segment($ip, $_ip)) return FALSE;
+	// IP 校验已移除：
+	// ponytail: 原为同 /24 网段容错匹配，但全局 CDN（EdgeOne/Cloudflare 等）回源时
+	// REMOTE_ADDR 为边缘节点 IP 且跨节点即跨 C 段，token 校验失败导致用户被强制下线。
+	// token 本身含 xn_key 加密 + 密码指纹（30 分钟窗口重校验），已足够防止伪造/盗用，
+	// 不再绑定 IP。如需 IP 维度防护，应通过真实 IP 透传（信任 CDN-SRC-IP）后另做限流。
+	// if(!user_ip_same_c_segment($ip, $_ip)) return FALSE;
 	//if($time - $_time > 86400) return FALSE;
 	// 检查密码是否被修改。
 	if($time - $_time > 1800) {
 		$user = user_read($_uid);
-		if(empty($user)) return 0;
-		if(md5($user['password']) != $_pwd) {
+		if(empty($user)) {
+			user_login_trace('user_deleted', $_uid, array('token_ip' => $_ip, 'token_time' => $_time));
+			return 0;
+		}
+		if(md5(!empty($user['password_hash']) ? $user['password_hash'] : $user['password']) != $_pwd) {
+			user_login_trace('password_changed', $_uid, array('token_ip' => $_ip, 'token_time' => $_time));
 			return 0;
 		}
 	}
@@ -746,7 +782,7 @@ function user_token_gen($uid) {
 	// hook model_user_token_gen_start.php
 	
 	$user = user_read($uid);
-	$pwd = md5($user['password']);
+	$pwd = md5(!empty($user['password_hash']) ? $user['password_hash'] : $user['password']);
 	$tokenkey = md5(xn_key());
 	$token = xn_encrypt("$ip	$time	$uid	$pwd", $tokenkey);
 	

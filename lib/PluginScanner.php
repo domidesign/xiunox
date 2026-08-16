@@ -71,7 +71,7 @@ class PluginScanner {
     public function scanBeforeInstall(string $pluginDirName): array {
         $dir = APP_PATH . 'plugin/' . $pluginDirName;
         if (!is_dir($dir)) {
-            return ['can_install' => false, 'fatal' => [['category' => 'not_found', 'suggestion' => '插件目录不存在']], 'error' => [], 'warning' => [], 'summary' => '插件目录不存在'];
+            return ['can_install' => false, 'fatal' => [['category' => 'not_found', 'suggestion' => lang('scanner_plugin_dir_not_found')]], 'error' => [], 'warning' => [], 'summary' => lang('scanner_plugin_dir_not_found')];
         }
 
         $issues = $this->scanPluginDir($dir);
@@ -97,10 +97,10 @@ class PluginScanner {
 
         // summary 显示合并后条数（与 issues 列表一致），用户通过 ×N 徽章可知实际处数
         $parts = [];
-        if (!empty($fatal)) $parts[] = count($fatal) . ' 个致命问题';
-        if (!empty($error)) $parts[] = count($error) . ' 个错误';
-        if (!empty($warning)) $parts[] = count($warning) . ' 个警告';
-        if ($mediumCount > 0) $parts[] = $mediumCount . ' 个兼容建议';
+        if (!empty($fatal)) $parts[] = lang('scanner_fatal_count', array('n' => count($fatal)));
+        if (!empty($error)) $parts[] = lang('scanner_error_count', array('n' => count($error)));
+        if (!empty($warning)) $parts[] = lang('scanner_warning_count', array('n' => count($warning)));
+        if ($mediumCount > 0) $parts[] = lang('scanner_medium_count', array('n' => $mediumCount));
 
         return [
             'can_install' => !$blocked,
@@ -110,7 +110,7 @@ class PluginScanner {
             'force_blocked' => $forceBlocked,
             'issues' => $issues,
             'total' => count($issues),
-            'summary' => empty($parts) ? '未发现兼容性问题' : implode('，', $parts),
+            'summary' => empty($parts) ? lang('scanner_no_issues') : implode('，', $parts),
         ];
     }
 
@@ -207,9 +207,9 @@ class PluginScanner {
                     if (stripos($content, 'CsrfService') === false && stripos($content, 'csrf_token') === false) {
                         $issues[] = [
                             'file' => $shortPath, 'line' => 0, 'category' => 'missing_csrf',
-                            'match' => 'method="post"', 'suggestion' => 'POST 表单缺少 CSRF 令牌，请添加 CsrfService::input()',
+                            'match' => 'method="post"', 'suggestion' => lang('scanner_missing_csrf'),
                             'severity' => $this->severityLevels['missing_csrf'] ?? 'info',
-                            'context' => 'POST 表单未包含 CsrfService 或 csrf_token',
+                            'context' => lang('scanner_missing_csrf_context'),
                         ];
                     }
                 }
@@ -222,15 +222,15 @@ class PluginScanner {
                     $lineNumber = $lineNum + 1;
                     // 检测双斜线单行注释中的 PHP 结束标签
                     if (preg_match('#//.*\?>#', $lineContent)) {
-                        $issues[] = $this->buildIssue($shortPath, $lineNumber, 'php_comment_close_tag', '// 注释', '单行注释 // 中包含 PHP 结束标签会触发 headers already sent 错误，请移除或改用块注释 /* */', $lineContent);
+                        $issues[] = $this->buildIssue($shortPath, $lineNumber, 'php_comment_close_tag', lang('scanner_match_comment_slash'), lang('scanner_php_comment_close_tag'), $lineContent);
                     }
                     // 检测行首 # 单行注释中的 PHP 结束标签
                     elseif (preg_match('/^\s*#.*\?>/', $lineContent)) {
-                        $issues[] = $this->buildIssue($shortPath, $lineNumber, 'php_comment_close_tag', '# 注释', '单行注释 # 中包含 PHP 结束标签会触发 headers already sent 错误，请移除或改用块注释 /* */', $lineContent);
+                        $issues[] = $this->buildIssue($shortPath, $lineNumber, 'php_comment_close_tag', lang('scanner_match_comment_hash'), lang('scanner_php_comment_close_tag_hash'), $lineContent);
                     }
                     // 检测行中 # 单行注释中的 PHP 结束标签（前面有空格，避免匹配 shebang）
                     elseif (preg_match('/\s+#.*\?>/', $lineContent)) {
-                        $issues[] = $this->buildIssue($shortPath, $lineNumber, 'php_comment_close_tag', '# 注释', '单行注释 # 中包含 PHP 结束标签会触发 headers already sent 错误，请移除或改用块注释 /* */', $lineContent);
+                        $issues[] = $this->buildIssue($shortPath, $lineNumber, 'php_comment_close_tag', lang('scanner_match_comment_hash'), lang('scanner_php_comment_close_tag_hash'), $lineContent);
                     }
                 }
             }
@@ -239,7 +239,7 @@ class PluginScanner {
             if ($ext === 'htm' || $ext === 'html') {
                 if (preg_match('/<script[^>]*src\s*=\s*["\'][^"\']*md5[^"\']*\.js["\']/i', $content, $m, PREG_OFFSET_CAPTURE)) {
                     $lineNumber = substr_count(substr($content, 0, $m[0][1]), "\n") + 1;
-                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'md5js_global_load', '<script src="*md5*.js">', 'MD5.js 不得全局加载，前端 MD5 哈希已移除，密码必须明文提交', $m[0][0]);
+                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'md5js_global_load', '<script src="*md5*.js">', lang('scanner_md5js_global_load'), $m[0][0]);
                 }
             }
 
@@ -247,7 +247,7 @@ class PluginScanner {
             if ($ext === 'php') {
                 if (preg_match('/<<<(\w+).*?<\?php.*?\1;/s', $content, $m, PREG_OFFSET_CAPTURE)) {
                     $lineNumber = substr_count(substr($content, 0, $m[0][1]), "\n") + 1;
-                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'heredoc_php_tag', '<<<EOT ... <?php ... EOT;', 'HEREDOC 语法中需使用 {$variable} 语法嵌入 PHP 变量，避免使用 PHP 开始标签导致解析错误', $m[0][0]);
+                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'heredoc_php_tag', '<<<EOT ... <?php ... EOT;', lang('scanner_heredoc_php_tag'), $m[0][0]);
                 }
             }
 
@@ -260,7 +260,7 @@ class PluginScanner {
                         // 检查同标签 href 是否含 .htm 或 .php
                         if (preg_match('/href\s*=\s*["\']([^"\']*\.(?:htm|php)[^"\']*)["\']/i', $tagStr, $hrefMatch)) {
                             $lineNumber = substr_count(substr($content, 0, $offset), "\n") + 1;
-                            $issues[] = $this->buildIssue($shortPath, $lineNumber, 'bs_tab_navigation', 'data-bs-toggle="tab" + href="'.$hrefMatch[1].'"', '外层导航（页面跳转）禁止用 Bootstrap Tab 系统，应改为普通 <a> 链接跳转；内层导航才用 tab', $tagStr);
+                            $issues[] = $this->buildIssue($shortPath, $lineNumber, 'bs_tab_navigation', 'data-bs-toggle="tab" + href="'.$hrefMatch[1].'"', lang('scanner_bs_tab_navigation'), $tagStr);
                         }
                     }
                 }
@@ -270,7 +270,7 @@ class PluginScanner {
             if ($ext === 'htm' || $ext === 'html') {
                 if (preg_match('/<(?:script|link)[^>]*(?:src|href)\s*=\s*["\'][^"\']*APP_PATH/i', $content, $m, PREG_OFFSET_CAPTURE)) {
                     $lineNumber = substr_count(substr($content, 0, $m[0][1]), "\n") + 1;
-                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'app_path_in_url', '<script/link src/href="*APP_PATH*">', 'APP_PATH 是文件系统绝对路径，浏览器无法访问，必须用 $conf[\'view_url\'] 生成资源 URL', $m[0][0]);
+                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'app_path_in_url', '<script/link src/href="*APP_PATH*">', lang('scanner_app_path_in_url'), $m[0][0]);
                 }
             }
 
@@ -290,7 +290,7 @@ class PluginScanner {
                         if (in_array($srcBasenameNoQuery, $deprecatedJsFiles, true)) {
                             $lineNumber = substr_count(substr($content, 0, $srcOffset), "\n") + 1;
                             $rules = PluginScannerRules::getRules();
-                            $suggestion = $rules['deprecated_js_ref'][$srcBasenameNoQuery] ?? $rules['deprecated_js_ref']['view/js/' . $srcBasenameNoQuery] ?? '07-17 起已删除该 JS 引用，禁止 <script src> 重新引入';
+                            $suggestion = $rules['deprecated_js_ref'][$srcBasenameNoQuery] ?? $rules['deprecated_js_ref']['view/js/' . $srcBasenameNoQuery] ?? lang('scanner_deprecated_js_ref_fallback');
                             $fullTag = $matches[0][$idx][0] ?? $srcValue;
                             $issues[] = $this->buildIssue($shortPath, $lineNumber, 'deprecated_js_ref', '<script src="' . $srcValue . '">', $suggestion, $fullTag);
                         }
@@ -307,7 +307,7 @@ class PluginScanner {
                 if (strpos($normalizedPath, '/view/htm/') !== false && strpos($normalizedPath, 'plugin/') !== false) {
                     $rules = PluginScannerRules::getRules();
                     $patternKey = 'view/htm/*.' . $ext;
-                    $suggestion = $rules['js_resource_location'][$patternKey] ?? 'JS/CSS 文件禁止放在 view/htm/ 目录（会被 _include() 当模板编译导致 fatal），必须放在 plugin/<dir>/static/js|css/';
+                    $suggestion = $rules['js_resource_location'][$patternKey] ?? lang('scanner_js_resource_location');
                     $issues[] = $this->buildIssue($shortPath, 0, 'js_resource_location', $patternKey, $suggestion, $normalizedPath);
                 }
             }
@@ -316,7 +316,7 @@ class PluginScanner {
             if (basename($file) === 'install.php') {
                 if (preg_match('/CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS)/i', $content, $m, PREG_OFFSET_CAPTURE)) {
                     $lineNumber = substr_count(substr($content, 0, $m[0][1]), "\n") + 1;
-                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'install_non_idempotent', 'CREATE TABLE (without IF NOT EXISTS)', 'install.php 所有建表语句必须用 IF NOT EXISTS 保证幂等', $m[0][0]);
+                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'install_non_idempotent', 'CREATE TABLE (without IF NOT EXISTS)', lang('scanner_install_non_idempotent'), $m[0][0]);
                 }
             }
 
@@ -337,9 +337,9 @@ class PluginScanner {
                 if ($conf && (!isset($conf['name']) || !is_string($conf['name']) || trim($conf['name']) === '')) {
                     $issues[] = [
                         'file' => $shortPath, 'line' => 0, 'category' => 'conf_required_fields',
-                        'match' => 'name: (missing/empty)', 'suggestion' => '插件缺少 name 字段，conf.json 必须声明插件名称',
+                        'match' => 'name: (missing/empty)', 'suggestion' => lang('scanner_conf_missing_name'),
                         'severity' => $this->severityLevels['conf_required_fields'] ?? 'fatal',
-                        'context' => 'name 字段缺失或为空',
+                        'context' => lang('scanner_conf_name_missing_context'),
                     ];
                 }
 
@@ -347,8 +347,8 @@ class PluginScanner {
                 if ($conf && !isset($conf['bbs_version'])) {
                     $issues[] = [
                         'file' => $shortPath, 'line' => 0, 'category' => 'conf_version',
-                        'match' => 'bbs_version: (missing)', 'suggestion' => "插件缺少 bbs_version 字段，必须声明兼容的核心主次版本（两位制，必须等于当前核心版本前两位 \"{$coreMajorMinor}\"）",
-                        'severity' => $confVersionSeverity, 'context' => 'bbs_version 字段缺失',
+                        'match' => 'bbs_version: (missing)', 'suggestion' => lang('scanner_conf_missing_bbs_version', array('version' => $coreMajorMinor)),
+                        'severity' => $confVersionSeverity, 'context' => lang('scanner_bbs_version_missing_context'),
                     ];
                 } elseif ($conf && isset($conf['bbs_version'])) {
                     $bv = $conf['bbs_version'];
@@ -356,14 +356,14 @@ class PluginScanner {
                         // 格式校验：必须两位制
                         $issues[] = [
                             'file' => $shortPath, 'line' => 0, 'category' => 'conf_version',
-                            'match' => "bbs_version: {$bv}", 'suggestion' => "bbs_version 必须两位制（如 \"{$coreMajorMinor}\"），当前值 \"{$bv}\" 格式不正确",
+                            'match' => "bbs_version: {$bv}", 'suggestion' => lang('scanner_bbs_version_format', array('core' => $coreMajorMinor, 'value' => $bv)),
                             'severity' => $confVersionSeverity, 'context' => "bbs_version: {$bv}",
                         ];
                     } elseif (version_compare($bv, $coreMajorMinor, '!=')) {
                         // 兼容性校验：插件声明的主次版本必须与当前核心主次版本完全一致
                         $issues[] = [
                             'file' => $shortPath, 'line' => 0, 'category' => 'conf_version',
-                            'match' => "bbs_version: {$bv}", 'suggestion' => "插件 bbs_version 必须与当前系统版本前两位完全一致：插件声明 \"{$bv}\"，系统要求 \"{$coreMajorMinor}\"（XIUNOX_VERSION=" . (defined('XIUNOX_VERSION') ? XIUNOX_VERSION : '?') . "），请修改 bbs_version 或升级/降级核心",
+                            'match' => "bbs_version: {$bv}", 'suggestion' => lang('scanner_bbs_version_mismatch', array('plugin' => $bv, 'core' => $coreMajorMinor, 'xversion' => defined('XIUNOX_VERSION') ? XIUNOX_VERSION : '?')),
                             'severity' => $confVersionSeverity, 'context' => "bbs_version: {$bv} != core: {$coreMajorMinor}",
                         ];
                     }
@@ -373,14 +373,14 @@ class PluginScanner {
                 if ($conf && (!isset($conf['type']) || !is_string($conf['type']) || trim($conf['type']) === '')) {
                     $issues[] = [
                         'file' => $shortPath, 'line' => 0, 'category' => 'conf_required_fields',
-                        'match' => 'type: (missing/empty)', 'suggestion' => '插件缺少 type 字段，conf.json 必须声明插件类型（"plugin" 或 "theme"）',
+                        'match' => 'type: (missing/empty)', 'suggestion' => lang('scanner_conf_missing_type'),
                         'severity' => $this->severityLevels['conf_required_fields'] ?? 'fatal',
-                        'context' => 'type 字段缺失或为空',
+                        'context' => lang('scanner_type_missing_context'),
                     ];
                 } elseif ($conf && isset($conf['type']) && !in_array(strtolower($conf['type']), ['plugin', 'theme', 'template', 'skin'], true)) {
                     $issues[] = [
                         'file' => $shortPath, 'line' => 0, 'category' => 'conf_required_fields',
-                        'match' => "type: {$conf['type']}", 'suggestion' => 'type 字段值非法，必须为 "plugin" 或 "theme"（template/skin 视为 theme 的别名），当前值 "' . $conf['type'] . '" 不被识别',
+                        'match' => "type: {$conf['type']}", 'suggestion' => lang('scanner_type_invalid', array('value' => $conf['type'])),
                         'severity' => $this->severityLevels['conf_required_fields'] ?? 'fatal',
                         'context' => "type: {$conf['type']}",
                     ];
@@ -390,7 +390,7 @@ class PluginScanner {
                 if ($conf && isset($conf['version']) && !preg_match('/^\d+\.\d+\.\d+$/', $conf['version'])) {
                     $issues[] = [
                         'file' => $shortPath, 'line' => 0, 'category' => 'plugin_version_format',
-                        'match' => "version: {$conf['version']}", 'suggestion' => "插件 version 必须三位制（如 \"1.0.0\"），当前值 \"{$conf['version']}\" 不符合规范",
+                        'match' => "version: {$conf['version']}", 'suggestion' => lang('scanner_version_format', array('value' => $conf['version'])),
                         'severity' => $pluginVersionSeverity, 'context' => "version: {$conf['version']}",
                     ];
                 }
@@ -411,7 +411,7 @@ class PluginScanner {
                     if (!$valid) {
                         $issues[] = [
                             'file' => $shortPath, 'line' => 0, 'category' => 'capabilities_format',
-                            'match' => 'capabilities', 'suggestion' => 'capabilities 字段必须是字符串数组，每项为 lowercase.dots 格式（如 user.write、thread.create）',
+                            'match' => 'capabilities', 'suggestion' => lang('scanner_capabilities_format'),
                             'severity' => $this->severityLevels['capabilities_format'] ?? 'warning',
                             'context' => 'capabilities: ' . substr(json_encode($caps), 0, 120),
                         ];
@@ -428,7 +428,7 @@ class PluginScanner {
                 if (!preg_match('/^[a-z_][a-z0-9_]*$/', pathinfo($hookName, PATHINFO_FILENAME))) {
                     $issues[] = [
                         'file' => str_replace(APP_PATH, '', $hf), 'line' => 0, 'category' => 'hook_name',
-                        'match' => $hookName, 'suggestion' => 'Hook 文件名不规范', 'severity' => 'info', 'context' => $hookName,
+                        'match' => $hookName, 'suggestion' => lang('scanner_hook_name_invalid'), 'severity' => 'info', 'context' => $hookName,
                     ];
                 }
 
@@ -445,7 +445,7 @@ class PluginScanner {
                 if ($hookExt === 'htm') {
                     // .htm hook 文件以 PHP exit 开头会白屏
                     if (strpos($firstLine, '<?php exit;') === 0) {
-                        $issues[] = $this->buildIssue($hookShortPath, 1, 'hook_htm_header', '<?php exit;', '.htm 模板 hook 文件以 <?php exit; 开头会白屏！只能用 <?php 开头（编译拼进模板执行）', $firstLine);
+                        $issues[] = $this->buildIssue($hookShortPath, 1, 'hook_htm_header', '<?php exit;', lang('scanner_hook_htm_header'), $firstLine);
                     }
                 }
             }
@@ -626,14 +626,14 @@ class PluginScanner {
         // password_update_api 检测：user_update 修改 password 字段
         if ($contextExt === 'php' && in_array('password_update_api', $phpOnlyCats)) {
             if (preg_match('/user_update\s*\(/', $line) && preg_match('/[\'"]password[\'"]/', $line)) {
-                $issues[] = $this->buildIssue($shortPath, $lineNumber, 'password_update_api', 'user_update(...password...)', '找回密码必须使用 user__update() 而非 user_update()，因为后者会过滤掉 password 字段', $line);
+                $issues[] = $this->buildIssue($shortPath, $lineNumber, 'password_update_api', 'user_update(...password...)', lang('scanner_password_update_api'), $line);
             }
         }
 
         // db_charset 检测：数据库字符集为 utf8（非 utf8mb4）
         if ($contextExt === 'php' && in_array('db_charset', $phpOnlyCats)) {
             if (preg_match('/charset\s*=\s*utf8(?!mb4)/i', $line) || preg_match('/set\s+names\s+utf8(?!mb4)/i', $line)) {
-                $issues[] = $this->buildIssue($shortPath, $lineNumber, 'db_charset', 'utf8 (without mb4)', '数据库连接字符集必须为 utf8mb4（支持 emoji 等 4 字节字符）', $line);
+                $issues[] = $this->buildIssue($shortPath, $lineNumber, 'db_charset', 'utf8 (without mb4)', lang('scanner_db_charset'), $line);
             }
         }
 
@@ -641,7 +641,7 @@ class PluginScanner {
         if ($contextExt === 'php' && in_array('service_undefined_var', $phpOnlyCats) && strpos($shortPath, 'model/') !== false) {
             if (preg_match('/(SELECT|INSERT|UPDATE|DELETE|FROM|INTO)\s/i', $line)) {
                 if (preg_match('/\$tableName\b/', $line) || preg_match('/\$tablePrefix\b/', $line)) {
-                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'service_undefined_var', '$tableName / $tablePrefix', 'Service 类中拼接 SQL 表名必须用 $this->tablepre . \'表名\'，不能使用未定义变量', $line);
+                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'service_undefined_var', '$tableName / $tablePrefix', lang('scanner_service_undefined_var'), $line);
                 }
             }
         }
@@ -651,7 +651,7 @@ class PluginScanner {
             if (preg_match('/\bhtmlspecialchars\s*\(/', $line)) {
                 // 抑制区间检查（用于第三方库如 Parsedown 的 @suppress 注释）
                 if ($lineNumber > ($this->suppressRawHtmlspecialcharsUntil[$shortPath] ?? 0)) {
-                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'raw_htmlspecialchars', 'htmlspecialchars(', '禁止裸写 htmlspecialchars，必须用 esc_html() / esc_attr() / esc_js() 统一转义', $line);
+                    $issues[] = $this->buildIssue($shortPath, $lineNumber, 'raw_htmlspecialchars', 'htmlspecialchars(', lang('scanner_raw_htmlspecialchars'), $line);
                 }
             }
         }
@@ -659,7 +659,7 @@ class PluginScanner {
         // db_find_col_string 检测：db_find_one/db_find 第 4 参数为字符串字面量
         if ($contextExt === 'php' && in_array('db_find_col_string', $phpOnlyCats)) {
             if (preg_match('/db_find(?:_one)?\s*\(\s*[^,]+,\s*[^,]+,\s*[^,]+,\s*[\'"][^\'"]+[\'"]\s*\)/', $line)) {
-                $issues[] = $this->buildIssue($shortPath, $lineNumber, 'db_find_col_string', 'db_find_one(..., "string")', 'db_find_one() 第 4 个参数 $col 必须传入数组（如 array(\'fid\', \'uid\')），禁止传入字符串以避免 implode() 参数类型错误', $line);
+                $issues[] = $this->buildIssue($shortPath, $lineNumber, 'db_find_col_string', 'db_find_one(..., "string")', lang('scanner_db_find_col_string'), $line);
             }
         }
     }

@@ -448,7 +448,7 @@
 			presetForm.appendChild(btn);
 			btn.click();
 			btn.remove();
-		}, {type: 'warning', okText: '使用'});
+		}, {type: 'warning', okText: <?php echo json_encode(lang('use'));?>});
 		});
 	}
 
@@ -464,7 +464,7 @@
 			resetForm.appendChild(btn);
 			btn.click();
 			btn.remove();
-		}, {type: 'warning', okText: '重置'});
+		}, {type: 'warning', okText: <?php echo json_encode(lang('reset'));?>});
 		});
 	}
 })();

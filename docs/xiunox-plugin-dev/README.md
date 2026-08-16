@@ -38,6 +38,7 @@ XIUNOX（XIUNO BBS X 重构版）插件开发规范与速查文档。文档面�
 | [plugindev/11-editor-toolbar-integration.md](../plugindev/11-editor-toolbar-integration.md) | 编辑器工具栏集成 |
 | [plugindev/12-avatar-component.md](../plugindev/12-avatar-component.md) | 头像组件（三层嵌套结构 + 2 个 hook 点 + avatar_shape 配置） |
 | [plugindev/14-plugin-admin-ui.md](../plugindev/14-plugin-admin-ui.md) | **插件后台与 UI 规范总览**（Tab 独立页面 / x-card / 三栏布局 / 后台入口 / 搜索分页 / 弹窗） |
+| [plugindev/16-storage-driver-extension.md](../plugindev/16-storage-driver-extension.md) | 存储驱动扩展机制（动态驱动注册 / 云存储插件开发指南 / OSS 完整示例） |
 | [plugindev/plugin-mutex-guide.md](../plugindev/plugin-mutex-guide.md) | 插件互斥指南 |
 
 ### 何时读哪个
@@ -62,6 +63,7 @@ XIUNOX（XIUNO BBS X 重构版）插件开发规范与速查文档。文档面�
 - **头像渲染/头像角标/头像框扩展** → [plugindev/12-avatar-component.md](../plugindev/12-avatar-component.md)
 - **jQuery 移除迁移** → [plugindev/10-jquery-removal-guide.md](../plugindev/10-jquery-removal-guide.md)
 - **插件互斥/目录命名** → [plugindev/plugin-mutex-guide.md](../plugindev/plugin-mutex-guide.md)
+- **存储驱动扩展/云存储插件** → [plugindev/16-storage-driver-extension.md](../plugindev/16-storage-driver-extension.md)
 
 ## 5 分钟快速上手
 
@@ -119,6 +121,12 @@ plugin/my_plugin/
 
 ## 更新日志
 
+- 2026-08-16：
+  - **完善 model 兜底加载机制的文档说明**（配合 `index.php` 兜底逻辑过滤 `*.func.php` 的代码优化）：
+    - [SKILL.md](SKILL.md)：禁止项表格新增「`model/*.func.php` 函数库（xiuno 原版写法）」；Step 2 架构设计第 3 步改为「放 `model/` 目录由 `index.php` 兜底自动加载，`hook/model_inc_file.php` 可选双保险」；Step 3 实现第 6 步标注 hook 为可选；失败策略表新增「函数重声明 fatal」排查项
+    - [plugindev/02-plugin-structure.md](../plugindev/02-plugin-structure.md)：`model_inc_file.php` 标题加「（可选）」；补充 v1.1.4+ 自动扫描说明 + 明确禁止 `model/*.func.php`；目录树注释更新为「禁止 *.func.php」
+    - [plugindev/09-model-loading-refactor.md](../plugindev/09-model-loading-refactor.md)：新增「3.3 兜底加载逻辑」章节（含完整代码示例、关键规则表、xiuno 原版迁移指南），原「3.3 代码迁移清单」顺延为 3.4
+  - **核心代码优化**：`index.php` / `api/v1/index.php` 兜底逻辑新增 `*.func.php` 过滤，避免与 `hook/model_inc_file.php` 注入冲突导致函数重声明 fatal（第三方插件 `lecms_spider` 触发的 500 问题）
 - 2026-07-25：
   - **按 Skill 最佳实践重写 SKILL.md**：从 1254 行精简到 263 行，添加 YAML frontmatter（`name`/`description`），明确 When/How/What 结构，补充失败策略表和交付检查表，遵循「渐进式披露」原则将细节下沉到 references/
   - **恢复 references/ 目录**：从 plugindev/ 同步正确内容重建 4 个速查文件，作为 SKILL.md 的渐进式披露参考：

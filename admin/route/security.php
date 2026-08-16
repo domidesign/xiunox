@@ -35,10 +35,10 @@ if($action == '' || $action == 'post_limit') {
 
         $r = SecurityConfigService::save_config($data);
         if($r) {
-            admin_log_create('security_protection', 'security', '', '修改发帖限制设置');
+            admin_log_create('security_protection', 'security', '', lang('admin_log_security_post_limit'));
             message(0, lang('modify_successfully'));
         } else {
-            message(-1, '保存失败');
+            message(-1, lang('admin_save_failed'));
         }
     }
 
@@ -66,10 +66,10 @@ if($action == '' || $action == 'post_limit') {
 
         $r = SecurityConfigService::save_config($data);
         if($r) {
-            admin_log_create('security_protection', 'security', '', '修改账号安全设置');
+            admin_log_create('security_protection', 'security', '', lang('admin_log_security_account'));
             message(0, lang('modify_successfully'));
         } else {
-            message(-1, '保存失败');
+            message(-1, lang('admin_save_failed'));
         }
     }
 
@@ -94,10 +94,10 @@ if($action == '' || $action == 'post_limit') {
 
         $r = SecurityConfigService::save_config($data);
         if($r) {
-            admin_log_create('security_protection', 'security', '', '修改内容权限设置');
+            admin_log_create('security_protection', 'security', '', lang('admin_log_security_content'));
             message(0, lang('modify_successfully'));
         } else {
-            message(-1, '保存失败');
+            message(-1, lang('admin_save_failed'));
         }
     }
 
@@ -128,10 +128,10 @@ if($action == '' || $action == 'post_limit') {
 
         $r = SecurityConfigService::save_config($data);
         if($r) {
-            admin_log_create('security_protection', 'security', '', '修改其他安全设置');
+            admin_log_create('security_protection', 'security', '', lang('admin_log_security_other'));
             message(0, lang('modify_successfully'));
         } else {
-            message(-1, '保存失败');
+            message(-1, lang('admin_save_failed'));
         }
     }
 
@@ -141,8 +141,8 @@ if($action == '' || $action == 'post_limit') {
 
     if($method == 'GET') {
         $captcha_config = CaptchaService::get_config();
-        $header['title'] = '验证码配置';
-        $header['mobile_title'] = '验证码配置';
+        $header['title'] = lang('admin_captcha_config');
+        $header['mobile_title'] = lang('admin_captcha_config');
         include _include(ADMIN_PATH.'view/htm/security_captcha.htm');
     } else {
         CsrfService::check();
@@ -175,9 +175,9 @@ if($action == '' || $action == 'post_limit') {
         $r = CaptchaService::save_config($data);
         if($r === FALSE) {
             global $errno, $errstr;
-            message(-1, '保存失败: db error ' . $errno . ' ' . $errstr);
+            message(-1, lang('admin_save_failed') . ': db error ' . $errno . ' ' . $errstr);
         } else {
-            admin_log_create('security_captcha', 'security', '', '修改验证码设置');
+            admin_log_create('security_captcha', 'security', '', lang('admin_log_security_captcha'));
             message(0, lang('modify_successfully'));
         }
     }
@@ -191,14 +191,14 @@ if($action == '' || $action == 'post_limit') {
     if($word_type !== SensitiveWordFilter::TYPE_RESERVED && $word_type !== SensitiveWordFilter::TYPE_SENSITIVE) {
         $word_type = SensitiveWordFilter::TYPE_SENSITIVE;
     }
-    $type_label = $word_type === SensitiveWordFilter::TYPE_RESERVED ? '保留词' : '敏感词';
+    $type_label = $word_type === SensitiveWordFilter::TYPE_RESERVED ? lang('admin_reserved_word') : lang('admin_sensitive_word');
 
     if($method == 'GET') {
         $sensitive_words = SensitiveWordFilter::get_all_words($word_type);
         $reserved_words = SensitiveWordFilter::get_all_words(SensitiveWordFilter::TYPE_RESERVED);
         $content_words = SensitiveWordFilter::get_all_words(SensitiveWordFilter::TYPE_SENSITIVE);
-        $header['title'] = '词库管理';
-        $header['mobile_title'] = '词库管理';
+        $header['title'] = lang('admin_word_manage');
+        $header['mobile_title'] = lang('admin_word_manage');
         include _include(ADMIN_PATH.'view/htm/security_words.htm');
     } else {
         CsrfService::check();
@@ -206,54 +206,54 @@ if($action == '' || $action == 'post_limit') {
 
         if($word_action == 'add') {
             $word = param('word', '', FALSE);
-            if(empty($word)) message(-1, '词不能为空');
+            if(empty($word)) message(-1, lang('admin_word_empty'));
             $r = SensitiveWordFilter::add_word($word, $word_type);
             if($r) {
-                admin_log_create('security_badword', 'security', '', '添加' . $type_label . '：' . $word);
-                message(0, '添加成功');
+                admin_log_create('security_badword', 'security', '', lang('admin_log_word_add', array('type'=>$type_label, 'word'=>$word)));
+                message(0, lang('admin_add_success'));
             } else {
-                message(-1, '添加失败或已存在');
+                message(-1, lang('admin_add_failed_exists'));
             }
         } elseif($word_action == 'delete') {
             $word = param('word', '', FALSE);
-            if(empty($word)) message(-1, '参数错误');
+            if(empty($word)) message(-1, lang('admin_param_error'));
             $r = SensitiveWordFilter::delete_word($word, $word_type);
             if($r) {
-                admin_log_create('security_badword', 'security', '', '删除' . $type_label . '：' . $word);
-                message(0, '删除成功');
+                admin_log_create('security_badword', 'security', '', lang('admin_log_word_delete', array('type'=>$type_label, 'word'=>$word)));
+                message(0, lang('admin_delete_success'));
             } else {
-                message(-1, '删除失败');
+                message(-1, lang('admin_delete_failed'));
             }
         } elseif($word_action == 'import') {
             $words_text = param('words_text', '', FALSE);
-            if(empty($words_text)) message(-1, '导入内容不能为空');
+            if(empty($words_text)) message(-1, lang('admin_import_empty'));
             $count = SensitiveWordFilter::batch_import($words_text, $word_type);
-            admin_log_create('security_badword', 'security', '', '批量导入' . $type_label . ' ' . $count . ' 个');
-            message(0, '成功导入 ' . $count . ' 个' . $type_label);
+            admin_log_create('security_badword', 'security', '', lang('admin_log_word_batch_import', array('type'=>$type_label, 'n'=>$count)));
+            message(0, lang('admin_word_import_success', array('n'=>$count, 'type'=>$type_label)));
         } elseif($word_action == 'import_file') {
             if(empty($_FILES['words_file']) || $_FILES['words_file']['error'] != 0) {
-                message(-1, '请选择要上传的文件');
+                message(-1, lang('admin_please_select_file'));
             }
             $file = $_FILES['words_file'];
             if($file['type'] !== 'text/plain' && !preg_match('/\.txt$/i', $file['name'])) {
-                message(-1, '仅支持.txt文件');
+                message(-1, lang('admin_txt_only'));
             }
             if($file['size'] > 2 * 1024 * 1024) {
-                message(-1, '文件大小不能超过2MB');
+                message(-1, lang('admin_file_size_max_2mb'));
             }
             $count = SensitiveWordFilter::import_from_file($file['tmp_name'], $word_type);
-            admin_log_create('security_badword', 'security', '', '从文件导入' . $type_label . ' ' . $count . ' 个');
-            message(0, '成功导入 ' . $count . ' 个' . $type_label);
+            admin_log_create('security_badword', 'security', '', lang('admin_log_word_file_import', array('type'=>$type_label, 'n'=>$count)));
+            message(0, lang('admin_word_import_success', array('n'=>$count, 'type'=>$type_label)));
         } elseif($word_action == 'clear') {
             $r = SensitiveWordFilter::clear_words($word_type);
             if($r) {
-                admin_log_create('security_badword', 'security', '', '清空' . $type_label . '库');
-                message(0, '已清空');
+                admin_log_create('security_badword', 'security', '', lang('admin_log_word_clear', array('type'=>$type_label)));
+                message(0, lang('admin_word_cleared'));
             } else {
-                message(-1, '清空失败');
+                message(-1, lang('admin_word_clear_failed'));
             }
         } else {
-            message(-1, '未知操作');
+            message(-1, lang('admin_unknown_action'));
         }
     }
 
@@ -266,8 +266,8 @@ if($action == '' || $action == 'post_limit') {
         $ip_blacklist = IpBlacklistService::get_blacklist();
         $ip_whitelist = IpBlacklistService::get_whitelist();
         $email_blacklist = EmailBlacklistService::get_all_domains();
-        $header['title'] = '黑白名单';
-        $header['mobile_title'] = '黑白名单';
+        $header['title'] = lang('admin_blacklist_white_title');
+        $header['mobile_title'] = lang('admin_blacklist_white_title');
         include _include(ADMIN_PATH.'view/htm/security_blacklist.htm');
     } else {
         CsrfService::check();
@@ -276,80 +276,80 @@ if($action == '' || $action == 'post_limit') {
         if($sub_action == 'ip_blacklist_add') {
             $ip = param('ip', '', FALSE);
             $remark = param('remark', '', FALSE);
-            if(empty($ip)) message(-1, 'IP不能为空');
+            if(empty($ip)) message(-1, lang('admin_ip_empty'));
             $r = IpBlacklistService::add_to_blacklist($ip, $remark);
             if($r) {
-                admin_log_create('security_blacklist', 'security', '', '添加IP黑名单：' . $ip);
-                message(0, '添加成功');
+                admin_log_create('security_blacklist', 'security', '', lang('admin_log_ip_blacklist_add', array('ip'=>$ip)));
+                message(0, lang('admin_add_success'));
             } else {
-                message(-1, '添加失败或已存在');
+                message(-1, lang('admin_add_failed_exists'));
             }
         } elseif($sub_action == 'ip_blacklist_remove') {
             $ip = param('ip', '', FALSE);
-            if(empty($ip)) message(-1, 'IP不能为空');
+            if(empty($ip)) message(-1, lang('admin_ip_empty'));
             $r = IpBlacklistService::remove_from_blacklist($ip);
             if($r) {
-                admin_log_create('security_blacklist', 'security', '', '移除IP黑名单：' . $ip);
-                message(0, '删除成功');
+                admin_log_create('security_blacklist', 'security', '', lang('admin_log_ip_blacklist_remove', array('ip'=>$ip)));
+                message(0, lang('admin_delete_success'));
             } else {
-                message(-1, '删除失败');
+                message(-1, lang('admin_delete_failed'));
             }
         } elseif($sub_action == 'ip_whitelist_add') {
             $ip = param('ip', '', FALSE);
             $remark = param('remark', '', FALSE);
-            if(empty($ip)) message(-1, 'IP不能为空');
+            if(empty($ip)) message(-1, lang('admin_ip_empty'));
             $r = IpBlacklistService::add_to_whitelist($ip, $remark);
             if($r) {
-                admin_log_create('security_blacklist', 'security', '', '添加IP白名单：' . $ip);
-                message(0, '添加成功');
+                admin_log_create('security_blacklist', 'security', '', lang('admin_log_ip_whitelist_add', array('ip'=>$ip)));
+                message(0, lang('admin_add_success'));
             } else {
-                message(-1, '添加失败或已存在');
+                message(-1, lang('admin_add_failed_exists'));
             }
         } elseif($sub_action == 'ip_whitelist_remove') {
             $ip = param('ip', '', FALSE);
-            if(empty($ip)) message(-1, 'IP不能为空');
+            if(empty($ip)) message(-1, lang('admin_ip_empty'));
             $r = IpBlacklistService::remove_from_whitelist($ip);
             if($r) {
-                admin_log_create('security_blacklist', 'security', '', '移除IP白名单：' . $ip);
-                message(0, '删除成功');
+                admin_log_create('security_blacklist', 'security', '', lang('admin_log_ip_whitelist_remove', array('ip'=>$ip)));
+                message(0, lang('admin_delete_success'));
             } else {
-                message(-1, '删除失败');
+                message(-1, lang('admin_delete_failed'));
             }
         } elseif($sub_action == 'email_add') {
             $domain = param('domain', '', FALSE);
-            if(empty($domain)) message(-1, '域名不能为空');
+            if(empty($domain)) message(-1, lang('admin_domain_empty'));
             $r = EmailBlacklistService::add_domain($domain);
             if($r) {
-                admin_log_create('security_blacklist', 'security', '', '添加邮箱黑名单：' . $domain);
-                message(0, '添加成功');
+                admin_log_create('security_blacklist', 'security', '', lang('admin_log_email_blacklist_add', array('domain'=>$domain)));
+                message(0, lang('admin_add_success'));
             } else {
-                message(-1, '添加失败或已存在');
+                message(-1, lang('admin_add_failed_exists'));
             }
         } elseif($sub_action == 'email_remove') {
             $domain = param('domain', '', FALSE);
-            if(empty($domain)) message(-1, '域名不能为空');
+            if(empty($domain)) message(-1, lang('admin_domain_empty'));
             $r = EmailBlacklistService::remove_domain($domain);
             if($r) {
-                admin_log_create('security_blacklist', 'security', '', '移除邮箱黑名单：' . $domain);
-                message(0, '删除成功');
+                admin_log_create('security_blacklist', 'security', '', lang('admin_log_email_blacklist_remove', array('domain'=>$domain)));
+                message(0, lang('admin_delete_success'));
             } else {
-                message(-1, '删除失败');
+                message(-1, lang('admin_delete_failed'));
             }
         } elseif($sub_action == 'email_import') {
             $words_text = param('words_text', '', FALSE);
-            if(empty($words_text)) message(-1, '导入内容不能为空');
+            if(empty($words_text)) message(-1, lang('admin_import_empty'));
             $domains = array_filter(array_map('trim', preg_split('/[\n\r]+/', $words_text)));
             $count = 0;
             foreach($domains as $d) {
                 if(EmailBlacklistService::add_domain($d)) $count++;
             }
-            admin_log_create('security_blacklist', 'security', '', '批量导入邮箱黑名单 ' . $count . ' 个');
-            message(0, '成功导入 ' . $count . ' 个域名');
+            admin_log_create('security_blacklist', 'security', '', lang('admin_log_email_blacklist_batch_import', array('n'=>$count)));
+            message(0, lang('admin_email_blacklist_import_success', array('n'=>$count)));
         } else {
-            message(-1, '未知操作');
+            message(-1, lang('admin_unknown_action'));
         }
     }
 
 } else {
-    message(-1, '未知操作');
+    message(-1, lang('admin_unknown_action'));
 }

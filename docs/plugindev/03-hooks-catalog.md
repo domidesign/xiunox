@@ -597,7 +597,7 @@
 | 所在文件 | Hook 点 | 用途 |
 |---|---|---|
 | admin/route/index.php | `admin_index_{start/end}.php`；`admin_index_login_{get_post/get_start/post_start/post_end}.php`；`admin_index_logout_start.php`；`admin_index_empty_{start/end}.php` | 后台登录/登出/默认页 |
-| admin/route/setting.php | `admin_setting_{start/end}.php`；`admin_setting_{base/smtp/upload/nav/credits/permalink/display}_{get_post/get_start/get_end/post_start/post_end}.php` | 站点设置 7 个子模块 |
+| admin/route/setting.php | `admin_setting_{start/end}.php`；`admin_setting_{base/smtp/upload/nav/credits/permalink/display}_{get_post/get_start/get_end/post_start/post_end}.php`；`admin_setting_upload_driver_register.php` | 站点设置 7 个子模块；`_driver_register` 为存储驱动专用注册 hook（GET+POST 双调用） |
 | admin/route/forum.php | `admin_forum_{start/end}.php`；`admin_forum_list_{get_post/get_start/get_end/post_start/post_loop_end/add_before/update_before/delete_before/delete_end/post_end}.php`；`admin_forum_create_{get_post/get_start/get_end/post_start/post_end}.php`；`admin_forum_update_{get_post/get_start/get_end/post_start/post_before/post_end}.php`；`admin_forum_getname_{start/end}.php`；`admin_forum_delete_{start/end}.php` | 版块列表/创建/编辑/删除 |
 | admin/route/user.php | `admin_user_{start/end}.php`；`admin_user_list_{start/allow_type_after/cond_after/end}.php`；`admin_user_create_{get_post/get_start/get_end/post_start/post_end}.php`；`admin_user_update_{get_post/get_start/get_end/post_start/post_exec_before/post_end}.php`；`admin_user_delete_{start/end}.php` | 用户列表/创建/编辑/删除 |
 | admin/route/thread.php | `admin_thread_{start/end}.php`；`admin_thread_list_start.php`；`admin_thread_batch_{start/for/end}.php`；`admin_thread_found_{start/end}.php` | 帖子列表/批量操作/找回 |
@@ -877,7 +877,7 @@
 
 ### Attach（附件）— `model/attach.func.php`
 
-`model_attach_start.php` / `model_attach_end.php`，以及各操作的 start/end 对：`model_attach__create/update/read/delete/find`、`model_attach_create/update/read/delete/delete_by_pid/delete_by_uid/find/find_by_pid/format/count/type/gc`、`attach_assoc_post_start/end`、`model_attach_admin_count/find/stats`。
+`model_attach_start.php` / `model_attach_end.php`，以及各操作的 start/end 对：`model_attach__create/update/read/delete/find`、`model_attach_create/update/read/delete/delete_by_pid/delete_by_uid/find/find_by_pid/format/count/type/gc`、`attach_assoc_post_start/end`、`model_attach_admin_count/find/stats`。另有 3 个云存储专用 hook：`storage_save.php`（`attach_assoc_post` 中文件保存后）、`storage_serve.php`（`route/attach.php` 读取/下载前）、`storage_delete.php`（`attach_delete` 等删除前），均仅在 `upload_driver != 'local'` 时触发，详见 [16-storage-driver-extension.md](16-storage-driver-extension.md)。
 
 ### Post Like（点赞）— `model/post_like.func.php`
 
@@ -1194,6 +1194,9 @@ $data[] = array(
 | `attach_download_readfile_before.php` | 读文件前 |
 | `attach_download_location_before.php` | 定位前 |
 | `attach_end.php` | route/attach.php 结束 |
+| `storage_save.php` | ✅ 云存储：`attach_assoc_post()` 中 `xn_copy()` 后（`upload_driver != 'local'` 时触发） |
+| `storage_serve.php` | ✅ 云存储：`read`/`download`/`fetch` 的 `readfile()` 前（`upload_driver != 'local'` 时触发） |
+| `storage_delete.php` | ✅ 云存储：`attach_delete` / `attach_delete_by_pid` / `attach_delete_by_uid` 中 `unlink()` 前（`upload_driver != 'local'` 时触发） |
 
 ---
 

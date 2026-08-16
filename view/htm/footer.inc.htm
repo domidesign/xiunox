@@ -30,11 +30,7 @@
 	<?php include _include(APP_PATH.'view/htm/bottom_nav.inc.htm');?>
 	
 	<!--{hook footer_nav_after.htm}-->
-	
-	<!--[if ltg IE 9]>
-	<script>window.location = <?php echo json_encode(browser_url());?>;</script>
-	<![endif]-->
-	
+
 	<!--{hook footer_js_before.htm}-->
 	
 	<script src="<?php echo $conf['base_path'];?>/lang/<?php echo $conf['lang'];?>/bbs.js<?php echo $static_version;?>"></script>
@@ -67,6 +63,24 @@
 		no_notify: <?php echo json_encode(lang('no_notify'));?>,
 		draft_restored: <?php echo json_encode(lang('draft_restored'));?>,
 		discard_draft: <?php echo json_encode(lang('discard_draft'));?>
+	};
+	// 积分类型名称（供 xiuno-modern.js 等前端脚本使用，动态跟随后台积分设置）
+	var credits_labels = {
+		credits: <?php echo json_encode(!empty($conf['credits_name']) ? $conf['credits_name'] : lang('credits_label'));?>,
+		golds: <?php echo json_encode(!empty($conf['golds_name']) ? $conf['golds_name'] : lang('golds_label'));?>,
+		rmbs: <?php echo json_encode(!empty($conf['rmbs_name']) ? $conf['rmbs_name'] : lang('rmb_label'));?>
+	};
+	// 国际化字符串（供 xiuno-modern.js 使用，PHP 动态注入，跟随当前语言）
+	var XIUNO_I18N = {
+		daily_limit_reached: <?php echo json_encode(lang('daily_limit_reached'));?>,
+		no_deduct_tip: <?php echo json_encode(lang('no_deduct_tip'));?>,
+		operation_failed: <?php echo json_encode(lang('operation_failed'));?>,
+		balance: <?php echo json_encode(lang('balance'));?>,
+		credits_deduct_confirm: <?php echo json_encode(lang('credits_deduct_confirm'));?>,
+		confirm_btn: <?php echo json_encode(lang('confirm_btn'));?>,
+		cancel_btn: <?php echo json_encode(lang('cancel'));?>,
+		thumb_width_error: <?php echo json_encode(lang('thumb_width_error'));?>,
+		base64_data_error: <?php echo json_encode(lang('base64_data_error'));?>
 	};
 	// 通知相关 URL
 	var bbs_notify_urls = {
@@ -102,8 +116,8 @@
 						<button type="button" class="btn btn-sm btn-light rounded-circle" id="xnLightboxZoomOut" title="-"><i class="ti ti-minus"></i></button>
 						<span class="badge bg-light text-dark rounded-pill px-2" id="xnLightboxScale">100%</span>
 						<button type="button" class="btn btn-sm btn-light rounded-circle" id="xnLightboxZoomIn" title="+"><i class="ti ti-plus"></i></button>
-						<button type="button" class="btn btn-sm btn-light rounded-circle" id="xnLightboxRotate" title="旋转"><i class="ti ti-rotate"></i></button>
-						<button type="button" class="btn btn-sm btn-light rounded-circle" id="xnLightboxReset" title="重置"><i class="ti ti-refresh"></i></button>
+						<button type="button" class="btn btn-sm btn-light rounded-circle" id="xnLightboxRotate" title="<?php echo lang('rotate');?>"><i class="ti ti-rotate"></i></button>
+						<button type="button" class="btn btn-sm btn-light rounded-circle" id="xnLightboxReset" title="<?php echo lang('reset');?>"><i class="ti ti-refresh"></i></button>
 					</div>
 
 					<!-- 图片(支持 transform 缩放/旋转/拖拽) -->

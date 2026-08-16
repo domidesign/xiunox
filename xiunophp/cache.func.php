@@ -11,7 +11,7 @@ function cache_new($cacheconf) {
 			case 'pdo_mysql':
 			case 'mysql':
 				$cache = new cache_mysql($cacheconf['mysql']); break;
-			default: return xn_error(-1, '不支持的 cache type:'.$cacheconf['type']);
+			default: return xn_error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_type_unsupported') : '不支持的 cache type:').$cacheconf['type']);
 		}
 		return $cache;
 	}

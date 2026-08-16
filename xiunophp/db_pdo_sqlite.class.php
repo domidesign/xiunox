@@ -54,7 +54,7 @@ class db_pdo_sqlite {
 			$link = new PDO($sqlitedb, $attr);//连接sqlite
 			//new PDO($sqlitedb,'','',$attr);//连接sqlite
 		} catch (Exception $e) {
-			$this->error($e->getCode(), '连接数据库服务器失败:'.$e->getMessage());
+			$this->error($e->getCode(), (function_exists('lang') && !empty($_SERVER['lang']) ? lang('db_connect_server_failed_detail') : '连接数据库服务器失败:').$e->getMessage());
 			return FALSE;
 	        }
 	        //$link->setFetchMode(PDO::FETCH_ASSOC);

@@ -54,7 +54,7 @@ class OnlineUpgradeService {
                 'ok' => false,
                 'has_update' => false,
                 'current_version' => $currentVersion,
-                'message' => '未配置 Gitee 仓库信息（gitee_owner / gitee_repo）',
+                'message' => lang('upgrade_gitee_not_configured'),
             ];
         }
 
@@ -69,7 +69,7 @@ class OnlineUpgradeService {
                 'ok' => false,
                 'has_update' => false,
                 'current_version' => $currentVersion,
-                'message' => '请求 Gitee API 失败：' . $resp['message'],
+                'message' => lang('upgrade_gitee_api_failed', array('error' => $resp['message'])),
             ];
         }
 
@@ -79,7 +79,7 @@ class OnlineUpgradeService {
                 'ok' => false,
                 'has_update' => false,
                 'current_version' => $currentVersion,
-                'message' => '解析 Gitee Release 响应失败',
+                'message' => lang('upgrade_gitee_release_parse_failed'),
             ];
         }
 
@@ -111,7 +111,7 @@ class OnlineUpgradeService {
             'current_version' => $currentVersion,
             'zip_url' => $zipUrl,
             'release_notes' => $releaseNotes,
-            'message' => $hasUpdate ? "发现新版本 {$latestVersion}" : '已是最新版本',
+            'message' => $hasUpdate ? lang('upgrade_new_version_found', array('version' => $latestVersion)) : lang('upgrade_already_latest'),
         ];
     }
 
@@ -125,36 +125,36 @@ class OnlineUpgradeService {
 
         if (version_compare(PHP_VERSION, '8.0', '<')) {
             $ok = false;
-            $warnings[] = 'PHP 版本 ' . PHP_VERSION . ' < 8.0，需先升级 PHP';
+            $warnings[] = lang('upgrade_php_version_too_low', array('version' => PHP_VERSION));
         }
 
         $freeSpace = @disk_free_space(APP_PATH);
         if ($freeSpace !== false && $freeSpace < 200 * 1024 * 1024) {
             $ok = false;
-            $warnings[] = '磁盘空间不足（需至少 200MB）：' . round($freeSpace / 1024 / 1024, 1) . 'MB';
+            $warnings[] = lang('upgrade_disk_space_insufficient', array('limit' => 200, 'size' => round($freeSpace / 1024 / 1024, 1)));
         }
 
         if (!class_exists('ZipArchive')) {
             $ok = false;
-            $warnings[] = '未安装 ZipArchive 扩展，无法解压升级包';
+            $warnings[] = lang('upgrade_ziparchive_missing');
         }
 
         $hasCurl = function_exists('curl_init');
         $allowUrlFopen = (bool)ini_get('allow_url_fopen');
         if (!$hasCurl && !$allowUrlFopen) {
             $ok = false;
-            $warnings[] = '既无 cURL 扩展也未开启 allow_url_fopen，无法下载升级包';
+            $warnings[] = lang('upgrade_no_curl_no_fopen');
         }
 
         // APP_PATH 不可写改为非阻断警告：升级包覆盖阶段若涉及根目录文件会失败，
         // extractAndOverwrite 会逐文件报错；此处不阻断以便宝塔等严格权限环境可继续尝试
         if (!is_writable(APP_PATH)) {
-            $warnings[] = 'APP_PATH 目录不可写（不阻断，建议 chown -R www:www ' . APP_PATH . '）：覆盖根目录文件时可能失败';
+            $warnings[] = lang('upgrade_app_path_not_writable', array('path' => APP_PATH));
         }
 
         if (!is_writable($this->tmpPath)) {
             $ok = false;
-            $warnings[] = 'tmp 目录不可写：' . $this->tmpPath;
+            $warnings[] = lang('upgrade_tmp_not_writable', array('dir' => $this->tmpPath));
         }
 
         // 检查 tmp/ 和 log/ 目录的 Web 访问保护文件，缺失时自动创建
@@ -171,7 +171,7 @@ class OnlineUpgradeService {
         return [
             'ok' => $ok,
             'warnings' => $warnings,
-            'message' => $ok ? '前置检查通过' : '存在 ' . count($warnings) . ' 个问题',
+            'message' => $ok ? lang('upgrade_preflight_passed') : lang('upgrade_issues_exist', array('n' => count($warnings))),
         ];
     }
 
@@ -187,9 +187,9 @@ class OnlineUpgradeService {
         $content = time() . '|' . intval($uid);
         $r = file_put_contents($this->lockFile, $content);
         if ($r === false) {
-            return ['ok' => false, 'message' => '写入维护锁失败：' . $this->lockFile];
+            return ['ok' => false, 'message' => lang('upgrade_maintenance_lock_write_failed', array('path' => $this->lockFile))];
         }
-        return ['ok' => true, 'message' => '维护模式已开启', 'lock_file' => $this->lockFile];
+        return ['ok' => true, 'message' => lang('upgrade_maintenance_on'), 'lock_file' => $this->lockFile];
     }
 
     /**
@@ -198,10 +198,10 @@ class OnlineUpgradeService {
     public function maintenanceOff(): array {
         if (file_exists($this->lockFile)) {
             if (!@unlink($this->lockFile)) {
-                return ['ok' => false, 'message' => '删除维护锁失败：' . $this->lockFile];
+                return ['ok' => false, 'message' => lang('upgrade_maintenance_lock_delete_failed', array('path' => $this->lockFile))];
             }
         }
-        return ['ok' => true, 'message' => '维护模式已关闭'];
+        return ['ok' => true, 'message' => lang('upgrade_maintenance_off')];
     }
 
     /**
@@ -217,7 +217,7 @@ class OnlineUpgradeService {
      */
     public function download(string $zipUrl, string $version): array {
         if (empty($zipUrl)) {
-            return ['ok' => false, 'message' => '下载 URL 为空'];
+            return ['ok' => false, 'message' => lang('upgrade_download_url_empty')];
         }
 
         if (!is_dir($this->tmpPath)) {
@@ -229,20 +229,20 @@ class OnlineUpgradeService {
         $zipPath = $this->tmpPath . 'upgrade_' . $version . '.zip';
         $r = $this->httpDownload($zipUrl, $zipPath);
         if (!$r['ok']) {
-            return ['ok' => false, 'message' => '下载失败：' . $r['message']];
+            return ['ok' => false, 'message' => lang('upgrade_download_failed', array('error' => $r['message']))];
         }
 
         $size = filesize($zipPath);
         if ($size === false || $size <= 0) {
             @unlink($zipPath);
-            return ['ok' => false, 'message' => '下载文件大小为 0，可能下载失败'];
+            return ['ok' => false, 'message' => lang('upgrade_download_zero_size')];
         }
 
         return [
             'ok' => true,
             'zip_path' => $zipPath,
             'size' => $size,
-            'message' => '下载完成，大小 ' . round($size / 1024 / 1024, 2) . 'MB',
+            'message' => lang('upgrade_download_done', array('size' => round($size / 1024 / 1024, 2))),
         ];
     }
 
@@ -254,10 +254,10 @@ class OnlineUpgradeService {
      */
     public function extractAndOverwrite(string $zipPath): array {
         if (!is_file($zipPath)) {
-            return ['ok' => false, 'message' => 'zip 文件不存在：' . $zipPath];
+            return ['ok' => false, 'message' => lang('upgrade_zip_not_exists', array('path' => $zipPath))];
         }
         if (!class_exists('ZipArchive')) {
-            return ['ok' => false, 'message' => '未安装 ZipArchive 扩展'];
+            return ['ok' => false, 'message' => lang('plugin_ziparchive_not_installed')];
         }
 
         $extractDir = $this->tmpPath . 'extract_' . date('YmdHis') . '/';
@@ -270,11 +270,11 @@ class OnlineUpgradeService {
         $zip = new ZipArchive();
         $openRes = $zip->open($zipPath);
         if ($openRes !== true) {
-            return ['ok' => false, 'message' => 'ZipArchive::open 失败，错误码：' . $openRes];
+            return ['ok' => false, 'message' => lang('plugin_zip_open_failed', array('code' => $openRes))];
         }
         if (!$zip->extractTo($extractDir)) {
             $zip->close();
-            return ['ok' => false, 'message' => '解压失败'];
+            return ['ok' => false, 'message' => lang('plugin_extract_failed')];
         }
         $zip->close();
 
@@ -283,7 +283,7 @@ class OnlineUpgradeService {
         $projectRoot = $this->findProjectRoot($extractDir);
         if ($projectRoot === '') {
             $this->recursiveDelete($extractDir);
-            return ['ok' => false, 'message' => '未找到项目根目录（缺少 index.inc.php 或 model.inc.php）'];
+            return ['ok' => false, 'message' => lang('upgrade_project_root_not_found')];
         }
 
         $extracted = 0;
@@ -337,13 +337,13 @@ class OnlineUpgradeService {
         // 有文件覆盖失败：返回失败列表，前端会标红步骤并提示用户修权限后重试
         if (!empty($failed)) {
             $show = array_slice($failed, 0, 20);
-            $more = count($failed) > 20 ? '（共 ' . count($failed) . ' 个，仅展示前 20 个）' : '';
+            $more = count($failed) > 20 ? lang('upgrade_failed_more', array('n' => count($failed))) : '';
             return [
                 'ok' => false,
                 'extracted' => $extracted,
                 'skipped' => $skipped,
                 'failed' => $failed,
-                'message' => "覆盖失败 " . count($failed) . " 个文件{$more}：\n" . implode("\n", $show) . "\n\n建议执行：chown -R www:www " . APP_PATH,
+                'message' => lang('upgrade_overwrite_failed', array('n' => count($failed), 'more' => $more, 'files' => implode("\n", $show), 'path' => APP_PATH)),
             ];
         }
 
@@ -351,7 +351,7 @@ class OnlineUpgradeService {
             'ok' => true,
             'extracted' => $extracted,
             'skipped' => $skipped,
-            'message' => "覆盖完成，覆盖 {$extracted} 个文件，跳过 {$skipped} 个黑名单文件",
+            'message' => lang('upgrade_overwrite_done', array('extracted' => $extracted, 'skipped' => $skipped)),
         ];
     }
 
@@ -361,13 +361,13 @@ class OnlineUpgradeService {
     public function runDbUpgrade(): array {
         $upgradeServiceFile = APP_PATH . 'lib/UpgradeService.php';
         if (!is_file($upgradeServiceFile)) {
-            return ['ok' => false, 'message' => 'UpgradeService.php 不存在', 'results' => []];
+            return ['ok' => false, 'message' => lang('upgrade_service_file_missing'), 'results' => []];
         }
         if (!class_exists('UpgradeService')) {
             include_once $upgradeServiceFile;
         }
         if (!class_exists('UpgradeService')) {
-            return ['ok' => false, 'message' => 'UpgradeService 类加载失败', 'results' => []];
+            return ['ok' => false, 'message' => lang('upgrade_service_class_load_failed'), 'results' => []];
         }
 
         $service = new UpgradeService($this->db, $this->conf);
@@ -386,7 +386,7 @@ class OnlineUpgradeService {
             try {
                 $r = $service->executeStep($stepId);
             } catch (\Throwable $e) {
-                $r = ['ok' => false, 'message' => '异常: ' . $e->getMessage()];
+                $r = ['ok' => false, 'message' => lang('upgrade_step_exception', array('error' => $e->getMessage()))];
             }
             $results[] = [
                 'id' => $stepId,
@@ -406,13 +406,13 @@ class OnlineUpgradeService {
         $svMsg = '';
         if (!$configStepOk && function_exists('conf_bump_static_version')) {
             $svRes = conf_bump_static_version();
-            $svMsg = $svRes['ok'] ? '；' . $svRes['message'] : '';
+            $svMsg = $svRes['ok'] ? lang('upgrade_semicolon_prefix', array('message' => $svRes['message'])) : '';
         }
 
         return [
             'ok' => $allOk,
             'results' => $results,
-            'message' => ($allOk ? '数据库升级全部成功' : '部分数据库升级步骤失败') . $svMsg,
+            'message' => ($allOk ? lang('upgrade_db_all_success') : lang('upgrade_db_partial_failed')) . $svMsg,
         ];
     }
 
@@ -422,7 +422,7 @@ class OnlineUpgradeService {
     public function cleanup(): array {
         $deleted = 0;
         if (!is_dir($this->tmpPath)) {
-            return ['ok' => true, 'deleted' => 0, 'message' => 'tmp 目录不存在'];
+            return ['ok' => true, 'deleted' => 0, 'message' => lang('upgrade_tmp_not_exists')];
         }
 
         $entries = glob($this->tmpPath . '*');
@@ -460,12 +460,12 @@ class OnlineUpgradeService {
         // 追加清理数据缓存和 opcache（tmp 编译缓存已由上方逻辑清理）
         // data 用 cache_delete_prefix('') 按前缀删，避免 Redis flushdb 误删 session
         $cacheRes = $this->clearCaches(['data', 'opcache']);
-        $cacheMsg = ($cacheRes['ok'] && $cacheRes['message']) ? '；已清 ' . $cacheRes['message'] : '';
+        $cacheMsg = ($cacheRes['ok'] && $cacheRes['message']) ? lang('upgrade_cache_cleared_prefix', array('message' => $cacheRes['message'])) : '';
 
         return [
             'ok' => true,
             'deleted' => $deleted,
-            'message' => "清理完成，删除 {$deleted} 个文件/目录" . $cacheMsg,
+            'message' => lang('upgrade_cleanup_done', array('n' => $deleted)) . $cacheMsg,
         ];
     }
 
@@ -480,7 +480,7 @@ class OnlineUpgradeService {
         $currentVersion = isset($this->conf['version']) ? $this->conf['version'] : '0.0.0';
 
         if (empty($owner) || empty($repo)) {
-            return ['ok' => false, 'message' => '未配置 Gitee 仓库信息'];
+            return ['ok' => false, 'message' => lang('upgrade_gitee_not_configured_short')];
         }
 
         // Gitee API 列出所有 release，找到 tag_name == v{current_version}
@@ -490,12 +490,12 @@ class OnlineUpgradeService {
         }
         $resp = $this->httpGet($url);
         if (!$resp['ok']) {
-            return ['ok' => false, 'message' => '请求 Gitee Release 列表失败：' . $resp['message']];
+            return ['ok' => false, 'message' => lang('upgrade_gitee_release_list_failed', array('error' => $resp['message']))];
         }
 
         $releases = json_decode($resp['data'], true);
         if (!is_array($releases)) {
-            return ['ok' => false, 'message' => '解析 Gitee Release 列表失败'];
+            return ['ok' => false, 'message' => lang('upgrade_gitee_release_list_parse_failed')];
         }
 
         $targetTagV = 'v' . $currentVersion;
@@ -516,7 +516,7 @@ class OnlineUpgradeService {
         }
 
         if (empty($zipUrl)) {
-            return ['ok' => false, 'message' => "未在 Gitee Release 中找到当前版本 {$currentVersion} 的下载包"];
+            return ['ok' => false, 'message' => lang('upgrade_release_not_found', array('version' => $currentVersion))];
         }
 
         // 私有仓库下载需带 token
@@ -527,29 +527,29 @@ class OnlineUpgradeService {
         // 执行下载 -> 覆盖流程
         $downRes = $this->download($zipUrl, $currentVersion);
         if (!$downRes['ok']) {
-            return ['ok' => false, 'message' => '重装下载失败：' . $downRes['message']];
+            return ['ok' => false, 'message' => lang('upgrade_reinstall_download_failed', array('error' => $downRes['message']))];
         }
 
         $extractRes = $this->extractAndOverwrite($downRes['zip_path']);
         if (!$extractRes['ok']) {
-            return ['ok' => false, 'message' => '重装覆盖失败：' . $extractRes['message']];
+            return ['ok' => false, 'message' => lang('upgrade_reinstall_extract_failed', array('error' => $extractRes['message']))];
         }
 
         // 重装后清全部缓存（data+tmp+opcache），确保覆盖的新源码生效
         // tmp 编译缓存（route_*.php 等）必须清，否则 _include() 仍加载旧缓存导致新代码不生效
         $cacheRes = $this->clearCaches(['data', 'tmp', 'opcache']);
-        $cacheMsg = ($cacheRes['ok'] && $cacheRes['message']) ? '；已清 ' . $cacheRes['message'] : '';
+        $cacheMsg = ($cacheRes['ok'] && $cacheRes['message']) ? lang('upgrade_cache_cleared_prefix', array('message' => $cacheRes['message'])) : '';
 
         // 递增 static_version，强制浏览器刷新 JS/CSS 缓存（重装必然伴随静态资源覆盖）
         $svMsg = '';
         if (function_exists('conf_bump_static_version')) {
             $svRes = conf_bump_static_version();
-            $svMsg = $svRes['ok'] ? '；' . $svRes['message'] : '';
+            $svMsg = $svRes['ok'] ? lang('upgrade_semicolon_prefix', array('message' => $svRes['message'])) : '';
         }
 
         return [
             'ok' => true,
-            'message' => "已重装当前版本 {$currentVersion}：" . $extractRes['message'] . $cacheMsg . $svMsg,
+            'message' => lang('upgrade_reinstall_done', array('version' => $currentVersion, 'message' => $extractRes['message'])) . $cacheMsg . $svMsg,
         ];
     }
 
@@ -677,17 +677,17 @@ class OnlineUpgradeService {
             // PHP 8.0+ curl 句柄自动释放，curl_close() 在 8.5 已废弃
             if (PHP_VERSION_ID < 80000) curl_close($ch);
             if ($errno !== 0) {
-                return ['ok' => false, 'data' => '', 'message' => 'cURL 错误[' . $errno . ']: ' . $errmsg];
+                return ['ok' => false, 'data' => '', 'message' => lang('plugin_curl_error', array('code' => $errno, 'message' => $errmsg))];
             }
             if ($httpCode >= 400) {
-                return ['ok' => false, 'data' => '', 'message' => 'HTTP 状态码 ' . $httpCode];
+                return ['ok' => false, 'data' => '', 'message' => lang('plugin_http_status', array('code' => $httpCode))];
             }
             return ['ok' => true, 'data' => $data, 'message' => ''];
         }
 
         // 回退 file_get_contents
         if (!ini_get('allow_url_fopen')) {
-            return ['ok' => false, 'data' => '', 'message' => '未开启 allow_url_fopen 且无 cURL'];
+            return ['ok' => false, 'data' => '', 'message' => lang('plugin_no_curl_no_url_fopen')];
         }
         $ctx = stream_context_create([
             'http' => [
@@ -703,8 +703,8 @@ class OnlineUpgradeService {
         $data = @file_get_contents($url, false, $ctx);
         if ($data === false) {
             $error = error_get_last();
-            $errMsg = !empty($error['message']) ? $error['message'] : '未知错误';
-            return ['ok' => false, 'data' => '', 'message' => 'file_get_contents 失败: ' . $errMsg];
+            $errMsg = !empty($error['message']) ? $error['message'] : lang('unknown_error');
+            return ['ok' => false, 'data' => '', 'message' => lang('plugin_file_get_contents_failed', array('error' => $errMsg))];
         }
         return ['ok' => true, 'data' => $data, 'message' => ''];
     }
@@ -717,7 +717,7 @@ class OnlineUpgradeService {
         if (function_exists('curl_init')) {
             $fp = @fopen($savePath, 'wb');
             if (!$fp) {
-                return ['ok' => false, 'message' => '无法写入文件：' . $savePath];
+                return ['ok' => false, 'message' => lang('upgrade_write_file_failed', array('path' => $savePath))];
             }
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, $url);
@@ -736,18 +736,18 @@ class OnlineUpgradeService {
             fclose($fp);
             if ($errno !== 0) {
                 @unlink($savePath);
-                return ['ok' => false, 'message' => 'cURL 下载错误[' . $errno . ']: ' . $errmsg];
+                return ['ok' => false, 'message' => lang('upgrade_curl_download_error', array('code' => $errno, 'message' => $errmsg))];
             }
             if ($httpCode >= 400) {
                 @unlink($savePath);
-                return ['ok' => false, 'message' => '下载 HTTP 状态码 ' . $httpCode];
+                return ['ok' => false, 'message' => lang('upgrade_http_status_download', array('code' => $httpCode))];
             }
             return ['ok' => true, 'message' => ''];
         }
 
         // 回退 file_get_contents
         if (!ini_get('allow_url_fopen')) {
-            return ['ok' => false, 'message' => '未开启 allow_url_fopen 且无 cURL'];
+            return ['ok' => false, 'message' => lang('plugin_no_curl_no_url_fopen')];
         }
         $ctx = stream_context_create([
             'http' => [
@@ -763,11 +763,11 @@ class OnlineUpgradeService {
         $data = @file_get_contents($url, false, $ctx);
         if ($data === false) {
             $error = error_get_last();
-            $errMsg = !empty($error['message']) ? $error['message'] : '未知错误';
-            return ['ok' => false, 'message' => 'file_get_contents 下载失败: ' . $errMsg];
+            $errMsg = !empty($error['message']) ? $error['message'] : lang('unknown_error');
+            return ['ok' => false, 'message' => lang('upgrade_file_get_contents_download_failed', array('error' => $errMsg))];
         }
         if (@file_put_contents($savePath, $data) === false) {
-            return ['ok' => false, 'message' => '写入文件失败：' . $savePath];
+            return ['ok' => false, 'message' => lang('download_write_file_failed', array('path' => $savePath))];
         }
         return ['ok' => true, 'message' => ''];
     }
@@ -880,9 +880,9 @@ class OnlineUpgradeService {
             $diagZip = $this->tmpPath . 'diagnose_' . date('YmdHis') . '.zip';
             $dl = $this->httpDownload($giteeInfo['zip_url'], $diagZip);
             if (!$dl['ok']) {
-                $giteeInfo['zip_download'] = '失败：' . $dl['message'];
+                $giteeInfo['zip_download'] = lang('upgrade_diag_zip_download_failed', array('error' => $dl['message']));
             } else {
-                $giteeInfo['zip_download'] = '成功，size=' . filesize($diagZip);
+                $giteeInfo['zip_download'] = lang('upgrade_diag_zip_download_ok', array('size' => filesize($diagZip)));
                 if (class_exists('ZipArchive')) {
                     $zip = new ZipArchive();
                     $openRes = $zip->open($diagZip);
@@ -904,10 +904,10 @@ class OnlineUpgradeService {
                         }
                         $zip->close();
                     } else {
-                        $giteeInfo['zip_open_error'] = 'ZipArchive::open 失败，错误码：' . $openRes;
+                        $giteeInfo['zip_open_error'] = lang('plugin_zip_open_failed', array('code' => $openRes));
                     }
                 } else {
-                    $giteeInfo['zip_open_error'] = '未安装 ZipArchive 扩展';
+                    $giteeInfo['zip_open_error'] = lang('plugin_ziparchive_not_installed');
                 }
                 // 清理诊断临时 zip
                 @unlink($diagZip);

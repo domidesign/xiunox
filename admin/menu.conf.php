@@ -107,7 +107,7 @@ return array(
 		'text'=>lang('admin_system_notice'), 
 		'icon'=>'icon-bell',
 		'tab'=> array (
-			'post'=>array('url'=>url('notice-create'), 'text'=>'发送消息'),
+			'post'=>array('url'=>url('notice-create'), 'text'=>lang('admin_send_notice')),
 			'list'=>array('url'=>url('notice-list'), 'text'=>lang('notice_admin_notice_list')),
 		)
 	),

@@ -282,7 +282,7 @@ function doRecycleOp(op, ids, confirmMsg) {
 // 批量恢复
 document.getElementById('btn_restore').addEventListener('click', function() {
 	var ids = getSelectedIds();
-	doRecycleOp('restore', ids, '<?php echo lang("admin_thread_restore");?>？');
+	doRecycleOp('restore', ids, <?php echo json_encode(lang('admin_thread_restore_confirm'));?>);
 });
 
 // 批量彻底删除
@@ -297,7 +297,7 @@ document.getElementById('item_list').addEventListener('click', function(e) {
 	if (!el) return;
 	var op = el.getAttribute('data-op');
 	var id = el.getAttribute('data-id');
-	var confirmMsg = op === 'hard_delete' ? el.getAttribute('data-confirm-text') : '<?php echo lang("admin_thread_restore");?>？';
+	var confirmMsg = op === 'hard_delete' ? el.getAttribute('data-confirm-text') : <?php echo json_encode(lang('admin_thread_restore_confirm'));?>;
 	doRecycleOp(op, [id], confirmMsg);
 });
 </script>

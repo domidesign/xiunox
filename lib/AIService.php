@@ -229,7 +229,7 @@ class AIService {
             if (!empty($dp)) $providerNames = array($dp);
         }
         if (empty($providerNames)) {
-            return array('code' => 1, 'message' => '无可用 provider', 'data' => null);
+            return array('code' => 1, 'message' => lang('ai_no_provider_available'), 'data' => null);
         }
 
         // 构建 config 列表（过滤掉配置不完整和已离线未恢复的）
@@ -249,7 +249,7 @@ class AIService {
             );
         }
         if (empty($configs)) {
-            return array('code' => 1, 'message' => '无可用 provider 配置（可能全部离线或配置不完整）', 'data' => null);
+            return array('code' => 1, 'message' => lang('ai_no_provider_config'), 'data' => null);
         }
 
         $logBase = array(
@@ -347,7 +347,7 @@ class AIService {
             if (!empty($dp)) $providerNames = array($dp);
         }
         if (empty($providerNames)) {
-            return array('code' => 1, 'message' => '无可用 provider', 'data' => null);
+            return array('code' => 1, 'message' => lang('ai_no_provider_available'), 'data' => null);
         }
 
         // 构建 config 列表（同 callWithFailover 逻辑）
@@ -367,7 +367,7 @@ class AIService {
             );
         }
         if (empty($configs)) {
-            return array('code' => 1, 'message' => '无可用 provider 配置（可能全部离线或配置不完整）', 'data' => null);
+            return array('code' => 1, 'message' => lang('ai_no_provider_config'), 'data' => null);
         }
 
         $logBase = array(
@@ -445,7 +445,7 @@ class AIService {
             }
         }
         // ponytail: 聚合每个 provider 的失败原因到 message，前端直接显示具体错误而非笼统的「均失败」
-        $aggMsg = '所有 provider 均调用失败';
+        $aggMsg = lang('ai_all_providers_failed');
         if (!empty($failErrors)) {
             $aggMsg .= '：' . implode(' | ', $failErrors);
         }
@@ -467,9 +467,9 @@ class AIService {
 
         if (empty($config) || empty($config['apiKey']) || empty($config['url']) || empty($config['model'])) {
             if (!empty($logBase)) {
-                $this->writeLog($logBase, 0, 0, 'AI 配置不完整', 0, $startTime);
+                $this->writeLog($logBase, 0, 0, lang('ai_config_incomplete'), 0, $startTime);
             }
-            return array('code' => 1, 'message' => 'AI 配置不完整', 'data' => null);
+            return array('code' => 1, 'message' => lang('ai_config_incomplete'), 'data' => null);
         }
 
         $url = $this->buildEndpointUrl($config['url'], '/images/generations');
@@ -480,9 +480,9 @@ class AIService {
         $payload = xn_json_encode($body);
         if ($payload === false) {
             if (!empty($logBase)) {
-                $this->writeLog($logBase, 0, 0, '请求体编码失败', 0, $startTime);
+                $this->writeLog($logBase, 0, 0, lang('ai_payload_encode_failed'), 0, $startTime);
             }
-            return array('code' => 1, 'message' => '请求体编码失败', 'data' => null);
+            return array('code' => 1, 'message' => lang('ai_payload_encode_failed'), 'data' => null);
         }
 
         // 图片生成比文本慢，默认 60s
@@ -604,9 +604,9 @@ class AIService {
 
         if (empty($config) || empty($config['apiKey']) || empty($config['url']) || empty($config['model'])) {
             if (!empty($logBase)) {
-                $this->writeLog($logBase, 0, 0, 'AI 配置不完整', 0, $startTime);
+                $this->writeLog($logBase, 0, 0, lang('ai_config_incomplete'), 0, $startTime);
             }
-            return array('code' => 1, 'message' => 'AI 配置不完整', 'data' => null);
+            return array('code' => 1, 'message' => lang('ai_config_incomplete'), 'data' => null);
         }
 
         $url = $this->buildEndpointUrl($config['url'], '/chat/completions');
@@ -622,9 +622,9 @@ class AIService {
         $payload = xn_json_encode($body);
         if ($payload === false) {
             if (!empty($logBase)) {
-                $this->writeLog($logBase, 0, 0, '请求体编码失败', 0, $startTime);
+                $this->writeLog($logBase, 0, 0, lang('ai_payload_encode_failed'), 0, $startTime);
             }
-            return array('code' => 1, 'message' => '请求体编码失败', 'data' => null);
+            return array('code' => 1, 'message' => lang('ai_payload_encode_failed'), 'data' => null);
         }
 
         $timeout = isset($options['timeout']) ? intval($options['timeout']) : 30;
@@ -724,7 +724,7 @@ class AIService {
             }
             $this->markProviderOffline($cfg['provider_name']);
         }
-        return array('code' => 1, 'message' => '所有 provider 均调用失败', 'data' => null);
+        return array('code' => 1, 'message' => lang('ai_all_providers_failed'), 'data' => null);
     }
 
     /**
@@ -757,7 +757,7 @@ class AIService {
             }
             $this->markProviderOffline($cfg['provider_name']);
         }
-        return array('code' => 1, 'message' => '所有 provider 均调用失败', 'data' => null);
+        return array('code' => 1, 'message' => lang('ai_all_providers_failed'), 'data' => null);
     }
 
     /**
@@ -778,7 +778,7 @@ class AIService {
             }
             $this->markProviderOffline($cfg['provider_name']);
         }
-        return array('code' => 1, 'message' => '所有 provider 均调用失败', 'data' => null);
+        return array('code' => 1, 'message' => lang('ai_all_providers_failed'), 'data' => null);
     }
 
     /**
@@ -899,9 +899,9 @@ class AIService {
         // 全部失败
         curl_multi_close($mh);
         if (!empty($logBase)) {
-            $this->writeLog($logBase, 0, 0, 'concurrent: 所有 provider 均失败', 0, $startTime);
+            $this->writeLog($logBase, 0, 0, 'concurrent: ' . lang('ai_all_providers_failed'), 0, $startTime);
         }
-        return array('code' => 1, 'message' => '所有 provider 均调用失败', 'data' => null);
+        return array('code' => 1, 'message' => lang('ai_all_providers_failed'), 'data' => null);
     }
 
     /**
@@ -1187,13 +1187,13 @@ class AIService {
             return array('code' => 1, 'message' => 'Provider not found: ' . $providerName);
         }
         if (empty($provider['url']) || empty($provider['api_key'])) {
-            return array('code' => 1, 'message' => 'Provider 配置不完整（缺少 url 或 api_key）');
+            return array('code' => 1, 'message' => lang('ai_provider_config_incomplete'));
         }
 
         // 取 models 第一个作为测试模型
         $model = $this->getFirstModel($provider);
         if (empty($model)) {
-            return array('code' => 1, 'message' => 'Provider 未配置可用模型');
+            return array('code' => 1, 'message' => lang('ai_provider_no_model'));
         }
 
         $config = array(

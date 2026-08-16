@@ -83,6 +83,37 @@ $csrfToken = CsrfService::getToken();
 	</div>
 </div>
 
+<!-- 版权保留强制确认弹窗：5s 倒计时后才能选择，不同意则取消升级 -->
+<div class="modal fade" id="copyrightModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+	<div class="modal-dialog modal-dialog-centered">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title"><i class="ti ti-copyright"></i> <?php echo lang('admin_online_upgrade_copyright_title');?></h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+			</div>
+			<div class="modal-body">
+				<p class="mb-2"><?php echo lang('admin_online_upgrade_copyright_intro');?></p>
+				<p class="mb-2"><?php echo lang('admin_online_upgrade_copyright_optional');?></p>
+				<div class="mb-3">
+					<div class="text-muted small mb-1"><?php echo lang('admin_online_upgrade_copyright_links_label');?></div>
+					<div class="d-flex flex-wrap gap-3">
+						<a href="https://xiunox.org" target="_blank" rel="noopener"><i class="ti ti-world"></i> <?php echo lang('admin_online_upgrade_copyright_link_official');?></a>
+						<a href="https://github.com/domidesign/xiunox" target="_blank" rel="noopener"><i class="ti ti-brand-github"></i> GitHub</a>
+						<a href="https://gitee.com/poisonkid/xiunox" target="_blank" rel="noopener"><i class="ti ti-brand-git"></i> Gitee</a>
+					</div>
+				</div>
+				<div id="copyrightCountdown" class="alert alert-warning py-2 mb-0">
+					<i class="ti ti-hourglass"></i> <span id="copyrightCountdownText"></span>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-danger" id="copyrightDisagreeBtn" disabled data-bs-dismiss="modal"><?php echo lang('admin_online_upgrade_copyright_disagree');?></button>
+				<button type="button" class="btn btn-primary" id="copyrightAgreeBtn" disabled onclick="confirmCopyright()"><?php echo lang('admin_online_upgrade_copyright_agree');?></button>
+			</div>
+		</div>
+	</div>
+</div>
+
 <!-- 升级前确认 Modal：用户必须勾选全部 4 项才能开始升级 -->
 <div class="modal fade" id="upgradeConfirmModal" tabindex="-1" aria-labelledby="upgradeConfirmModalLabel" aria-hidden="true">
 	<div class="modal-dialog modal-dialog-centered">
@@ -249,13 +280,58 @@ function checkUpdate() {
 
 function preflight() {
 	if (isUpgrading) return;
+	// 先弹版权保留确认弹窗（5s 倒计时后才能选择），同意后进入升级前确认 Modal
+	var copyrightModalEl = document.getElementById('copyrightModal');
+	var copyrightAgreeBtn = document.getElementById('copyrightAgreeBtn');
+	var copyrightDisagreeBtn = document.getElementById('copyrightDisagreeBtn');
+	var copyrightCountdown = document.getElementById('copyrightCountdown');
+	var copyrightCountdownText = document.getElementById('copyrightCountdownText');
+	var countdownTemplate = <?php echo json_encode(lang('admin_online_upgrade_copyright_countdown'));?>;
+	var totalSeconds = 5;
+
+	// 清除上一次可能残留的倒计时定时器，避免重复 preflight 时倒计时加速
+	if (window._copyrightCountdownTimer) {
+		clearInterval(window._copyrightCountdownTimer);
+		window._copyrightCountdownTimer = null;
+	}
+
+	// 重置倒计时状态（每次进入都强制重新确认）
+	copyrightAgreeBtn.disabled = true;
+	copyrightDisagreeBtn.disabled = true;
+	copyrightCountdown.classList.remove('d-none');
+
+	var remaining = totalSeconds;
+	copyrightCountdownText.textContent = countdownTemplate.replace('{n}', remaining);
+	window._copyrightCountdownTimer = setInterval(function() {
+		remaining--;
+		if (remaining <= 0) {
+			clearInterval(window._copyrightCountdownTimer);
+			window._copyrightCountdownTimer = null;
+			copyrightCountdown.classList.add('d-none');
+			copyrightAgreeBtn.disabled = false;
+			copyrightDisagreeBtn.disabled = false;
+		} else {
+			copyrightCountdownText.textContent = countdownTemplate.replace('{n}', remaining);
+		}
+	}, 1000);
+
+	var copyrightModal = bootstrap.Modal.getOrCreateInstance(copyrightModalEl);
+	copyrightModal.show();
+}
+
+// 版权弹窗「我会保留版权」：关闭版权弹窗，进入升级前确认 Modal
+function confirmCopyright() {
+	var copyrightModalEl = document.getElementById('copyrightModal');
+	var modal = bootstrap.Modal.getInstance(copyrightModalEl);
+	if (modal) modal.hide();
+
 	// 弹出升级前确认 Modal，由用户勾选全部确认项后才能继续
 	var modalEl = document.getElementById('upgradeConfirmModal');
 	// 重置勾选状态（每次进入都强制重新确认，避免残留勾选直接放行）
 	document.querySelectorAll('.upgrade-confirm-checkbox').forEach(function(cb){ cb.checked = false; });
 	document.getElementById('confirmStartUpgradeBtn').disabled = true;
-	var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-	modal.show();
+	var upgradeModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+	upgradeModal.show();
 }
 
 // Modal 中「确认开始升级」按钮：所有勾选项都勾选后才会启用
@@ -491,7 +567,7 @@ function reinstall() {
 			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + escapeHtml(xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
 		}
 	});
-	}, {type: 'warning', okText: '重新安装'});
+	}, {type: 'warning', okText: <?php echo json_encode(lang('admin_online_upgrade_reinstall'));?>});
 }
 </script>
 

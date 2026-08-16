@@ -426,11 +426,11 @@ function humandate($timestamp, $lan = array()) {
 	$seconds = $time - $timestamp;
 	$lan = empty($lang) ? $lan : $lang;
 	empty($lan) AND $lan = array(
-		'month_ago'=>'月前',
-		'day_ago'=>'天前',
-		'hour_ago'=>'小时前',
-		'minute_ago'=>'分钟前',
-		'second_ago'=>'秒前',
+		'month_ago'=>lang('month_ago'),
+		'day_ago'=>lang('day_ago'),
+		'hour_ago'=>lang('hour_ago'),
+		'minute_ago'=>lang('minute_ago'),
+		'second_ago'=>lang('second_ago'),
 	);
 	if($seconds > 31536000) {
 		return date('Y-n-j', $timestamp);
@@ -453,7 +453,7 @@ function humannumber($num) {
 	if($custom_humannumber === NULL) $custom_humannumber = function_exists('custom_humannumber');
 	if($custom_humannumber) return custom_humannumber($num);
 	
-	$num > 100000 && $num = ceil($num / 10000).'万';
+	$num > 100000 && $num = ceil($num / 10000).lang('ten_thousand');
 	return $num;
 }
 
@@ -676,13 +676,6 @@ function get__browser() {
 		}
 	}
 	return $browser;
-}
-
-function check_browser($browser) {
-	if($browser['name'] == 'ie' && $browser['version'] < 8) {
-		include _include(APP_PATH.'view/htm/browser.htm');
-		exit;
-	}
 }
 
 function is_robot() {

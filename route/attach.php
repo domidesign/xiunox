@@ -20,7 +20,7 @@ if(empty($action) || $action == 'create') {
 
     // hook attach_create_start.php
 
-    !PermissionService::check('allowattach') AND message(-1, '您无权上传');
+    !PermissionService::check('allowattach') AND message(-1, 'Attachment upload is disabled.');
 
     $filetypes = include APP_PATH.'conf/attach.conf.php';
 
@@ -377,8 +377,14 @@ if(empty($action) || $action == 'create') {
 
     // hook attach_read_output_before.php
 
+    // 云存储驱动：非 local 时触发 storage_serve hook，插件负责重定向到云端 URL 并 exit
+    // 插件未 exit 时降级走本地 readfile，保证系统始终可用
+    if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
+        // hook storage_serve.php
+    }
+
     // 支持 Nginx X-Accel-Redirect
-    if(!empty($conf['attach_x_accel_redirect'])) {
+    if(!empty($conf['attach_x_accelredirect'])) {
         header('X-Accel-Redirect: '.$conf['upload_url'].'attach/'.$attach['filename']);
     } else {
         readfile($filepath);
@@ -438,6 +444,11 @@ if(empty($action) || $action == 'create') {
 
         // hook attach_download_readfile_before.php
 
+        // 云存储驱动：非 local 时触发 storage_serve hook，插件负责重定向到云端 URL 并 exit
+        if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
+            // hook storage_serve.php
+        }
+
         readfile($attachpath);
         exit;
     } else {
@@ -488,6 +499,11 @@ if(empty($action) || $action == 'create') {
 
     // 记录下载
     attach_update($aid, array('downloads+'=>1));
+
+    // 云存储驱动：非 local 时触发 storage_serve hook，插件负责重定向到云端 URL 并 exit
+    if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
+        // hook storage_serve.php
+    }
 
     // 输出文件流
     header('Content-Type: application/octet-stream');

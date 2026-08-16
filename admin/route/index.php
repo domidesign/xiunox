@@ -150,6 +150,9 @@ if($action == 'login') {
 	
 	session_regenerate_id(true);
 	
+	// 记录后台退出（注意：user_token_clear 会同步清掉前台 bbs_token，若用户前台也在线会被一起退出）
+	if(function_exists('user_login_trace')) user_login_trace('admin_logout_clears_front', $uid);
+
 	user_token_clear();
 	
 	message(0, lang('logout_successfully'), array('redirect_url' => './'));

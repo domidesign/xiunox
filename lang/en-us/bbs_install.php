@@ -106,6 +106,18 @@ XIUNOX is released under the MIT license. You are free to modify, create derivat
 	'install_license_not_found' => 'LICENSE file not found.',
 	'install_meta_author' => 'XiunoBBS 4.0',
 
+	// ========== Mandatory Copyright Retention Confirmation ==========
+	'install_copyright_title' => 'Copyright Retention Confirmation',
+	'install_copyright_intro' => 'By using XIUNOX, you must retain the "XIUNOX base on xiuno bbs" copyright information and keep a hyperlink to the official XIUNOX website or open-source repository.',
+	'install_copyright_optional' => 'If you do not like the official copyright information, you may design your own, but it must be displayed prominently.',
+	'install_copyright_links_label' => 'If you prefer not to link to the official website, you may link to the following open-source repositories:',
+	'install_copyright_link_official' => 'XIUNOX Official Website',
+	'install_copyright_agree' => 'I will retain the copyright',
+	'install_copyright_disagree' => 'I do not want to retain the copyright',
+	'install_copyright_countdown' => 'You can choose in {n} seconds',
+	'install_copyright_rejected' => 'Sorry, you did not agree to retain the copyright information. Installation cannot continue.',
+	'install_copyright_back' => 'Go Back',
+
 	// ========== Installation Success Security Tips ==========
 	'install_security_tips' => 'Security Tips',
 	'install_tip_delete_install_dir' => 'Delete install directory',

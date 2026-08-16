@@ -89,13 +89,13 @@ class ErrorHandler
         // 系统异常：返回 500
         if ($debug == 0) {
             $displayMessage = $disabled_plugin
-                ? "插件 [{$disabled_plugin}] 反复崩溃已自动禁用，请刷新页面"
-                : '服务器内部错误';
+                ? (function_exists('lang') && !empty($_SERVER['lang']) ? lang('error_plugin_crashed', array('name'=>$disabled_plugin)) : "插件 [{$disabled_plugin}] 反复崩溃已自动禁用，请刷新页面")
+                : (function_exists('lang') && !empty($_SERVER['lang']) ? lang('error_internal_error') : '服务器内部错误');
         } else {
             $displayMessage = get_class($exception) . ': ' . $exception->getMessage()
                 . ' in ' . $exception->getFile()
                 . ' on line ' . $exception->getLine()
-                . ($disabled_plugin ? "（插件 [{$disabled_plugin}] 已自动禁用）" : '');
+                . ($disabled_plugin ? (function_exists('lang') && !empty($_SERVER['lang']) ? lang('error_plugin_disabled_note', array('name'=>$disabled_plugin)) : "（插件 [{$disabled_plugin}] 已自动禁用）") : '');
         }
         self::renderError(500, $displayMessage, 500, $exception);
     }
@@ -156,13 +156,13 @@ class ErrorHandler
             // 提示用户刷新页面重建缓存
             if ($debug == 0) {
                 $displayMessage = $disabled_plugin
-                    ? "插件 [{$disabled_plugin}] 反复崩溃已自动禁用，请刷新页面"
-                    : '服务器缓存损坏，请刷新页面重试';
+                    ? (function_exists('lang') && !empty($_SERVER['lang']) ? lang('error_plugin_crashed', array('name'=>$disabled_plugin)) : "插件 [{$disabled_plugin}] 反复崩溃已自动禁用，请刷新页面")
+                    : (function_exists('lang') && !empty($_SERVER['lang']) ? lang('error_cache_corrupted') : '服务器缓存损坏，请刷新页面重试');
             } else {
                 $displayMessage = "Cache corruption: {$error['message']}"
                     . " in {$error['file']}"
                     . " on line {$error['line']}"
-                    . ($disabled_plugin ? "（插件 [{$disabled_plugin}] 已自动禁用）" : '（缓存已清理，请刷新）');
+                    . ($disabled_plugin ? (function_exists('lang') && !empty($_SERVER['lang']) ? lang('error_plugin_disabled_note', array('name'=>$disabled_plugin)) : "（插件 [{$disabled_plugin}] 已自动禁用）") : (function_exists('lang') && !empty($_SERVER['lang']) ? lang('error_cache_cleared_note') : '（缓存已清理，请刷新）'));
             }
 
             self::renderError(500, $displayMessage, 500);
@@ -172,12 +172,12 @@ class ErrorHandler
         // 非 tmp/ 错误（如 plugin/xxx/file.php 直接报错），且成功归因并禁用了插件
         if ($disabled_plugin) {
             if ($debug == 0) {
-                $displayMessage = "插件 [{$disabled_plugin}] 反复崩溃已自动禁用，请刷新页面";
+                $displayMessage = function_exists('lang') && !empty($_SERVER['lang']) ? lang('error_plugin_crashed', array('name'=>$disabled_plugin)) : "插件 [{$disabled_plugin}] 反复崩溃已自动禁用，请刷新页面";
             } else {
                 $displayMessage = "Fatal Error: {$error['message']}"
                     . " in {$error['file']}"
                     . " on line {$error['line']}"
-                    . "（插件 [{$disabled_plugin}] 已自动禁用）";
+                    . (function_exists('lang') && !empty($_SERVER['lang']) ? lang('error_plugin_disabled_note', array('name'=>$disabled_plugin)) : "（插件 [{$disabled_plugin}] 已自动禁用）");
             }
             self::renderError(500, $displayMessage, 500);
             return;
@@ -185,7 +185,7 @@ class ErrorHandler
 
         // 根据调试模式决定展示内容
         if ($debug == 0) {
-            $displayMessage = '服务器内部错误';
+            $displayMessage = function_exists('lang') && !empty($_SERVER['lang']) ? lang('error_internal_error') : '服务器内部错误';
         } else {
             $displayMessage = "Fatal Error: {$error['message']}"
                 . " in {$error['file']}"
@@ -426,7 +426,7 @@ class ErrorHandler
         echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Error</title>';
         echo '<style>body{font-family:-apple-system,sans-serif;padding:40px;line-height:1.6;color:#333;max-width:720px;margin:0 auto}h1{color:#dc3545}</style>';
         echo '</head><body>';
-        echo '<h1>服务器错误</h1>';
+        echo '<h1>' . (function_exists('lang') && !empty($_SERVER['lang']) ? lang('error_page_title') : '服务器错误') . '</h1>';
         echo '<p>' . htmlspecialchars((string)$message, ENT_QUOTES, 'UTF-8') . '</p>';
         if (defined('DEBUG') && DEBUG && $e) {
             echo '<pre>' . htmlspecialchars($e->getTraceAsString() ?? '', ENT_QUOTES, 'UTF-8') . '</pre>';

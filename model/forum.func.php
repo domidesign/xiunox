@@ -170,7 +170,7 @@ function forum_format(&$forum) {
 		foreach($modlist as &$mod) $mod = user_safe_info($mod);
 		$forum['modlist'] = $modlist;
 	}
-	$forum['type_name'] = isset($forum['type']) && $forum['type'] == 1 ? '分区' : '版块';
+	$forum['type_name'] = isset($forum['type']) && $forum['type'] == 1 ? lang('forum_type_category') : lang('forum_type_forum');
 	if(!empty($forum['fup'])) {
 		// 从缓存取父版块名称，避免额外查库
 		global $forumlist;

@@ -64,7 +64,7 @@ if(empty($action) || $action == 'list') {
 		
 		group_list_cache_delete();
 
-		admin_log_create('group_update', 'group', '', '批量更新用户组');
+		admin_log_create('group_update', 'group', '', lang('admin_log_group_batch_update'));
 
 		// hook admin_group_list_post_end.php
 
@@ -173,7 +173,7 @@ if(empty($action) || $action == 'list') {
 		}
 		PermissionService::updatePermissions($_gid, $perm_data);
 
-		admin_log_create('group_update', 'group', strval($_gid), '更新用户组：' . $name);
+		admin_log_create('group_update', 'group', strval($_gid), lang('admin_log_group_update', array('name'=>$name)));
 
 		// hook admin_group_update_post_end.php
 

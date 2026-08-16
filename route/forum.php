@@ -12,7 +12,7 @@ if($action === 'follow' || $action === 'unfollow') {
             header('HTTP/1.1 405 Method Not Allowed');
             exit;
         }
-        message(-1, 'Method Error.');
+        message(-1, lang('method_error'));
     }
     CsrfService::check();
     include _include(APP_PATH.'service/ForumService.php');
@@ -26,7 +26,7 @@ if($action === 'follow' || $action === 'unfollow') {
         }
         $fid = intval(param(2, 0));
         if(empty($fid)) {
-            message(-1, '版块ID不能为空');
+            message(-1, lang('forum_id_empty'));
         }
         $result = $forumService->followForum($uid, $fid);
         // 返回纯 HTML 片段供 htmx 替换按钮
@@ -48,7 +48,7 @@ if($action === 'follow' || $action === 'unfollow') {
         }
         $fid = intval(param(2, 0));
         if(empty($fid)) {
-            message(-1, '版块ID不能为空');
+            message(-1, lang('forum_id_empty'));
         }
         $result = $forumService->unfollowForum($uid, $fid);
         // 返回纯 HTML 片段供 htmx 替换按钮

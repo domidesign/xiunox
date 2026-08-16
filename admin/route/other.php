@@ -50,7 +50,7 @@ if($action == 'cache') {
 		// hook cache_clear_after.php
 
 		// 记录管理员操作日志
-		admin_log_create('cache_clear', 'cache', '', '清理缓存：' . implode(',', $types));
+		admin_log_create('cache_clear', 'cache', '', lang('admin_log_cache_clear', array('types'=>implode(',', $types))));
 
 		$msg = lang('admin_clear_successfully');
 		if(!empty($cleared)) {
@@ -202,11 +202,11 @@ elseif($action == 'cache-warmup') {
 		$result = CacheService::warmupCache($target);
 
 		// 记录管理员操作日志
-		admin_log_create('cache_warmup', 'cache', '', '缓存预热：' . $target);
+		admin_log_create('cache_warmup', 'cache', '', lang('admin_log_cache_warmup', array('target'=>$target)));
 
-		$msg = '缓存预热完成';
+		$msg = lang('admin_cache_warmup_done');
 		if(!empty($result['details'])) {
-			$msg .= '（成功 ' . $result['success'] . ' 项，失败 ' . $result['fail'] . ' 项）：' . implode('；', $result['details']);
+			$msg .= lang('admin_cache_warmup_detail', array('success'=>$result['success'], 'fail'=>$result['fail'], 'details'=>implode('；', $result['details'])));
 		}
 		message(0, $msg);
 	}
@@ -218,15 +218,15 @@ elseif($action == 'cache-clear-plugin') {
 		CsrfService::check();
 		$plugin = param('plugin');
 		if(empty($plugin)) {
-			message(-1, '插件名不能为空');
+			message(-1, lang('admin_plugin_name_empty'));
 		}
 
 		$deleted = CacheService::clearPluginCache($plugin);
 
 		// 记录管理员操作日志
-		admin_log_create('cache_clear_plugin', 'cache', '', '清除插件缓存：' . $plugin . '（' . $deleted . ' 个键）');
+		admin_log_create('cache_clear_plugin', 'cache', '', lang('admin_log_cache_plugin_clear', array('plugin'=>$plugin, 'n'=>$deleted)));
 
-		message(0, '已清除插件 ' . $plugin . ' 的 ' . $deleted . ' 个缓存键');
+		message(0, lang('admin_cache_plugin_cleared', array('plugin'=>$plugin, 'n'=>$deleted)));
 	}
 }
 
