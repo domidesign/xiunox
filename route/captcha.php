@@ -22,7 +22,7 @@ if ($action == 'generate') {
         $enabled = CaptchaService::is_enabled($scene, $gid);
         if (!$enabled) {
             header('Content-Type: application/json; charset=utf-8');
-            echo json_encode(['code' => -1, 'message' => '验证码未开启 scene=' . $scene, 'debug' => ['scene' => $scene, 'enabled' => false, 'config' => CaptchaService::get_config()]]);
+            echo json_encode(['code' => -1, 'message' => lang('captcha_not_enabled', array('scene'=>$scene)), 'debug' => ['scene' => $scene, 'enabled' => false, 'config' => CaptchaService::get_config()]]);
             exit;
         }
     }
@@ -30,21 +30,21 @@ if ($action == 'generate') {
     // 检查 GD 库
     if (!function_exists('imagecreatetruecolor')) {
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['code' => -1, 'message' => 'GD 库未安装', 'debug' => ['gd_loaded' => false, 'gd_info' => function_exists('gd_info') ? gd_info() : 'not available']]);
+        echo json_encode(['code' => -1, 'message' => lang('gd_not_installed'), 'debug' => ['gd_loaded' => false, 'gd_info' => function_exists('gd_info') ? gd_info() : 'not available']]);
         exit;
     }
 
     // 检查 session
     if (session_status() !== PHP_SESSION_ACTIVE) {
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['code' => -1, 'message' => 'Session 未启动', 'debug' => ['session_status' => session_status()]]);
+        echo json_encode(['code' => -1, 'message' => lang('session_not_started'), 'debug' => ['session_status' => session_status()]]);
         exit;
     }
 
     $result = CaptchaService::generate($scene);
     if ($result === false) {
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['code' => -1, 'message' => '验证码生成失败', 'debug' => ['scene' => $scene, 'result' => $result]]);
+        echo json_encode(['code' => -1, 'message' => lang('captcha_generate_failed'), 'debug' => ['scene' => $scene, 'result' => $result]]);
         exit;
     }
 
@@ -57,8 +57,8 @@ if ($action == 'generate') {
     $scene = param(2, 'login');
     $input = param('captcha', '', FALSE);
     if (empty($input)) {
-        message(-1, '请输入验证码');
+        message(-1, lang('please_input_captcha'));
     }
     $result = CaptchaService::verify($scene, $input, $gid);
-    $result ? message(0, '验证成功') : message(-1, '验证码错误');
+    $result ? message(0, lang('verify_success')) : message(-1, lang('captcha_error'));
 }

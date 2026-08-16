@@ -68,6 +68,13 @@ function attach_delete($aid) {
 	global $conf;
 	$attach = attach_read($aid);
 	$path = $conf['upload_path'].'attach/'.$attach['filename'];
+
+	// 云存储驱动：非 local 时触发 storage_delete hook，插件删除云端文件
+	// 可用变量：$attach（附件完整信息含 filename）、$path（本地文件路径）
+	if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
+		// hook storage_delete.php
+	}
+
 	file_exists($path) AND unlink($path);
 
 	// 删除缩略图
@@ -91,6 +98,12 @@ function attach_delete_by_pid($pid) {
 	// 删除物理文件和缩略图
 	foreach($attachlist as $attach) {
 		$path = $conf['upload_path'].'attach/'.$attach['filename'];
+
+		// 云存储驱动：非 local 时触发 storage_delete hook，插件删除云端文件
+		if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
+			// hook storage_delete.php
+		}
+
 		file_exists($path) AND unlink($path);
 		// 删除缩略图
 		$thumb_path = attach_thumb_path($attach['filename']);
@@ -123,6 +136,12 @@ function attach_delete_by_uid($uid) {
 		// 删除物理文件和缩略图
 		foreach ($attachlist as $attach) {
 			$path = $conf['upload_path'].'attach/'.$attach['filename'];
+
+			// 云存储驱动：非 local 时触发 storage_delete hook
+			if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
+				// hook storage_delete.php
+			}
+
 			file_exists($path) AND unlink($path);
 			// 删除缩略图
 			$thumb_path = attach_thumb_path($attach['filename']);
@@ -346,17 +365,23 @@ function attach_assoc_post($pid, $pageToken = '') {
 			$destfile = $path.'/'.$filename;
 			$desturl = $url.'/'.$filename;
 			$r = xn_copy($file['path'], $destfile);
-			!$r AND xn_log("xn_copy({$file['path']}, $destfile) failed, pid:$pid, tid:$tid", 'php_error');
-			// xn_copy 失败保护：目标文件不存在时跳过 attach_create，避免创建无物理文件的孤儿记录
-			if(!is_file($destfile)) {
-				xn_log("attach_assoc_post: skip attach_create due to xn_copy failure (dest not found), key:$key, pid:$pid", 'php_error');
-				continue;
-			}
-			if(filesize($destfile) == filesize($file['path'])) {
-				@unlink($file['path']);
-			}
+		!$r AND xn_log("xn_copy({$file['path']}, $destfile) failed, pid:$pid, tid:$tid", 'php_error');
+		// xn_copy 失败保护：目标文件不存在时跳过 attach_create，避免创建无物理文件的孤儿记录
+		if(!is_file($destfile)) {
+			xn_log("attach_assoc_post: skip attach_create due to xn_copy failure (dest not found), key:$key, pid:$pid", 'php_error');
+			continue;
+		}
+		if(filesize($destfile) == filesize($file['path'])) {
+			@unlink($file['path']);
+		}
 
-			// 移动缩略图到 attach/$day/thumb/ 目录
+		// 云存储驱动：非 local 时触发 storage_save hook，插件将文件上传到云端
+		// 可用变量：$destfile（本地目标路径）、$filename（相对文件名如 202606/xxx.jpg）、$file（原始文件信息）
+		if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
+			// hook storage_save.php
+		}
+
+		// 移动缩略图到 attach/$day/thumb/ 目录
 			if(!empty($file['thumb_url'])) {
 				$thumb_relative = str_replace($conf['upload_url'].'tmp/', '', $file['thumb_url']);
 				$thumb_src_path = $conf['upload_path'].'tmp/'.$thumb_relative;

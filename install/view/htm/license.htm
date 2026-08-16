@@ -172,4 +172,96 @@ if (file_exists($licenseFile)) {
 })();
 </script>
 
+<!-- 版权保留强制确认弹窗：5s 倒计时后才能选择，不同意则取消安装 -->
+<div class="modal fade" id="copyrightModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+	<div class="modal-dialog modal-dialog-centered">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title"><i class="ti ti-copyright"></i> <?php echo lang('install_copyright_title');?></h5>
+			</div>
+			<div class="modal-body">
+				<p class="mb-2"><?php echo lang('install_copyright_intro');?></p>
+				<p class="mb-2"><?php echo lang('install_copyright_optional');?></p>
+				<div class="mb-3">
+					<div class="text-muted small mb-1"><?php echo lang('install_copyright_links_label');?></div>
+					<div class="d-flex flex-wrap gap-3">
+						<a href="https://xiunox.org" target="_blank" rel="noopener"><i class="ti ti-world"></i> <?php echo lang('install_copyright_link_official');?></a>
+						<a href="https://github.com/domidesign/xiunox" target="_blank" rel="noopener"><i class="ti ti-brand-github"></i> GitHub</a>
+						<a href="https://gitee.com/poisonkid/xiunox" target="_blank" rel="noopener"><i class="ti ti-brand-git"></i> Gitee</a>
+					</div>
+				</div>
+				<div id="copyrightCountdown" class="alert alert-warning py-2 mb-0">
+					<i class="ti ti-hourglass"></i> <span id="copyrightCountdownText"></span>
+				</div>
+				<div id="copyrightRejected" class="d-none text-center py-3">
+					<i class="ti ti-circle-x text-danger" style="font-size:2.5rem"></i>
+					<p class="text-danger mt-2 mb-0"><?php echo lang('install_copyright_rejected');?></p>
+					<a href="index.php" class="btn btn-outline-secondary mt-3"><?php echo lang('install_copyright_back');?></a>
+				</div>
+			</div>
+			<div class="modal-footer" id="copyrightFooter">
+				<button type="button" class="btn btn-danger" id="copyrightDisagreeBtn" disabled><?php echo lang('install_copyright_disagree');?></button>
+				<button type="button" class="btn btn-primary" id="copyrightAgreeBtn" disabled><?php echo lang('install_copyright_agree');?></button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<script>
+(function() {
+	var modalEl = document.getElementById('copyrightModal');
+	var countdownEl = document.getElementById('copyrightCountdown');
+	var countdownText = document.getElementById('copyrightCountdownText');
+	var rejectedEl = document.getElementById('copyrightRejected');
+	var agreeBtn = document.getElementById('copyrightAgreeBtn');
+	var disagreeBtn = document.getElementById('copyrightDisagreeBtn');
+	var countdownTemplate = <?php echo json_encode(lang('install_copyright_countdown'));?>;
+	var totalSeconds = 5;
+
+	function showModal() {
+		// ponytail: bootstrap bundle 由 footer.inc.htm 在页面末尾加载，此处轮询等待，避免 ReferenceError
+		if (typeof bootstrap === 'undefined') {
+			setTimeout(showModal, 100);
+			return;
+		}
+		var modal = bootstrap.Modal.getOrCreateInstance(modalEl, {backdrop: 'static', keyboard: false});
+		modal.show();
+		startCountdown();
+	}
+
+	function startCountdown() {
+		var remaining = totalSeconds;
+		countdownText.textContent = countdownTemplate.replace('{n}', remaining);
+		var timer = setInterval(function() {
+			remaining--;
+			if (remaining <= 0) {
+				clearInterval(timer);
+				countdownEl.classList.add('d-none');
+				agreeBtn.disabled = false;
+				disagreeBtn.disabled = false;
+			} else {
+				countdownText.textContent = countdownTemplate.replace('{n}', remaining);
+			}
+		}, 1000);
+	}
+
+	agreeBtn.addEventListener('click', function() {
+		bootstrap.Modal.getInstance(modalEl).hide();
+	});
+
+	disagreeBtn.addEventListener('click', function() {
+		countdownEl.classList.add('d-none');
+		document.getElementById('copyrightFooter').classList.add('d-none');
+		rejectedEl.classList.remove('d-none');
+	});
+
+	// 页面加载后自动弹出（license 步骤为安装第 2 步）
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', showModal);
+	} else {
+		showModal();
+	}
+})();
+</script>
+
 <?php include INSTALL_PATH.'view/htm/footer.inc.htm';?>

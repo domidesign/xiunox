@@ -5,7 +5,7 @@
 // hook rank_start.php
 
 // 排行榜页面
-$header['title'] = '排行榜' . ' - ' . $conf['sitename'];
+$header['title'] = lang('rank_page') . ' - ' . $conf['sitename'];
 // keywords/description 用全局默认值（site_keywords/site_description），由 index.inc.php 初始化
 // SEO: canonical
 $header['canonical'] = absolute_url(url('rank'));

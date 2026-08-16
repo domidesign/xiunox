@@ -136,6 +136,7 @@
 // 基本资料表单提交：昵称/签名两个独立表单，各自提交/确认/次数消耗/loading/结果处理
 // ponytail: XN.confirm 是异步 Bootstrap Modal，须设置 _htmxConfirmAsync 并手动 issueRequest/dropRequest
 function bindProfileForm(opts) {
+	var auditKeyword = <?php echo json_encode(lang('audit_keyword'));?>;
 	var form = document.getElementById(opts.formId);
 	var submitBtn = document.getElementById(opts.submitId);
 	if(!form || !submitBtn) return;
@@ -236,8 +237,8 @@ function bindProfileForm(opts) {
 						}
 					}
 				}
-				// 判断是否需要审核（消息包含"审核"字样）
-				var needAudit = res.message && res.message.indexOf('审核') >= 0;
+				// 判断是否需要审核（消息包含审核关键词）
+				var needAudit = res.message && res.message.indexOf(auditKeyword) >= 0;
 				if(needAudit) {
 					// 需要审核：禁用表单字段，显示审核状态，刷新页面
 					submitBtn.innerHTML = '<i class="ti ti-clock-hour-4 me-1"></i>' + res.message;

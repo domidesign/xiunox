@@ -502,15 +502,15 @@ function error_page($code, $message = '') {
 	// 错误类型配置
 	$error_configs = array(
 		404 => array(
-			'title' => '页面不存在',
+			'title' => lang('error_page_title_404'),
 			'icon'  => 'ti-error-404',
 		),
 		403 => array(
-			'title' => '禁止访问',
+			'title' => lang('error_page_title_403'),
 			'icon'  => 'ti-lock-access',
 		),
 		500 => array(
-			'title' => '服务器内部错误',
+			'title' => lang('error_page_title_500'),
 			'icon'  => 'ti-server-bolt',
 		),
 	);
@@ -719,13 +719,13 @@ function user_ban_hidden_notice_html() {
 function conf_bump_static_version() {
 	$confFile = APP_PATH . 'conf/conf.php';
 	if (!is_writable($confFile)) {
-		return array('ok' => false, 'old' => '', 'new' => '', 'message' => 'conf/conf.php 不可写');
+		return array('ok' => false, 'old' => '', 'new' => '', 'message' => lang('conf_file_not_writable'));
 	}
 
 	// ponytail: 直接读文件而非运行时 $conf，避免 index.php 覆盖 version 后状态不一致
 	$conf = include $confFile;
 	if (!is_array($conf)) {
-		return array('ok' => false, 'old' => '', 'new' => '', 'message' => 'conf/conf.php 格式异常');
+		return array('ok' => false, 'old' => '', 'new' => '', 'message' => lang('conf_file_format_error'));
 	}
 
 	$currentSv = isset($conf['static_version']) ? $conf['static_version'] : '?1.0';
@@ -738,7 +738,7 @@ function conf_bump_static_version() {
 	$conf['static_version'] = $newSv;
 	$content = "<?php\nreturn " . var_export($conf, true) . ";\n?>";
 	if (file_put_contents($confFile, $content) === false) {
-		return array('ok' => false, 'old' => $currentSv, 'new' => '', 'message' => '写入 conf/conf.php 失败');
+		return array('ok' => false, 'old' => $currentSv, 'new' => '', 'message' => lang('conf_file_write_failed'));
 	}
 
 	// 同步运行时 $conf（本次请求后续渲染仍用旧值会导致页面资源版本不匹配）

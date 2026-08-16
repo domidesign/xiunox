@@ -126,7 +126,7 @@ foreach ($userlist as &$_user) {
 		));
 		$r === FALSE AND message(-1, lang('create_failed'));
 
-		admin_log_create('user_create', 'user', strval($r), '创建用户：' . $username);
+		admin_log_create('user_create', 'user', strval($r), lang('admin_log_user_create', array('name'=>$username)));
 
 		// hook admin_user_create_post_end.php
 
@@ -298,7 +298,7 @@ foreach ($userlist as &$_user) {
 			}
 		}
 
-		admin_log_create('user_update', 'user', strval($_uid), '更新用户信息：' . $old['username']);
+		admin_log_create('user_update', 'user', strval($_uid), lang('admin_log_user_update', array('name'=>$old['username'])));
 
 		// hook admin_user_update_post_end.php
 
@@ -317,13 +317,13 @@ foreach ($userlist as &$_user) {
 
 	$_user = user_read($_uid);
 	empty($_user) AND message(-1, lang('user_not_exists'));
-	($_user['gid'] == 1) AND message(-1, 'admin_cant_be_deleted');
+	($_user['gid'] == 1) AND message(-1, lang('admin_cant_be_deleted'));
 
 	// 默认走匿名化（保留帖子，清身份信息），user_purge 是彻底物理删除
 	$r = user_delete($_uid);
 	$r === FALSE AND message(-1, lang('delete_failed'));
 
-	admin_log_create('user_anonymize', 'user', strval($_uid), '注销用户（匿名化）：' . $_user['username']);
+	admin_log_create('user_anonymize', 'user', strval($_uid), lang('admin_log_user_anonymize', array('name'=>$_user['username'])));
 
 	// hook admin_user_delete_end.php
 
@@ -342,12 +342,12 @@ foreach ($userlist as &$_user) {
 
 	$_user = user_read($_uid);
 	empty($_user) AND message(-1, lang('user_not_exists'));
-	($_user['gid'] == 1) AND message(-1, 'admin_cant_be_deleted');
+	($_user['gid'] == 1) AND message(-1, lang('admin_cant_be_deleted'));
 
 	$r = user_purge($_uid);
 	$r === FALSE AND message(-1, lang('delete_failed'));
 
-	admin_log_create('user_purge', 'user', strval($_uid), '彻底删除用户（含帖子）：' . $_user['username']);
+	admin_log_create('user_purge', 'user', strval($_uid), lang('admin_log_user_purge', array('name'=>$_user['username'])));
 
 	// hook admin_user_purge_end.php
 

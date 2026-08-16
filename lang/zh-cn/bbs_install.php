@@ -106,6 +106,18 @@ XIUNOX 采用 MIT 协议发布，您可以自由修改、派生版本、商用�
 	'install_license_not_found' => 'LICENSE 文件未找到。',
 	'install_meta_author' => 'XiunoBBS 4.0',
 
+	// ========== 版权保留强制确认 ==========
+	'install_copyright_title' => '版权保留确认',
+	'install_copyright_intro' => '使用 XIUNOX 必须保留 "XIUNOX base on xiuno bbs" 相关版权信息，并保留跳转 XIUNOX 官方站点或开源地址的超链接。',
+	'install_copyright_optional' => '如果不喜欢官方的版权信息，可以自己设计，但必须在醒目位置展示版权信息。',
+	'install_copyright_links_label' => '如果不想跳转官方网站，可以跳转以下开源地址：',
+	'install_copyright_link_official' => 'XIUNOX 官方网站',
+	'install_copyright_agree' => '我会保留版权',
+	'install_copyright_disagree' => '不想保留版权',
+	'install_copyright_countdown' => '{n} 秒后可进行选择',
+	'install_copyright_rejected' => '很遗憾，您未同意保留版权信息，无法继续安装。',
+	'install_copyright_back' => '返回',
+
 	// ========== 安装成功安全提示 ==========
 	'install_security_tips' => '安全提示',
 	'install_tip_delete_install_dir' => '删除安装目录',

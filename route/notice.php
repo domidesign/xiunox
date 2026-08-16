@@ -17,7 +17,7 @@ if($action == 'mark_read') {
 			exit;
 		}
 		header('Content-Type: application/json; charset=utf-8');
-		echo xn_json_encode(array('code' => '-1', 'message' => 'Method Not Allowed'));
+		echo xn_json_encode(array('code' => '-1', 'message' => lang('method_not_allowed')));
 		exit;
 	}
 
@@ -175,7 +175,7 @@ if($action == 'mark_read') {
 	// 通知系统已合并，仅查询 notify 表
 	$notifylist = notify_find_latest($uid, 5);
 	if(empty($notifylist)) {
-		echo '<div class="text-center text-body-secondary small py-4"><i class="ti ti-bell-off fs-4 d-block mb-1 opacity-50"></i>暂无消息</div>';
+		echo '<div class="text-center text-body-secondary small py-4"><i class="ti ti-bell-off fs-4 d-block mb-1 opacity-50"></i>' . lang('no_message') . '</div>';
 		exit;
 	}
 
@@ -384,7 +384,7 @@ if($action == 'mark_read') {
 
 } elseif($action == 'delete') {
 
-if($method != 'POST') message(-1, 'Method Error.');
+if($method != 'POST') message(-1, lang('method_error'));
 CsrfService::check();
 
 // 删除通知（操作 notify 表）

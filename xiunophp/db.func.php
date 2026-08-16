@@ -334,13 +334,13 @@ function db_errno_errstr($r, $d = NULL, $sql = '') {
 function db_errstr_safe($errno, $errstr) {
 	if(DEBUG) return $errstr;
 	if($errno == 1049) {
-		return '数据库名不存在，请手工创建';
+		return function_exists('lang') && !empty($_SERVER['lang']) ? lang('db_name_not_exists') : '数据库名不存在，请手工创建';
 	} elseif($errno == 2003 ) {
-		return '连接数据库服务器失败，请检查IP是否正确，或者防火墙设置';
+		return function_exists('lang') && !empty($_SERVER['lang']) ? lang('db_connect_server_failed') : '连接数据库服务器失败，请检查IP是否正确，或者防火墙设置';
 	} elseif($errno == 1024) {
-		return '连接数据库失败';
+		return function_exists('lang') && !empty($_SERVER['lang']) ? lang('db_connect_failed') : '连接数据库失败';
 	} elseif($errno == 1045) {
-		return '数据库账户密码错误';
+		return function_exists('lang') && !empty($_SERVER['lang']) ? lang('db_account_password_error') : '数据库账户密码错误';
 	}
 	return $errstr;
 }

@@ -39,11 +39,14 @@ include _include(APP_PATH . 'model.inc.php');
 
 // 兜底：确保已启用插件的 Service 类被加载（防止 tmp 缓存不一致导致 Class not found）
 // ponytail: 与 index.php 同步，model.inc.php 的 hook 注入可能因 tmp 缓存陈旧而丢失
+// XIUNOX 规范：plugin/<dir>/model/ 只放 Service 类（类名=文件名），禁止 *.func.php（xiuno 原版写法，由 hook 注入加载）
 $_plugin_paths_fallback = plugin_paths_enabled();
 foreach ($_plugin_paths_fallback as $_path_fb => $_pconf_fb) {
 	$_model_dir_fb = $_path_fb . '/model';
 	if (!is_dir($_model_dir_fb)) continue;
 	foreach (glob($_model_dir_fb . '/*.php') as $_service_file_fb) {
+		// 跳过 xiuno 原版 *.func.php 函数库文件：由 model_inc_file hook 注入加载，不自动扫描
+		if (substr($_service_file_fb, -9) === '.func.php') continue;
 		$_class_name_fb = ucfirst(basename($_service_file_fb, '.php'));
 		if (!class_exists($_class_name_fb, false)) {
 			include_once $_service_file_fb;

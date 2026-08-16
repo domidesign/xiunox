@@ -7,14 +7,14 @@
 <!-- API 总开关 -->
 <div class="x-card card mb-4">
 	<div class="card-body">
-		<h6 class="fw-semibold mb-3"><i class="ti ti-toggle-left me-1"></i>API 总开关</h6>
+		<h6 class="fw-semibold mb-3"><i class="ti ti-toggle-left me-1"></i><?php echo lang('admin_api_settings_switch');?></h6>
 		<div class="form-check form-switch">
 			<input class="form-check-input" type="checkbox" role="switch" id="apiEnabledSwitch" <?php echo $api_enabled ? 'checked' : '';?> onchange="saveSettings()">
-			<label class="form-check-label" for="apiEnabledSwitch"><?php echo $api_enabled ? 'API 已开启' : 'API 已关闭';?></label>
+			<label class="form-check-label" for="apiEnabledSwitch"><?php echo $api_enabled ? lang('admin_api_enabled_label') : lang('admin_api_disabled_label');?></label>
 		</div>
 		<div class="form-check form-switch mt-2">
 			<input class="form-check-input" type="checkbox" role="switch" id="apiLogSwitch" <?php echo !empty($api_log) ? 'checked' : '';?> onchange="saveSettings()">
-			<label class="form-check-label" for="apiLogSwitch">API 日志记录（记录所有 API 请求到数据库，便于审计）</label>
+			<label class="form-check-label" for="apiLogSwitch"><?php echo lang('admin_api_log_record');?></label>
 		</div>
 	</div>
 </div>
@@ -23,8 +23,8 @@
 <div class="x-card card mb-4">
 	<div class="card-body">
 		<div class="d-flex justify-content-between align-items-center mb-3">
-			<h6 class="fw-semibold mb-0"><i class="ti ti-apps me-1"></i>应用管理</h6>
-			<button class="btn btn-sm btn-primary" onclick="showCreateModal()"><i class="ti ti-plus"></i> 创建应用</button>
+			<h6 class="fw-semibold mb-0"><i class="ti ti-apps me-1"></i><?php echo lang('admin_api_app_manage');?></h6>
+			<button class="btn btn-sm btn-primary" onclick="showCreateModal()"><i class="ti ti-plus"></i> <?php echo lang('admin_api_app_create');?></button>
 		</div>
 
 		<div class="table-responsive">
@@ -32,18 +32,18 @@
 				<thead>
 					<tr>
 						<th style="width:140px">AppID</th>
-						<th>名称</th>
-						<th style="width:100px">权限范围</th>
-						<th style="width:100px">速率限制</th>
+						<th><?php echo lang('admin_col_name');?></th>
+						<th style="width:100px"><?php echo lang('admin_api_app_scope');?></th>
+						<th style="width:100px"><?php echo lang('admin_api_app_rate_limit');?></th>
 						<th style="width:180px">Capabilities</th>
-						<th style="width:80px">状态</th>
-						<th style="width:140px">创建时间</th>
-						<th style="width:180px">操作</th>
+						<th style="width:80px"><?php echo lang('admin_col_status');?></th>
+						<th style="width:140px"><?php echo lang('admin_api_app_created_at');?></th>
+						<th style="width:180px"><?php echo lang('admin_col_action');?></th>
 					</tr>
 				</thead>
 				<tbody>
 					<?php if(empty($apps)): ?>
-					<tr><td colspan="8" class="text-center text-body-secondary">暂无应用，点击上方按钮创建</td></tr>
+					<tr><td colspan="8" class="text-center text-body-secondary"><?php echo lang('admin_api_app_empty');?></td></tr>
 					<?php else: ?>
 					<?php foreach($apps as $app):
 						$appCaps = json_decode($app['capabilities'] ?? '', true);
@@ -64,7 +64,7 @@
 						<td><?php echo esc_html($app['name']);?></td>
 						<td>
 							<?php
-							$scopeLabels = ['readonly' => '只读', 'readwrite' => '读写', 'full' => '完全'];
+							$scopeLabels = ['readonly' => lang('admin_api_app_scope_readonly'), 'readwrite' => lang('admin_api_app_scope_readwrite'), 'full' => lang('admin_api_app_scope_full')];
 							$scopeColors = ['readonly' => 'info', 'readwrite' => 'warning', 'full' => 'danger'];
 							$scope = $app['scope'] ?? 'readonly';
 							?>
@@ -76,16 +76,16 @@
 						</td>
 						<td>
 							<?php if(!empty($app['is_enabled'])): ?>
-							<span class="badge bg-success">启用</span>
-							<?php else: ?>
-							<span class="badge bg-secondary">禁用</span>
-							<?php endif; ?>
+						<span class="badge bg-success"><?php echo lang('admin_btn_enable');?></span>
+						<?php else: ?>
+						<span class="badge bg-secondary"><?php echo lang('admin_btn_disable');?></span>
+						<?php endif; ?>
 						</td>
 						<td class="small text-body-secondary"><?php echo date('Y-m-d H:i', $app['created_at']);?></td>
 						<td>
-							<button class="btn btn-sm btn-ghost" onclick="showEditModal(<?php echo $app['id'];?>, '<?php echo esc_html($app['name']);?>', '<?php echo esc_html($app['description'] ?? '');?>', '<?php echo $app['scope'];?>', <?php echo intval($app['is_enabled']);?>, <?php echo intval($app['rate_limit']);?>)"><i class="ti ti-edit"></i> 编辑</button>
-							<button class="btn btn-sm btn-ghost text-warning" onclick="resetSecret(<?php echo $app['id'];?>, '<?php echo esc_html($app['name']);?>')"><i class="ti ti-refresh"></i> 重置密钥</button>
-							<button class="btn btn-sm btn-ghost text-danger" onclick="deleteApp(<?php echo $app['id'];?>, '<?php echo esc_html($app['name']);?>')"><i class="ti ti-trash"></i> 删除</button>
+							<button class="btn btn-sm btn-ghost" onclick="showEditModal(<?php echo $app['id'];?>, '<?php echo esc_html($app['name']);?>', '<?php echo esc_html($app['description'] ?? '');?>', '<?php echo $app['scope'];?>', <?php echo intval($app['is_enabled']);?>, <?php echo intval($app['rate_limit']);?>)"><i class="ti ti-edit"></i> <?php echo lang('forum_edit');?></button>
+							<button class="btn btn-sm btn-ghost text-warning" onclick="resetSecret(<?php echo $app['id'];?>, '<?php echo esc_html($app['name']);?>')"><i class="ti ti-refresh"></i> <?php echo lang('admin_api_app_reset_secret');?></button>
+							<button class="btn btn-sm btn-ghost text-danger" onclick="deleteApp(<?php echo $app['id'];?>, '<?php echo esc_html($app['name']);?>')"><i class="ti ti-trash"></i> <?php echo lang('admin_delete');?></button>
 						</td>
 					</tr>
 					<?php endforeach; ?>
@@ -99,24 +99,24 @@
 <!-- 速率限制配置 -->
 <div class="x-card card mb-4">
 	<div class="card-body">
-		<h6 class="fw-semibold mb-3"><i class="ti ti-speed-limit me-1"></i>速率限制配置</h6>
+		<h6 class="fw-semibold mb-3"><i class="ti ti-speed-limit me-1"></i><?php echo lang('admin_api_settings_rate_limit');?></h6>
 		<div class="row g-3">
 			<div class="col-md-4">
-				<label class="form-label">启用速率限制</label>
+				<label class="form-label"><?php echo lang('admin_api_rate_limit_enable');?></label>
 				<div class="form-check form-switch">
 					<input class="form-check-input" type="checkbox" role="switch" id="apiRateLimitSwitch" <?php echo $api_rate_limit ? 'checked' : '';?>>
-					<label class="form-check-label" for="apiRateLimitSwitch"><?php echo $api_rate_limit ? '已开启' : '已关闭';?></label>
+					<label class="form-check-label" for="apiRateLimitSwitch"><?php echo $api_rate_limit ? lang('admin_switch_on') : lang('admin_switch_off');?></label>
 				</div>
 			</div>
 			<div class="col-md-4">
-				<label class="form-label" for="apiRateLimitMax">最大请求数</label>
+				<label class="form-label" for="apiRateLimitMax"><?php echo lang('admin_api_rate_limit_max');?></label>
 				<input type="number" class="form-control form-control-sm" id="apiRateLimitMax" value="<?php echo $api_rate_limit_max;?>" min="1" max="10000">
-				<div class="form-text">每个时间窗口内允许的最大请求数</div>
+				<div class="form-text"><?php echo lang('admin_api_rate_limit_max_desc');?></div>
 			</div>
 			<div class="col-md-4">
-				<label class="form-label" for="apiRateLimitWindow">时间窗口（秒）</label>
+				<label class="form-label" for="apiRateLimitWindow"><?php echo lang('admin_api_rate_limit_window');?></label>
 				<input type="number" class="form-control form-control-sm" id="apiRateLimitWindow" value="<?php echo $api_rate_limit_window;?>" min="1" max="3600">
-				<div class="form-text">速率限制的统计时间窗口</div>
+				<div class="form-text"><?php echo lang('admin_api_rate_limit_window_desc');?></div>
 			</div>
 		</div>
 	</div>
@@ -125,12 +125,12 @@
 <!-- CORS 配置 -->
 <div class="x-card card mb-4">
 	<div class="card-body">
-		<h6 class="fw-semibold mb-3"><i class="ti ti-world me-1"></i>CORS 配置</h6>
+		<h6 class="fw-semibold mb-3"><i class="ti ti-world me-1"></i><?php echo lang('admin_api_settings_cors');?></h6>
 		<div class="row g-3">
 			<div class="col-md-6">
-				<label class="form-label" for="apiCorsOrigin">允许的来源（Access-Control-Allow-Origin）</label>
-				<input type="text" class="form-control form-control-sm" id="apiCorsOrigin" value="<?php echo esc_html($api_cors_origin);?>" placeholder="* 或 https://example.com">
-				<div class="form-text">使用 * 允许所有来源，或指定域名（多个用逗号分隔）</div>
+				<label class="form-label" for="apiCorsOrigin"><?php echo lang('admin_api_cors_origin_label');?></label>
+				<input type="text" class="form-control form-control-sm" id="apiCorsOrigin" value="<?php echo esc_html($api_cors_origin);?>" placeholder="<?php echo lang('admin_api_cors_origin_placeholder');?>">
+				<div class="form-text"><?php echo lang('admin_api_cors_origin_desc');?></div>
 			</div>
 		</div>
 	</div>
@@ -139,36 +139,35 @@
 <!-- Token 配置 -->
 <div class="x-card card mb-4">
 	<div class="card-body">
-		<h6 class="fw-semibold mb-3"><i class="ti ti-key me-1"></i>Token 配置</h6>
+		<h6 class="fw-semibold mb-3"><i class="ti ti-key me-1"></i><?php echo lang('admin_api_settings_token');?></h6>
 		<div class="row g-3">
 			<div class="col-md-4">
-				<label class="form-label" for="apiTokenExpire">Refresh Token 有效期（天）</label>
+				<label class="form-label" for="apiTokenExpire"><?php echo lang('admin_api_refresh_token_expire');?></label>
 				<input type="number" class="form-control form-control-sm" id="apiTokenExpire" value="<?php echo $api_token_expire;?>" min="1" max="365">
-				<div class="form-text">Refresh Token 的有效天数（滑动续期，每次刷新重置）</div>
+				<div class="form-text"><?php echo lang('admin_api_refresh_token_expire_desc');?></div>
 			</div>
 			<div class="col-md-4">
-				<label class="form-label" for="apiAccessTokenExpire">Access Token 有效期（小时）</label>
+				<label class="form-label" for="apiAccessTokenExpire"><?php echo lang('admin_api_access_token_expire_label');?></label>
 				<input type="number" class="form-control form-control-sm" id="apiAccessTokenExpire" value="<?php echo $api_access_token_expire;?>" min="1" max="168">
-				<div class="form-text">Access Token 的有效小时数，默认 2 小时（与微信开放平台一致）</div>
+				<div class="form-text"><?php echo lang('api_access_token_expire_desc');?></div>
 			</div>
 			<div class="col-md-4">
-				<label class="form-label" for="apiTokenAbsoluteExpire">Token 链绝对过期上限（天）</label>
+				<label class="form-label" for="apiTokenAbsoluteExpire"><?php echo lang('admin_api_token_absolute_expire_label');?></label>
 				<input type="number" class="form-control form-control-sm" id="apiTokenAbsoluteExpire" value="<?php echo $api_token_absolute_expire;?>" min="0" max="365">
-				<div class="form-text">无论刷新与否，超过此天数强制重新登录（0=不限制，默认 90 天）</div>
+				<div class="form-text"><?php echo lang('api_token_absolute_expire_desc');?></div>
 			</div>
 		</div>
 		<div class="alert alert-info mt-3 mb-0 small">
 			<i class="ti ti-info-circle"></i>
-			<strong>OAuth 2.1 安全策略：</strong>
-			Access Token 短期有效（推荐 1-2 小时），Refresh Token 滑动续期（推荐 30 天），绝对过期上限防止无限续期（推荐 90 天）。
-			检测到 Refresh Token 重用时会撤销该用户所有 Token；用户改密码会立即撤销所有 API Token。
+			<strong><?php echo lang('admin_api_oauth21_policy');?></strong>
+			<?php echo lang('admin_api_oauth21_policy_desc');?>
 		</div>
 	</div>
 </div>
 
 <!-- 保存按钮 -->
 <div class="mb-4">
-	<button type="button" class="btn btn-primary rounded-pill" onclick="saveSettings()"><i class="ti ti-device-floppy"></i> 保存配置</button>
+	<button type="button" class="btn btn-primary rounded-pill" onclick="saveSettings()"><i class="ti ti-device-floppy"></i> <?php echo lang('admin_save_config');?></button>
 </div>
 
 <!-- 创建应用 Modal -->
@@ -176,31 +175,31 @@
 	<div class="modal-dialog">
 		<div class="modal-content">
 			<div class="modal-header">
-				<h5 class="modal-title"><i class="ti ti-plus"></i> 创建应用</h5>
+				<h5 class="modal-title"><i class="ti ti-plus"></i> <?php echo lang('admin_api_app_create');?></h5>
 				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 			</div>
 			<div class="modal-body">
 				<?php echo CsrfService::input(); ?>
 				<div class="mb-3">
-					<label class="form-label">应用名称 <span class="text-danger">*</span></label>
-					<input type="text" class="form-control form-control-sm" id="createAppName" placeholder="请输入应用名称" required>
+					<label class="form-label"><?php echo lang('admin_api_app_name');?> <span class="text-danger">*</span></label>
+					<input type="text" class="form-control form-control-sm" id="createAppName" placeholder="<?php echo lang('admin_api_app_name_placeholder');?>" required>
 				</div>
 				<div class="mb-3">
-					<label class="form-label">应用描述</label>
-					<textarea class="form-control form-control-sm" id="createAppDesc" rows="2" placeholder="应用用途说明"></textarea>
+					<label class="form-label"><?php echo lang('admin_api_app_description');?></label>
+					<textarea class="form-control form-control-sm" id="createAppDesc" rows="2" placeholder="<?php echo lang('admin_api_app_description_placeholder');?>"></textarea>
 				</div>
 				<div class="mb-3">
-					<label class="form-label">权限范围</label>
+					<label class="form-label"><?php echo lang('admin_api_app_scope');?></label>
 					<select class="form-select form-select-sm" id="createAppScope" onchange="updateAllowedResourcesState('create')">
-						<option value="readonly">只读 - 仅允许 GET 请求</option>
-						<option value="readwrite">读写 - 允许读写操作</option>
-						<option value="full">完全 - 允许所有操作</option>
+						<option value="readonly"><?php echo lang('admin_api_app_scope_readonly_desc');?></option>
+						<option value="readwrite"><?php echo lang('admin_api_app_scope_readwrite_desc');?></option>
+						<option value="full"><?php echo lang('admin_api_app_scope_full_desc');?></option>
 					</select>
 				</div>
 				<div class="mb-3">
-				<label class="form-label">速率限制（请求/分钟）</label>
+				<label class="form-label"><?php echo lang('admin_api_app_rate_limit_label');?></label>
 				<input type="number" class="form-control form-control-sm" id="createAppRateLimit" value="120" min="0">
-				<div class="form-text">0 表示不限制</div>
+				<div class="form-text"><?php echo lang('admin_api_rate_limit_unlimited_tip');?></div>
 			</div>
 
 			<!-- capabilities 配置区 -->
@@ -263,9 +262,9 @@
 			</div>
 		</div>
 			<div class="modal-footer">
-				<button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
-				<button type="button" class="btn btn-sm btn-primary" onclick="createApp()">创建</button>
-			</div>
+			<button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal"><?php echo lang('cancel');?></button>
+			<button type="button" class="btn btn-sm btn-primary" onclick="createApp()"><?php echo lang('admin_create');?></button>
+		</div>
 		</div>
 	</div>
 </div>
@@ -275,37 +274,37 @@
 	<div class="modal-dialog">
 		<div class="modal-content">
 			<div class="modal-header">
-				<h5 class="modal-title"><i class="ti ti-edit"></i> 编辑应用</h5>
+				<h5 class="modal-title"><i class="ti ti-edit"></i> <?php echo lang('admin_api_app_edit');?></h5>
 				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 			</div>
 			<div class="modal-body">
 				<?php echo CsrfService::input(); ?>
 				<input type="hidden" id="editAppId">
 				<div class="mb-3">
-					<label class="form-label">应用名称</label>
+					<label class="form-label"><?php echo lang('admin_api_app_name');?></label>
 					<input type="text" class="form-control form-control-sm" id="editAppName">
 				</div>
 				<div class="mb-3">
-					<label class="form-label">应用描述</label>
+					<label class="form-label"><?php echo lang('admin_api_app_description');?></label>
 					<textarea class="form-control form-control-sm" id="editAppDesc" rows="2"></textarea>
 				</div>
 				<div class="mb-3">
-					<label class="form-label">权限范围</label>
+					<label class="form-label"><?php echo lang('admin_api_app_scope');?></label>
 					<select class="form-select form-select-sm" id="editAppScope" onchange="updateAllowedResourcesState('edit')">
-						<option value="readonly">只读 - 仅允许 GET 请求</option>
-						<option value="readwrite">读写 - 允许读写操作</option>
-						<option value="full">完全 - 允许所有操作</option>
+						<option value="readonly"><?php echo lang('admin_api_app_scope_readonly_desc');?></option>
+						<option value="readwrite"><?php echo lang('admin_api_app_scope_readwrite_desc');?></option>
+						<option value="full"><?php echo lang('admin_api_app_scope_full_desc');?></option>
 					</select>
 				</div>
 				<div class="mb-3">
-					<label class="form-label">状态</label>
+					<label class="form-label"><?php echo lang('admin_col_status');?></label>
 					<div class="form-check form-switch">
 						<input class="form-check-input" type="checkbox" role="switch" id="editAppEnabled" checked>
-						<label class="form-check-label" for="editAppEnabled">启用应用</label>
+						<label class="form-check-label" for="editAppEnabled"><?php echo lang('admin_api_app_enable_label');?></label>
 					</div>
 				</div>
 				<div class="mb-3">
-				<label class="form-label">速率限制（请求/分钟）</label>
+				<label class="form-label"><?php echo lang('admin_api_app_rate_limit_label');?></label>
 				<input type="number" class="form-control form-control-sm" id="editAppRateLimit" value="120" min="0">
 			</div>
 
@@ -368,9 +367,9 @@
 			</div>
 		</div>
 			<div class="modal-footer">
-				<button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
-				<button type="button" class="btn btn-sm btn-primary" onclick="updateApp()">保存</button>
-			</div>
+			<button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal"><?php echo lang('cancel');?></button>
+			<button type="button" class="btn btn-sm btn-primary" onclick="updateApp()"><?php echo lang('admin_save');?></button>
+		</div>
 		</div>
 	</div>
 </div>
@@ -380,12 +379,12 @@
 	<div class="modal-dialog">
 		<div class="modal-content">
 			<div class="modal-header">
-				<h5 class="modal-title"><i class="ti ti-check"></i> 应用创建成功</h5>
+				<h5 class="modal-title"><i class="ti ti-check"></i> <?php echo lang('admin_api_app_created_title');?></h5>
 				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 			</div>
 			<div class="modal-body">
 				<div class="alert alert-warning mb-3">
-					<i class="ti ti-alert-triangle"></i> 请妥善保管以下凭据，密钥仅在此处显示一次！
+					<i class="ti ti-alert-triangle"></i> <?php echo lang('admin_api_app_secret_keep_once');?>
 				</div>
 				<div class="mb-2">
 					<label class="form-label fw-semibold">AppID</label>
@@ -403,7 +402,7 @@
 				</div>
 			</div>
 			<div class="modal-footer">
-				<button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">我已保存凭据</button>
+				<button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal"><?php echo lang('admin_api_app_secret_saved_btn');?></button>
 			</div>
 		</div>
 	</div>
@@ -414,12 +413,12 @@
 	<div class="modal-dialog">
 		<div class="modal-content">
 			<div class="modal-header">
-				<h5 class="modal-title"><i class="ti ti-refresh"></i> 密钥已重置</h5>
+				<h5 class="modal-title"><i class="ti ti-refresh"></i> <?php echo lang('admin_api_secret_reset_success');?></h5>
 				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 			</div>
 			<div class="modal-body">
 				<div class="alert alert-warning mb-3">
-					<i class="ti ti-alert-triangle"></i> 新密钥仅在此处显示一次，请立即保存！
+					<i class="ti ti-alert-triangle"></i> <?php echo lang('admin_api_app_new_secret_once');?>
 				</div>
 				<div class="mb-2">
 					<label class="form-label fw-semibold">AppID</label>
@@ -429,7 +428,7 @@
 					</div>
 				</div>
 				<div class="mb-2">
-					<label class="form-label fw-semibold">新 Secret</label>
+					<label class="form-label fw-semibold"><?php echo lang('admin_api_app_new_secret');?></label>
 					<div class="input-group input-group-sm">
 						<input type="text" class="form-control" id="resetResultSecret" readonly>
 						<button class="btn btn-outline-secondary" onclick="copyField('resetResultSecret')"><i class="ti ti-clipboard"></i></button>
@@ -437,7 +436,7 @@
 				</div>
 			</div>
 			<div class="modal-footer">
-				<button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">我已保存新密钥</button>
+				<button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal"><?php echo lang('admin_api_app_new_secret_saved_btn');?></button>
 			</div>
 		</div>
 	</div>
@@ -474,15 +473,15 @@ function saveSettings() {
 	.then(function(r) { return r.json(); })
 	.then(function(json) {
 		if (parseInt(json.code) === 0) {
-			XN.toast('保存成功', 'success');
+			XN.toast(<?php echo json_encode(lang('admin_save_success'));?>, 'success');
 			var switchEl = document.getElementById('apiEnabledSwitch');
-			switchEl.nextElementSibling.textContent = switchEl.checked ? 'API 已开启' : 'API 已关闭';
+			switchEl.nextElementSibling.textContent = switchEl.checked ? <?php echo json_encode(lang('admin_api_enabled_label'));?> : <?php echo json_encode(lang('admin_api_disabled_label'));?>;
 		} else {
-			XN.toast(json.message || '保存失败', 'danger');
+			XN.toast(json.message || <?php echo json_encode(lang('admin_save_failed'));?>, 'danger');
 		}
 	})
 	.catch(function(err) {
-		XN.toast('请求失败', 'danger');
+		XN.toast(<?php echo json_encode(lang('admin_request_failed'));?>, 'danger');
 	});
 }
 
@@ -543,7 +542,7 @@ function showCreateModal() {
 function createApp() {
 	var name = document.getElementById('createAppName').value.trim();
 	if (!name) {
-		XN.toast('应用名称不能为空', 'danger');
+		XN.toast(<?php echo json_encode(lang('admin_api_app_name_required'));?>, 'danger');
 		return;
 	}
 
@@ -574,11 +573,11 @@ function createApp() {
 
 			setTimeout(function() { location.reload(); }, 3000);
 		} else {
-			XN.toast(json.message || '创建失败', 'danger');
+			XN.toast(json.message || <?php echo json_encode(lang('admin_api_app_create_failed'));?>, 'danger');
 		}
 	})
 	.catch(function(err) {
-		XN.toast('请求失败', 'danger');
+		XN.toast(<?php echo json_encode(lang('admin_request_failed'));?>, 'danger');
 	});
 }
 
@@ -619,7 +618,7 @@ function showEditModal(id, name, description, scope, isEnabled, rateLimit) {
 function updateApp() {
 	var id = parseInt(document.getElementById('editAppId').value);
 	if (id <= 0) {
-		XN.toast('应用ID无效', 'danger');
+		XN.toast(<?php echo json_encode(lang('admin_api_app_id_invalid'));?>, 'danger');
 		return;
 	}
 
@@ -641,21 +640,21 @@ function updateApp() {
 	.then(function(r) { return r.json(); })
 	.then(function(json) {
 		if (parseInt(json.code) === 0) {
-			XN.toast('更新成功', 'success');
+			XN.toast(<?php echo json_encode(lang('admin_api_app_update_success'));?>, 'success');
 			var modal = bootstrap.Modal.getInstance(document.getElementById('editAppModal'));
 			modal.hide();
 			setTimeout(function() { location.reload(); }, 500);
 		} else {
-			XN.toast(json.message || '更新失败', 'danger');
+			XN.toast(json.message || <?php echo json_encode(lang('admin_api_app_update_failed'));?>, 'danger');
 		}
 	})
 	.catch(function(err) {
-		XN.toast('请求失败', 'danger');
+		XN.toast(<?php echo json_encode(lang('admin_request_failed'));?>, 'danger');
 	});
 }
 
 function deleteApp(id, name) {
-	XN.confirm('确定要删除应用「' + name + '」吗？此操作不可恢复。', function() {
+	XN.confirm(<?php echo json_encode(lang('admin_api_app_delete_confirm'));?>.replace('{name}', name), function() {
 		var data = {
 			id: id,
 			csrf_token: getCsrfToken()
@@ -669,21 +668,21 @@ function deleteApp(id, name) {
 		.then(function(r) { return r.json(); })
 		.then(function(json) {
 			if (parseInt(json.code) === 0) {
-				XN.toast('删除成功', 'success');
+				XN.toast(<?php echo json_encode(lang('admin_delete_success'));?>, 'success');
 				var row = document.getElementById('app-row-' + id);
 				if (row) row.remove();
 			} else {
-				XN.toast(json.message || '删除失败', 'danger');
+				XN.toast(json.message || <?php echo json_encode(lang('admin_delete_failed'));?>, 'danger');
 			}
 		})
 		.catch(function(err) {
-			XN.toast('请求失败', 'danger');
+			XN.toast(<?php echo json_encode(lang('admin_request_failed'));?>, 'danger');
 		});
-	}, {type: 'danger', okText: '删除'});
+	}, {type: 'danger', okText: <?php echo json_encode(lang('admin_delete'));?>});
 }
 
 function resetSecret(id, name) {
-	XN.confirm('确定要重置应用「' + name + '」的密钥吗？旧密钥将立即失效。', function() {
+	XN.confirm(<?php echo json_encode(lang('admin_api_app_reset_secret_confirm'));?>.replace('{name}', name), function() {
 		var data = {
 			id: id,
 			csrf_token: getCsrfToken()
@@ -703,25 +702,25 @@ function resetSecret(id, name) {
 				var modal = new bootstrap.Modal(document.getElementById('resetResultModal'));
 				modal.show();
 			} else {
-				XN.toast(json.message || '重置失败', 'danger');
+				XN.toast(json.message || <?php echo json_encode(lang('admin_api_app_reset_secret_failed'));?>, 'danger');
 			}
 		})
 		.catch(function(err) {
-			XN.toast('请求失败', 'danger');
+			XN.toast(<?php echo json_encode(lang('admin_request_failed'));?>, 'danger');
 		});
-	}, {type: 'danger', okText: '重置'});
+	}, {type: 'danger', okText: <?php echo json_encode(lang('admin_reset'));?>});
 }
 
 function copyField(fieldId) {
 	var el = document.getElementById(fieldId);
 	if (!el) return;
 	navigator.clipboard.writeText(el.value).then(function() {
-		XN.toast('已复制', 'success');
+		XN.toast(<?php echo json_encode(lang('api_debug_copied'));?>, 'success');
 	});
 }
 
 /* 速率限制开关标签联动 */
 document.getElementById('apiRateLimitSwitch').addEventListener('change', function() {
-	this.nextElementSibling.textContent = this.checked ? '已开启' : '已关闭';
+	this.nextElementSibling.textContent = this.checked ? <?php echo json_encode(lang('admin_switch_on'));?> : <?php echo json_encode(lang('admin_switch_off'));?>;
 });
 </script>

@@ -14,7 +14,20 @@
     padding-top: 1rem;
 }
 
+.container {
+    max-width: 100% !important;
 
+}
+@media (min-width: 1200px) {
+    .container, .container-lg, .container-md, .container-sm, .container-xl {
+        max-width: 1140px!important;
+    }
+}
+@media (min-width: 1400px) {
+    .container, .container-lg, .container-md, .container-sm, .container-xl, .container-xxl {
+        max-width: 1320px!important;
+    }
+}
 ol,
 ul {
     padding-left: 0;
@@ -2083,42 +2096,6 @@ mark {
 }
 
 ss
-
-/* ===== 浏览器提示页 (browser) ===== */
-a.browser-link {
-    color: black;
-    font-size: 12px;
-}
-
-a.browser-link:hover {
-    color: #a01845;
-}
-
-.browser-main {
-    width: 1000px;
-    height: 350px;
-    margin: 20px auto;
-    background: url(view/img/browser.gif) no-repeat;
-    position: relative;
-}
-
-.browser-pos1 {
-    position: absolute;
-    top: 300px;
-    left: 380px;
-}
-
-.browser-pos2 {
-    position: absolute;
-    top: 300px;
-    left: 570px;
-}
-
-.browser-pos3 {
-    position: absolute;
-    top: 300px;
-    left: 760px;
-}
 
 /* ===== Postlist 动画 ===== */
 .postlist>.post.current .avatar-3 {

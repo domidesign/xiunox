@@ -165,7 +165,7 @@ return array (
 	'upload_allowed_image_types' => 'jpg,jpeg,png,gif,webp,bmp',
 	'upload_allowed_video_types' => 'mp4,webm,ogg,avi,rm,rmvb',
 	'upload_allowed_file_types' => 'doc,xls,ppt,docx,xlsx,pptx,pdf,txt,zip,gz,rar,7z',
-	'upload_driver' => 'local',              // 上传存储驱动(local/oss)
+	'upload_driver' => 'local',              // 上传存储驱动(默认local，插件可扩展)
 
 	// API 设置
 	'api_enabled' => 0,
@@ -228,7 +228,7 @@ return array (
 	// 注意：version 字段运行时会被 index.php 中的 XIUNOX_VERSION 常量覆盖
 	// 真实版本号唯一来源为 version.php，修改版本号只需改 version.php
 	'version' => '1.0.1',
-	'static_version' => '?1.4.20',
+	'static_version' => '?1.4.21',
 	'installed' => 0,
 
 	// 显示设置

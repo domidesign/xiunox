@@ -91,9 +91,9 @@ document.getElementById('cache-clear-form').addEventListener('submit', function(
         btn.disabled = false;
         btn.innerHTML = '<i class="ti ti-trash me-1"></i><?php echo lang('confirm');?>';
         if(err.name === 'AbortError') {
-            msgEl.innerHTML = '<div class="alert alert-warning alert-dismissible fade show" role="alert">清除超时（30秒未返回），可能缓存键较多，请稍后查看 xiunophp.log 中 cache_clear 日志确认实际清理结果<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+            msgEl.innerHTML = '<div class="alert alert-warning alert-dismissible fade show" role="alert"><?php echo lang('admin_cache_clear_timeout');?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
         } else {
-            msgEl.innerHTML = '<div class="alert alert-danger alert-dismissible fade show" role="alert">请求失败：' + (err.message || err) + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+            msgEl.innerHTML = '<div class="alert alert-danger alert-dismissible fade show" role="alert"><?php echo lang('admin_request_failed_colon');?>' + (err.message || err) + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
         }
     });
 });

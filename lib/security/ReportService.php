@@ -11,16 +11,22 @@ class ReportService {
     const STATUS_HANDLED = 1;   // 已处理
     const STATUS_DISMISSED = 2; // 已驳回
 
-    // 举报分类
-    const REASON_TYPES = [
-        'spam' => '垃圾广告',
-        'porn' => '色情低俗',
-        'illegal' => '违法违规',
-        'attack' => '人身攻击',
-        'flood' => '恶意刷屏',
-        'fake' => '虚假信息',
-        'other' => '其他',
-    ];
+    /**
+     * 获取举报分类标签
+     * 因语言包需在运行时读取（lang()），无法使用 const 初始化，故提供静态方法替代
+     * @return array [reason_type => 中文标签]
+     */
+    public static function get_reason_types(): array {
+        return [
+            'spam' => lang('report_type_spam'),
+            'porn' => lang('report_type_porn'),
+            'illegal' => lang('report_type_illegal'),
+            'attack' => lang('report_type_attack'),
+            'flood' => lang('report_type_flood'),
+            'fake' => lang('report_type_fake'),
+            'other' => lang('report_type_other'),
+        ];
+    }
 
     // 默认配置
     const DEFAULT_CONFIG = [
@@ -63,18 +69,18 @@ class ReportService {
 
         // 参数校验
         if (!in_array($target_type, ['thread', 'post', 'user'])) {
-            return ['code' => -1, 'message' => '无效的举报类型'];
+            return ['code' => -1, 'message' => lang('report_invalid_target_type')];
         }
-        if (!isset(self::REASON_TYPES[$reason_type])) {
-            return ['code' => -1, 'message' => '无效的举报原因'];
+        if (!isset(self::get_reason_types()[$reason_type])) {
+            return ['code' => -1, 'message' => lang('report_invalid_reason_type')];
         }
         if (mb_strlen($reason_text) > 200) {
-            return ['code' => -1, 'message' => '补充说明不能超过200字'];
+            return ['code' => -1, 'message' => lang('report_reason_too_long', array('n' => 200))];
         }
 
         // 检查重复举报
         if (self::check_duplicate($uid, $target_type, $target_id)) {
-            return ['code' => -1, 'message' => '您已举报过该内容，同一内容只能举报一次'];
+            return ['code' => -1, 'message' => lang('report_duplicate')];
         }
 
         // 检查每日上限
@@ -91,12 +97,12 @@ class ReportService {
 
         // 验证目标是否存在
         if (!self::validate_target($target_type, $target_id)) {
-            return ['code' => -1, 'message' => '举报目标不存在'];
+            return ['code' => -1, 'message' => lang('report_target_not_exists')];
         }
 
         // 不能举报自己
         if (self::is_self($uid, $target_type, $target_id)) {
-            return ['code' => -1, 'message' => '不能举报自己'];
+            return ['code' => -1, 'message' => lang('report_cannot_report_self')];
         }
 
         // 获取目标作者 UID（用于后续封禁），在删除前保存
@@ -119,7 +125,7 @@ class ReportService {
         ]);
 
         if ($r === false) {
-            return ['code' => -1, 'message' => '举报失败，请稍后重试'];
+            return ['code' => -1, 'message' => lang('report_create_failed')];
         }
 
         // 每次举报都通知管理员
@@ -128,7 +134,7 @@ class ReportService {
         // 检查是否达到自动审核阈值
         self::handle_auto_audit($target_type, $target_id);
 
-        return ['code' => 0, 'message' => '举报成功，我们会尽快处理'];
+        return ['code' => 0, 'message' => lang('report_success')];
     }
 
     /**
@@ -174,7 +180,7 @@ class ReportService {
         ]);
 
         if ($count >= $limit) {
-            return ['pass' => false, 'message' => '今日举报次数已达上限'];
+            return ['pass' => false, 'message' => lang('report_daily_limit_reached')];
         }
         return ['pass' => true];
     }
@@ -190,7 +196,7 @@ class ReportService {
         $last = db_find_one('report', ['uid' => $uid], ['reportid' => -1]);
         if ($last && ($time - $last['create_date']) < $cooldown) {
             $remain = $cooldown - ($time - $last['create_date']);
-            return ['pass' => false, 'message' => "举报过于频繁，请{$remain}秒后再试"];
+            return ['pass' => false, 'message' => lang('report_cooldown', array('n' => $remain))];
         }
         return ['pass' => true];
     }
@@ -259,7 +265,7 @@ class ReportService {
         $latest = db_find_one('report', array('target_type' => $target_type, 'target_id' => $target_id), array('reportid' => -1));
         $reason = '';
         if (!empty($latest)) {
-            $reason = self::REASON_TYPES[$latest['reason_type']] ?? $latest['reason_type'];
+            $reason = self::get_reason_types()[$latest['reason_type']] ?? $latest['reason_type'];
             if (!empty($latest['reason_text'])) {
                 $reason .= '：' . $latest['reason_text'];
             }
@@ -309,8 +315,8 @@ class ReportService {
         $admins = db_find('user', ['gid' => [1, 2]], [], 1, 10);
         if (empty($admins)) return;
 
-        $type_text = ['thread' => '帖子', 'post' => '评论', 'user' => '用户'];
-        $message = "{$type_text[$target_type]}被{$count}人举报，已自动进入审核";
+        $type_text = ['thread' => lang('thread'), 'post' => lang('report_target_post'), 'user' => lang('report_target_user')];
+        $message = lang('report_notify_auto_audit', array('type' => $type_text[$target_type], 'n' => $count));
 
         $admin_uids = array();
         foreach ($admins as $admin) {
@@ -342,9 +348,9 @@ class ReportService {
         $admins = db_find('user', ['gid' => [1, 2]], [], 1, 10);
         if (empty($admins)) return;
 
-        $type_text = ['thread' => '帖子', 'post' => '评论', 'user' => '用户'];
-        $reason_text_short = self::REASON_TYPES[$reason_type] ?? $reason_type;
-        $message = "新举报：{$type_text[$target_type]}，原因：{$reason_text_short}";
+        $type_text = ['thread' => lang('thread'), 'post' => lang('report_target_post'), 'user' => lang('report_target_user')];
+        $reason_text_short = self::get_reason_types()[$reason_type] ?? $reason_type;
+        $message = lang('report_notify_new', array('type' => $type_text[$target_type], 'reason' => $reason_text_short));
 
         foreach ($admins as $admin) {
             $auid = intval($admin['uid']);
@@ -437,7 +443,7 @@ class ReportService {
                 $reporter = $users[$item['uid']] ?? array();
                 $item['username'] = $reporter['display_name'] ?? $reporter['username'] ?? '';
                 $item['avatar_url'] = $reporter['avatar_url'] ?? '';
-                $item['reason_type_text'] = self::REASON_TYPES[$item['reason_type']] ?? '未知';
+                $item['reason_type_text'] = self::get_reason_types()[$item['reason_type']] ?? lang('unknown');
                 $item['create_date_fmt'] = date('Y-m-d H:i', $item['create_date']);
                 // IP 格式化
                 $item['ip_fmt'] = long2ip($item['ip']);
@@ -445,19 +451,19 @@ class ReportService {
                 // 获取被举报目标的信息
                 if ($item['target_type'] === 'thread') {
                     $target = $threads[$item['target_id']] ?? array();
-                    $item['target_title'] = $target['subject'] ?? '已删除';
+                    $item['target_title'] = $target['subject'] ?? lang('deleted');
                     $target_user = !empty($target) ? ($users[$target['uid']] ?? array()) : array();
                     $item['target_username'] = $target_user['display_name'] ?? $target_user['username'] ?? '';
                 } elseif ($item['target_type'] === 'post') {
                     $target = $posts[$item['target_id']] ?? array();
-                    $item['target_title'] = mb_substr($target['message'] ?? '已删除', 0, 50);
+                    $item['target_title'] = mb_substr($target['message'] ?? lang('deleted'), 0, 50);
                     // post 需要关联的 tid 用于生成链接
                     $item['target_tid'] = $target['tid'] ?? 0;
                     $target_user = !empty($target) ? ($users[$target['uid']] ?? array()) : array();
                     $item['target_username'] = $target_user['display_name'] ?? $target_user['username'] ?? '';
                 } elseif ($item['target_type'] === 'user') {
                     $target = $users[$item['target_id']] ?? array();
-                    $item['target_title'] = $target['display_name'] ?? $target['username'] ?? '已删除';
+                    $item['target_title'] = $target['display_name'] ?? $target['username'] ?? lang('deleted');
                     $item['target_username'] = $target['display_name'] ?? $target['username'] ?? '';
                 }
 
@@ -525,10 +531,10 @@ class ReportService {
 
         $report = db_read('report', ['reportid' => $reportid]);
         if (empty($report)) {
-            return ['code' => -1, 'message' => '举报记录不存在'];
+            return ['code' => -1, 'message' => lang('report_not_exists')];
         }
         if ($report['status'] != self::STATUS_PENDING) {
-            return ['code' => -1, 'message' => '该举报已处理'];
+            return ['code' => -1, 'message' => lang('report_already_handled')];
         }
 
         // 更新举报状态
@@ -577,20 +583,20 @@ class ReportService {
             if ($ban_result['code'] !== 0) {
                 // 内容已删除不可恢复，封禁失败时举报状态保持已处理，提示管理员
                 self::maybeClearAuditDebounce();
-                return ['code' => 0, 'message' => '内容已删除，但封禁失败：' . $ban_result['message']];
+                return ['code' => 0, 'message' => lang('report_delete_ban_failed', array('message' => $ban_result['message']))];
             }
         }
         // dismiss 不执行任何操作
 
         // 通知举报人
         $action_text = [
-            'dismiss' => '举报被驳回',
-            'delete' => '违规内容已删除',
-            'ban' => '违规用户已封禁',
-            'delete_ban' => '违规内容已删除且用户已封禁',
+            'dismiss' => lang('report_action_dismiss'),
+            'delete' => lang('report_action_delete'),
+            'ban' => lang('report_action_ban'),
+            'delete_ban' => lang('report_action_delete_ban'),
         ];
-        $type_label = ['thread' => '帖子', 'post' => '评论', 'user' => '用户'];
-        $notify_msg = '您举报的' . ($type_label[$target_type] ?? '内容') . '已处理：' . ($action_text[$action] ?? '');
+        $type_label = ['thread' => lang('thread'), 'post' => lang('report_target_post'), 'user' => lang('report_target_user')];
+        $notify_msg = lang('report_notify_processed', array('type' => $type_label[$target_type] ?? lang('report_target_content'), 'action' => $action_text[$action] ?? ''));
         if (function_exists('notify_create')) {
             notify_create($report['uid'], $handler_uid, 'report_result', $target_id, 0, $notify_msg);
         }
@@ -598,12 +604,12 @@ class ReportService {
         // 通知被举报人（驳回不通知）
         if ($action !== 'dismiss') {
             if ($target_uid > 0 && function_exists('notify_create')) {
-                notify_create($target_uid, $handler_uid, 'report_penalty', $target_id, 0, '您的内容因违反社区规范已被处理');
+                notify_create($target_uid, $handler_uid, 'report_penalty', $target_id, 0, lang('report_penalty_notify'));
             }
         }
 
         self::maybeClearAuditDebounce();
-        return ['code' => 0, 'message' => '处理成功'];
+        return ['code' => 0, 'message' => lang('report_handle_success')];
     }
 
     /**
@@ -615,7 +621,7 @@ class ReportService {
         // 先批量读取所有举报记录
         $reports = db_find('report', array('reportid' => $reportids), array(), 1, count($reportids), 'reportid');
         if (empty($reports)) {
-            return ['code' => -1, 'message' => '未找到举报记录'];
+            return ['code' => -1, 'message' => lang('report_batch_not_found')];
         }
 
         $success = 0;
@@ -624,12 +630,12 @@ class ReportService {
         $notify_reporter_uids = array();
         $notify_target_uids = array();
         $action_text = [
-            'dismiss' => '举报被驳回',
-            'delete' => '违规内容已删除',
-            'ban' => '违规用户已封禁',
-            'delete_ban' => '违规内容已删除且用户已封禁',
+            'dismiss' => lang('report_action_dismiss'),
+            'delete' => lang('report_action_delete'),
+            'ban' => lang('report_action_ban'),
+            'delete_ban' => lang('report_action_delete_ban'),
         ];
-        $type_label = ['thread' => '帖子', 'post' => '评论', 'user' => '用户'];
+        $type_label = ['thread' => lang('thread'), 'post' => lang('report_target_post'), 'user' => lang('report_target_user')];
 
         foreach ($reports as $report) {
             if ($report['status'] != self::STATUS_PENDING) {
@@ -689,17 +695,17 @@ class ReportService {
 
         // 批量发送通知（去重后每人只发一条）
         if (function_exists('notify_create')) {
-            $notify_msg = '您举报的内容已处理：' . ($action_text[$action] ?? '');
+            $notify_msg = lang('report_notify_processed_batch', array('action' => $action_text[$action] ?? ''));
             foreach ($notify_reporter_uids as $ruid => $ttype) {
                 notify_create($ruid, $handler_uid, 'report_result', 0, 0, $notify_msg);
             }
             foreach ($notify_target_uids as $tuid => $_) {
-                notify_create($tuid, $handler_uid, 'report_penalty', 0, 0, '您的内容因违反社区规范已被处理');
+                notify_create($tuid, $handler_uid, 'report_penalty', 0, 0, lang('report_penalty_notify'));
             }
         }
 
         self::maybeClearAuditDebounce();
-        return ['code' => 0, 'message' => "处理完成：成功{$success}条，失败{$fail}条"];
+        return ['code' => 0, 'message' => lang('report_batch_result', array('success' => $success, 'fail' => $fail))];
     }
 
     /**
@@ -713,7 +719,7 @@ class ReportService {
      */
     private static function execute_ban(int $target_uid, array $report, int $handler_uid): array {
         if ($target_uid <= 0) {
-            return ['code' => 1, 'message' => '被举报用户不存在'];
+            return ['code' => 1, 'message' => lang('report_ban_user_not_found')];
         }
         if (!class_exists('UserBanService')) {
             include_once APP_PATH . 'lib/UserBanService.php';
@@ -732,8 +738,8 @@ class ReportService {
      * 根据举报记录构造封禁原因
      */
     private static function build_ban_reason(array $report): string {
-        $reason_type_text = self::REASON_TYPES[$report['reason_type']] ?? $report['reason_type'];
-        $ban_reason = '举报：' . $reason_type_text;
+        $reason_type_text = self::get_reason_types()[$report['reason_type']] ?? $report['reason_type'];
+        $ban_reason = lang('report_ban_reason', array('reason' => $reason_type_text));
         if (!empty($report['reason_text'])) {
             $ban_reason .= ' - ' . $report['reason_text'];
         }

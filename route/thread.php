@@ -89,7 +89,7 @@ if($action == 'like' || $action == 'unlike') {
 			}
 			// 每日上限达到：提醒用户本次不扣减积分
 			if(!empty($likeResult['daily_limit_reached'])) {
-				$like_change_desc = $likeResult['message'] . '，本次点赞不扣减积分';
+				$like_change_desc = lang('like_no_credits_deduct_tip', array('message'=>$likeResult['message'], 'credits_label'=>lang('credits_label')));
 			}
 		}
 	} else {
@@ -105,7 +105,7 @@ if($action == 'like' || $action == 'unlike') {
 			}
 			// 每日上限达到：提醒用户本次不扣减/返还积分
 			if(!empty($unlikeResult['daily_limit_reached'])) {
-				$like_change_desc = $unlikeResult['message'] . '，本次取消点赞不扣减/返还积分';
+				$like_change_desc = lang('unlike_no_credits_tip', array('message'=>$unlikeResult['message'], 'credits_label'=>lang('credits_label')));
 			}
 		}
 	}
@@ -135,7 +135,7 @@ if($action == 'like' || $action == 'unlike') {
 	}
 
 	header('Content-Type: application/json; charset=utf-8');
-	echo json_encode(array('code' => 0, 'message' => '操作成功', 'data' => $data), JSON_UNESCAPED_UNICODE);
+	echo json_encode(array('code' => 0, 'message' => lang('operate_successfully'), 'data' => $data), JSON_UNESCAPED_UNICODE);
 	exit;
 }
 
@@ -217,7 +217,7 @@ if($action == 'favorite') {
 		}
 		// 每日上限达到：提醒用户本次不扣减积分
 		if(!empty($favResult['daily_limit_reached'])) {
-			$fav_change_desc = $favResult['message'] . '，本次收藏不扣减积分';
+			$fav_change_desc = lang('favorite_no_credits_deduct_tip', array('message'=>$favResult['message'], 'credits_label'=>lang('credits_label')));
 		}
 	} else {
 		// 取消收藏：应用 unfavorite 规则（管理员可设置取消时扣减/返还积分）
@@ -228,7 +228,7 @@ if($action == 'favorite') {
 		}
 		// 每日上限达到：提醒用户本次不扣减/返还积分
 		if(!empty($unfavResult['daily_limit_reached'])) {
-			$fav_change_desc = $unfavResult['message'] . '，本次取消收藏不扣减/返还积分';
+			$fav_change_desc = lang('unfavorite_no_credits_tip', array('message'=>$unfavResult['message'], 'credits_label'=>lang('credits_label')));
 		}
 	}
 
@@ -255,7 +255,7 @@ if($action == 'favorite') {
 	$fav_count = empty($exists) ? $favorites_before + 1 : max(0, $favorites_before - 1);
 	$data = array('action' => $fav_action, 'count' => $fav_count, 'tid' => $tid);
 	header('Content-Type: application/json; charset=utf-8');
-	echo json_encode(array('code' => 0, 'message' => '操作成功', 'data' => $data), JSON_UNESCAPED_UNICODE);
+	echo json_encode(array('code' => 0, 'message' => lang('operate_successfully'), 'data' => $data), JSON_UNESCAPED_UNICODE);
 	exit;
 }
 
@@ -286,9 +286,9 @@ if($action == 'forum_follow_status') {
 	if(empty($uid)) {
 		echo '<a href="'.user_login_url().'" class="btn btn-sm btn-primary w-100"><i class="ti ti-star me-1"></i>'.lang('follow').'</a>';
 	} elseif($followed) {
-		echo '<input type="hidden" name="fid" value="'.$fid.'"><button class="btn btn-sm btn-outline-secondary w-100" hx-post="'.url('forum-unfollow').'" hx-include="[name=fid]" hx-target="this" hx-swap="outerHTML" hx-optimistic><i class="ti ti-star-filled me-1"></i>已关注版块</button>';
+		echo '<input type="hidden" name="fid" value="'.$fid.'"><button class="btn btn-sm btn-outline-secondary w-100" hx-post="'.url('forum-unfollow').'" hx-include="[name=fid]" hx-target="this" hx-swap="outerHTML" hx-optimistic><i class="ti ti-star-filled me-1"></i>'.lang('followed').'</button>';
 	} else {
-		echo '<input type="hidden" name="fid" value="'.$fid.'"><button class="btn btn-sm btn-primary w-100" hx-post="'.url('forum-follow').'" hx-include="[name=fid]" hx-target="this" hx-swap="outerHTML" hx-optimistic><i class="ti ti-star me-1"></i>关注版块</button>';
+		echo '<input type="hidden" name="fid" value="'.$fid.'"><button class="btn btn-sm btn-primary w-100" hx-post="'.url('forum-follow').'" hx-include="[name=fid]" hx-target="this" hx-swap="outerHTML" hx-optimistic><i class="ti ti-star me-1"></i>'.lang('follow').'</button>';
 	}
 	exit;
 }
@@ -446,7 +446,7 @@ if($action == 'create') {
 		include_once APP_PATH . 'lib/security/ContentModerationService.php';
 		$moderation_result = ContentModerationService::moderate('thread', $subject . ' ' . $message, 'create');
 		if ($moderation_result === 'block') {
-			message(-1, '内容审核未通过，请修改后重新发布');
+			message(-1, lang('thread_rejected_desc'));
 		}
 
 		// ===== 发帖间隔检查 =====
@@ -468,10 +468,10 @@ if($action == 'create') {
 		$post_max_length = SecurityConfigService::get('security_post_max_length', 50000);
 		$message_len = mb_strlen($message, 'UTF-8');
 		if ($post_min_length > 0 && $message_len < $post_min_length) {
-			message(-1, '内容太短，至少需要' . $post_min_length . '个字');
+			message(-1, lang('thread_content_too_short', array('minlength'=>$post_min_length)));
 		}
 		if ($post_max_length > 0 && $message_len > $post_max_length) {
-			message(-1, '内容太长，最多允许 ' . $post_max_length . ' 个字符（含 HTML 格式化标签如 &lt;p&gt;、加粗、图片等；编辑器右下角显示的是纯文本字数，会小于此值，当前 ' . $message_len . ' 字符）');
+			message(-1, lang('thread_content_too_long', array('maxlength'=>$post_max_length, 'current'=>$message_len)));
 		}
 
 		// ===== 新用户前N帖需审核 =====
@@ -628,7 +628,7 @@ if($action == 'create') {
 					'type' => 'mention',
 					'tid' => $tid,
 					'pid' => 0,
-					'content' => '在帖子中提及了你',
+					'content' => lang('notify_action_mention_thread'),
 					'create_date' => $time,
 					'is_read' => 0,
 				);
@@ -667,7 +667,7 @@ if($action == 'create') {
 		}
 		// 每日上限达到：提醒用户本次不发放/扣除积分
 		if(!empty($threadCreditsResult['daily_limit_reached'])) {
-			$change_desc = $threadCreditsResult['message'] . '，本次发帖不发放/扣除积分';
+			$change_desc = lang('thread_post_no_credits_tip', array('message'=>$threadCreditsResult['message'], 'credits_label'=>lang('credits_label')));
 		}
 
 	if($need_audit) {

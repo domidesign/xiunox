@@ -10,7 +10,7 @@ class cache_redis {
 	
         public function __construct($conf = array()) {
                 if(!extension_loaded('Redis')) {
-                        return $this->error(-1, ' Redis 扩展没有加载');
+                        return $this->error(-1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_ext_not_loaded') : ' Redis 扩展没有加载');
                 }
                 $this->conf = $conf;
 		$this->cachepre = isset($conf['cachepre']) ? $conf['cachepre'] : 'pre_';
@@ -23,13 +23,13 @@ class cache_redis {
                         $r = @$redis->connect($this->conf['host'], $this->conf['port'], 2);
                         if(!$r) {
                                 $this->link = FALSE;
-                                return $this->error(-1, '连接 Redis 服务器失败。');
+                                return $this->error(-1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_connect_failed') : '连接 Redis 服务器失败。');
                         }
                         if(!empty($this->conf['password'])) {
                                 $auth = $redis->auth($this->conf['password']);
                                 if(!$auth) {
                                         $this->link = FALSE;
-                                        return $this->error(-1, 'Redis 认证失败。');
+                                        return $this->error(-1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_auth_failed') : 'Redis 认证失败。');
                                 }
                         }
                         if(isset($this->conf['database']) && intval($this->conf['database']) > 0) {
@@ -41,18 +41,18 @@ class cache_redis {
                                 // ping 成功返回 +PONG 或 TRUE，失败返回 FALSE
                                 if($ping === FALSE) {
                                         $this->link = FALSE;
-                                        return $this->error(-1, 'Redis 连接验证失败（可能需要认证）。');
+                                        return $this->error(-1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_verify_failed') : 'Redis 连接验证失败（可能需要认证）。');
                                 }
                         } catch(\Throwable $pingEx) {
                                 // PING 抛出异常（如 NOAUTH），说明连接不可用
                                 $this->link = FALSE;
-                                return $this->error(-1, 'Redis 连接验证异常：' . $pingEx->getMessage());
+                                return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_verify_exception') : 'Redis 连接验证异常：') . $pingEx->getMessage());
                         }
                         $this->link = $redis;
                         return $this->link;
                 } catch(\Throwable $e) {
                         $this->link = FALSE;
-                        return $this->error(-1, '连接 Redis 服务器异常：' . $e->getMessage());
+                        return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_connect_exception') : '连接 Redis 服务器异常：') . $e->getMessage());
                 }
         }
         // 检查缓存连接是否可用
@@ -76,17 +76,17 @@ class cache_redis {
                                                 return call_user_func($callback, $this->link);
                                         } catch(\Throwable $retryEx) {
                                                 // 重试仍然失败，返回 FALSE
-                                                $this->error(-1, 'Redis 重试失败：' . $retryEx->getMessage());
+                                                $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_retry_failed') : 'Redis 重试失败：') . $retryEx->getMessage());
                                                 return FALSE;
                                         }
                                 }
                         }
                         // 重连失败或不可恢复异常，返回 FALSE 让上层降级
                         // 不抛异常，避免整个网站白屏
-                        $this->error(-1, 'Redis 操作失败：' . $msg);
+                        $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_op_failed') : 'Redis 操作失败：') . $msg);
                         return FALSE;
                 } catch(\Throwable $e) {
-                        $this->error(-1, 'Redis 操作异常：' . $e->getMessage());
+                        $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_op_exception') : 'Redis 操作异常：') . $e->getMessage());
                         return FALSE;
                 }
         }
@@ -160,13 +160,13 @@ class cache_redis {
                                 if($iterator === 0) break;
                                 // 超过时间预算就停止，剩余键下次清理或自然过期
                                 if(microtime(TRUE) - $start > $timeBudget) {
-                                        $this->error(-1, 'Redis deleteByPrefix 时间预算 ' . $timeBudget . 's 用尽，已删 ' . $deleted . '/' . $scanned . ' 键，剩余稍后清理');
+                                        $this->error(-1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_delete_by_prefix_timeout', array('seconds' => $timeBudget, 'deleted' => $deleted, 'scanned' => $scanned)) : 'Redis deleteByPrefix 时间预算 ' . $timeBudget . 's 用尽，已删 ' . $deleted . '/' . $scanned . ' 键，剩余稍后清理');
                                         break;
                                 }
                         }
                 } catch(\Throwable $e) {
                         // SCAN 失败时记录错误但不中断业务
-                        $this->error(-1, 'Redis deleteByPrefix 异常：' . $e->getMessage());
+                        $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_delete_by_prefix_exception') : 'Redis deleteByPrefix 异常：') . $e->getMessage());
                 }
                 return $deleted;
         }

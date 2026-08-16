@@ -225,7 +225,7 @@ if($action == 'local') {
 	
 	plugin_lock_end();
 
-	admin_log_create('plugin_install', 'plugin', $dir, '安装插件：' . $name);
+	admin_log_create('plugin_install', 'plugin', $dir, lang('admin_log_plugin_install', array('name'=>$name)));
 
 	// 同类插件互斥：禁用其他已安装的同类插件（保留配置便于切换）。
 // 之前的实现用 plugin_unstall() 会执行 uninstall.php 清掉数据，过于激进；
@@ -237,7 +237,7 @@ if(!empty($conflicts)) {
 		// 仅禁用处于启用状态的冲突插件，已禁用的跳过（避免无谓的 tmp 清理和重复日志）
 		if(!empty($c['enable'])) {
 			plugin_disable($c['dir']);
-			admin_log_create('plugin_disable', 'plugin', $c['dir'], '安装同类插件 ' . $name . ' 自动禁用：' . $c['name']);
+			admin_log_create('plugin_disable', 'plugin', $c['dir'], lang('admin_log_plugin_conflict_disable_install', array('name'=>$name, 'conflict'=>$c['name'])));
 		}
 	}
 }
@@ -292,7 +292,7 @@ if(!empty($conflicts)) {
 	
 	plugin_lock_end();
 
-	admin_log_create('plugin_uninstall', 'plugin', $dir, '卸载插件：' . $name);
+	admin_log_create('plugin_uninstall', 'plugin', $dir, lang('admin_log_plugin_uninstall', array('name'=>$name)));
 
 	$msg = lang('plugin_unstall_sucessfully', array('name'=>$name, 'dir'=>"plugin/$dir"));
 	message(0, $msg, array('redirect_url' => admin_plugin_url()));
@@ -325,18 +325,18 @@ plugin_enable($dir);
 // 与 install 分支使用相同的 plugin_find_conflicts() 规则：主题全部互斥；基础功能按第二段互斥；扩展不互斥
 // 之前的实现仅对 _theme_ 字符串包含判断做主题互斥，遗漏了非主题类同类插件的启用冲突
 $conflicts_on_enable = plugin_find_conflicts($dir);
-if(!empty($conflicts_on_enable)) {
+	if(!empty($conflicts_on_enable)) {
 	foreach($conflicts_on_enable as $c) {
 		if(!empty($c['enable'])) {
 			plugin_disable($c['dir']);
-			admin_log_create('plugin_disable', 'plugin', $c['dir'], '启用同类插件 ' . $name . ' 自动禁用：' . $c['name']);
+			admin_log_create('plugin_disable', 'plugin', $c['dir'], lang('admin_log_plugin_conflict_disable_enable', array('name'=>$name, 'conflict'=>$c['name'])));
 		}
 	}
 }
 
 plugin_lock_end();
 
-admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
+admin_log_create('plugin_enable', 'plugin', $dir, lang('admin_log_plugin_enable', array('name'=>$name)));
 
 	$msg = lang('plugin_enable_sucessfully', array('name'=>$name));
 	message(0, $msg, array('redirect_url' => admin_plugin_url()));
@@ -367,7 +367,7 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 
 	plugin_lock_end();
 
-	admin_log_create('plugin_disable', 'plugin', $dir, '禁用插件：' . $name);
+	admin_log_create('plugin_disable', 'plugin', $dir, lang('admin_log_plugin_disable', array('name'=>$name)));
 
 	$msg = lang('plugin_disable_sucessfully', array('name'=>$name));
 	message(0, $msg, array('redirect_url' => admin_plugin_url()));
@@ -411,7 +411,7 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 
 		plugin_lock_end();
 
-		admin_log_create('plugin_upgrade', 'plugin', $dir, '升级插件：' . $name);
+		admin_log_create('plugin_upgrade', 'plugin', $dir, lang('admin_log_plugin_upgrade', array('name'=>$name)));
 
 		// 递增 static_version，强制浏览器刷新 JS/CSS 缓存
 		if (function_exists('conf_bump_static_version')) {
@@ -679,7 +679,7 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 
 		plugin_lock_end();
 
-		admin_log_create('plugin_install', 'plugin', $pluginDir, '上传安装插件：'.$pluginName);
+		admin_log_create('plugin_install', 'plugin', $pluginDir, lang('admin_log_plugin_upload_install', array('name'=>$pluginName)));
 
 		$msg = lang('plugin_upload_install_success', array('name'=>$pluginName, 'version'=>$newVersion));
 		message(0, $msg, array('redirect_url' => admin_plugin_url()));
@@ -770,7 +770,7 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 			// 保持禁用状态（不恢复启用），让用户手动确认后启用
 			plugin_lock_end();
 
-			admin_log_create('plugin_upgrade', 'plugin', $pluginDir, '上传升级失败已回滚：'.$pluginName);
+			admin_log_create('plugin_upgrade', 'plugin', $pluginDir, lang('admin_log_plugin_upload_rollback', array('name'=>$pluginName)));
 
 			$msg = lang('plugin_upload_rollback', array('name'=>$pluginName, 'bak'=>"plugin/$pluginDir.bak"));
 			message(-1, $msg);
@@ -787,7 +787,7 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 		plugin_clear_tmp_dir();
 	plugin_lock_end();
 
-	admin_log_create('plugin_upgrade', 'plugin', $pluginDir, '上传升级插件：'.$pluginName);
+	admin_log_create('plugin_upgrade', 'plugin', $pluginDir, lang('admin_log_plugin_upload_upgrade', array('name'=>$pluginName)));
 
 	// 递增 static_version，强制浏览器刷新 JS/CSS 缓存
 	if (function_exists('conf_bump_static_version')) {
@@ -883,7 +883,7 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 
 	if (!empty($result['ok'])) {
 		$name = isset($plugins[$dir]['name']) ? $plugins[$dir]['name'] : $dir;
-		admin_log_create('plugin_install', 'plugin', $dir, '安装官方插件：' . $name);
+		admin_log_create('plugin_install', 'plugin', $dir, lang('admin_log_plugin_official_install', array('name'=>$name)));
 		// 递增 static_version，强制浏览器刷新 JS/CSS 缓存
 		if (function_exists('conf_bump_static_version')) {
 			conf_bump_static_version();
@@ -911,7 +911,7 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 
 	if (!empty($result['ok'])) {
 		$name = isset($plugins[$dir]['name']) ? $plugins[$dir]['name'] : $dir;
-		admin_log_create('plugin_upgrade', 'plugin', $dir, '升级官方插件：' . $name);
+		admin_log_create('plugin_upgrade', 'plugin', $dir, lang('admin_log_plugin_official_upgrade', array('name'=>$name)));
 		// 递增 static_version，强制浏览器刷新 JS/CSS 缓存
 		if (function_exists('conf_bump_static_version')) {
 			conf_bump_static_version();
@@ -939,9 +939,9 @@ admin_log_create('plugin_enable', 'plugin', $dir, '启用插件：' . $name);
 			$purged = isset($ps['purged']) ? intval($ps['purged']) : 0;
 			$failed = isset($ps['failed']) ? intval($ps['failed']) : 0;
 			if ($purged > 0) {
-				$purgeMsg = '（CDN 已刷新 ' . $purged . ' 个文件';
+				$purgeMsg = lang('admin_cdn_purged', array('n'=>$purged));
 				if ($failed > 0) {
-					$purgeMsg .= '，' . $failed . ' 个失败';
+					$purgeMsg .= lang('admin_cdn_failed', array('n'=>$failed));
 				}
 				$purgeMsg .= '）';
 			}

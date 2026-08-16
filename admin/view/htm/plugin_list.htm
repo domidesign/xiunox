@@ -434,11 +434,11 @@ function submitPluginInstallFromPreinstall(force) {
                 window.location.href = data.redirect_url || window.location.href;
             }, 800);
         } else {
-            showToast(data.message || '安装失败', 'error');
+            showToast(data.message || <?php echo json_encode(lang('plugin_install_failed'));?>, 'error');
         }
     })
     .catch(function() {
-        showToast('安装失败', 'error');
+        showToast(<?php echo json_encode(lang('plugin_install_failed'));?>, 'error');
     });
 }
 
@@ -576,13 +576,13 @@ function submitPluginAction(btn, url) {
                 window.location.href = data.redirect_url || window.location.href;
             }, 800);
         } else {
-            showToast(data.message || '操作失败', 'error');
+            showToast(data.message || <?php echo json_encode(lang('plugin_action_failed'));?>, 'error');
             btn.disabled = false;
             btn.innerHTML = originalHtml;
         }
     })
     .catch(function() {
-        showToast('操作失败', 'error');
+        showToast(<?php echo json_encode(lang('plugin_action_failed'));?>, 'error');
         btn.disabled = false;
         btn.innerHTML = originalHtml;
     });

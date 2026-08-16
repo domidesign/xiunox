@@ -65,7 +65,7 @@ if($action == 'base') {
 
 		// hook admin_setting_base_post_end.php
 
-		admin_log_create('setting_site', 'setting', '', '修改站点设置');
+		admin_log_create('setting_site', 'setting', '', lang('admin_op_setting_site'));
 		message(0, lang('modify_successfully'));
 	}
 
@@ -196,7 +196,7 @@ if($action == 'base') {
 
 		// hook admin_setting_seo_post_end.php
 
-		admin_log_create('setting_seo', 'setting', '', '修改SEO设置');
+		admin_log_create('setting_seo', 'setting', '', lang('admin_log_setting_seo'));
 		message(0, lang('modify_successfully'));
 	}
 
@@ -272,7 +272,7 @@ if($action == 'base') {
 			);
 		}
 		$r = file_put_contents_try(APP_PATH.'conf/smtp.conf.php', "<?php\r\nreturn ".var_export($smtplist,true).";\r\n?>");
-		!$r AND message(-1, lang('conf/smtp.conf.php', array('file'=>'conf/smtp.conf.php')));
+		!$r AND message(-1, lang('save_conf_failed', array('file'=>'conf/smtp.conf.php')));
 
 		// ponytail: opcache.revalidate_freq=2 会导致 1 秒后 reload 读到旧字节码,保存后立即失效
 		if (function_exists('opcache_invalidate')) {
@@ -281,7 +281,7 @@ if($action == 'base') {
 
 		// hook admin_setting_smtp_post_end.php
 
-		admin_log_create('setting_smtp', 'setting', '', '修改SMTP设置');
+		admin_log_create('setting_smtp', 'setting', '', lang('admin_op_setting_smtp'));
 		message(0, lang('save_successfully'));
 	}
 
@@ -295,15 +295,15 @@ if($action == 'base') {
 	$test_email = param('test_email');
 	$smtp_index = param('smtp_index', 0);
 
-	empty($test_email) AND message(-1, '请输入测试邮箱');
-	!filter_var($test_email, FILTER_VALIDATE_EMAIL) AND message(-1, '邮箱格式不正确');
+	empty($test_email) AND message(-1, lang('admin_smtp_please_input_email'));
+	!filter_var($test_email, FILTER_VALIDATE_EMAIL) AND message(-1, lang('admin_email_format_invalid'));
 
 	// ponytail: smtp.conf.php 是后台动态写入的配置文件，禁止走 _include() 编译缓存
 	// _include() 不比较源文件 mtime，后台保存后未清 tmp/conf_smtp.conf.php 会导致测试邮件读旧缓存
 	// 应与 xn_smtp_get()/smtp_init()/HealthCheckService 保持一致，直接 include 源文件
 	$smtplist = include APP_PATH.'conf/smtp.conf.php';
 	if(!is_array($smtplist) || empty($smtplist)) {
-		message(-1, '未配置 SMTP 服务器');
+		message(-1, lang('smtp_no_server_config'));
 	}
 
 	// 如果指定了索引，使用对应的 SMTP，否则随机选择
@@ -314,21 +314,21 @@ if($action == 'base') {
 	}
 
 	if(empty($smtp)) {
-		message(-1, '无有效的 SMTP 配置');
+		message(-1, lang('admin_smtp_no_valid_config'));
 	}
 
-	$subject = '测试邮件 - ' . $conf['sitename'];
-	$body = '<h3>测试邮件</h3><p>这是一封来自 <strong>' . esc_html($conf['sitename']) . '</strong> 的测试邮件。</p><p>如果您收到此邮件，说明 SMTP 配置正确。</p><p>发送时间：' . date('Y-m-d H:i:s') . '</p>';
+	$subject = lang('admin_test_email_subject', array('sitename' => $conf['sitename']));
+	$body = lang('admin_test_email_body', array('sitename' => esc_html($conf['sitename']), 'time' => date('Y-m-d H:i:s')));
 
 	// ponytail: 测试邮件传 timeout=5，让 SMTP 连接/SSL 握手失败时更快返回（默认 10s 偏慢）
 	$r = xn_send_mail($smtp, $conf['sitename'], $test_email, $subject, $body, array('timeout' => 5));
 
 	if($r === TRUE) {
-		message(0, '测试邮件发送成功，请检查收件箱');
+		message(0, lang('admin_test_email_sent'));
 	} else {
 		// xn_send_mail 失败时返回错误字符串，如 SMTP connect() failed 等
-		$error_msg = is_string($r) ? $r : '未知错误';
-		message(-1, '测试邮件发送失败：' . $error_msg);
+		$error_msg = is_string($r) ? $r : lang('unknown_error');
+		message(-1, lang('admin_test_email_failed', array('error'=>$error_msg)));
 	}
 
 } elseif($action == 'upload') {
@@ -368,6 +368,12 @@ if($action == 'base') {
 		// 存储驱动
 		$upload_driver = isset($conf['upload_driver']) ? $conf['upload_driver'] : 'local';
 
+		// 存储驱动列表（默认仅本地存储，插件可通过 admin_setting_upload_driver_register hook 注册更多驱动）
+		$upload_drivers = array();
+		$upload_drivers['local'] = lang('admin_upload_driver_local');
+
+		// hook admin_setting_upload_driver_register.php
+
 		$header['title'] = lang('admin_setting_upload');
 		$header['mobile_title'] = lang('admin_setting_upload');
 
@@ -378,6 +384,12 @@ if($action == 'base') {
 	} else {
 
 		CsrfService::check();
+
+		// 存储驱动白名单（默认仅本地存储，插件可通过 admin_setting_upload_driver_register hook 注册更多驱动）
+		$upload_drivers = array();
+		$upload_drivers['local'] = lang('admin_upload_driver_local');
+
+		// hook admin_setting_upload_driver_register.php
 
 		// hook admin_setting_upload_post_start.php
 
@@ -403,7 +415,7 @@ if($action == 'base') {
 
 		// 存储驱动
 		$upload_driver = param('upload_driver', 'local');
-		if(!in_array($upload_driver, array('local', 'oss'))) {
+		if(!in_array($upload_driver, array_keys($upload_drivers))) {
 			$upload_driver = 'local';
 		}
 
@@ -422,7 +434,7 @@ if($action == 'base') {
 
 		// hook admin_setting_upload_post_end.php
 
-		admin_log_create('setting_upload', 'setting', '', '修改上传设置');
+		admin_log_create('setting_upload', 'setting', '', lang('admin_op_setting_upload'));
 		message(0, lang('modify_successfully'));
 	}
 
@@ -626,7 +638,7 @@ if($action == 'base') {
 
 		$_save_ok = file_replace_var(APP_PATH.'conf/conf.php', $replace);
 		if($_save_ok === FALSE) {
-			message(-1, 'conf/conf.php 写入失败，请检查文件权限');
+			message(-1, lang('admin_conf_write_failed'));
 		}
 		// 强制清除缓存，确保下次请求读到新配置
 		if(function_exists('opcache_invalidate')) {
@@ -639,7 +651,7 @@ if($action == 'base') {
 
 		// hook admin_setting_nav_post_end.php
 
-		admin_log_create('setting_nav', 'setting', '', '修改导航设置');
+		admin_log_create('setting_nav', 'setting', '', lang('admin_op_setting_nav'));
 
 		// 准备返回给前端的最新数据（合并插件项 + 排序）
 		// 前端用这些数据直接重新渲染页面，不依赖浏览器重新加载，完全绕过所有缓存层
@@ -685,9 +697,9 @@ if($action == 'base') {
 		$credits_daily_limit = isset($conf['credits_daily_limit']) ? intval($conf['credits_daily_limit']) : 10;
 		$credits_log_retention_days = isset($conf['credits_log_retention_days']) ? intval($conf['credits_log_retention_days']) : 90;
 		$credits_types = isset($conf['credits_types']) ? $conf['credits_types'] : array('credits', 'golds', 'rmbs');
-		$credits_name = isset($conf['credits_name']) ? $conf['credits_name'] : '积分';
-		$golds_name = isset($conf['golds_name']) ? $conf['golds_name'] : '金币';
-		$rmbs_name = isset($conf['rmbs_name']) ? $conf['rmbs_name'] : '人民币';
+		$credits_name = isset($conf['credits_name']) ? $conf['credits_name'] : lang('admin_credits_type_credits');
+		$golds_name = isset($conf['golds_name']) ? $conf['golds_name'] : lang('admin_credits_type_golds');
+		$rmbs_name = isset($conf['rmbs_name']) ? $conf['rmbs_name'] : lang('admin_credits_type_rmbs');
 
 		// 所有可选积分类型
 		$all_credits_types = array('credits', 'golds', 'rmbs');
@@ -708,9 +720,9 @@ if($action == 'base') {
 		$credits_daily_limit = param('credits_daily_limit', 10);
 		$credits_log_retention_days = param('credits_log_retention_days', 90);
 		$credits_types = param('credits_types', array());
-		$credits_name = param('credits_name', '积分', FALSE);
-		$golds_name = param('golds_name', '金币', FALSE);
-		$rmbs_name = param('rmbs_name', '人民币', FALSE);
+		$credits_name = param('credits_name', lang('admin_credits_type_credits'), FALSE);
+		$golds_name = param('golds_name', lang('admin_credits_type_golds'), FALSE);
+		$rmbs_name = param('rmbs_name', lang('admin_credits_type_rmbs'), FALSE);
 
 		if(empty($credits_types)) {
 			message(-1, lang('admin_credits_types_min_one'));
@@ -728,7 +740,7 @@ if($action == 'base') {
 
 		// hook admin_setting_credits_post_end.php
 
-		admin_log_create('setting_credits', 'setting', '', '修改积分设置');
+		admin_log_create('setting_credits', 'setting', '', lang('admin_op_setting_credits'));
 		message(0, lang('modify_successfully'));
 	}
 } elseif($action == 'email_log') {
@@ -747,8 +759,8 @@ if($action == 'base') {
 		$totalnum = email_log_count($cond);
 		$pagination = pagination(url("setting-email_log-{page}"), $totalnum, $page, $pagesize);
 
-		$header['title'] = '邮件发送日志';
-		$header['mobile_title'] = '邮件发送日志';
+		$header['title'] = lang('admin_email_log_title');
+		$header['mobile_title'] = lang('admin_email_log_title');
 
 		include _include(ADMIN_PATH."view/htm/setting_email_log.htm");
 	}
@@ -996,7 +1008,7 @@ respond @hidden 404
 
 		// hook admin_setting_permalink_post_end.php
 
-		admin_log_create('setting_seo', 'setting', '', '修改永久链接设置：url_rewrite_on=' . $url_rewrite_on);
+		admin_log_create('setting_seo', 'setting', '', lang('admin_log_setting_permalink', array('value'=>$url_rewrite_on)));
 		message(0, lang('admin_permalink_detect_success'));
 	}
 
@@ -1022,8 +1034,8 @@ respond @hidden 404
             }
         }
 
-        $header['title'] = '邮件模板设置';
-        $header['mobile_title'] = '邮件模板设置';
+        $header['title'] = lang('admin_email_template_setting');
+        $header['mobile_title'] = lang('admin_email_template_setting');
 
         include _include(ADMIN_PATH."view/htm/setting_email_template.htm");
 
@@ -1044,14 +1056,14 @@ respond @hidden 404
         }
 
         $r = file_put_contents_try(APP_PATH.'conf/email_templates.conf.php', "<?php\r\nreturn ".var_export($templates, true).";\r\n?>");
-        !$r AND message(-1, '保存失败，请检查 conf 目录权限');
+        !$r AND message(-1, lang('admin_save_failed_conf_dir'));
 
         // ponytail: 同 smtp.conf.php,opcache 缓存导致 reload 读旧值
         if (function_exists('opcache_invalidate')) {
             opcache_invalidate(APP_PATH.'conf/email_templates.conf.php', true);
         }
 
-        admin_log_create('setting_email_tpl', 'setting', '', '修改邮件模板设置');
+        admin_log_create('setting_email_tpl', 'setting', '', lang('admin_op_setting_email_tpl'));
         message(0, lang('save_successfully'));
     }
 
@@ -1160,7 +1172,7 @@ respond @hidden 404
 
 		// hook admin_setting_display_post_end.php
 
-		admin_log_create('setting_display', 'setting', '', '修改显示设置');
+		admin_log_create('setting_display', 'setting', '', lang('admin_op_setting_display'));
 		message(0, lang('save_successfully'));
 	}
 
@@ -1190,7 +1202,7 @@ respond @hidden 404
 
 		$result = CreditsRuleService::saveGlobalRules($rules);
 
-		admin_log_create('credits_rule_update', 'credits_rule', '', '修改全局积分规则');
+		admin_log_create('credits_rule_update', 'credits_rule', '', lang('admin_log_credits_rule_global'));
 
 		// hook admin_setting_creditsrules_post_end.php
 

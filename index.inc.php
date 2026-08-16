@@ -54,6 +54,7 @@ if(isset($conf['golds_name']) && $conf['golds_name']) {
     $lang['admin_credits_type_golds'] = $conf['golds_name'];
 }
 if(isset($conf['rmbs_name']) && $conf['rmbs_name']) {
+    $lang['rmb_label'] = $conf['rmbs_name'];
     $lang['admin_credits_type_rmbs'] = $conf['rmbs_name'];
 }
 // 积分规则相关名称覆盖
@@ -79,6 +80,7 @@ $user = user_read($uid);
 
 // session 有 uid 但用户已被删除：重置为游客，避免下游空数组解引用
 if($uid && empty($user)) {
+	if(function_exists('user_login_trace')) user_login_trace('user_deleted_session', $uid);
 	unset($_SESSION['uid']);
 	$uid = 0;
 	if(function_exists('user_token_clear')) user_token_clear();
@@ -88,6 +90,8 @@ if($uid && empty($user)) {
 // 账号锁定检查：banned_until > 当前时间则强制退出登录（前台会话也失效）
 // 防止攻击者偷取前台 cookie 后，即使后台密码错误被锁，仍能持前台会话操作
 if(!empty($user) && isset($user['banned_until']) && $user['banned_until'] > $time) {
+	// 记录强制下线原因（账号被锁定）
+	if(function_exists('user_login_trace')) user_login_trace('banned_until', $uid, array('banned_until' => $user['banned_until']));
 	// 清除 session 中的 uid
 	unset($_SESSION['uid']);
 	// 清除 bbs_token cookie
@@ -439,7 +443,7 @@ if(isset($_REQUEST['keyword']) && trim($_REQUEST['keyword']) !== '') {
 	$_kw_script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/index.php';
 	$_kw_is_admin = (strpos($_kw_script_name, '/admin') !== false);
 	if(!$_kw_is_admin) {
-		$valid_routes = array('index','thread','forum','user','my','attach','post','mod','browser','theme','search','lang','api','forums','rank','notice','captcha');
+		$valid_routes = array('index','thread','forum','user','my','attach','post','mod','theme','search','lang','api','forums','rank','notice','captcha');
 		if(!in_array($route, $valid_routes)) {
 			http_location(url('search', array('keyword' => trim($_REQUEST['keyword']))));
 		}
@@ -497,7 +501,6 @@ if(!defined('SKIP_ROUTE')) {
 		case 'attach': 	include _include(APP_PATH.'route/attach.php'); 	break;
 		case 'post': 	include _include(APP_PATH.'route/post.php'); 	break;
 		case 'mod': 	include _include(APP_PATH.'route/mod.php'); 	break;
-		case 'browser': include _include(APP_PATH.'route/browser.php'); break;
 		case 'theme': 	include _include(APP_PATH.'route/theme.php'); 	break;
 	case 'search': 	include _include(APP_PATH.'route/search.php'); 	break;
 	case 'lang': 	include _include(APP_PATH.'route/lang.php'); 	break;

@@ -27,69 +27,69 @@ if($method == 'GET') {
     if($audit_action == 'approve') {
         $target_type = param('target_type', '', FALSE);
         $target_id = param('target_id', 0);
-        if(empty($target_type) || empty($target_id)) message(-1, '参数错误');
+        if(empty($target_type) || empty($target_id)) message(-1, lang('admin_param_error'));
         $r = AuditService::approve($target_type, $target_id, $operator_uid);
-        $r ? message(0, '审核通过') : message(-1, '操作失败');
+        $r ? message(0, lang('admin_audit_approved')) : message(-1, lang('admin_op_failed'));
     } elseif($audit_action == 'reject') {
         $target_type = param('target_type', '', FALSE);
         $target_id = param('target_id', 0);
         $reason = param('reason', '', FALSE);
-        if(empty($target_type) || empty($target_id)) message(-1, '参数错误');
+        if(empty($target_type) || empty($target_id)) message(-1, lang('admin_param_error'));
         $r = AuditService::reject($target_type, $target_id, $operator_uid, $reason);
-        $r ? message(0, '已驳回') : message(-1, '操作失败');
+        $r ? message(0, lang('admin_audit_rejected')) : message(-1, lang('admin_op_failed'));
     } elseif($audit_action == 'batch_approve') {
         $target_type = param('target_type', '', FALSE);
         $ids = param('ids', array());
-        if(empty($target_type) || empty($ids)) message(-1, '参数错误');
+        if(empty($target_type) || empty($ids)) message(-1, lang('admin_param_error'));
         $count = AuditService::batch_approve($target_type, $ids, $operator_uid);
-        $count > 0 ? message(0, '成功通过 ' . $count . ' 项') : message(-1, '操作失败');
+        $count > 0 ? message(0, lang('admin_audit_batch_approved', array('n'=>$count))) : message(-1, lang('admin_op_failed'));
     } elseif($audit_action == 'batch_reject') {
         $target_type = param('target_type', '', FALSE);
         $ids = param('ids', array());
         $reason = param('reason', '', FALSE);
-        if(empty($target_type) || empty($ids)) message(-1, '参数错误');
+        if(empty($target_type) || empty($ids)) message(-1, lang('admin_param_error'));
         $count = AuditService::batch_reject($target_type, $ids, $operator_uid);
-        $count > 0 ? message(0, '成功驳回 ' . $count . ' 项') : message(-1, '操作失败');
+        $count > 0 ? message(0, lang('admin_audit_batch_rejected', array('n'=>$count))) : message(-1, lang('admin_op_failed'));
     } elseif($audit_action == 'ignore') {
         $target_type = param('target_type', '', FALSE);
         $target_id = param('target_id', 0);
-        if(empty($target_type) || empty($target_id)) message(-1, '参数错误');
+        if(empty($target_type) || empty($target_id)) message(-1, lang('admin_param_error'));
         $r = AuditService::ignore($target_type, $target_id, $operator_uid);
-        $r ? message(0, '已忽略') : message(-1, '操作失败');
+        $r ? message(0, lang('admin_audit_ignored')) : message(-1, lang('admin_op_failed'));
     } elseif($audit_action == 'batch_ignore') {
         $target_type = param('target_type', '', FALSE);
         $ids = param('ids', array());
-        if(empty($target_type) || empty($ids)) message(-1, '参数错误');
+        if(empty($target_type) || empty($ids)) message(-1, lang('admin_param_error'));
         $count = AuditService::batch_ignore($target_type, $ids, $operator_uid);
-        $count > 0 ? message(0, '成功忽略 ' . $count . ' 项') : message(-1, '操作失败');
+        $count > 0 ? message(0, lang('admin_audit_batch_ignored', array('n'=>$count))) : message(-1, lang('admin_op_failed'));
     } elseif($audit_action == 'profile_approve') {
         $audit_id = param('audit_id', 0);
-        if(empty($audit_id)) message(-1, '参数错误');
+        if(empty($audit_id)) message(-1, lang('admin_param_error'));
         $r = AuditService::approve_profile($audit_id, $operator_uid);
-        $r ? message(0, '审核通过') : message(-1, '操作失败');
+        $r ? message(0, lang('admin_audit_approved')) : message(-1, lang('admin_op_failed'));
     } elseif($audit_action == 'profile_reject') {
         $audit_id = param('audit_id', 0);
         $reason = param('reason', '', FALSE);
-        if(empty($audit_id)) message(-1, '参数错误');
+        if(empty($audit_id)) message(-1, lang('admin_param_error'));
         $r = AuditService::reject_profile($audit_id, $operator_uid, $reason);
-        $r ? message(0, '已驳回') : message(-1, '操作失败');
+        $r ? message(0, lang('admin_audit_rejected')) : message(-1, lang('admin_op_failed'));
     } elseif($audit_action == 'profile_batch_approve') {
         $ids = param('ids', array());
-        if(empty($ids)) message(-1, '参数错误');
+        if(empty($ids)) message(-1, lang('admin_param_error'));
         $r = AuditService::batch_approve_profiles($ids, $operator_uid);
-        $r ? message(0, '批量通过成功') : message(-1, '操作失败');
+        $r ? message(0, lang('admin_audit_batch_approve_success')) : message(-1, lang('admin_op_failed'));
     } elseif($audit_action == 'profile_ignore') {
         $audit_id = param('audit_id', 0);
-        if(empty($audit_id)) message(-1, '参数错误');
+        if(empty($audit_id)) message(-1, lang('admin_param_error'));
         $r = AuditService::ignore_profile($audit_id, $operator_uid);
-        $r ? message(0, '已忽略') : message(-1, '操作失败');
+        $r ? message(0, lang('admin_audit_ignored')) : message(-1, lang('admin_op_failed'));
     } elseif($audit_action == 'profile_batch_ignore') {
         $ids = param('ids', array());
-        if(empty($ids)) message(-1, '参数错误');
+        if(empty($ids)) message(-1, lang('admin_param_error'));
         $count = AuditService::batch_ignore_profiles($ids, $operator_uid);
-        $count > 0 ? message(0, '成功忽略 ' . $count . ' 项') : message(-1, '操作失败');
+        $count > 0 ? message(0, lang('admin_audit_batch_ignored', array('n'=>$count))) : message(-1, lang('admin_op_failed'));
     } else {
-        message(-1, '未知操作');
+        message(-1, lang('admin_unknown_action'));
     }
 }
 

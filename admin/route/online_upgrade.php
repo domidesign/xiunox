@@ -35,7 +35,7 @@ if($action == 'check') {
         exit;
     }
 
-    $result = ['ok' => false, 'message' => '未知步骤：' . $step];
+    $result = ['ok' => false, 'message' => lang('admin_online_upgrade_unknown_step', array('step'=>$step))];
 
     switch($step) {
         case 'maintenance_on':
@@ -54,7 +54,7 @@ if($action == 'check') {
             // 找到已下载的 zip 文件
             $zipFiles = glob(APP_PATH . 'tmp/upgrade_*.zip');
             if(empty($zipFiles)) {
-                $result = ['ok' => false, 'message' => '未找到升级包，请先执行下载步骤'];
+                $result = ['ok' => false, 'message' => lang('admin_online_upgrade_no_package')];
                 break;
             }
             $zipPath = end($zipFiles); // 取最新的
@@ -72,7 +72,7 @@ if($action == 'check') {
             $result = $onlineUpgradeService->maintenanceOff();
             break;
         default:
-            $result = ['ok' => false, 'message' => '未知步骤：' . $step];
+            $result = ['ok' => false, 'message' => lang('admin_online_upgrade_unknown_step', array('step'=>$step))];
     }
 
     header('Content-Type: application/json; charset=utf-8');

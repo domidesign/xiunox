@@ -68,7 +68,7 @@ if($_auth_key === ''
 	// 仅在非安装路径、非后台路径下阻断
 	$_script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '';
 	if(strpos($_script_name, 'install/') === FALSE && strpos($_script_name, 'admin/') === FALSE) {
-		die('auth_key 未配置或强度不足，请运行安装程序（install/）或在 conf.php 中设置 32 位以上随机密钥。');
+		die(function_exists('lang') && !empty($_SERVER['lang']) ? lang('auth_key_not_configured') : 'auth_key 未配置或强度不足，请运行安装程序（install/）或在 conf.php 中设置 32 位以上随机密钥。');
 	}
 }
 

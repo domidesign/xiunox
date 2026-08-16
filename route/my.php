@@ -231,10 +231,10 @@ if(empty($action)) {
 						'ip' => $longip,
 					));
 				}
-				message(0, '资料已提交，等待审核');
+				message(0, lang('profile_submitted_pending'));
 			} else {
 				$r = user_update($uid, $update);
-				$r === FALSE AND message(-1, lang('update_error'));
+			$r === FALSE AND message(-1, lang('update_failed'));
 				// 记录昵称修改日志
 			if(isset($update['nickname']) && db_check_table_exists('nickname_change_log')) {
 				db_insert('nickname_change_log', array(
@@ -384,9 +384,9 @@ if(empty($action)) {
 		$session_code = isset($_SESSION['email_change_code']) ? $_SESSION['email_change_code'] : '';
 		$session_email = isset($_SESSION['email_change_target']) ? $_SESSION['email_change_target'] : '';
 
-		empty($session_code) AND message('email_code', '请先发送验证码');
-		$session_email != $email_new AND message('email_new', '邮箱与验证码不匹配');
-		$session_code != $email_code AND message('email_code', '验证码不正确');
+		empty($session_code) AND message('email_code', lang('send_code_first'));
+		$session_email != $email_new AND message('email_new', lang('email_code_mismatch'));
+		$session_code != $email_code AND message('email_code', lang('verify_code_incorrect'));
 
 		$exists = user_read_by_email($email_new);
 		if(!empty($exists) && $exists['uid'] != $uid) {
@@ -397,7 +397,7 @@ if(empty($action)) {
 		$old_email = $user['email'];
 
 		$r = user_update($uid, array('email' => $email_new));
-		$r === FALSE AND message(-1, lang('modify_failed'));
+		$r === FALSE AND message(-1, lang('update_failed'));
 
 		unset($_SESSION['email_change_code']);
 		unset($_SESSION['email_change_target']);
@@ -442,7 +442,7 @@ if(empty($action)) {
 			$allowed_list = array_map('trim', explode(',', strtolower($allowed_domains)));
 			$allowed_list = array_filter($allowed_list);
 			if (!empty($allowed_list) && !in_array($email_domain, $allowed_list)) {
-				message(-1, '该邮箱域名不允许使用，仅支持：' . implode('、', $allowed_list));
+				message(-1, lang('email_domain_not_allowed', array('domains'=>implode('、', $allowed_list))));
 			}
 		}
 
@@ -467,7 +467,7 @@ if(empty($action)) {
 
 		$smtp = xn_smtp_get();
 		if(empty($smtp)) {
-			message(-1, '邮件发送未配置，请联系管理员');
+			message(-1, lang('mail_not_configured'));
 		}
 
 		// 频率限制检查
@@ -483,7 +483,7 @@ if(empty($action)) {
 		// ponytail: 同步模式会阻塞请求 1-5 秒（SMTP 握手），前端按钮配合 loading 状态避免重复点击
 		$send_result = xn_send_mail($smtp, $conf['sitename'], $email, $subject, $message, array('is_html'=>TRUE));
 		if($send_result !== TRUE) {
-			message(-1, lang('send_failed') . '：' . $send_result);
+			message(-1, lang('send_failed_detail', array('detail'=>$send_result)));
 		}
 
 		// hook my_send_email_code_end.php
@@ -548,7 +548,7 @@ if(empty($action)) {
 		            $upload_count = 0;
 		        }
 		        if (intval($upload_count) >= $upload_limit) {
-		            message(-1, '头像上传次数已达上限（' . $upload_limit . '次）');
+		            message(-1, lang('avatar_upload_limit_reached_detail', array('limit'=>$upload_limit)));
 		        }
 		    }
 
@@ -557,7 +557,7 @@ if(empty($action)) {
 		    if ($max_size > 0 && !empty($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
 		        $file_size_kb = intval($_FILES['file']['size'] / 1024);
 		        if ($file_size_kb > $max_size) {
-		            message(-1, '头像文件大小超过限制（最大' . $max_size . 'KB）');
+		            message(-1, lang('avatar_size_exceeded', array('max_size'=>$max_size)));
 		        }
 		    }
 		}
@@ -1385,7 +1385,7 @@ if(empty($action)) {
 			header('HTTP/1.1 405 Method Not Allowed');
 			exit;
 		}
-		message(-1, 'Method Error.');
+		message(-1, lang('method_error'));
 	}
 	CsrfService::check();
 
@@ -1420,7 +1420,7 @@ if(empty($action)) {
 			header('HTTP/1.1 405 Method Not Allowed');
 			exit;
 		}
-		message(-1, 'Method Error.');
+		message(-1, lang('method_error'));
 	}
 	CsrfService::check();
 

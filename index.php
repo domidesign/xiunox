@@ -106,13 +106,30 @@ foreach(array('logo_mobile_url', 'logo_pc_url', 'logo_water_url') as $_logo_key)
 
 $_SERVER['conf'] = $conf;
 
+// Host FQDN 尾点规范化：HTTP_HOST 带尾点（如 xiunox.org.）时 301 跳转到无尾点域名
+// ponytail: cookie 为 host-only，带尾点与不带尾点域名间 cookie 不共享，用户跨域名访问
+// 会被误判为未登录强制下线。跳转让登录态收敛在正常域名。POST 不跳转（避免 301 转 GET 丢数据）。
+$_host_raw = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
+if($_host_raw !== '' && substr($_host_raw, -1) === '.') {
+	$_host_clean = rtrim($_host_raw, '.');
+	$_is_get_like = !isset($_SERVER['REQUEST_METHOD']) || in_array($_SERVER['REQUEST_METHOD'], array('GET', 'HEAD'), true);
+	if($_host_clean !== '' && $_host_clean !== $_host_raw && $_is_get_like) {
+		$_scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+			|| (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
+			|| (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? 'https' : 'http';
+		header('HTTP/1.1 301 Moved Permanently');
+		header('Location: ' . $_scheme . '://' . $_host_clean . (isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/'));
+		exit;
+	}
+}
+
 // 强制 HTTPS 跳转（必须在 conf 加载后、框架初始化前执行）
 if(!empty($conf['force_https']) && $conf['force_https'] == 1) {
 	$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
 		|| (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
 		|| (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
 	if(!$is_https) {
-		$https_url = 'https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+		$https_url = 'https://' . rtrim($_SERVER['HTTP_HOST'], '.') . $_SERVER['REQUEST_URI'];
 		header('HTTP/1.1 301 Moved Permanently');
 		header('Location: ' . $https_url);
 		exit;
@@ -137,12 +154,20 @@ include _include(APP_PATH.'model.inc.php');
 // ponytail: model.inc.php 的 model_inc_file hook 注入可能因 tmp 缓存陈旧而丢失
 // （tmp/model.inc.php 未重新编译，但 tmp/model_xxx.func.php 重新编译注入了 Service 调用），
 // 两者不一致会导致 Class not found fatal 崩溃，触发插件自动禁用机制。
-// 此处用 class_exists 守卫兜底，已加载的类不会重复 include；插件 model/ 目录文件均为纯类定义（无 hook 占位符），直接 include 安全
+// 此处用 class_exists 守卫兜底，已加载的类不会重复 include。
+//
+// XIUNOX 插件开发规范（强制）：
+//   - plugin/<dir>/model/ 目录只放 Service 类文件，类名 = 文件名（如 CheckinService.php → class CheckinService）
+//   - 不需要写 hook/model_inc_file.php，本兜底逻辑自动扫描加载
+//   - 禁止在 model/ 下放 *.func.php 函数库（xiuno 原版写法），否则与自动扫描冲突导致函数重声明 fatal
+//     非规范的 *.func.php 在此跳过，由插件自行通过 hook/model_inc_file.php 注入加载（不保证兼容）
 $_plugin_paths_fallback = plugin_paths_enabled();
 foreach ($_plugin_paths_fallback as $_path_fb => $_pconf_fb) {
 	$_model_dir_fb = $_path_fb . '/model';
 	if (!is_dir($_model_dir_fb)) continue;
 	foreach (glob($_model_dir_fb . '/*.php') as $_service_file_fb) {
+		// 跳过 xiuno 原版 *.func.php 函数库文件：由 model_inc_file hook 注入加载，不自动扫描
+		if (substr($_service_file_fb, -9) === '.func.php') continue;
 		$_class_name_fb = ucfirst(basename($_service_file_fb, '.php'));
 		if (!class_exists($_class_name_fb, false)) {
 			include_once $_service_file_fb;

@@ -411,7 +411,7 @@
             danger: 'ti-alert-circle text-danger'
         };
         var iconCls = iconMap[type] || iconMap.info;
-        var titleText = title || (typeof lang !== 'undefined' && lang.tips_title) || '提示';
+        var titleText = title || (typeof lang !== 'undefined' && lang.tips_title) || 'Notice';
 
         var id = 'xn-alert-' + Date.now();
         var html = '<div class="modal fade" id="' + id + '" tabindex="-1" aria-hidden="true">' +
@@ -424,7 +424,7 @@
             '<div class="modal-body pt-2"><p class="mb-0">' + message + '</p></div>' +
             '<div class="modal-footer border-0 pt-0">' +
             '<button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">' +
-            ((typeof lang !== 'undefined' && lang.close) || '关闭') + '</button>' +
+            ((typeof lang !== 'undefined' && lang.close) || 'Close') + '</button>' +
             '</div></div></div></div>';
 
         document.body.insertAdjacentHTML('beforeend', html);
@@ -451,8 +451,8 @@
         options = options || {};
         var type = options.type || 'warning';
         var size = options.size || 'md';
-        var okText = options.okText || ((typeof lang !== 'undefined' && lang.confirm) || '确定');
-        var cancelText = options.cancelText || ((typeof lang !== 'undefined' && lang.close) || '关闭');
+        var okText = options.okText || ((typeof lang !== 'undefined' && lang.confirm) || 'OK');
+        var cancelText = options.cancelText || ((typeof lang !== 'undefined' && lang.close) || 'Close');
         var body = options.body || '';
         var cancelCallback = options.cancelCallback;
 
@@ -462,7 +462,7 @@
             danger: 'ti-alert-circle text-danger'
         };
         var iconCls = iconMap[type] || iconMap.warning;
-        var titleText = options.title || (typeof lang !== 'undefined' && lang.confirm_title) || '确认';
+        var titleText = options.title || (typeof lang !== 'undefined' && lang.confirm_title) || 'Confirm';
 
         var id = 'xn-confirm-' + Date.now();
         var html = '<div class="modal fade" id="' + id + '" tabindex="-1" aria-hidden="true">' +
@@ -537,8 +537,8 @@
         options = options || {};
         var type = options.type || 'info';
         var size = options.size || 'md';
-        var okText = options.okText || ((typeof lang !== 'undefined' && lang.confirm) || '确定');
-        var cancelText = options.cancelText || ((typeof lang !== 'undefined' && lang.close) || '关闭');
+        var okText = options.okText || ((typeof lang !== 'undefined' && lang.confirm) || 'OK');
+        var cancelText = options.cancelText || ((typeof lang !== 'undefined' && lang.close) || 'Close');
         var placeholder = options.placeholder || '';
         var required = options.required !== false;
         var multiline = !!options.multiline;
@@ -551,7 +551,7 @@
             danger: 'ti-alert-circle text-danger'
         };
         var iconCls = iconMap[type] || iconMap.info;
-        var titleText = options.title || (typeof lang !== 'undefined' && lang.input_title) || '请输入';
+        var titleText = options.title || (typeof lang !== 'undefined' && lang.input_title) || 'Please input';
 
         var id = 'xn-prompt-' + Date.now();
         var inputHtml = multiline
@@ -611,7 +611,7 @@
         function doOk() {
             var val = inputEl.value;
             if (required && !val.trim()) {
-                showError((typeof lang !== 'undefined' && lang.input_required) || '请输入内容');
+                showError((typeof lang !== 'undefined' && lang.input_required) || 'Please enter content');
                 return;
             }
             if (typeof validate === 'function') {
@@ -660,6 +660,7 @@
     // options: { onCancel: 取消时的回调 }
     XN.confirmCreditsDeduct = function (event, fid, callback, options) {
         options = options || {};
+        var _i18n = (typeof XIUNO_I18N !== 'undefined') ? XIUNO_I18N : {};
         var url = (typeof creditsCheckUrl !== 'undefined') ? creditsCheckUrl : XN.url('my-credits_check');
         var sep = url.indexOf('?') >= 0 ? '&' : '?';
         url += sep + 'event=' + encodeURIComponent(event) + '&fid=' + encodeURIComponent(fid || 0);
@@ -680,8 +681,8 @@
 
             // 每日上限达到 → toast 提示用户本次不扣减/奖励积分，然后放行操作
             if (res.code === 0 && data.daily_limit_reached) {
-                var limitMsg = res.message || '每日操作次数已达上限';
-                XN.toast(limitMsg + '，本次不扣减/奖励积分', 'warning');
+                var limitMsg = res.message || (_i18n.daily_limit_reached || 'Daily operation limit reached');
+                XN.toast(limitMsg + (_i18n.no_deduct_tip || ', no deduction/reward credits this time'), 'warning');
                 callback();
                 return;
             }
@@ -694,7 +695,7 @@
 
             // 失败（余额不足/超限等）→ toast 提示并阻止
             if (res.code !== 0) {
-                var msg = res.message || '操作失败';
+                var msg = res.message || (_i18n.operation_failed || 'Operation failed');
                 XN.toast(msg, 'danger');
                 if (options.onCancel) options.onCancel();
                 return;
@@ -706,18 +707,22 @@
             var body = '<div class="mb-2"><i class="ti ti-minus text-warning me-1"></i>' + XN.escapeHtml(deductDesc) + '</div>';
 
             if (balances.credits !== undefined) {
+                var _cl = (typeof credits_labels !== 'undefined') ? credits_labels : {credits:'Credits', golds:'Golds', rmbs:'RMB'};
+                var _balance = _i18n.balance || 'Balance';
                 body += '<div class="small text-body-secondary border-top pt-2 mt-2">';
-                body += '<div class="d-flex justify-content-between"><span>积分余额</span><span class="fw-semibold">' + balances.credits + '</span></div>';
-                if (balances.golds !== undefined) body += '<div class="d-flex justify-content-between"><span>金币余额</span><span class="fw-semibold">' + balances.golds + '</span></div>';
-                if (balances.rmbs !== undefined) body += '<div class="d-flex justify-content-between"><span>人民币余额</span><span class="fw-semibold">' + balances.rmbs + '</span></div>';
+                body += '<div class="d-flex justify-content-between"><span>' + XN.escapeHtml(_cl.credits) + _balance + '</span><span class="fw-semibold">' + balances.credits + '</span></div>';
+                if (balances.golds !== undefined) body += '<div class="d-flex justify-content-between"><span>' + XN.escapeHtml(_cl.golds) + _balance + '</span><span class="fw-semibold">' + balances.golds + '</span></div>';
+                if (balances.rmbs !== undefined) body += '<div class="d-flex justify-content-between"><span>' + XN.escapeHtml(_cl.rmbs) + _balance + '</span><span class="fw-semibold">' + balances.rmbs + '</span></div>';
                 body += '</div>';
             }
 
-            XN.confirm('本次操作将扣除积分，是否继续？', callback, {
-                title: '积分确认',
+            var _cl2 = (typeof credits_labels !== 'undefined') ? credits_labels : {credits:'Credits'};
+            var deductConfirm = (_i18n.credits_deduct_confirm || 'This operation will deduct {credits}, continue?').replace('{credits}', XN.escapeHtml(_cl2.credits));
+            XN.confirm(deductConfirm, callback, {
+                title: XN.escapeHtml(_cl2.credits) + (_i18n.confirm_btn || 'Confirm'),
                 type: 'warning',
-                okText: '确认',
-                cancelText: '取消',
+                okText: _i18n.confirm_btn || 'Confirm',
+                cancelText: _i18n.cancel_btn || 'Cancel',
                 body: body,
                 cancelCallback: options.onCancel
             });
@@ -857,7 +862,7 @@
             }
             var overlay = document.createElement('div');
             overlay.className = 'captcha-expired-overlay';
-            var txt = (typeof lang !== 'undefined' && lang.captcha_expired) ? lang.captcha_expired : '已过期，点击刷新';
+            var txt = (typeof lang !== 'undefined' && lang.captcha_expired) ? lang.captcha_expired : 'Expired, click to refresh';
             overlay.textContent = txt;
             overlay.title = txt;
             overlay.style.cssText = 'position:absolute;top:0;right:0;bottom:0;width:120px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);color:#fff;font-size:12px;cursor:pointer;border-radius:0 20px 20px 0;text-align:center;z-index:5';
@@ -1334,8 +1339,8 @@
         var filetype = options.filetype || xn.image_file_type(file_base64_data);
         var qulity = options.qulity || 0.9;
 
-        if (thumb_width < 1) return callback(-1, '缩略图宽度不能小于 1 / thumb image width length is less 1 pix');
-        if (xn.substr(file_base64_data, 0, 10) !== 'data:image') return callback(-1, '传入的 base64 数据有问题 / deformed base64 data');
+        if (thumb_width < 1) return callback(-1, (typeof XIUNO_I18N !== 'undefined' && XIUNO_I18N.thumb_width_error) || 'Thumbnail width must be at least 1');
+        if (xn.substr(file_base64_data, 0, 10) !== 'data:image') return callback(-1, (typeof XIUNO_I18N !== 'undefined' && XIUNO_I18N.base64_data_error) || 'Invalid base64 data');
 
         var img = new Image();
         img.onload = function() {
@@ -2817,7 +2822,7 @@
         if (t) body = t.innerHTML;
         if (!body) body = s;
         if (body.indexOf('<meta ') !== -1) {
-            console.log('加载的数据有问题：body: %s: ', body);
+            console.log('Invalid data loaded: body: %s: ', body);
             body = '';
         }
         return {title: title, body: body, script_sections: script_sections, script_srcs: script_srcs, stylesheet_links: stylesheet_links};
@@ -2831,12 +2836,12 @@
             '<div class="modal-dialog modal-dialog-centered modal-' + (options.size || 'md') + '">' +
             '<div class="modal-content border-0 rounded-3 shadow">' +
             '<div class="modal-header border-0 pb-0">' +
-            '<h6 class="modal-title fw-bold"><i class="ti ti-info-circle text-primary me-2"></i>' + (langObj.tips_title || '提示') + '</h6>' +
+            '<h6 class="modal-title fw-bold"><i class="ti ti-info-circle text-primary me-2"></i>' + (langObj.tips_title || 'Notice') + '</h6>' +
             '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>' +
             '</div>' +
             '<div class="modal-body pt-2"><p class="mb-0">' + subject + '</p></div>' +
             '<div class="modal-footer border-0 pt-0">' +
-            '<button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">' + (langObj.close || '关闭') + '</button>' +
+            '<button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">' + (langObj.close || 'Close') + '</button>' +
             '</div></div></div></div>';
         var jmodal = $(s).appendTo('body');
         var modalEl = jmodal[0];
@@ -2857,7 +2862,7 @@
         options = options || {size: 'md'};
         options.body = options.body || '';
         var langObj = (typeof lang !== 'undefined') ? lang : {};
-        var title = options.body ? subject : (langObj.confirm_title || '确认') + ':';
+        var title = options.body ? subject : (langObj.confirm_title || 'Confirm') + ':';
         var subjectHtml = options.body ? '' : '<p>' + subject + '</p>';
         var s = '<div class="modal fade" tabindex="-1" role="dialog">' +
             '<div class="modal-dialog modal-dialog-centered modal-' + (options.size || 'md') + '">' +
@@ -2868,8 +2873,8 @@
             '</div>' +
             '<div class="modal-body pt-2">' + subjectHtml + options.body + '</div>' +
             '<div class="modal-footer border-0 pt-0">' +
-            '<button type="button" class="btn btn-primary px-4 btn-ok">' + (langObj.confirm || '确定') + '</button>' +
-            '<button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">' + (langObj.close || '关闭') + '</button>' +
+            '<button type="button" class="btn btn-primary px-4 btn-ok">' + (langObj.confirm || 'OK') + '</button>' +
+            '<button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">' + (langObj.close || 'Close') + '</button>' +
             '</div></div></div></div>';
         var jmodal = $(s).appendTo('body');
         var modalEl = jmodal[0];

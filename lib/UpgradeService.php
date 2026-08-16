@@ -1,6 +1,12 @@
 <?php
 
 class UpgradeService {
+    // 消息语言键（message 字段同时用于内部统计判断，比较时须与 lang() 结果一致）
+    const MSG_DONE = 'upgrade_done';
+    const MSG_SKIPPED = 'upgrade_skipped';
+    const MSG_UTF8MB4_SKIPPED = 'upgrade_utf8mb4_skipped';
+    const MSG_TABLE_SKIPPED = 'upgrade_table_skipped';
+
     private $db;
     private array $conf;
     private string $backupPath;
@@ -46,32 +52,32 @@ class UpgradeService {
 
         if (version_compare(PHP_VERSION, '8.0', '<')) {
             $ok = false;
-            $warnings[] = 'PHP 版本 ' . PHP_VERSION . ' < 8.0，需先升级 PHP';
+            $warnings[] = lang('upgrade_php_version_too_low', array('version' => PHP_VERSION));
         }
 
         $freeSpace = disk_free_space(APP_PATH);
         if ($freeSpace < 50 * 1024 * 1024) {
             $ok = false;
-            $warnings[] = '磁盘空间不足（需至少 50MB）：' . round($freeSpace / 1024 / 1024, 1) . 'MB';
+            $warnings[] = lang('upgrade_disk_space_insufficient', array('limit' => 50, 'size' => round($freeSpace / 1024 / 1024, 1)));
         }
 
         $confFile = APP_PATH . 'conf/conf.php';
         if (!is_writable($confFile)) {
-            $warnings[] = 'conf/conf.php 不可写，配置更新将失败';
+            $warnings[] = lang('upgrade_conf_not_writable_warn');
         }
 
         if (!is_writable($this->conf['tmp_path'])) {
             $ok = false;
-            $warnings[] = 'tmp 目录不可写：' . $this->conf['tmp_path'];
+            $warnings[] = lang('upgrade_tmp_not_writable', array('dir' => $this->conf['tmp_path']));
         }
 
         if ($ok && file_exists($this->backupPath)) {
-            $warnings[] = '备份目录已存在，请手动删除：' . $this->backupPath;
+            $warnings[] = lang('upgrade_backup_dir_exists', array('dir' => $this->backupPath));
         }
 
         return [
             'ok' => $ok,
-            'message' => $ok ? '检查通过' : '存在 ' . count($warnings) . ' 个问题',
+            'message' => $ok ? lang('upgrade_check_passed') : lang('upgrade_issues_exist', array('n' => count($warnings))),
             'need_upgrade' => $this->needUpgrade(),
             'current_version' => $this->getInstalledVersion(),
             'target_version' => $this->targetVersion,
@@ -81,15 +87,15 @@ class UpgradeService {
 
     public function backup(): array {
         if (file_exists($this->backupPath)) {
-            return ['ok' => true, 'message' => '备份目录已存在，跳过备份', 'backup_path' => $this->backupPath, 'files' => []];
+            return ['ok' => true, 'message' => lang('upgrade_backup_dir_exists_skip'), 'backup_path' => $this->backupPath, 'files' => []];
         }
         $oldUmask = umask(0);
         $created = @mkdir($this->backupPath, 0755, true);
         umask($oldUmask);
         if (!$created) {
             $error = error_get_last();
-            $errMsg = !empty($error['message']) ? $error['message'] : '未知错误';
-            return ['ok' => false, 'message' => '创建备份目录失败: ' . $this->backupPath . ' (' . $errMsg . ')'];
+            $errMsg = !empty($error['message']) ? $error['message'] : lang('unknown_error');
+            return ['ok' => false, 'message' => lang('upgrade_backup_dir_create_failed', array('dir' => $this->backupPath, 'error' => $errMsg))];
         }
 
         $backups = [];
@@ -106,7 +112,7 @@ class UpgradeService {
 
         return [
             'ok' => true,
-            'message' => '备份完成：' . implode(', ', $backups),
+            'message' => lang('upgrade_backup_done', array('files' => implode(', ', $backups))),
             'backup_path' => $this->backupPath,
             'files' => $backups,
         ];
@@ -117,17 +123,17 @@ class UpgradeService {
         if (!empty($this->db->errno)) {
             return ['ok' => false, 'message' => 'MySQL Error ' . $this->db->errno . ': ' . $this->db->errstr];
         }
-        return ['ok' => true, 'message' => '完成'];
+        return ['ok' => true, 'message' => lang(self::MSG_DONE)];
     }
 
     private function addColumn(string $table, string $column, string $sql, string $tablepre): array {
         if ($this->dbColumnExists($table, $column, $tablepre)) {
-            return ['ok' => true, 'message' => '已存在，跳过'];
+            return ['ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
         $result = $this->execSql($sql);
         if ($result['ok']) {
             if (!$this->dbColumnExists($table, $column, $tablepre)) {
-                return ['ok' => false, 'message' => '执行后验证失败，字段未创建'];
+                return ['ok' => false, 'message' => lang('upgrade_verify_failed_column')];
             }
         }
         return $result;
@@ -135,12 +141,12 @@ class UpgradeService {
 
     private function createTable(string $table, string $sql, string $tablepre): array {
         if ($this->dbTableExists($table, $tablepre)) {
-            return ['ok' => true, 'message' => '已存在，跳过'];
+            return ['ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
         $result = $this->execSql($sql);
         if ($result['ok']) {
             if (!$this->dbTableExists($table, $tablepre)) {
-                return ['ok' => false, 'message' => '执行后验证失败，表未创建'];
+                return ['ok' => false, 'message' => lang('upgrade_verify_failed_table')];
             }
         }
         return $result;
@@ -210,10 +216,10 @@ class UpgradeService {
         $results[] = ['name' => 'signature_change_log', 'ok' => $r['ok'], 'message' => $r['message']];
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === '完成'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === lang(self::MSG_DONE); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "数据库结构升级完成（{$doneCount} 项新增）" : '部分结构升级失败',
+            'message' => $allOk ? lang('upgrade_db_structure_done', array('n' => $doneCount)) : lang('upgrade_partial_structure_failed'),
             'results' => $results,
         ];
     }
@@ -293,10 +299,10 @@ class UpgradeService {
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === '完成'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === lang(self::MSG_DONE); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "社交功能表升级完成（{$doneCount} 项新增）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_social_tables_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -334,10 +340,10 @@ class UpgradeService {
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === '完成'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === lang(self::MSG_DONE); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "积分系统升级完成（{$doneCount} 项新增）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_credits_system_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -377,7 +383,7 @@ class UpgradeService {
         $results[] = ['name' => 'credits_rule_forum', 'ok' => $r['ok'], 'message' => $r['message']];
 
         // 插入12条内置规则初始数据（仅当表为新创建时）
-        if ($results[0]['message'] === '完成') {
+        if ($results[0]['message'] === lang(self::MSG_DONE)) {
             $builtinRules = [
                 ['thread_post', '发主题'],
                 ['reply_post', '发回复'],
@@ -394,7 +400,7 @@ class UpgradeService {
             foreach ($builtinRules as $rule) {
                 $this->execSql("INSERT IGNORE INTO `{$tablepre}credits_rule_global` (`event`, `label`, `credits_change`, `golds_change`, `rmbs_change`, `enabled`) VALUES ('{$rule[0]}', '{$rule[1]}', 0, 0, 0, 1)");
             }
-            $results[] = ['name' => 'credits_rule_global.init_data', 'ok' => true, 'message' => '插入 ' . count($builtinRules) . ' 条内置规则'];
+            $results[] = ['name' => 'credits_rule_global.init_data', 'ok' => true, 'message' => lang('upgrade_insert_builtin_rules', array('n' => count($builtinRules)))];
         }
 
         // 补充 unlike/unfavorite 事件（对已存在的系统追加新事件，使用 INSERT IGNORE 避免重复）
@@ -407,13 +413,13 @@ class UpgradeService {
             $r = $this->execSql("INSERT IGNORE INTO `{$tablepre}credits_rule_global` (`event`, `label`, `credits_change`, `golds_change`, `rmbs_change`, `enabled`, `daily_limit`) VALUES ('{$ev[0]}', '{$ev[1]}', 0, 0, 0, 1, 0)");
             if ($r['ok']) $insertedNew++;
         }
-        $results[] = ['name' => 'credits_rule_global.unlike_unfavorite', 'ok' => true, 'message' => "补充 unlike/unfavorite 事件（新增 {$insertedNew} 条）"];
+        $results[] = ['name' => 'credits_rule_global.unlike_unfavorite', 'ok' => true, 'message' => lang('upgrade_add_unlike_events', array('n' => $insertedNew))];
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "积分规则表升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_credits_rule_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -448,9 +454,9 @@ class UpgradeService {
         $indexExists = $this->dbIndexExists('api_token', 'uid_type', $tablepre);
         if (!$indexExists) {
             $r = $this->execSql("ALTER TABLE `{$tablepre}api_token` ADD INDEX `uid_type` (`uid`, `type`)");
-            $results[] = ['name' => 'api_token.uid_type', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+            $results[] = ['name' => 'api_token.uid_type', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
         } else {
-            $results[] = ['name' => 'api_token.uid_type', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'api_token.uid_type', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         $tables = [
@@ -482,7 +488,7 @@ class UpgradeService {
 
         // thread_favorite 已在 upgradeSocialTables 中创建，此处仅确保旧表结构兼容
         if ($this->dbTableExists('thread_favorite', $tablepre)) {
-            $results[] = ['name' => 'thread_favorite', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'thread_favorite', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         } else {
             $r = $this->createTable('thread_favorite', "CREATE TABLE `{$tablepre}thread_favorite` (
               tid int(11) unsigned NOT NULL DEFAULT '0',
@@ -495,10 +501,10 @@ class UpgradeService {
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === '完成'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === lang(self::MSG_DONE); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "API v1 表升级完成（{$doneCount} 项新增）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_api_v1_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -528,7 +534,7 @@ class UpgradeService {
         $results[] = ['name' => 'api_app', 'ok' => $r['ok'], 'message' => $r['message']];
 
         // 表为新创建时，自动插入默认应用
-        if ($r['message'] === '完成') {
+        if ($r['message'] === lang(self::MSG_DONE)) {
             $appid = bin2hex(random_bytes(8));
             $secret = bin2hex(random_bytes(16));
             $now = time();
@@ -536,7 +542,7 @@ class UpgradeService {
             $insertSql = "INSERT INTO `{$tablepre}api_app` (`appid`, `secret`, `name`, `description`, `scope`, `is_enabled`, `uid`, `rate_limit`, `created_at`)
                 VALUES ('{$appid}', '{$secret}', '默认应用', '系统自动创建的默认应用，用于前台页面', 'full', 1, 0, 0, {$now})";
             $ir = $this->execSql($insertSql);
-            $results[] = ['name' => 'api_app.default_app', 'ok' => $ir['ok'], 'message' => $ir['ok'] ? '默认应用已创建' : $ir['message']];
+            $results[] = ['name' => 'api_app.default_app', 'ok' => $ir['ok'], 'message' => $ir['ok'] ? lang('upgrade_default_app_created') : $ir['message']];
 
             // 将默认应用凭据写入 conf.php
             if ($ir['ok'] && function_exists('file_replace_var')) {
@@ -552,22 +558,22 @@ class UpgradeService {
                     if (!empty($changes)) {
                         $wr = file_replace_var($confFile, $changes);
                         if ($wr) {
-                            $results[] = ['name' => 'api_app.conf_update', 'ok' => true, 'message' => '已写入 ' . count($changes) . ' 项配置到 conf.php'];
+                            $results[] = ['name' => 'api_app.conf_update', 'ok' => true, 'message' => lang('upgrade_conf_written_count', array('n' => count($changes)))];
                         } else {
-                            $results[] = ['name' => 'api_app.conf_update', 'ok' => false, 'message' => '写入 conf.php 失败'];
+                            $results[] = ['name' => 'api_app.conf_update', 'ok' => false, 'message' => lang('conf_file_write_failed')];
                         }
                     }
                 } else {
-                    $results[] = ['name' => 'api_app.conf_update', 'ok' => false, 'message' => 'conf/conf.php 不可写'];
+                    $results[] = ['name' => 'api_app.conf_update', 'ok' => false, 'message' => lang('conf_file_not_writable')];
                 }
             }
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "API 应用认证表升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_api_app_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -628,13 +634,13 @@ class UpgradeService {
         }
 
         if (empty($results)) {
-            return ['ok' => true, 'message' => '数据库迁移已是最新，无需操作', 'results' => []];
+            return ['ok' => true, 'message' => lang('upgrade_migrate_latest'), 'results' => []];
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
         return [
             'ok' => $allOk,
-            'message' => $allOk ? '数据库迁移完成' : '部分迁移失败',
+            'message' => $allOk ? lang('upgrade_migrate_done') : lang('upgrade_partial_migrate_failed'),
             'results' => $results,
         ];
     }
@@ -661,7 +667,7 @@ class UpgradeService {
 
         return [
             'ok' => $r['ok'],
-            'message' => "密码迁移：{$legacyUsers} 个旧格式用户已清空 password_hash，下次登录时自动升级为 bcrypt(明文)",
+            'message' => lang('upgrade_password_migrate_done', array('n' => $legacyUsers)),
             'total' => $total,
             'pending' => $legacyUsers,
         ];
@@ -670,7 +676,7 @@ class UpgradeService {
     public function adjustConfig(): array {
         $confFile = APP_PATH . 'conf/conf.php';
         if (!is_writable($confFile)) {
-            return ['ok' => false, 'message' => 'conf/conf.php 不可写'];
+            return ['ok' => false, 'message' => lang('conf_file_not_writable')];
         }
 
         $changes = [];
@@ -726,7 +732,7 @@ class UpgradeService {
 
         $content = "<?php\nreturn " . var_export($this->conf, true) . ";\n?>";
         if (file_put_contents($confFile, $content) === false) {
-            return ['ok' => false, 'message' => '写入 conf/conf.php 失败'];
+            return ['ok' => false, 'message' => lang('conf_file_write_failed')];
         }
 
         // 持久化记录已安装版本到 kv（核心：区分「已安装版本」和「代码版本」）
@@ -738,7 +744,7 @@ class UpgradeService {
 
         return [
             'ok' => true,
-            'message' => '配置更新完成，共 ' . count($changes) . ' 项变更',
+            'message' => lang('upgrade_config_done', array('n' => count($changes))),
             'changes' => $changes,
         ];
     }
@@ -758,7 +764,7 @@ class UpgradeService {
             // 检查表是否存在
             $exists = $this->dbTableExists($table, $tablepre);
             if (!$exists) {
-                $results[] = ['name' => $table, 'ok' => true, 'message' => '表不存在，跳过'];
+                $results[] = ['name' => $table, 'ok' => true, 'message' => lang(self::MSG_TABLE_SKIPPED)];
                 continue;
             }
 
@@ -767,23 +773,23 @@ class UpgradeService {
             $currentCollation = !empty($colInfo) ? $colInfo['TABLE_COLLATION'] : '';
 
             if (strpos($currentCollation, 'utf8mb4') === 0) {
-                $results[] = ['name' => $table, 'ok' => true, 'message' => '已是 utf8mb4，跳过'];
+                $results[] = ['name' => $table, 'ok' => true, 'message' => lang(self::MSG_UTF8MB4_SKIPPED)];
                 continue;
             }
 
             // 转换表字符集
             $r = $this->execSql("ALTER TABLE `{$fullTable}` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
-            $results[] = ['name' => $table, 'ok' => $r['ok'], 'message' => $r['ok'] ? '已转换为 utf8mb4' : $r['message']];
+            $results[] = ['name' => $table, 'ok' => $r['ok'], 'message' => $r['ok'] ? lang('upgrade_utf8mb4_converted') : $r['message']];
         }
 
         // 修复已损坏的 emoji（? 字符无法恢复，但确保后续写入正确）
-        $results[] = ['name' => 'note', 'ok' => true, 'message' => '已有 emoji 数据若显示为?则无法恢复，新写入的 emoji 将正常显示'];
+        $results[] = ['name' => 'note', 'ok' => true, 'message' => lang('upgrade_emoji_note')];
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已是 utf8mb4，跳过' && $r['message'] !== '表不存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_UTF8MB4_SKIPPED) && $r['message'] !== lang(self::MSG_TABLE_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "UTF8MB4 升级完成（{$doneCount} 项转换）" : '部分转换失败',
+            'message' => $allOk ? lang('upgrade_utf8mb4_done', array('n' => $doneCount)) : lang('upgrade_partial_convert_failed'),
             'results' => $results,
         ];
     }
@@ -812,7 +818,7 @@ class UpgradeService {
 
         return [
             'ok' => true,
-            'message' => "插件重编译完成，清理 {$deleted} 个缓存文件",
+            'message' => lang('upgrade_recompile_done', array('n' => $deleted)),
             'deleted' => $deleted,
         ];
     }
@@ -827,49 +833,49 @@ class UpgradeService {
         // thread 表：用户帖子列表 WHERE uid=X ORDER BY tid DESC
         if (!$this->dbIndexExists('thread', 'idx_uid_tid', $tablepre)) {
             $r = $this->execSql("ALTER TABLE `{$tablepre}thread` ADD INDEX `idx_uid_tid` (`uid`, `tid`)");
-            $results[] = ['name' => 'thread.idx_uid_tid', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+            $results[] = ['name' => 'thread.idx_uid_tid', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
         } else {
-            $results[] = ['name' => 'thread.idx_uid_tid', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'thread.idx_uid_tid', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         // thread 表：用户版块帖子 WHERE uid=X AND fid IN(...) ORDER BY lastpid DESC
         if (!$this->dbIndexExists('thread', 'idx_uid_fid', $tablepre)) {
             $r = $this->execSql("ALTER TABLE `{$tablepre}thread` ADD INDEX `idx_uid_fid` (`uid`, `fid`)");
-            $results[] = ['name' => 'thread.idx_uid_fid', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+            $results[] = ['name' => 'thread.idx_uid_fid', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
         } else {
-            $results[] = ['name' => 'thread.idx_uid_fid', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'thread.idx_uid_fid', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         // post 表：用户回帖列表 WHERE uid=X AND isfirst=0 ORDER BY pid DESC
         if (!$this->dbIndexExists('post', 'idx_uid_isfirst_pid', $tablepre)) {
             $r = $this->execSql("ALTER TABLE `{$tablepre}post` ADD INDEX `idx_uid_isfirst_pid` (`uid`, `isfirst`, `pid`)");
-            $results[] = ['name' => 'post.idx_uid_isfirst_pid', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+            $results[] = ['name' => 'post.idx_uid_isfirst_pid', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
         } else {
-            $results[] = ['name' => 'post.idx_uid_isfirst_pid', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'post.idx_uid_isfirst_pid', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         // thread 表：审核状态过滤 WHERE fid=X AND audit_status!=0 ORDER BY lastpid DESC
         if (!$this->dbIndexExists('thread', 'idx_fid_audit_lastpid', $tablepre)) {
             $r = $this->execSql("ALTER TABLE `{$tablepre}thread` ADD INDEX `idx_fid_audit_lastpid` (`fid`, `audit_status`, `lastpid`)");
-            $results[] = ['name' => 'thread.idx_fid_audit_lastpid', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+            $results[] = ['name' => 'thread.idx_fid_audit_lastpid', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
         } else {
-            $results[] = ['name' => 'thread.idx_fid_audit_lastpid', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'thread.idx_fid_audit_lastpid', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         // user_login_log 表：IP 维度登录限流查询 WHERE ip=X AND success=0 AND time>Y ORDER BY time
         // 避免 IP 限流检查全表扫描
         if ($this->dbTableExists('user_login_log', $tablepre) && !$this->dbIndexExists('user_login_log', 'idx_ip_success_time', $tablepre)) {
             $r = $this->execSql("ALTER TABLE `{$tablepre}user_login_log` ADD INDEX `idx_ip_success_time` (`ip`, `success`, `time`)");
-            $results[] = ['name' => 'user_login_log.idx_ip_success_time', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+            $results[] = ['name' => 'user_login_log.idx_ip_success_time', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
         } else {
-            $results[] = ['name' => 'user_login_log.idx_ip_success_time', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'user_login_log.idx_ip_success_time', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === '完成'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === lang(self::MSG_DONE); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "性能索引优化完成（{$doneCount} 项新增）" : '部分索引创建失败',
+            'message' => $allOk ? lang('upgrade_perf_indexes_done', array('n' => $doneCount)) : lang('upgrade_partial_index_failed'),
             'results' => $results,
         ];
     }
@@ -904,7 +910,7 @@ class UpgradeService {
             if ($maxFid > 65535) {
                 return [
                     'ok' => false,
-                    'message' => "forum.fid 最大值 {$maxFid} 超过 smallint 上限 65535，跳过 fid 类型统一以避免数据截断",
+                    'message' => lang('upgrade_fid_too_large', array('max' => $maxFid)),
                     'results' => [],
                 ];
             }
@@ -924,20 +930,20 @@ class UpgradeService {
 
         foreach ($targets as $table => $colDef) {
             if (!$this->dbTableExists($table, $tablepre)) {
-                $results[] = ['name' => "{$table}.fid", 'ok' => true, 'message' => '表不存在，跳过'];
+                $results[] = ['name' => "{$table}.fid", 'ok' => true, 'message' => lang(self::MSG_TABLE_SKIPPED)];
                 continue;
             }
             $r = $this->execSql("ALTER TABLE `{$tablepre}{$table}` MODIFY COLUMN `fid` {$colDef}");
             $results[] = [
                 'name'    => "{$table}.fid",
                 'ok'      => $r['ok'],
-                'message' => $r['ok'] ? '已统一为 smallint(5) unsigned' : $r['message'],
+                'message' => $r['ok'] ? lang('upgrade_fid_unified') : $r['message'],
             ];
         }
 
         return [
             'ok' => true,
-            'message' => 'fid 字段类型统一完成',
+            'message' => lang('upgrade_fid_done'),
             'results' => $results,
         ];
     }
@@ -961,24 +967,24 @@ class UpgradeService {
         // bbs_thread.subject FULLTEXT 索引
         if (!$this->dbIndexExists('thread', 'ft_subject', $tablepre)) {
             $r = $this->execSql("ALTER TABLE `{$tablepre}thread` ADD FULLTEXT INDEX ft_subject (subject) WITH PARSER ngram");
-            $results[] = ['name' => 'thread.ft_subject', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+            $results[] = ['name' => 'thread.ft_subject', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
         } else {
-            $results[] = ['name' => 'thread.ft_subject', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'thread.ft_subject', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         // bbs_post.message FULLTEXT 索引
         if (!$this->dbIndexExists('post', 'ft_message', $tablepre)) {
             $r = $this->execSql("ALTER TABLE `{$tablepre}post` ADD FULLTEXT INDEX ft_message (message) WITH PARSER ngram");
-            $results[] = ['name' => 'post.ft_message', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+            $results[] = ['name' => 'post.ft_message', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
         } else {
-            $results[] = ['name' => 'post.ft_message', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'post.ft_message', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === '完成'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === lang(self::MSG_DONE); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "全文搜索索引升级完成（{$doneCount} 项新增）" : '部分索引创建失败',
+            'message' => $allOk ? lang('upgrade_search_indexes_done', array('n' => $doneCount)) : lang('upgrade_partial_index_failed'),
             'results' => $results,
         ];
     }
@@ -1003,15 +1009,15 @@ class UpgradeService {
         $iconType = $this->dbGetColumnType('forum', 'icon', $tablepre);
         if ($iconType === 'int' || $iconType === 'int unsigned') {
             $r = $this->execSql("ALTER TABLE `{$tablepre}forum` MODIFY COLUMN `icon` varchar(50) NOT NULL DEFAULT '' COMMENT '版块图标'");
-            $results[] = ['name' => 'forum.icon_type_fix', 'ok' => $r['ok'], 'message' => $r['ok'] ? 'icon 字段类型已从 int 修改为 varchar(50)' : $r['message']];
+            $results[] = ['name' => 'forum.icon_type_fix', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang('upgrade_icon_type_fixed') : $r['message']];
         }
 
         // 清空旧的时间戳格式的 icon 值
         $r = $this->execSql("UPDATE `{$tablepre}group` SET icon = '' WHERE icon REGEXP '^[0-9]+$'");
-        $results[] = ['name' => 'group.icon_clean', 'ok' => $r['ok'], 'message' => $r['ok'] ? '旧数据清理完成' : $r['message']];
+        $results[] = ['name' => 'group.icon_clean', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang('upgrade_old_data_cleaned') : $r['message']];
 
         $r = $this->execSql("UPDATE `{$tablepre}forum` SET icon = '' WHERE icon REGEXP '^[0-9]+$'");
-        $results[] = ['name' => 'forum.icon_clean', 'ok' => $r['ok'], 'message' => $r['ok'] ? '旧数据清理完成' : $r['message']];
+        $results[] = ['name' => 'forum.icon_clean', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang('upgrade_old_data_cleaned') : $r['message']];
 
         // 设置默认用户组图标和颜色
         $groupDefaults = [
@@ -1024,18 +1030,18 @@ class UpgradeService {
 
         foreach ($groupDefaults as $g) {
             $r = $this->execSql("UPDATE `{$tablepre}group` SET icon = '{$g['icon']}', color = '{$g['color']}' WHERE gid = {$g['gid']} AND icon = ''");
-            $results[] = ['name' => "group.gid{$g['gid']}_default", 'ok' => $r['ok'], 'message' => $r['ok'] ? '默认值设置完成' : $r['message']];
+            $results[] = ['name' => "group.gid{$g['gid']}_default", 'ok' => $r['ok'], 'message' => $r['ok'] ? lang('upgrade_default_set') : $r['message']];
         }
 
         // 设置默认版块图标
         $r = $this->execSql("UPDATE `{$tablepre}forum` SET icon = 'ti ti-message-circle' WHERE fid = 1 AND icon = ''");
-        $results[] = ['name' => 'forum.fid1_default', 'ok' => $r['ok'], 'message' => $r['ok'] ? '默认值设置完成' : $r['message']];
+        $results[] = ['name' => 'forum.fid1_default', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang('upgrade_default_set') : $r['message']];
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === '完成'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === lang(self::MSG_DONE); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "图标与颜色字段升级完成（{$doneCount} 项新增）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_icon_color_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -1061,7 +1067,7 @@ class UpgradeService {
               KEY (uid, is_read, nid),
               KEY (uid, type)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci", $tablepre);
-            $results[] = ['name' => 'notify', 'ok' => $r['ok'], 'message' => $r['ok'] ? '建表完成' : $r['message']];
+            $results[] = ['name' => 'notify', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang('upgrade_table_created') : $r['message']];
 
             // 同时确保 user 表有 notices / unread_notices 字段
             $userCols = [
@@ -1080,9 +1086,9 @@ class UpgradeService {
             // 添加索引
             if (!$this->dbIndexExists('notify', 'uid_is_read_nid', $tablepre)) {
                 $idx = $this->execSql("ALTER TABLE `{$tablepre}notify` ADD INDEX `uid_is_read_nid` (`uid`, `is_read`, `nid`)");
-                $results[] = ['name' => 'notify.uid_is_read_nid', 'ok' => $idx['ok'], 'message' => $idx['ok'] ? '完成' : $idx['message']];
+                $results[] = ['name' => 'notify.uid_is_read_nid', 'ok' => $idx['ok'], 'message' => $idx['ok'] ? lang(self::MSG_DONE) : $idx['message']];
             } else {
-                $results[] = ['name' => 'notify.uid_is_read_nid', 'ok' => true, 'message' => '已存在，跳过'];
+                $results[] = ['name' => 'notify.uid_is_read_nid', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
             }
 
             // 确保 user 表有 notices / unread_notices 字段
@@ -1097,10 +1103,10 @@ class UpgradeService {
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "通知系统升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_notice_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -1130,16 +1136,16 @@ class UpgradeService {
 
         if ($iconLen < 255) {
             $r = $this->execSql("ALTER TABLE `{$tablepre}forum` MODIFY COLUMN `icon` varchar(255) NOT NULL DEFAULT '' COMMENT '版块图标，存储图片路径'");
-            $results[] = ['name' => 'forum.icon_expand', 'ok' => $r['ok'], 'message' => $r['ok'] ? 'icon 字段已扩展为 varchar(255)' : $r['message']];
+            $results[] = ['name' => 'forum.icon_expand', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang('upgrade_icon_expanded') : $r['message']];
         } else {
-            $results[] = ['name' => 'forum.icon_expand', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'forum.icon_expand', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "版块管理优化升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_forum_management_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -1178,9 +1184,9 @@ class UpgradeService {
             }
 
             kv_set('cache_config', $newConfig);
-            $results[] = ['name' => 'cache_config_migrate', 'ok' => true, 'message' => '缓存配置已迁移到 setting'];
+            $results[] = ['name' => 'cache_config_migrate', 'ok' => true, 'message' => lang('upgrade_cache_config_migrated')];
         } else {
-            $results[] = ['name' => 'cache_config_migrate', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'cache_config_migrate', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         // 2. 清理过时驱动文件
@@ -1196,7 +1202,7 @@ class UpgradeService {
                 $deleted++;
             }
         }
-        $results[] = ['name' => 'obsolete_drivers_cleanup', 'ok' => true, 'message' => $deleted > 0 ? "已清理 {$deleted} 个过时驱动文件" : '无需清理'];
+        $results[] = ['name' => 'obsolete_drivers_cleanup', 'ok' => true, 'message' => $deleted > 0 ? lang('upgrade_obsolete_drivers_cleaned', array('n' => $deleted)) : lang('upgrade_no_cleanup_needed')];
 
         // 3. 确保 tmp/cache 目录存在
         $cacheDir = APP_PATH . 'tmp/cache/';
@@ -1205,14 +1211,14 @@ class UpgradeService {
             $created = @mkdir($cacheDir, 0755, true);
             umask($oldUmask);
             if ($created) {
-                $results[] = ['name' => 'cache_dir_create', 'ok' => true, 'message' => '缓存目录已创建'];
+                $results[] = ['name' => 'cache_dir_create', 'ok' => true, 'message' => lang('upgrade_cache_dir_created')];
             } else {
                 $error = error_get_last();
-                $errMsg = !empty($error['message']) ? $error['message'] : '未知错误';
-                $results[] = ['name' => 'cache_dir_create', 'ok' => false, 'message' => '创建缓存目录失败: ' . $cacheDir . ' (' . $errMsg . ')'];
+                $errMsg = !empty($error['message']) ? $error['message'] : lang('unknown_error');
+                $results[] = ['name' => 'cache_dir_create', 'ok' => false, 'message' => lang('upgrade_cache_dir_create_failed', array('dir' => $cacheDir, 'error' => $errMsg))];
             }
         } else {
-            $results[] = ['name' => 'cache_dir_create', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'cache_dir_create', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         // 4. 扩容 bbs_cache.k 字段：char(32) → varchar(255)
@@ -1224,19 +1230,19 @@ class UpgradeService {
         if ($colInfo && stripos($colInfo['Type'], 'char(32)') !== false) {
             try {
                 $this->db->exec("ALTER TABLE `{$cacheTable}` MODIFY `k` VARCHAR(255) NOT NULL DEFAULT ''");
-                $results[] = ['name' => 'cache_key_varchar', 'ok' => true, 'message' => 'bbs_cache.k 已扩容 char(32) → varchar(255)'];
+                $results[] = ['name' => 'cache_key_varchar', 'ok' => true, 'message' => lang('upgrade_cache_key_expanded')];
             } catch (\Throwable $e) {
-                $results[] = ['name' => 'cache_key_varchar', 'ok' => false, 'message' => '扩容 bbs_cache.k 失败: ' . $e->getMessage()];
+                $results[] = ['name' => 'cache_key_varchar', 'ok' => false, 'message' => lang('upgrade_cache_key_expand_failed', array('error' => $e->getMessage()))];
             }
         } else {
-            $results[] = ['name' => 'cache_key_varchar', 'ok' => true, 'message' => '已扩容或字段不存在，跳过'];
+            $results[] = ['name' => 'cache_key_varchar', 'ok' => true, 'message' => lang('upgrade_cache_key_expanded_skip')];
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "缓存系统升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_cache_system_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -1276,10 +1282,10 @@ class UpgradeService {
         $results[] = ['name' => 'user_profile_audit', 'ok' => $r['ok'], 'message' => $r['message']];
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "审核权限升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_group_audit_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -1301,15 +1307,15 @@ class UpgradeService {
             if (!empty($changes)) {
                 $r = file_replace_var($confFile, $changes);
                 if ($r) {
-                    $results[] = ['name' => 'security_config', 'ok' => true, 'message' => '写入 ' . count($changes) . ' 项安全配置'];
+                    $results[] = ['name' => 'security_config', 'ok' => true, 'message' => lang('upgrade_security_config_written', array('n' => count($changes)))];
                 } else {
-                    $results[] = ['name' => 'security_config', 'ok' => false, 'message' => '写入 conf.php 失败'];
+                    $results[] = ['name' => 'security_config', 'ok' => false, 'message' => lang('conf_file_write_failed')];
                 }
             } else {
-                $results[] = ['name' => 'security_config', 'ok' => true, 'message' => '已存在，跳过'];
+                $results[] = ['name' => 'security_config', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
             }
         } else {
-            $results[] = ['name' => 'security_config', 'ok' => false, 'message' => 'conf/conf.php 不可写'];
+            $results[] = ['name' => 'security_config', 'ok' => false, 'message' => lang('conf_file_not_writable')];
         }
 
         // 2. 创建 sensitive_words.txt 文件（如不存在）
@@ -1322,14 +1328,14 @@ class UpgradeService {
                 umask($oldUmask);
             }
             if (!is_dir($dir)) {
-                $results[] = ['name' => 'sensitive_words.txt', 'ok' => false, 'message' => '创建目录失败: ' . $dir];
+                $results[] = ['name' => 'sensitive_words.txt', 'ok' => false, 'message' => lang('upgrade_mkdir_failed', array('dir' => $dir))];
             } elseif (file_put_contents($wordsFile, "# 敏感词库\n# 每行一个词，# 开头为注释\n") !== false) {
-                $results[] = ['name' => 'sensitive_words.txt', 'ok' => true, 'message' => '创建完成'];
+                $results[] = ['name' => 'sensitive_words.txt', 'ok' => true, 'message' => lang('upgrade_created')];
             } else {
-                $results[] = ['name' => 'sensitive_words.txt', 'ok' => false, 'message' => '创建失败'];
+                $results[] = ['name' => 'sensitive_words.txt', 'ok' => false, 'message' => lang('upgrade_create_failed')];
             }
         } else {
-            $results[] = ['name' => 'sensitive_words.txt', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'sensitive_words.txt', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         // 3. 初始化验证码配置到 kv 表（如不存在）
@@ -1343,9 +1349,9 @@ class UpgradeService {
                 'type' => 'gd_image',
             ];
             kv_set('security_captcha_config', $defaultCaptcha);
-            $results[] = ['name' => 'captcha_config', 'ok' => true, 'message' => '初始化完成'];
+            $results[] = ['name' => 'captcha_config', 'ok' => true, 'message' => lang('upgrade_init_done')];
         } else {
-            $results[] = ['name' => 'captcha_config', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'captcha_config', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         // 4. 确保 config/security.php 存在
@@ -1358,17 +1364,17 @@ class UpgradeService {
                 umask($oldUmask);
             }
             if (!is_dir($dir)) {
-                $results[] = ['name' => 'config/security.php', 'ok' => false, 'message' => '创建目录失败: ' . $dir];
+                $results[] = ['name' => 'config/security.php', 'ok' => false, 'message' => lang('upgrade_mkdir_failed', array('dir' => $dir))];
             } else {
                 $defaultSecurityConfig = "<?php\n// 安全与审核系统配置\n// 修改后需清理 tmp/ 缓存\n\nreturn array(\n\n    'captcha' => array(\n        'login' => 0,\n        'register' => 0,\n        'post' => 0,\n        'resetpw' => 0,\n        'type' => 'gd_image',\n    ),\n\n    'sensitive_word' => array(\n        'enabled' => 0,\n        'action' => 'reject',\n        'words_file' => APP_PATH . 'config/sensitive_words.txt',\n    ),\n\n    'audit' => array(\n        'enabled' => 0,\n        'credits_on_approve' => 0,\n        'credits_amount' => 1,\n    ),\n\n    'moderation' => array(\n        'enabled' => 0,\n    ),\n\n    'security' => array(\n        'prevent_enumeration' => 1,\n        'verify_sensitive_action' => 1,\n        'show_last_login' => 1,\n    ),\n\n);\n";
                 if (file_put_contents($securityConfigFile, $defaultSecurityConfig) !== false) {
-                    $results[] = ['name' => 'config/security.php', 'ok' => true, 'message' => '创建完成'];
+                    $results[] = ['name' => 'config/security.php', 'ok' => true, 'message' => lang('upgrade_created')];
                 } else {
-                    $results[] = ['name' => 'config/security.php', 'ok' => false, 'message' => '创建失败'];
+                    $results[] = ['name' => 'config/security.php', 'ok' => false, 'message' => lang('upgrade_create_failed')];
                 }
             }
         } else {
-            $results[] = ['name' => 'config/security.php', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'config/security.php', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         // 5. 确保审核相关数据库字段存在
@@ -1431,10 +1437,10 @@ class UpgradeService {
         $results[] = ['name' => 'email_blacklist', 'ok' => $r['ok'], 'message' => $r['message']];
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "安全设置升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_security_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -1470,13 +1476,13 @@ class UpgradeService {
                 }
             }
         }
-        $results[] = ['name' => 'group_permission.migrate', 'ok' => true, 'message' => "迁移 {$migrated} 条权限记录"];
+        $results[] = ['name' => 'group_permission.migrate', 'ok' => true, 'message' => lang('upgrade_permission_migrated', array('n' => $migrated))];
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "权限系统升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_permission_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -1502,10 +1508,10 @@ class UpgradeService {
         $results[] = ['name' => 'admin_log', 'ok' => $r['ok'], 'message' => $r['message']];
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "管理操作日志表升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_admin_log_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -1543,16 +1549,16 @@ class UpgradeService {
         // 创建精华帖索引
         if (!$this->dbIndexExists('thread', 'idx_digest', $tablepre)) {
             $r = $this->execSql("ALTER TABLE `{$tablepre}thread` ADD INDEX `idx_digest` (`digest`)");
-            $results[] = ['name' => 'thread.idx_digest', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+            $results[] = ['name' => 'thread.idx_digest', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
         } else {
-            $results[] = ['name' => 'thread.idx_digest', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'thread.idx_digest', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "精华帖升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_digest_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -1588,17 +1594,17 @@ class UpgradeService {
         foreach ($indexes as $idx) {
             if (!$this->dbIndexExists($idx[0], $idx[1], $tablepre)) {
                 $r = $this->execSql($idx[2]);
-                $results[] = ['name' => $idx[0].'.'.$idx[1], 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+                $results[] = ['name' => $idx[0].'.'.$idx[1], 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
             } else {
-                $results[] = ['name' => $idx[0].'.'.$idx[1], 'ok' => true, 'message' => '已存在，跳过'];
+                $results[] = ['name' => $idx[0].'.'.$idx[1], 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
             }
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "软删除字段升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_soft_delete_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -1643,13 +1649,13 @@ class UpgradeService {
         // 注：废弃的 banned_ip 表不再创建，IP 黑名单统一由 IpBlacklistService（kv 存储）管理，
         // 旧站点若存在 banned_ip 表数据，由 migrate_banned_ip 升级步骤自动迁移
         $r = $this->execSql("UPDATE `{$tablepre}user` SET `ban_type` = 0 WHERE `ban_type` IS NULL OR `ban_type` NOT IN (0,1,2,3)");
-        $results[] = ['name' => 'user.ban_type_init', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+        $results[] = ['name' => 'user.ban_type_init', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "用户封禁系统升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_ban_system_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -1669,7 +1675,7 @@ class UpgradeService {
         // 1. 检测 banned_ip 表是否存在（新安装无此表，直接标记已迁移避免重复检测）
         if (!$this->dbTableExists('banned_ip', $tablepre)) {
             kv_set('banned_ip_migrated', 1);
-            return ['ok' => true, 'message' => 'banned_ip 表不存在（新安装），已标记跳过迁移', 'results' => []];
+            return ['ok' => true, 'message' => lang('upgrade_banned_ip_table_missing'), 'results' => []];
         }
 
         // 2. 加载 IpBlacklistService
@@ -1677,13 +1683,13 @@ class UpgradeService {
             include_once APP_PATH . 'lib/security/IpBlacklistService.php';
         }
         if (!class_exists('IpBlacklistService')) {
-            return ['ok' => false, 'message' => 'IpBlacklistService 类不可用', 'results' => []];
+            return ['ok' => false, 'message' => lang('upgrade_ip_blacklist_service_unavailable'), 'results' => []];
         }
 
         // 3. 幂等检查
         $migrated = kv_get('banned_ip_migrated');
         if ($migrated === 1) {
-            return ['ok' => true, 'message' => 'banned_ip 数据已迁移，跳过', 'results' => []];
+            return ['ok' => true, 'message' => lang('upgrade_banned_ip_migrated_skip'), 'results' => []];
         }
 
         // 4. 读取所有未过期记录
@@ -1693,7 +1699,7 @@ class UpgradeService {
 
         if (empty($rows)) {
             kv_set('banned_ip_migrated', 1);
-            return ['ok' => true, 'message' => 'banned_ip 表无未过期记录，已标记为迁移完成', 'results' => []];
+            return ['ok' => true, 'message' => lang('upgrade_banned_ip_no_records'), 'results' => []];
         }
 
         // 5. 转换并写入 IpBlacklistService
@@ -1727,12 +1733,12 @@ class UpgradeService {
         $results[] = [
             'name' => 'migrate_banned_ip',
             'ok' => true,
-            'message' => "迁移 {$migratedCount} 条，跳过 {$skippedCount} 条重复",
+            'message' => lang('upgrade_banned_ip_migrated_count', array('migrated' => $migratedCount, 'skipped' => $skippedCount)),
         ];
 
         return [
             'ok' => true,
-            'message' => "banned_ip 数据迁移完成：迁移 {$migratedCount} 条到 IpBlacklistService，跳过 {$skippedCount} 条重复",
+            'message' => lang('upgrade_banned_ip_migrate_done', array('migrated' => $migratedCount, 'skipped' => $skippedCount)),
             'results' => $results,
         ];
     }
@@ -1758,10 +1764,10 @@ class UpgradeService {
         $results[] = ['name' => 'email_log', 'ok' => $r['ok'], 'message' => $r['message']];
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "邮件日志表升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_email_log_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -1794,10 +1800,10 @@ class UpgradeService {
         $results[] = ['name' => 'plugin', 'ok' => $r['ok'], 'message' => $r['message']];
 
         // 如果表是新创建的，初始化现有插件数据
-        if ($r['message'] !== '已存在，跳过') {
+        if ($r['message'] !== lang(self::MSG_SKIPPED)) {
             plugin_init();
             plugin_db_init_all();
-            $results[] = ['name' => 'plugin.init', 'ok' => true, 'message' => '初始化现有插件数据完成'];
+            $results[] = ['name' => 'plugin.init', 'ok' => true, 'message' => lang('upgrade_plugin_init_done')];
         }
 
         // 为已有表补充 author_name / author_homepage 字段（存量站点升级）
@@ -1811,10 +1817,10 @@ class UpgradeService {
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "插件管理表升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_plugin_table_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }
@@ -1925,7 +1931,7 @@ class UpgradeService {
             case 'perf_indexes': return $this->upgradePerfIndexes();
             case 'fid_field_type': return $this->upgradeFidFieldType();
             case 'ai_call_log': return $this->upgradeAiCallLogTable();
-            default: return ['ok' => false, 'message' => '未知步骤：' . $stepId];
+            default: return ['ok' => false, 'message' => lang('upgrade_unknown_step', array('step' => $stepId))];
         }
     }
 
@@ -1938,28 +1944,28 @@ class UpgradeService {
 
         // 检查 nickname 字段是否存在
         if (!$this->dbColumnExists('user', 'nickname', $tablepre)) {
-            return ['ok' => false, 'message' => 'nickname 字段尚未创建，请先执行数据库结构升级'];
+            return ['ok' => false, 'message' => lang('upgrade_nickname_field_missing')];
         }
 
         // 将现有 username 复制到 nickname（仅处理 nickname 为空的记录）
         $sql = "UPDATE `{$tablepre}user` SET `nickname` = `username` WHERE `nickname` = ''";
         $r = $this->execSql($sql);
-        $results[] = ['name' => 'copy_username_to_nickname', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+        $results[] = ['name' => 'copy_username_to_nickname', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
 
         // 为 nickname 添加唯一索引
         try {
             $r2 = $this->execSql("ALTER TABLE `{$tablepre}user` ADD UNIQUE INDEX `nickname` (`nickname`)");
-            $results[] = ['name' => 'nickname_unique_index', 'ok' => true, 'message' => '完成'];
+            $results[] = ['name' => 'nickname_unique_index', 'ok' => true, 'message' => lang(self::MSG_DONE)];
         } catch (\Exception $e) {
             // 索引可能已存在
-            $results[] = ['name' => 'nickname_unique_index', 'ok' => true, 'message' => '已存在，跳过'];
+            $results[] = ['name' => 'nickname_unique_index', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === '完成'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === lang(self::MSG_DONE); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "昵称字段迁移完成（{$doneCount} 项操作）" : '部分迁移失败',
+            'message' => $allOk ? lang('upgrade_nickname_done', array('n' => $doneCount)) : lang('upgrade_partial_migrate_failed'),
             'results' => $results,
         ];
     }
@@ -1975,7 +1981,7 @@ class UpgradeService {
         // content 从 char(128) 改为 text
         if ($this->dbColumnExists('notify', 'content', $tablepre)) {
             $r = $this->execSql("ALTER TABLE `{$tablepre}notify` MODIFY COLUMN `content` TEXT COMMENT '内容摘要或全文'");
-            $results[] = ['name' => 'notify.content->text', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+            $results[] = ['name' => 'notify.content->text', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
         }
 
         // 新增 message 字段（富文本消息）
@@ -2026,9 +2032,9 @@ class UpgradeService {
                   `is_read`
                 FROM `{$tablepre}notice`";
                 $r = $this->execSql($migrateSql);
-                $results[] = ['name' => 'migrate_notice_data', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+                $results[] = ['name' => 'migrate_notice_data', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
             } else {
-                $results[] = ['name' => 'migrate_notice_data', 'ok' => true, 'message' => '已迁移，跳过'];
+                $results[] = ['name' => 'migrate_notice_data', 'ok' => true, 'message' => lang('upgrade_notice_migrated_skip')];
             }
             // 清理重复的公告数据：保留每个 message 的最小 nid，删除其余重复记录
             $dedupSql = "DELETE n1 FROM `{$tablepre}notify` n1
@@ -2039,9 +2045,9 @@ class UpgradeService {
                 AND n1.`nid` > n2.`nid`
                 WHERE n1.`uid` = 0 AND n1.`type` IN ('announcement','system','pm','other')";
             $r = $this->execSql($dedupSql);
-            $results[] = ['name' => 'dedup_announcements', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+            $results[] = ['name' => 'dedup_announcements', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
         } else {
-            $results[] = ['name' => 'migrate_notice_data', 'ok' => true, 'message' => 'notice 表不存在，跳过'];
+            $results[] = ['name' => 'migrate_notice_data', 'ok' => true, 'message' => lang('upgrade_notice_table_skipped')];
         }
 
         // 3. 更新 user.unread_notices 为合并后的未读数
@@ -2049,22 +2055,22 @@ class UpgradeService {
             SELECT COUNT(*) FROM `{$tablepre}notify` WHERE `uid` = u.`uid` AND `is_read` = 0
         )";
         $r = $this->execSql($updateCountSql);
-        $results[] = ['name' => 'update_unread_count', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+        $results[] = ['name' => 'update_unread_count', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
 
         // 4. 删除旧的 bbs_notice 表（数据已迁移到 notify，model/notice.func.php 兼容层已移除）
         if ($this->dbTableExists('notice', $tablepre)) {
             $dropSql = "DROP TABLE IF EXISTS `{$tablepre}notice`";
             $r = $this->execSql($dropSql);
-            $results[] = ['name' => 'drop_notice_table', 'ok' => $r['ok'], 'message' => $r['ok'] ? '完成' : $r['message']];
+            $results[] = ['name' => 'drop_notice_table', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
         } else {
-            $results[] = ['name' => 'drop_notice_table', 'ok' => true, 'message' => '表不存在，跳过'];
+            $results[] = ['name' => 'drop_notice_table', 'ok' => true, 'message' => lang(self::MSG_TABLE_SKIPPED)];
         }
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === '完成'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === lang(self::MSG_DONE); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "通知系统合并完成（{$doneCount} 项操作）" : '部分合并失败',
+            'message' => $allOk ? lang('upgrade_notify_merge_done', array('n' => $doneCount)) : lang('upgrade_partial_merge_failed'),
             'results' => $results,
         ];
     }
@@ -2089,7 +2095,7 @@ class UpgradeService {
         if (!function_exists('user_update_group')) {
             return [
                 'ok' => false,
-                'message' => 'user_update_group 函数不可用，跳过',
+                'message' => lang('upgrade_user_update_group_unavailable'),
                 'results' => [],
             ];
         }
@@ -2106,7 +2112,7 @@ class UpgradeService {
         if (empty($rows)) {
             return [
                 'ok' => true,
-                'message' => '无积分用户组用户，跳过',
+                'message' => lang('upgrade_no_credit_users_skip'),
                 'results' => [],
             ];
         }
@@ -2156,13 +2162,13 @@ class UpgradeService {
         $results[] = [
             'name' => 'resync_user_group',
             'ok' => true,
-            'message' => "扫描 {$scanned} 个积分用户，升级 {$upgraded} 个，未变 {$unchanged} 个"
-                . ($examples ? '，示例：' . implode('; ', $examples) : ''),
+            'message' => lang('upgrade_resync_count', array('scanned' => $scanned, 'upgraded' => $upgraded, 'unchanged' => $unchanged))
+                . ($examples ? lang('upgrade_resync_examples', array('examples' => implode('; ', $examples))) : ''),
         ];
 
         return [
             'ok' => true,
-            'message' => "用户组重同步完成：扫描 {$scanned}，升级 {$upgraded}，未变 {$unchanged}",
+            'message' => lang('upgrade_resync_done', array('scanned' => $scanned, 'upgraded' => $upgraded, 'unchanged' => $unchanged)),
             'results' => $results,
         ];
     }
@@ -2202,10 +2208,10 @@ class UpgradeService {
         $results[] = ['name' => 'xnx_ai_call_log', 'ok' => $r['ok'], 'message' => $r['message']];
 
         $allOk = !in_array(false, array_column($results, 'ok'), true);
-        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== '已存在，跳过'; }));
+        $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] !== lang(self::MSG_SKIPPED); }));
         return [
             'ok' => $allOk,
-            'message' => $allOk ? "AI 调用日志表升级完成（{$doneCount} 项操作）" : '部分升级失败',
+            'message' => $allOk ? lang('upgrade_ai_call_log_done', array('n' => $doneCount)) : lang('upgrade_partial_failed'),
             'results' => $results,
         ];
     }

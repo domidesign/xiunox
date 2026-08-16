@@ -31,16 +31,17 @@ unset($_pr, $_plugin_lang_file, $_path, $_pconf);
 if(isset($conf['credits_name']) && $conf['credits_name']) {
     $lang['credits_label'] = $conf['credits_name'];
     $lang['admin_credits_type_credits'] = $conf['credits_name'];
-    $lang['admin_credits_rule_credits_change'] = $conf['credits_name'] . '变化';
+    $lang['admin_credits_rule_credits_change'] = $conf['credits_name'] . lang('admin_change_suffix');
 }
 if(isset($conf['golds_name']) && $conf['golds_name']) {
     $lang['golds_label'] = $conf['golds_name'];
     $lang['admin_credits_type_golds'] = $conf['golds_name'];
-    $lang['admin_credits_rule_golds_change'] = $conf['golds_name'] . '变化';
+    $lang['admin_credits_rule_golds_change'] = $conf['golds_name'] . lang('admin_change_suffix');
 }
 if(isset($conf['rmbs_name']) && $conf['rmbs_name']) {
+    $lang['rmb_label'] = $conf['rmbs_name'];
     $lang['admin_credits_type_rmbs'] = $conf['rmbs_name'];
-    $lang['admin_credits_rule_rmbs_change'] = $conf['rmbs_name'] . '变化';
+    $lang['admin_credits_rule_rmbs_change'] = $conf['rmbs_name'] . lang('admin_change_suffix');
 }
 
 $_SERVER['lang'] = $lang;

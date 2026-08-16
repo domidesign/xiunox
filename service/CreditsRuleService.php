@@ -98,7 +98,7 @@ class CreditsRuleService {
 	 * @return array 操作结果
 	 */
 	public static function applyRule(string $event, int $uid, int $fid = 0, bool $checkOnly = false, string $source = ''): array {
-		if ($uid <= 0) return array('ok' => false, 'message' => '无效的用户ID');
+		if ($uid <= 0) return array('ok' => false, 'message' => lang('user_ban_invalid_uid'));
 
 		// ===== MySQL 应用级锁：防止并发请求同时处理同一事件（TOCTOU 防护） =====
 		$lockKey = NULL;
@@ -117,14 +117,14 @@ class CreditsRuleService {
 			}
 			// 获取锁失败说明存在并发冲突，拒绝本次操作以防重复发放
 			if (!$lockAcquired) {
-				return array('ok' => false, 'message' => '系统繁忙，请稍后重试');
+				return array('ok' => false, 'message' => lang('system_busy_retry'));
 			}
 		}
 
 		$rule = self::getRule($event, $fid, $uid, $source);
 		if (empty($rule['enabled'])) {
 			self::_releaseLock($lockAcquired, $lockKey);
-			return array('ok' => true, 'message' => '规则未启用或不存在', 'skipped' => true);
+			return array('ok' => true, 'message' => lang('credits_rule_not_enabled'), 'skipped' => true);
 		}
 
 		// 获取规则级每日限制
@@ -195,7 +195,7 @@ class CreditsRuleService {
 					if (!$check['sufficient']) {
 						return array(
 							'ok' => false,
-							'message' => $typeName . '余额不足，需要 ' . $deductAmount . '，当前 ' . ($check['balance'] ?? 0),
+							'message' => lang('credits_insufficient_balance_detail', array('type' => $typeName, 'need' => $deductAmount, 'current' => ($check['balance'] ?? 0))),
 							'event' => $event,
 							'uid' => $uid,
 							'results' => $results,
@@ -223,7 +223,7 @@ class CreditsRuleService {
 
 		$returnData = array(
 			'ok' => true,
-			'message' => $checkOnly ? '预检查通过' : '积分规则已应用',
+			'message' => $checkOnly ? lang('credits_precheck_passed') : lang('credits_rule_applied', array('label' => lang('credits_label'))),
 			'event' => $event,
 			'uid' => $uid,
 			'results' => $results,
@@ -240,13 +240,13 @@ class CreditsRuleService {
 				$changeDesc[] = $typeName . ($change > 0 ? ' +' . $change : ' ' . $change);
 			}
 			if (!empty($changeDesc)) {
-				$returnData['change_desc'] = implode('，', $changeDesc);
+				$returnData['change_desc'] = implode(lang('comma_separator'), $changeDesc);
 			}
 		}
 
 		// 预检查模式返回扣减描述
 		if ($checkOnly && !empty($deductDesc)) {
-			$returnData['deduct_desc'] = implode('，', $deductDesc);
+			$returnData['deduct_desc'] = implode(lang('comma_separator'), $deductDesc);
 		}
 
 		// 释放应用级锁
@@ -370,11 +370,11 @@ class CreditsRuleService {
 	 * @return array 操作结果
 	 */
 	public static function applyRuleDeductOnly(string $event, int $uid, int $fid = 0): array {
-		if ($uid <= 0) return array('ok' => false, 'message' => '无效的用户ID');
+		if ($uid <= 0) return array('ok' => false, 'message' => lang('user_ban_invalid_uid'));
 
 		$rule = self::getRule($event, $fid, $uid);
 		if (empty($rule['enabled'])) {
-			return array('ok' => true, 'message' => '规则未启用或不存在', 'skipped' => true);
+			return array('ok' => true, 'message' => lang('credits_rule_not_enabled'), 'skipped' => true);
 		}
 
 		if (!class_exists('CreditsService')) {
@@ -400,7 +400,7 @@ class CreditsRuleService {
 
 		return array(
 			'ok' => true,
-			'message' => '积分扣除部分已执行，奖励部分待审核通过后发放',
+			'message' => lang('credits_deduct_only_applied'),
 			'event' => $event,
 			'uid' => $uid,
 			'results' => $results,
@@ -415,11 +415,11 @@ class CreditsRuleService {
 	 * @return array 操作结果
 	 */
 	public static function applyRewardOnly(string $event, int $uid, int $fid = 0): array {
-		if ($uid <= 0) return array('ok' => false, 'message' => '无效的用户ID');
+		if ($uid <= 0) return array('ok' => false, 'message' => lang('user_ban_invalid_uid'));
 
 		$rule = self::getRule($event, $fid, $uid);
 		if (empty($rule['enabled'])) {
-			return array('ok' => true, 'message' => '规则未启用或不存在', 'skipped' => true);
+			return array('ok' => true, 'message' => lang('credits_rule_not_enabled'), 'skipped' => true);
 		}
 
 		if (!class_exists('CreditsService')) {
@@ -445,7 +445,7 @@ class CreditsRuleService {
 
 		return array(
 			'ok' => true,
-			'message' => '审核通过，奖励积分已发放',
+			'message' => lang('credits_reward_granted'),
 			'event' => $event,
 			'uid' => $uid,
 			'results' => $results,
@@ -467,10 +467,15 @@ class CreditsRuleService {
 	}
 
 	/**
-	 * 获取积分类型中文名
+	 * 获取积分类型中文名（动态：优先后台 credits_name/golds_name/rmbs_name，回退语言包，再回退默认值）
 	 */
 	private static function getTypeName(string $type): string {
-		$names = array('credits' => '积分', 'golds' => '金币', 'rmbs' => '人民币');
+		global $conf;
+		$names = array(
+			'credits' => !empty($conf['credits_name']) ? $conf['credits_name'] : (function_exists('lang') ? lang('credits_label') : '积分'),
+			'golds' => !empty($conf['golds_name']) ? $conf['golds_name'] : (function_exists('lang') ? lang('golds_label') : '金币'),
+			'rmbs' => !empty($conf['rmbs_name']) ? $conf['rmbs_name'] : (function_exists('lang') ? lang('rmb_label') : 'RMB'),
+		);
 		return $names[$type] ?? $type;
 	}
 
@@ -528,9 +533,9 @@ class CreditsRuleService {
 			}
 		}
 		if ($failed > 0) {
-			return array('ok' => false, 'message' => "保存失败 {$failed} 条全局规则，可能缺少 daily_limit 字段，请先执行后台一键升级", 'updated' => $updated, 'failed' => $failed);
+			return array('ok' => false, 'message' => lang('credits_global_save_failed', array('failed' => $failed)), 'updated' => $updated, 'failed' => $failed);
 		}
-		return array('ok' => true, 'message' => "已更新 {$updated} 条全局规则", 'updated' => $updated);
+		return array('ok' => true, 'message' => lang('credits_global_updated', array('updated' => $updated)), 'updated' => $updated);
 	}
 
 	/**
@@ -540,7 +545,7 @@ class CreditsRuleService {
 	 * @return array
 	 */
 	public static function saveForumRules(int $fid, array $rules): array {
-		if ($fid <= 0) return array('ok' => false, 'message' => '无效的版块ID');
+		if ($fid <= 0) return array('ok' => false, 'message' => lang('invalid_forum_id'));
 
 		$updated = 0;
 		$failed = 0;
@@ -569,9 +574,9 @@ class CreditsRuleService {
 			}
 		}
 		if ($failed > 0) {
-			return array('ok' => false, 'message' => "保存失败 {$failed} 条版块规则，可能缺少 daily_limit 字段，请先执行后台一键升级", 'updated' => $updated, 'failed' => $failed);
+			return array('ok' => false, 'message' => lang('credits_forum_save_failed', array('failed' => $failed)), 'updated' => $updated, 'failed' => $failed);
 		}
-		return array('ok' => true, 'message' => "已更新 {$updated} 条版块规则", 'updated' => $updated);
+		return array('ok' => true, 'message' => lang('credits_forum_updated', array('updated' => $updated)), 'updated' => $updated);
 	}
 
 	/**

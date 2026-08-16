@@ -241,7 +241,7 @@ function xn_email_rate_check($email, $ip = '') {
         $elapsed = $time - intval($last_send);
         if ($elapsed < $interval) {
             $remaining = $interval - $elapsed;
-            return "发送太频繁，请 {$remaining} 秒后再试";
+            return function_exists('lang') && !empty($_SERVER['lang']) ? lang('email_send_too_frequent', array('seconds' => $remaining)) : "发送太频繁，请 {$remaining} 秒后再试";
         }
     }
 
@@ -250,7 +250,7 @@ function xn_email_rate_check($email, $ip = '') {
         $daily_key = 'email_rate_daily_' . md5($email) . '_' . date('Ymd', $time);
         $daily_count = intval(kv_get($daily_key));
         if ($daily_count >= $daily_limit) {
-            return "该邮箱今日发送次数已达上限（{$daily_limit} 次），请明天再试";
+            return function_exists('lang') && !empty($_SERVER['lang']) ? lang('email_daily_limit_reached', array('limit' => $daily_limit)) : "该邮箱今日发送次数已达上限（{$daily_limit} 次），请明天再试";
         }
     }
 
@@ -264,7 +264,7 @@ function xn_email_rate_check($email, $ip = '') {
                 return ($time - $t) < 3600;
             });
             if (count($ip_data) >= $ip_hourly_limit) {
-                return "该 IP 发送次数已达上限，请稍后再试";
+                return function_exists('lang') && !empty($_SERVER['lang']) ? lang('email_ip_limit_reached') : "该 IP 发送次数已达上限，请稍后再试";
             }
         }
     }

@@ -291,7 +291,7 @@ if($action == 'doc') {
 	$scope = param('scope', 'readonly');
 	$rate_limit = param('rate_limit', 120);
 
-	if(empty($name)) message(-1, '应用名称不能为空');
+	if(empty($name)) message(-1, lang('admin_api_app_name_required'));
 
 	// 接收 capabilities 字段
 	$capabilitiesJson = xn_build_app_capabilities($gid ?? 0);
@@ -309,7 +309,7 @@ if($action == 'doc') {
 	$apiAuthService = new ApiAuthService($db, intval($conf['api_token_expire'] ?? 30), intval($conf['api_access_token_expire'] ?? 2), intval($conf['api_token_absolute_expire'] ?? 90));
 
 	$id = param('id', 0);
-	if($id <= 0) message(-1, '应用ID无效');
+	if($id <= 0) message(-1, lang('admin_api_app_id_invalid'));
 
 	$data = [];
 	$name = param('name', '');
@@ -339,7 +339,7 @@ if($action == 'doc') {
 	$apiAuthService = new ApiAuthService($db, intval($conf['api_token_expire'] ?? 30), intval($conf['api_access_token_expire'] ?? 2), intval($conf['api_token_absolute_expire'] ?? 90));
 
 	$id = param('id', 0);
-	if($id <= 0) message(-1, '应用ID无效');
+	if($id <= 0) message(-1, lang('admin_api_app_id_invalid'));
 
 	$ok = $apiAuthService->deleteApp($id);
 	$ok ? message(0, lang('delete_successfully')) : message(-1, lang('delete_failed'));
@@ -353,10 +353,10 @@ if($action == 'doc') {
 	$apiAuthService = new ApiAuthService($db, intval($conf['api_token_expire'] ?? 30), intval($conf['api_access_token_expire'] ?? 2), intval($conf['api_token_absolute_expire'] ?? 90));
 
 	$id = param('id', 0);
-	if($id <= 0) message(-1, '应用ID无效');
+	if($id <= 0) message(-1, lang('admin_api_app_id_invalid'));
 
 	$result = $apiAuthService->regenerateSecret($id);
-	$result ? message(0, $result) : message(-1, '重置失败');
+	$result ? message(0, $result) : message(-1, lang('admin_api_secret_reset_failed'));
 
 } elseif($action == 'settings_save') {
 

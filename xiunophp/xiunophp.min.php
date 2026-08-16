@@ -104,7 +104,7 @@ class db_pdo_mysql implements DatabaseInterface {
 			}
 			$link = new PDO("mysql:host=$host;port=$port;dbname=$name", $user, $password, $attr);
 		} catch (Exception $e) {
-			$this->error($e->getCode(), '连接数据库服务器失败:'.$e->getMessage());
+			$this->error($e->getCode(), (function_exists('lang') && !empty($_SERVER['lang']) ? lang('db_connect_server_failed_detail') : '连接数据库服务器失败:').$e->getMessage());
 			return FALSE;
 		}
 		// 字符集从配置读取，默认 utf8mb4（避免 charset 为空时跳过 SET NAMES）
@@ -503,7 +503,7 @@ class db_pdo_sqlite {
 			$link = new PDO($sqlitedb, $attr);
 
 		} catch (Exception $e) {
-			$this->error($e->getCode(), '连接数据库服务器失败:'.$e->getMessage());
+			$this->error($e->getCode(), (function_exists('lang') && !empty($_SERVER['lang']) ? lang('db_connect_server_failed_detail') : '连接数据库服务器失败:').$e->getMessage());
 			return FALSE;
 	        }
 
@@ -694,7 +694,7 @@ class cache_file {
 		// 确保缓存目录存在
 		if(!is_dir($this->cache_dir)) {
 			if(!mkdir($this->cache_dir, 0755, TRUE)) {
-				return $this->error(-1, '创建缓存目录失败：' . $this->cache_dir);
+				return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_mkdir_failed') : '创建缓存目录失败：') . $this->cache_dir);
 			}
 		}
 		return TRUE;
@@ -719,7 +719,7 @@ class cache_file {
 		$dir = dirname($path);
 		if(!is_dir($dir)) {
 			if(!mkdir($dir, 0755, TRUE)) {
-				return $this->error(-1, '创建缓存子目录失败：' . $dir);
+				return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_mkdir_subdir_failed') : '创建缓存子目录失败：') . $dir);
 			}
 		}
 		return TRUE;
@@ -742,7 +742,7 @@ class cache_file {
 
 		$r = file_put_contents($filepath, $data, LOCK_EX);
 		if($r === FALSE) {
-			return $this->error(-1, '写入缓存文件失败：' . $filepath);
+			return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_write_file_failed') : '写入缓存文件失败：') . $filepath);
 		}
 		// ponytail: 部分面板（宝塔等）通过 disable_functions 禁用 chmod，
 		// PHP 8+ 中 undefined function 是 Error 不被 @ 抑制，会直接崩溃导致 nginx 502
@@ -762,7 +762,7 @@ class cache_file {
 
 		$content = file_get_contents($filepath);
 		if($content === FALSE) {
-			return $this->error(-1, '读取缓存文件失败：' . $filepath);
+			return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_read_file_failed') : '读取缓存文件失败：') . $filepath);
 		}
 
 		// 解析过期时间戳和数据
@@ -792,7 +792,7 @@ class cache_file {
 
 		$r = @unlink($filepath);
 		if(!$r) {
-			return $this->error(-1, '删除缓存文件失败：' . $filepath);
+			return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_delete_file_failed') : '删除缓存文件失败：') . $filepath);
 		}
 		return TRUE;
 	}
@@ -805,7 +805,7 @@ class cache_file {
 
 		// 重新创建缓存目录
 		if(!mkdir($this->cache_dir, 0755, TRUE)) {
-			return $this->error(-1, '重建缓存目录失败：' . $this->cache_dir);
+			return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_recreate_dir_failed') : '重建缓存目录失败：') . $this->cache_dir);
 		}
 		return TRUE;
 	}
@@ -880,7 +880,7 @@ class cache_memcached {
 
         public function __construct($conf = array()) {
                 if(!extension_loaded('Memcache') && !extension_loaded('Memcached') ) {
-                        return $this->error(1, ' Memcached 扩展没有加载，请检查您的 PHP 版本');
+                        return $this->error(1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('memcached_ext_not_loaded') : ' Memcached 扩展没有加载，请检查您的 PHP 版本');
                 }
                 $this->conf = $conf;
 		$this->cachepre = isset($conf['cachepre']) ? $conf['cachepre'] : 'pre_';
@@ -906,18 +906,18 @@ class cache_memcached {
                                 $r = $memcache->addserver($conf['host'], $conf['port']);
                         } else {
                                 $this->link = FALSE;
-                                return $this->error(-1, 'Memcache 扩展不存在。');
+                                return $this->error(-1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('memcached_ext_not_exists') : 'Memcache 扩展不存在。');
                         }
 
                         if(!$r) {
                                 $this->link = FALSE;
-                                return $this->error(-1, '连接 Memcached 服务器失败。');
+                                return $this->error(-1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('memcached_connect_failed') : '连接 Memcached 服务器失败。');
                         }
                         $this->link = $memcache;
                         return $this->link;
                 } catch(\Throwable $e) {
                         $this->link = FALSE;
-                        return $this->error(-1, '连接 Memcached 服务器异常：' . $e->getMessage());
+                        return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('memcached_connect_exception') : '连接 Memcached 服务器异常：') . $e->getMessage());
                 }
         }
 
@@ -1060,7 +1060,7 @@ class cache_redis {
 
         public function __construct($conf = array()) {
                 if(!extension_loaded('Redis')) {
-                        return $this->error(-1, ' Redis 扩展没有加载');
+                        return $this->error(-1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_ext_not_loaded') : ' Redis 扩展没有加载');
                 }
                 $this->conf = $conf;
 		$this->cachepre = isset($conf['cachepre']) ? $conf['cachepre'] : 'pre_';
@@ -1073,13 +1073,13 @@ class cache_redis {
                         $r = @$redis->connect($this->conf['host'], $this->conf['port'], 2);
                         if(!$r) {
                                 $this->link = FALSE;
-                                return $this->error(-1, '连接 Redis 服务器失败。');
+                                return $this->error(-1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_connect_failed') : '连接 Redis 服务器失败。');
                         }
                         if(!empty($this->conf['password'])) {
                                 $auth = $redis->auth($this->conf['password']);
                                 if(!$auth) {
                                         $this->link = FALSE;
-                                        return $this->error(-1, 'Redis 认证失败。');
+                                        return $this->error(-1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_auth_failed') : 'Redis 认证失败。');
                                 }
                         }
                         if(isset($this->conf['database']) && intval($this->conf['database']) > 0) {
@@ -1089,7 +1089,7 @@ class cache_redis {
                         return $this->link;
                 } catch(\Throwable $e) {
                         $this->link = FALSE;
-                        return $this->error(-1, '连接 Redis 服务器异常：' . $e->getMessage());
+                        return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_connect_exception') : '连接 Redis 服务器异常：') . $e->getMessage());
                 }
         }
 
@@ -1150,12 +1150,12 @@ class cache_redis {
                                 }
                                 if($iterator === 0) break;
                                 if(microtime(TRUE) - $start > $timeBudget) {
-                                        $this->error(-1, 'Redis deleteByPrefix 时间预算 ' . $timeBudget . 's 用尽，已删 ' . $deleted . '/' . $scanned . ' 键，剩余稍后清理');
+                                        $this->error(-1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_delete_by_prefix_timeout', array('seconds' => $timeBudget, 'deleted' => $deleted, 'scanned' => $scanned)) : 'Redis deleteByPrefix 时间预算 ' . $timeBudget . 's 用尽，已删 ' . $deleted . '/' . $scanned . ' 键，剩余稍后清理');
                                         break;
                                 }
                         }
                 } catch(\Throwable $e) {
-                        $this->error(-1, 'Redis deleteByPrefix 异常：' . $e->getMessage());
+                        $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('redis_delete_by_prefix_exception') : 'Redis deleteByPrefix 异常：') . $e->getMessage());
                 }
                 return $deleted;
         }
@@ -1455,13 +1455,13 @@ function db_errno_errstr($r, $d = NULL, $sql = '') {
 function db_errstr_safe($errno, $errstr) {
 	if(DEBUG) return $errstr;
 	if($errno == 1049) {
-		return '数据库名不存在，请手工创建';
+		return function_exists('lang') && !empty($_SERVER['lang']) ? lang('db_name_not_exists') : '数据库名不存在，请手工创建';
 	} elseif($errno == 2003 ) {
-		return '连接数据库服务器失败，请检查IP是否正确，或者防火墙设置';
+		return function_exists('lang') && !empty($_SERVER['lang']) ? lang('db_connect_server_failed') : '连接数据库服务器失败，请检查IP是否正确，或者防火墙设置';
 	} elseif($errno == 1024) {
-		return '连接数据库失败';
+		return function_exists('lang') && !empty($_SERVER['lang']) ? lang('db_connect_failed') : '连接数据库失败';
 	} elseif($errno == 1045) {
-		return '数据库账户密码错误';
+		return function_exists('lang') && !empty($_SERVER['lang']) ? lang('db_account_password_error') : '数据库账户密码错误';
 	}
 	return $errstr;
 }
@@ -1607,7 +1607,7 @@ function cache_new($cacheconf) {
 			case 'pdo_mysql':
 			case 'mysql':
 				$cache = new cache_mysql($cacheconf['mysql']); break;
-			default: return xn_error(-1, '不支持的 cache type:'.$cacheconf['type']);
+			default: return xn_error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_type_unsupported') : '不支持的 cache type:').$cacheconf['type']);
 		}
 		return $cache;
 	}
@@ -2574,11 +2574,11 @@ function humandate($timestamp, $lan = array()) {
 	$seconds = $time - $timestamp;
 	$lan = empty($lang) ? $lan : $lang;
 	empty($lan) AND $lan = array(
-		'month_ago'=>'月前',
-		'day_ago'=>'天前',
-		'hour_ago'=>'小时前',
-		'minute_ago'=>'分钟前',
-		'second_ago'=>'秒前',
+		'month_ago'=>lang('month_ago'),
+		'day_ago'=>lang('day_ago'),
+		'hour_ago'=>lang('hour_ago'),
+		'minute_ago'=>lang('minute_ago'),
+		'second_ago'=>lang('second_ago'),
 	);
 	if($seconds > 31536000) {
 		return date('Y-n-j', $timestamp);
@@ -2601,7 +2601,7 @@ function humannumber($num) {
 	if($custom_humannumber === NULL) $custom_humannumber = function_exists('custom_humannumber');
 	if($custom_humannumber) return custom_humannumber($num);
 
-	$num > 100000 && $num = ceil($num / 10000).'万';
+	$num > 100000 && $num = ceil($num / 10000).lang('ten_thousand');
 	return $num;
 }
 
@@ -2747,13 +2747,6 @@ function get__browser() {
 		}
 	}
 	return $browser;
-}
-
-function check_browser($browser) {
-	if($browser['name'] == 'ie' && $browser['version'] < 8) {
-		include _include(APP_PATH.'view/htm/browser.htm');
-		exit;
-	}
 }
 
 function is_robot() {
@@ -3537,7 +3530,7 @@ if($_auth_key === ''
 	// 仅在非安装路径、非后台路径下阻断
 	$_script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '';
 	if(strpos($_script_name, 'install/') === FALSE && strpos($_script_name, 'admin/') === FALSE) {
-		die('auth_key 未配置或强度不足，请运行安装程序（install/）或在 conf.php 中设置 32 位以上随机密钥。');
+		die(function_exists('lang') && !empty($_SERVER['lang']) ? lang('auth_key_not_configured') : 'auth_key 未配置或强度不足，请运行安装程序（install/）或在 conf.php 中设置 32 位以上随机密钥。');
 	}
 }
 

@@ -76,7 +76,7 @@ if(empty($action) || $action == 'list') {
 		
 		forum_list_cache_delete();
 
-		admin_log_create('forum_update', 'forum', '', '批量更新版块列表');
+		admin_log_create('forum_update', 'forum', '', lang('admin_log_forum_batch_update'));
 
 		// hook admin_forum_list_post_end.php
 
@@ -91,8 +91,8 @@ if(empty($action) || $action == 'list') {
 
 	if($method == 'GET') {
 
-		$header['title']        = '添加版块';
-		$header['mobile_title'] = '添加版块';
+		$header['title']        = lang('admin_add_forum');
+		$header['mobile_title'] = lang('admin_add_forum');
 
 		// hook admin_forum_create_get_start.php
 
@@ -243,10 +243,10 @@ if(empty($action) || $action == 'list') {
 		$input['accesson'] = form_checkbox('accesson', $_forum['accesson']);
 		$input['modnames'] = form_text('modnames', user_ids_to_names($_forum['moduids']));
 		
-		$type_options = array(0=>'版块', 1=>'分区');
+		$type_options = array(0=>lang('admin_forum'), 1=>lang('admin_category'));
 		$input['type'] = form_select('type', $type_options, isset($_forum['type']) ? $_forum['type'] : 0);
 		
-		$category_options = array(0=>'无');
+		$category_options = array(0=>lang('admin_none'));
 		$categories = forum_find_categories();
 		foreach($categories as $cat) {
 			if($cat['fid'] != $_fid) {
@@ -439,7 +439,7 @@ if(empty($action) || $action == 'list') {
 	
 	forum_list_cache_delete();
 
-	admin_log_create('forum_delete', 'forum', strval($_fid), '删除版块：' . $_forum['name']);
+	admin_log_create('forum_delete', 'forum', strval($_fid), lang('admin_log_forum_delete', array('name'=>$_forum['name'])));
 
 	// hook admin_forum_delete_end.php
 

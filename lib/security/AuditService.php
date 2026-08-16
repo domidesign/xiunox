@@ -285,7 +285,7 @@ class AuditService {
                     foreach($mentioned_usernames as $musername) {
                         $muser = $mentioned_users[$musername] ?? null;
                         if(!empty($muser) && intval($muser['uid']) != $thread_uid) {
-                            notify_create($muser['uid'], $thread_uid, 'mention', $tid, 0, '在帖子中提及了你');
+                            notify_create($muser['uid'], $thread_uid, 'mention', $tid, 0, lang('notify_action_mention_thread'));
                         }
                     }
                 }
@@ -298,7 +298,7 @@ class AuditService {
                     });
                     foreach($mentionUids as $mentionUid) {
                         $mentionUid = intval($mentionUid);
-                        notify_create($mentionUid, $thread_uid, 'mention', $tid, 0, '在帖子中提及了你');
+                        notify_create($mentionUid, $thread_uid, 'mention', $tid, 0, lang('notify_action_mention_thread'));
                     }
                 }
             }
@@ -368,7 +368,7 @@ class AuditService {
                     foreach($mentioned_usernames as $musername) {
                         $muser = $mentioned_users[$musername] ?? null;
                         if(!empty($muser) && intval($muser['uid']) != $post_uid) {
-                            notify_create($muser['uid'], $post_uid, 'mention', $tid, $pid, '在回复中提及了你');
+                            notify_create($muser['uid'], $post_uid, 'mention', $tid, $pid, lang('notify_action_mention_reply'));
                         }
                     }
                 }
@@ -381,7 +381,7 @@ class AuditService {
                     });
                     foreach($mentionUids as $mentionUid) {
                         $mentionUid = intval($mentionUid);
-                        notify_create($mentionUid, $post_uid, 'mention', $tid, $pid, '在回复中提及了你');
+                        notify_create($mentionUid, $post_uid, 'mention', $tid, $pid, lang('notify_action_mention_reply'));
                     }
                 }
             }
@@ -646,17 +646,17 @@ class AuditService {
     public static function resubmit(string $target_type, int $target_id, int $operator_uid): array {
         if ($target_type === 'thread') {
             $thread = thread__read($target_id);
-            if (empty($thread)) return ['ok'=>false, 'message'=>'帖子不存在'];
+            if (empty($thread)) return ['ok'=>false, 'message'=>lang('post_not_exists')];
             
             // 仅驳回状态可重新提交
             if (intval($thread['audit_status']) !== self::STATUS_REJECTED) {
-                return ['ok'=>false, 'message'=>'当前状态不允许重新提交'];
+                return ['ok'=>false, 'message'=>lang('audit_resubmit_status_invalid')];
             }
             
             // 检查重新提交次数
             $count = intval($thread['resubmit_count'] ?? 0);
             if ($count >= self::MAX_RESUBMIT_COUNT) {
-                return ['ok'=>false, 'message'=>'已达重新提交上限（'.self::MAX_RESUBMIT_COUNT.'次），请联系管理员'];
+                return ['ok'=>false, 'message'=>lang('audit_resubmit_limit_reached', array('n'=>self::MAX_RESUBMIT_COUNT))];
             }
             
             $r = db_update('thread', ['tid' => $target_id], [
@@ -664,7 +664,7 @@ class AuditService {
                 'resubmit_count' => $count + 1,
                 'reject_reason' => '',
             ]);
-            if ($r === false) return ['ok'=>false, 'message'=>'更新失败'];
+            if ($r === false) return ['ok'=>false, 'message'=>lang('update_failed')];
 
             // 清除受影响版块帖子列表缓存 + 首页缓存（与单条 approve() 对齐）
             $_fid = intval($thread['fid']);
@@ -676,15 +676,15 @@ class AuditService {
             }
         } else {
             $post = post__read($target_id);
-            if (empty($post)) return ['ok'=>false, 'message'=>'回帖不存在'];
+            if (empty($post)) return ['ok'=>false, 'message'=>lang('audit_reply_not_exists')];
 
             if (intval($post['audit_status']) !== self::STATUS_REJECTED) {
-                return ['ok'=>false, 'message'=>'当前状态不允许重新提交'];
+                return ['ok'=>false, 'message'=>lang('audit_resubmit_status_invalid')];
             }
 
             $count = intval($post['resubmit_count'] ?? 0);
             if ($count >= self::MAX_RESUBMIT_COUNT) {
-                return ['ok'=>false, 'message'=>'已达重新提交上限（'.self::MAX_RESUBMIT_COUNT.'次），请联系管理员'];
+                return ['ok'=>false, 'message'=>lang('audit_resubmit_limit_reached', array('n'=>self::MAX_RESUBMIT_COUNT))];
             }
 
             $r = db_update('post', ['pid' => $target_id], [
@@ -692,7 +692,7 @@ class AuditService {
                 'resubmit_count' => $count + 1,
                 'reject_reason' => '',
             ]);
-            if ($r === false) return ['ok'=>false, 'message'=>'更新失败'];
+            if ($r === false) return ['ok'=>false, 'message'=>lang('update_failed')];
 
             // 清除受影响版块帖子列表缓存 + 首页缓存（与单条 approve() 对齐）
             $_tid = intval($post['tid']);
@@ -706,7 +706,7 @@ class AuditService {
             }
         }
 
-        return ['ok'=>true, 'message'=>'已重新提交审核'];
+        return ['ok'=>true, 'message'=>lang('resubmit_success')];
     }
 
     /**
@@ -720,7 +720,7 @@ class AuditService {
         }
         $count = intval($target['resubmit_count'] ?? 0);
         if ($count >= self::MAX_RESUBMIT_COUNT) {
-            return ['can_edit'=>false, 'reason'=>'已达重新提交上限（'.self::MAX_RESUBMIT_COUNT.'次），请联系管理员'];
+            return ['can_edit'=>false, 'reason'=>lang('audit_resubmit_limit_reached', array('n'=>self::MAX_RESUBMIT_COUNT))];
         }
         return ['can_edit'=>true, 'reason'=>''];
     }
@@ -1207,7 +1207,7 @@ class AuditService {
         if(!empty($matches[1])) {
             $mentioned_usernames = array_unique($matches[1]);
             $mentioned_users = db_find('user', array('username' => $mentioned_usernames), array(), 1, count($mentioned_usernames), 'username');
-            $notify_text = $context === 'thread' ? '在帖子中提及了你' : '在回复中提及了你';
+            $notify_text = $context === 'thread' ? lang('notify_action_mention_thread') : lang('notify_action_mention_reply');
             foreach($mentioned_usernames as $musername) {
                 $muser = $mentioned_users[$musername] ?? null;
                 if(!empty($muser) && intval($muser['uid']) != $author_uid) {
@@ -1222,7 +1222,7 @@ class AuditService {
             $mentionUids = array_filter($mentionUids, function($muid) use ($author_uid) {
                 return $muid != $author_uid && $muid > 0;
             });
-            $notify_text = $context === 'thread' ? '在帖子中提及了你' : '在回复中提及了你';
+            $notify_text = $context === 'thread' ? lang('notify_action_mention_thread') : lang('notify_action_mention_reply');
             foreach($mentionUids as $mentionUid) {
                 $mentionUid = intval($mentionUid);
                 notify_create($mentionUid, $author_uid, 'mention', $tid, $pid, $notify_text);
@@ -1416,9 +1416,9 @@ class AuditService {
         }
 
         // 同时写入管理员操作日志
-        $action_labels = array('approve' => '审核通过', 'reject' => '审核驳回', 'ignore' => '审核忽略');
-        $action_label = $action_labels[$action] ?? '审核' . $action;
-        $detail = $action_label . ' ' . $target_type . ':' . $target_id . ($reason ? ' 原因：' . $reason : '');
+        $action_labels = array('approve' => lang('audit_approve'), 'reject' => lang('audit_reject'), 'ignore' => lang('admin_op_audit_ignore'));
+        $action_label = $action_labels[$action] ?? lang('audit_keyword') . $action;
+        $detail = $action_label . ' ' . $target_type . ':' . $target_id . ($reason ? lang('audit_log_reason', array('reason' => $reason)) : '');
         admin_log_create('audit_' . $action, $target_type, strval($target_id), $detail);
 
         return $r !== false;

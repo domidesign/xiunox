@@ -20,7 +20,7 @@ class SecurityService {
      */
     public static function obfuscate_error(string $field, string $original_message): string {
         // 统一返回模糊提示
-        return '操作失败，请检查输入信息';
+        return lang('security_obfuscate_error');
     }
 
     /**

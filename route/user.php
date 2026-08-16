@@ -545,7 +545,7 @@ if(empty($action)) {
 		        $allowed_list = array_map('trim', explode(',', strtolower($allowed_domains)));
 		        $allowed_list = array_filter($allowed_list);
 		        if (!empty($allowed_list) && !in_array($email_domain, $allowed_list)) {
-		            message(-1, '该邮箱域名不允许注册，仅支持：' . implode('、', $allowed_list));
+		            message(-1, lang('email_domain_not_allowed', array('domains'=>implode('、', $allowed_list))));
 		        }
 		    }
 		}
@@ -632,6 +632,9 @@ if(empty($action)) {
 
 	// hook user_logout_start.php
 
+	// 记录主动退出（与被动掉线区分，便于排查登录态丢失）
+	if(function_exists('user_login_trace')) user_login_trace('manual_logout', $uid);
+
 	// 退出前清除用户缓存（cache 类型为 mysql/pdo_mysql 时由 DB 层处理，与 user_update 一致）
 	// 必须在 $uid = 0 之前执行，否则会误清 user-0 缓存
 	!empty($uid) AND !in_array($conf['cache']['type'], array('mysql', 'pdo_mysql')) AND cache_delete("user-$uid");
@@ -652,7 +655,7 @@ if(empty($action)) {
 
 	// hook user_resetpw_get_post.php
 
-	!$conf['user_resetpw_on'] AND message(-1, '未开启密码找回功能！');
+	!$conf['user_resetpw_on'] AND message(-1, lang('resetpw_not_on'));
 
 	if($method == 'GET') {
 
@@ -691,19 +694,19 @@ if(empty($action)) {
 		if (!empty($check_password)) {
 		    $min_length = SecurityConfigService::get('security_password_min_length', 6);
 		    if (mb_strlen($check_password, 'UTF-8') < $min_length) {
-		        message(-1, '密码长度不能少于' . $min_length . '个字符');
+		        message(-1, lang('password_length_too_short', array('minlength'=>$min_length)));
 		    }
 
 		    $complexity = SecurityConfigService::get('security_password_complexity', 'none');
 		    if ($complexity === 'number' && !preg_match('/[0-9]/', $check_password)) {
-		        message(-1, '密码必须包含数字');
+		        message(-1, lang('password_requires_number'));
 		    } elseif ($complexity === 'mixed') {
 		        if (!preg_match('/[a-z]/', $check_password) || !preg_match('/[A-Z]/', $check_password)) {
-		            message(-1, '密码必须包含大小写字母');
+		            message(-1, lang('password_requires_mixed_case'));
 		        }
 		    } elseif ($complexity === 'special') {
 		        if (!preg_match('/[a-z]/', $check_password) || !preg_match('/[A-Z]/', $check_password) || !preg_match('/[0-9]/', $check_password) || !preg_match('/[^a-zA-Z0-9]/', $check_password)) {
-		            message(-1, '密码必须包含大小写字母、数字和特殊字符');
+		            message(-1, lang('password_requires_special'));
 		        }
 		    }
 		}
@@ -844,7 +847,7 @@ if(empty($action)) {
 			$allowed_list = array_map('trim', explode(',', strtolower($allowed_domains)));
 			$allowed_list = array_filter($allowed_list);
 			if (!empty($allowed_list) && !in_array($email_domain, $allowed_list)) {
-				message(-1, '该邮箱域名不允许注册，仅支持：' . implode('、', $allowed_list));
+				message(-1, lang('email_domain_not_allowed', array('domains'=>implode('、', $allowed_list))));
 			}
 		}
 
@@ -882,7 +885,7 @@ if(empty($action)) {
 
 	$smtp = xn_smtp_get();
 	if(empty($smtp)) {
-		message(-1, '邮件发送未配置，请联系管理员');
+		message(-1, lang('mail_not_configured'));
 	}
 
 	// hook user_send_code_before.php
@@ -993,7 +996,7 @@ if(empty($action)) {
 		exit;
 	}
 	header('Content-Type: application/json; charset=utf-8');
-	echo json_encode(array('code' => 0, 'message' => '操作成功', 'data' => $data), JSON_UNESCAPED_UNICODE);
+	echo json_encode(array('code' => 0, 'message' => lang('operate_successfully'), 'data' => $data), JSON_UNESCAPED_UNICODE);
 	exit;
 
 } elseif($action == 'following') {
@@ -1261,7 +1264,7 @@ if(empty($action)) {
     // 用户搜索（用于@提及）
     $keyword = param('keyword');
     empty($keyword) AND message(-1, lang('data_is_empty'));
-    mb_strlen($keyword) < 1 AND message(-1, '关键词太短');
+    mb_strlen($keyword) < 1 AND message(-1, lang('user_search_keyword_too_short'));
 
     $userlist = db_find('user', array('username'=>array('LIKE'=>$keyword.'%')), array('uid'=>-1), 1, 10, 'uid');
     $users = array();

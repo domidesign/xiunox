@@ -82,7 +82,7 @@ class AttachmentService {
         global $conf;
 
         if(empty($file) || $file['error'] !== UPLOAD_ERR_OK) {
-            return array('code' => -1, 'message' => '上传文件无效');
+            return array('code' => -1, 'message' => lang('attach_upload_invalid'));
         }
 
         $name = $file['name'];
@@ -95,20 +95,20 @@ class AttachmentService {
         // 文件类型校验
         $allowed_image_types = self::getAllowedTypes('image');
         if(!in_array($ext, $allowed_image_types)) {
-            return array('code' => -1, 'message' => '仅允许上传图片文件');
+            return array('code' => -1, 'message' => lang('attach_image_only'));
         }
 
         // 真实 MIME 校验，防止伪造扩展名上传恶意文件
         $realMime = $this->validateMime($tmp_name, self::$imageMimes);
         if($realMime === false) {
-            return array('code' => -1, 'message' => '文件类型不允许');
+            return array('code' => -1, 'message' => lang('file_type_not_allowed'));
         }
 
         // 文件大小校验
         $max_size = self::getMaxSize('image');
         if($size > $max_size) {
             $max_fmt = self::formatSize($max_size);
-            return array('code' => -1, 'message' => "图片大小不能超过 {$max_fmt}");
+            return array('code' => -1, 'message' => lang('attach_image_size_too_large', array('maxsize' => $max_fmt)));
         }
 
         // 生成临时文件
@@ -118,7 +118,7 @@ class AttachmentService {
         $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
 
         if(!move_uploaded_file($tmp_name, $tmpfile)) {
-            return array('code' => -1, 'message' => '写入文件失败');
+            return array('code' => -1, 'message' => lang('write_to_file_failed'));
         }
 
         // 获取图片尺寸
@@ -168,7 +168,7 @@ class AttachmentService {
         global $conf;
 
         if(empty($file) || $file['error'] !== UPLOAD_ERR_OK) {
-            return array('code' => -1, 'message' => '上传文件无效');
+            return array('code' => -1, 'message' => lang('attach_upload_invalid'));
         }
 
         $name = $file['name'];
@@ -181,20 +181,20 @@ class AttachmentService {
         // 文件类型校验
         $allowed_video_types = self::getAllowedTypes('video');
         if(!in_array($ext, $allowed_video_types)) {
-            return array('code' => -1, 'message' => '仅允许上传视频文件');
+            return array('code' => -1, 'message' => lang('attach_video_only'));
         }
 
         // 真实 MIME 校验，防止伪造扩展名上传恶意文件
         $realMime = $this->validateMime($tmp_name, self::$videoMimes);
         if($realMime === false) {
-            return array('code' => -1, 'message' => '文件类型不允许');
+            return array('code' => -1, 'message' => lang('file_type_not_allowed'));
         }
 
         // 文件大小校验
         $max_size = self::getMaxSize('video');
         if($size > $max_size) {
             $max_fmt = self::formatSize($max_size);
-            return array('code' => -1, 'message' => "视频大小不能超过 {$max_fmt}");
+            return array('code' => -1, 'message' => lang('attach_video_size_too_large', array('maxsize' => $max_fmt)));
         }
 
         // 生成临时文件
@@ -204,7 +204,7 @@ class AttachmentService {
         $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
 
         if(!move_uploaded_file($tmp_name, $tmpfile)) {
-            return array('code' => -1, 'message' => '写入文件失败');
+            return array('code' => -1, 'message' => lang('write_to_file_failed'));
         }
 
         // 获取视频信息
@@ -250,7 +250,7 @@ class AttachmentService {
         global $conf;
 
         if(empty($file) || $file['error'] !== UPLOAD_ERR_OK) {
-            return array('code' => -1, 'message' => '上传文件无效');
+            return array('code' => -1, 'message' => lang('attach_upload_invalid'));
         }
 
         $name = $file['name'];
@@ -262,20 +262,20 @@ class AttachmentService {
 
         // 文件类型校验
         if(!in_array($ext, $filetypes['all'])) {
-            return array('code' => -1, 'message' => '不允许的文件类型');
+            return array('code' => -1, 'message' => lang('file_type_not_allowed'));
         }
 
         // 真实 MIME 校验，防止伪造扩展名上传恶意文件
         $realMime = $this->validateMime($tmp_name, self::$allMimes);
         if($realMime === false) {
-            return array('code' => -1, 'message' => '文件类型不允许');
+            return array('code' => -1, 'message' => lang('file_type_not_allowed'));
         }
 
         // 文件大小校验
         $max_size = self::getMaxSize($filetype);
         if($size > $max_size) {
             $max_fmt = self::formatSize($max_size);
-            return array('code' => -1, 'message' => "文件大小不能超过 {$max_fmt}");
+            return array('code' => -1, 'message' => lang('attach_file_size_too_large', array('maxsize' => $max_fmt)));
         }
 
         // 生成临时文件
@@ -285,7 +285,7 @@ class AttachmentService {
         $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
 
         if(!move_uploaded_file($tmp_name, $tmpfile)) {
-            return array('code' => -1, 'message' => '写入文件失败');
+            return array('code' => -1, 'message' => lang('write_to_file_failed'));
         }
 
         $width = 0;
@@ -356,20 +356,20 @@ class AttachmentService {
 
         // 文件类型校验
         if(!in_array($ext, $filetypes['all'])) {
-            return array('code' => -1, 'message' => '不允许的文件类型');
+            return array('code' => -1, 'message' => lang('file_type_not_allowed'));
         }
 
         // 文件大小校验
         $max_size = self::getMaxSize($filetype);
         if($file['size'] > $max_size) {
-            return array('code' => -1, 'message' => '文件大小超出限制');
+            return array('code' => -1, 'message' => lang('attach_size_limit_exceeded'));
         }
 
         if($driver === 'local') {
             return $this->uploadFile($file, intval($options['uid'] ?? 0), $options);
         }
 
-        return array('code' => -1, 'message' => '不支持的上传驱动: '.$driver);
+        return array('code' => -1, 'message' => lang('attach_driver_not_supported', array('driver' => $driver)));
     }
 
     /**

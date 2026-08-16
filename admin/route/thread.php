@@ -192,8 +192,8 @@ if(empty($action) || $action == 'list') {
 	// hook admin_thread_batch_end.php
 	// 记录操作日志
 	if($success_count > 0) {
-		$op_labels = array('delete'=>'删除', 'close'=>'关闭', 'open'=>'开启', 'top'=>'置顶', 'digest'=>'加精', 'announcement'=>'设为公告', 'move'=>'移动');
-		$detail = ($op_labels[$op] ?? $op) . '主题 ' . $success_count . ' 篇';
+		$op_labels = array('delete'=>lang('admin_delete'), 'close'=>lang('admin_label_close'), 'open'=>lang('admin_label_open'), 'top'=>lang('admin_status_top'), 'digest'=>lang('admin_label_digest'), 'announcement'=>lang('admin_thread_set_announcement'), 'move'=>lang('admin_label_move'));
+		$detail = lang('admin_log_thread_batch_op', array('op'=>($op_labels[$op] ?? $op), 'n'=>$success_count));
 		if($op == 'move') {
 			$target_forum = forum_read($target_fid);
 			$detail .= ' → ' . ($target_forum ? $target_forum['name'] : 'fid:' . $target_fid);
@@ -325,12 +325,12 @@ if(empty($action) || $action == 'list') {
 			$success_count = 0;
 			if($op == 'restore') {
 				$success_count = post_restore_batch($valid_pids);
-				admin_log_create('post_restore', 'post', $valid_pids, '恢复评论 ' . $success_count . ' 条');
+				admin_log_create('post_restore', 'post', $valid_pids, lang('admin_log_post_restore', array('n'=>$success_count)));
 			} elseif($op == 'hard_delete') {
 				$success_count = post_hard_delete_batch($valid_pids);
-				admin_log_create('post_hard_delete', 'post', $valid_pids, '彻底删除评论 ' . $success_count . ' 条');
+				admin_log_create('post_hard_delete', 'post', $valid_pids, lang('admin_log_post_hard_delete', array('n'=>$success_count)));
 			} else {
-				message(-1, '未知操作');
+				message(-1, lang('admin_unknown_action'));
 			}
 
 			message(0, lang('admin_recycle_post_' . ($op == 'restore' ? 'restore' : 'hard_delete') . '_successfully', array('count'=>$success_count)));
@@ -357,15 +357,15 @@ if(empty($action) || $action == 'list') {
 			if($op == 'restore') {
 				thread_restore_batch($valid_tids);
 				$success_count = count($valid_tids);
-				admin_log_create('thread_restore', 'thread', $valid_tids, '恢复主题 ' . $success_count . ' 篇');
+				admin_log_create('thread_restore', 'thread', $valid_tids, lang('admin_log_thread_restore', array('n'=>$success_count)));
 			} elseif($op == 'hard_delete') {
 				foreach($valid_tids as $tid) {
 					thread_delete($tid);
 					$success_count++;
 				}
-				admin_log_create('thread_hard_delete', 'thread', $valid_tids, '彻底删除主题 ' . $success_count . ' 篇');
+				admin_log_create('thread_hard_delete', 'thread', $valid_tids, lang('admin_log_thread_hard_delete', array('n'=>$success_count)));
 			} else {
-				message(-1, '未知操作');
+				message(-1, lang('admin_unknown_action'));
 			}
 
 			message(0, lang('admin_recycle_' . ($op == 'restore' ? 'restore' : 'hard_delete') . '_successfully', array('count'=>$success_count)));

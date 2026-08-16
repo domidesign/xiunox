@@ -11,7 +11,7 @@ class cache_memcached {
 
         public function __construct($conf = array()) {
                 if(!extension_loaded('Memcache') && !extension_loaded('Memcached') ) {
-                        return $this->error(1, ' Memcached 扩展没有加载，请检查您的 PHP 版本');
+                        return $this->error(1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('memcached_ext_not_loaded') : ' Memcached 扩展没有加载，请检查您的 PHP 版本');
                 }
                 $this->conf = $conf;
 		$this->cachepre = isset($conf['cachepre']) ? $conf['cachepre'] : 'pre_';
@@ -38,18 +38,18 @@ class cache_memcached {
                                 $r = $memcache->addserver($conf['host'], $conf['port']);
                         } else {
                                 $this->link = FALSE;
-                                return $this->error(-1, 'Memcache 扩展不存在。');
+                                return $this->error(-1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('memcached_ext_not_exists') : 'Memcache 扩展不存在。');
                         }
 
                         if(!$r) {
                                 $this->link = FALSE;
-                                return $this->error(-1, '连接 Memcached 服务器失败。');
+                                return $this->error(-1, function_exists('lang') && !empty($_SERVER['lang']) ? lang('memcached_connect_failed') : '连接 Memcached 服务器失败。');
                         }
                         $this->link = $memcache;
                         return $this->link;
                 } catch(\Throwable $e) {
                         $this->link = FALSE;
-                        return $this->error(-1, '连接 Memcached 服务器异常：' . $e->getMessage());
+                        return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('memcached_connect_exception') : '连接 Memcached 服务器异常：') . $e->getMessage());
                 }
         }
         // 检查缓存连接是否可用

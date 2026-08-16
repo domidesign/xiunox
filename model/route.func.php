@@ -155,7 +155,6 @@ function route_table() {
 			'search_page'           => 'search-{page}',
 			'rank'                  => 'rank',
 			'sitemap'               => 'sitemap.xml',
-			'browser'               => 'browser',
 			'captcha'               => 'captcha-generate-{scene}',
 			'lang'                  => 'lang-{code}',
 			'theme'                 => 'theme',
@@ -458,7 +457,6 @@ function more_url($query = array())                       { return route_url('mo
 function search_url($query = array())                     { return route_url('search', [], $query); }
 function search_page_url($keyword, $page, $query = array()) { return route_url('search_page', ['page' => $page], ['keyword' => $keyword] + $query); }
 function rank_url($query = array())                       { return route_url('rank', [], $query); }
-function browser_url($query = array())                     { return route_url('browser', [], $query); }
 function captcha_url($scene, $query = array())            { return route_url('captcha', ['scene' => $scene], $query); }
 function lang_url($code, $query = array())                { return route_url('lang', ['code' => $code], $query); }
 function theme_url($query = array())                      { return route_url('theme', [], $query); }

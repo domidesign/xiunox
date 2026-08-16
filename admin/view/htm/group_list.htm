@@ -119,7 +119,7 @@ jform.addEventListener('submit', function(e) {
 		}
 	})
 	.catch(function(err) {
-		showToast('请求失败', 'error');
+		showToast(<?php echo json_encode(lang('admin_request_failed'));?>, 'error');
 		jsubmit.disabled = false;
 		jsubmit.textContent = '<?php echo lang('confirm');?>';
 	});

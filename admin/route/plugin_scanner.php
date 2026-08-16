@@ -50,7 +50,7 @@ if($action == 'do') {
 	$dir = param('dir', '');
 	if(empty($dir)) {
 		header('Content-Type: application/json; charset=utf-8');
-		echo json_encode(['can_install' => false, 'fatal' => [], 'warning' => [], 'summary' => '缺少插件目录参数'], JSON_UNESCAPED_UNICODE);
+		echo json_encode(['can_install' => false, 'fatal' => [], 'warning' => [], 'summary' => lang('plugin_scanner_missing_dir')], JSON_UNESCAPED_UNICODE);
 		exit;
 	}
 
@@ -72,10 +72,10 @@ if($action == 'do') {
 
 } elseif($action == 'detail') {
 
-	$dir = param_word(3);
+		$dir = param_word(3);
 	if(empty($dir)) message(-1, 'Plugin dir required');
 
-	message(0, '详情功能暂不可用', array('redirect_url' => admin_plugin_scanner_url()));
+	message(0, lang('plugin_scanner_detail_unavailable'), array('redirect_url' => admin_plugin_scanner_url()));
 
 } elseif($action == 'export') {
 
@@ -95,7 +95,7 @@ if($action == 'do') {
 		$results = $scanner->scanAll();
 	}
 
-	$csv = "插件名,版本,文件,行号,类别,匹配内容,严重级别,建议\n";
+	$csv = lang('plugin_scanner_csv_header') . "\n";
 	foreach($results as $plugin) {
 		foreach($plugin['issues'] as $issue) {
 			// CSV 保持原始粒度：合并后的 issue 通过 lines 数组展开为多行
@@ -133,8 +133,8 @@ if($action == 'do') {
 	$rulesSummary = $scanner->getRulesSummary();
 	$pluginList = $scanner->getPluginList();
 
-	$header['title'] = '插件兼容性检查';
-	$header['mobile_title'] = '插件检查';
+	$header['title'] = lang('plugin_scanner_page_title');
+	$header['mobile_title'] = lang('plugin_scanner_mobile_title');
 
 	include _include(ADMIN_PATH.'view/htm/plugin_scanner.htm');
 }

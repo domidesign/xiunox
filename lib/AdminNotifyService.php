@@ -164,7 +164,7 @@ class AdminNotifyService {
                 $_mail_url = self::absoluteMailUrl($url);
                 $content_html = '<!DOCTYPE html><html><body><div>'
                     . $content
-                    . '</div><p><a href="' . htmlspecialchars($_mail_url, ENT_QUOTES) . '">点击查看</a></p></body></html>';
+                    . '</div><p><a href="' . htmlspecialchars($_mail_url, ENT_QUOTES) . '">' . lang('admin_notify_click_view') . '</a></p></body></html>';
                 foreach ($mail_recipients as $email) {
                     $mail_ret = xn_send_mail($smtp, $from_name, $email, $subject, $content_html, array('is_html' => TRUE));
                     if ($mail_ret === TRUE) {
@@ -240,7 +240,7 @@ class AdminNotifyService {
                 $_mail_url = self::absoluteMailUrl($url);
                 $content_html = '<!DOCTYPE html><html><body><div>'
                     . $content
-                    . '</div><p><a href="' . htmlspecialchars($_mail_url, ENT_QUOTES) . '">点击查看</a></p></body></html>';
+                    . '</div><p><a href="' . htmlspecialchars($_mail_url, ENT_QUOTES) . '">' . lang('admin_notify_click_view') . '</a></p></body></html>';
                 $mail_ret = xn_send_mail($smtp, $from_name, $user['email'], $subject, $content_html, array('is_html' => TRUE));
                 if ($mail_ret === TRUE) {
                     $result['sent_mail'] = 1;

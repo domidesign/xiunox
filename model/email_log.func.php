@@ -97,7 +97,7 @@ function email_log_format(&$log) {
 	if(empty($log)) return;
 
 	$log['create_date_fmt'] = humandate($log['create_date']);
-	$log['status_name'] = $log['status'] ? '成功' : '失败';
+	$log['status_name'] = $log['status'] ? lang('success_label') : lang('failed_label');
 	$log['ip_fmt'] = long2ip($log['ip']);
 
 }

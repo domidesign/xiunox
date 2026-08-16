@@ -50,10 +50,10 @@ if($action == 'forum') {
         if(!empty($rules)) {
             $result = CreditsRuleService::saveForumRules($fid, $rules);
         } else {
-            $result = array('ok' => true, 'message' => '已更新版块规则');
+            $result = array('ok' => true, 'message' => lang('admin_credits_rule_forum_updated'));
         }
 
-        admin_log_create('credits_rule_update', 'credits_rule', strval($fid), '修改版块积分规则 fid=' . $fid);
+        admin_log_create('credits_rule_update', 'credits_rule', strval($fid), lang('admin_log_credits_rule_forum', array('fid'=>$fid)));
 
         // hook admin_credits_rule_forum_post_end.php
 

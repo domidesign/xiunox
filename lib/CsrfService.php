@@ -48,7 +48,7 @@ class CsrfService {
             if ($is_htmx) {
                 // htmx 请求：返回 HTML 错误片段
                 header('Content-Type: text/html; charset=utf-8');
-                echo '<div class="alert alert-danger py-2 small mb-2">CSRF验证失败，请刷新页面重试</div>';
+                echo '<div class="alert alert-danger py-2 small mb-2">' . lang('csrf_verify_failed') . '</div>';
                 exit;
             }
 
