@@ -112,7 +112,9 @@ function check_runlevel() {
 	global $conf, $method, $gid;
 	
 	$rules = array(
-		'user'=>array('login', 'create', 'logout', 'sendinitpw', 'resetpw', 'resetpw_sendcode', 'resetpw_complete', 'synlogin')
+		'user'=>array('login', 'create', 'logout', 'sendinitpw', 'resetpw', 'resetpw_sendcode', 'resetpw_complete', 'synlogin'),
+		// captcha: 维护模式下登录页仍可请求/校验验证码（验证码内容不敏感，仅图片数据+本地校验）
+		'captcha'=>array('generate', 'verify'),
 	);
 	
 	// hook model_check_runlevel_start.php

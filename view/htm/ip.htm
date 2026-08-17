@@ -8,13 +8,15 @@
 		<div class="x-card card">
 			<div class="card-body">
 				<h3 class="card-title small"><i class="ti ti-world me-1"></i> <?php echo lang('ip_page');?></h3>
-				<form action="<?php echo url('ip');?>" method="get" class="d-flex flex-wrap gap-2 mt-2">
-					<input type="text" name="ip" value="<?php echo esc_attr($_ip_input);?>" class="form-control flex-grow-1" style="min-width:200px" placeholder="<?php echo lang('ip_lookup_hint');?>" />
+				<form method="get" class="d-flex gap-2 mt-2" autocomplete="off"
+					onsubmit="var v=this.ip.value.trim();if(!v)return false;var u='<?php echo url('ip');?>';window.location.href=u+(u.indexOf('?')!==-1?'&':'?')+'ip='+encodeURIComponent(v);return false;">
+					<input type="text" name="ip" value="<?php echo esc_attr($_ip_input);?>" class="form-control flex-grow-1" style="min-width:200px" placeholder="<?php echo lang('ip_lookup_hint');?>" autocomplete="off" />
 					<button type="submit" class="btn btn-primary px-5 flex-shrink-0"><i class="ti ti-search me-1"></i> <?php echo lang('ip_query');?></button>
 				</form>
 			</div>
 		</div>
 
+		<?php if(!$_ip_empty) { ?>
 		<?php if($_ip_error !== '') { ?>
 		<!-- 查询失败提示 -->
 		<div class="x-card card mt-3">
@@ -52,6 +54,7 @@
 				</dl>
 			</div>
 		</div>
+		<?php } ?>
 		<?php } ?>
 
 		<!-- 数据来源说明 -->
