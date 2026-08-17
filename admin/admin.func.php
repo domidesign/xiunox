@@ -95,10 +95,12 @@ function admin_token_check() {
 		}
 		list($_ip, $_time) = explode("\t", $s);
 
-		// 后台超过 3600 自动退出。
-		// Background / more than 3600 automatic withdrawal.
+		// 后台超过管理员登录时效（分钟，默认 60）自动退出。
+		// Background / more than admin login expire auto logout.
+		$admin_expire = isset($conf['security_admin_login_expire']) ? intval($conf['security_admin_login_expire']) : 60;
+		$admin_expire = max(1, $admin_expire) * 60;
 		//if($_ip != $longip || $time - $_time > 3600) {
-		if((XN_ADMIN_BIND_IP && $_ip != $longip || !XN_ADMIN_BIND_IP) && $time - $_time > 3600) {
+		if((XN_ADMIN_BIND_IP && $_ip != $longip || !XN_ADMIN_BIND_IP) && $time - $_time > $admin_expire) {
 			setcookie('bbs_admin_token', '', admin_cookie_options(0));
 			admin_token_expiry_redirect();
 		}
@@ -162,8 +164,12 @@ function admin_token_set() {
 	$admin_token = param('bbs_admin_token');
 	$s = "$longip	$time";
 	
+	// 管理员登录时效（分钟），默认 60（1 小时），与 admin_token_check 校验一致
+	$admin_expire = isset($conf['security_admin_login_expire']) ? intval($conf['security_admin_login_expire']) : 60;
+	$admin_expire = max(1, $admin_expire) * 60;
+	
 	$admin_token = xn_encrypt($s, $key);
-	setcookie('bbs_admin_token', $admin_token, admin_cookie_options($time + 3600));
+	setcookie('bbs_admin_token', $admin_token, admin_cookie_options($time + $admin_expire));
 
 	// hook admin_token_set_end.php
 }

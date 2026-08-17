@@ -636,17 +636,25 @@ function user_token_get() {
 
 // 登录态丢失排查日志
 // ponytail: 只记失败路径（token 校验失败/强制下线/主动退出），游客无 token 的请求不记，避免日志刷盘。
-//   同一 uid+原因 300 秒去重，防止 token 损坏时每个请求都写一条。
+//   2026-08-17 应排查需求取消 300 秒去重：全量记录每条掉线请求（含动作上下文与会话/cookie 状态），
+//   便于完整还原"用户在做什么动作时被踢"。token 损坏/异常场景日志量会明显增大，排查完可按需恢复去重。
 function user_login_trace($reason, $uid = 0, $extra = array()) {
-	static $_seen = array();
-	$_key = $reason . '-' . intval($uid);
-	$_now = time();
-	if(isset($_seen[$_key]) && $_now - $_seen[$_key] < 300) return;
-	$_seen[$_key] = $_now;
 	$_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
 	$_ua = isset($_SERVER['HTTP_USER_AGENT']) ? xn_substr($_SERVER['HTTP_USER_AGENT'], 0, 80) : '';
 	$_ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
 	$_msg = "[login-lost] reason={$reason} uid=" . intval($uid) . " ip={$_ip} uri={$_uri} ua={$_ua}";
+
+	// 动作上下文：请求方法 + 路由名/子动作 + 来源页，定位"用户在做什么时掉线"
+	$_method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : '';
+	$_route = function_exists('param') ? (string)param(0) : '';
+	$_sub   = function_exists('param') ? (string)param(1) : '';
+	$_referer = isset($_SERVER['HTTP_REFERER']) ? xn_substr($_SERVER['HTTP_REFERER'], 0, 120) : '';
+	$_msg .= " method={$_method} route={$_route}/{$_sub} referer={$_referer}";
+
+	// 会话/cookie 状态：区分"session 丢了"还是"token cookie 丢了"还是"token 无效"
+	$_sess_uid = isset($_SESSION['uid']) ? intval($_SESSION['uid']) : -1;
+	$_msg .= " sess_uid={$_sess_uid} token_cookie=" . (isset($_COOKIE['bbs_token']) ? '1' : '0') . " sid_cookie=" . (isset($_COOKIE['bbs_sid']) ? '1' : '0');
+
 	foreach((array)$extra as $_k => $_v) {
 		$_msg .= " {$_k}={$_v}";
 	}
@@ -760,8 +768,10 @@ function user_token_set($uid) {
 	$token = user_token_gen($uid);
 	// cookie_path 为空时默认用 /，确保 token 在全站有效
 	$_cookie_path = !empty($conf['cookie_path']) ? $conf['cookie_path'] : '/';
-	// bbs_token 有效期 7 天（604800 秒，原 100 天 8640000，缩短以降低长期登录泄露风险）
-	setcookie('bbs_token', $token, user_cookie_options($time + 604800, $_cookie_path));
+	// 用户登录时效（天），默认 7 天；配置缺失/非法时回退默认值，最小 1 天
+	$expire_days = isset($conf['security_user_login_expire']) ? intval($conf['security_user_login_expire']) : 7;
+	$expire_days = max(1, $expire_days);
+	setcookie('bbs_token', $token, user_cookie_options($time + $expire_days * 86400, $_cookie_path));
 
 	// hook model_user_token_set_end.php
 }

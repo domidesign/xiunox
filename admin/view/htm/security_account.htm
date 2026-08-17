@@ -7,6 +7,28 @@
 		<form action="<?php echo admin_security_url('account');?>" method="post" id="account-form">
 			<?php echo CsrfService::input(); ?>
 
+			<hr class="my-4">
+			<h6 class="mb-3"><i class="ti ti-clock-hour me-1"></i><?php echo lang('admin_login_expire');?></h6>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_user_login_expire')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_user_login_expire" value="<?php echo $security_config['security_user_login_expire'];?>" min="1" max="365">
+						<span class="input-group-text"><?php echo lang('day')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_user_login_expire')?></small></div>
+			</div>
+			<div class="row mb-3">
+				<label class="col-sm-3 col-form-label"><?php echo lang('admin_admin_login_expire')?></label>
+				<div class="col-sm-6">
+					<div class="input-group">
+						<input type="number" class="form-control rounded-pill" name="security_admin_login_expire" value="<?php echo $security_config['security_admin_login_expire'];?>" min="1">
+						<span class="input-group-text"><?php echo lang('unit_minute')?></span>
+					</div>
+				</div>
+				<div class="col-sm-3"><small class="text-body-secondary d-flex align-items-center" style="height:38px"><?php echo lang('tip_admin_login_expire')?></small></div>
+			</div>
 			<div class="row mb-3">
 				<label class="col-sm-3 col-form-label"><?php echo lang('admin_ip_register_interval')?></label>
 				<div class="col-sm-6">

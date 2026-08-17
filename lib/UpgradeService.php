@@ -646,7 +646,6 @@ class UpgradeService {
     }
 
     public function migratePasswords(int $batchSize = 100): array {
-        $tablepre = $this->tablepre;
         $total = $this->db->count('user');
 
         // 统计旧格式用户（password 字段非空，说明是 md5(md5(明文)+salt) 格式）
@@ -661,12 +660,12 @@ class UpgradeService {
             }
         }
 
-        // 清空旧格式用户的 password_hash，让他们下次登录时走旧 password 字段验证后自动升级为 bcrypt(明文)
-        // 注意：仅清空 password 非空的用户（旧格式），全新安装的用户 password 为空不受影响
-        $r = $this->execSql("UPDATE `{$tablepre}user` SET `password_hash` = '' WHERE `password` != ''");
-
+        // ponytail: 旧版本曾执行 `UPDATE user SET password_hash = '' WHERE password != ''`，
+        // 会误伤 password 与 password_hash 并存的用户（清空其 bcrypt 哈希后，基于 password_hash
+        // 的 bbs_token 指纹校验失败，导致用户被强制掉线）。
+        // 密码迁移不需要任何数据改动：password_hash 为空即旧格式，登录时 user_login_verify 自动升级。
         return [
-            'ok' => $r['ok'],
+            'ok' => true,
             'message' => lang('upgrade_password_migrate_done', array('n' => $legacyUsers)),
             'total' => $total,
             'pending' => $legacyUsers,

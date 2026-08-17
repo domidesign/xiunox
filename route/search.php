@@ -65,6 +65,12 @@ $keyword_too_short = false;
 
 $search_type = param('type', 'thread');
 
+// 排序方式：asc=最早在前（正序），desc=最新在前（倒序）；为空时保持默认排序（FULLTEXT 相关度 / LIKE 最新在前）
+// 显式传 sort（点击排序按钮）的请求视为结果重排，跳过搜索频率限制，避免快速切换排序被拦截
+$sort = param('sort', '');
+$sort_explicit = $sort !== '';
+$sort = in_array($sort, array('asc', 'desc'), true) ? $sort : '';
+
 // hook search_keyword_after.php
 
 $userlist = array();
@@ -121,9 +127,9 @@ function search_ensure_fulltext($table, $column, $index_name) {
 }
 
 if($keyword_safe) {
-    // 搜索频率限制检查（只有真正发起搜索才计时；建议模式/翻页/纯访问搜索页不计）
+    // 搜索频率限制检查（只有真正发起搜索才计时；建议模式/翻页/排序切换/纯访问搜索页不计）
     // 翻页只是浏览已有结果，不计入；page<=1 表示首次搜索
-    if (!$suggest && !$ref_suggest && $page <= 1) {
+    if (!$suggest && !$ref_suggest && $page <= 1 && !$sort_explicit) {
         $search_interval = SecurityConfigService::get('security_search_interval', 10);
         if ($search_interval > 0) {
             $search_key = 'security_search_time_' . ($uid > 0 ? $uid : $longip);
@@ -246,16 +252,22 @@ if($keyword_safe) {
         // 纯 ASCII 关键词跳过 FULLTEXT（ngram 对英文/符号分词不友好），直接走 LIKE 精确子串匹配
         $use_fulltext = $has_fulltext_subject && $has_fulltext_message && !$is_ascii_keyword;
 
+        // 排序 SQL 片段：显式指定排序时让 SQL 直接按 tid 取正确范围的记录（LIMIT 前先排序），
+        // 避免"先 LIMIT 100 再 PHP 排序"在正序场景取到错误批次
+        $sort_order = $sort === 'asc' ? 'ASC' : ($sort === 'desc' ? 'DESC' : '');
+        $sort_sql = $sort_order !== '' ? ' ORDER BY tid ' . $sort_order : '';
+        $sort_sql_t = $sort_order !== '' ? ' ORDER BY p.tid ' . $sort_order : '';
+
         if($use_fulltext) {
             // FULLTEXT 搜索：BOOLEAN MODE + 双引号实现精确短语匹配
             // 搜索标题（加入权限/审核过滤，LIMIT 限制避免无分页查询返回过多数据）
-            $thread_ids_from_subject = db_sql_find_prepared("SELECT tid, MATCH(subject) AGAINST(? IN BOOLEAN MODE) AS relevance FROM {$db->tablepre}thread WHERE MATCH(subject) AGAINST(? IN BOOLEAN MODE)" . $fid_filter_sql . $audit_filter_sql . $is_deleted_filter . " LIMIT 100", array($keyword_boolean, $keyword_boolean));
+            $thread_ids_from_subject = db_sql_find_prepared("SELECT tid, MATCH(subject) AGAINST(? IN BOOLEAN MODE) AS relevance FROM {$db->tablepre}thread WHERE MATCH(subject) AGAINST(? IN BOOLEAN MODE)" . $fid_filter_sql . $audit_filter_sql . $is_deleted_filter . $sort_sql . " LIMIT 100", array($keyword_boolean, $keyword_boolean));
 
             // 搜索内容（只搜主帖 isfirst=1，JOIN thread 表过滤权限/审核，字段需加 t. 前缀避免歧义）
             if($fid_filter_sql_t || $audit_filter_sql_t) {
-                $thread_ids_from_content = db_sql_find_prepared("SELECT p.tid, MAX(MATCH(p.message) AGAINST(? IN BOOLEAN MODE)) AS relevance FROM {$db->tablepre}post p JOIN {$db->tablepre}thread t ON p.tid = t.tid WHERE MATCH(p.message) AGAINST(? IN BOOLEAN MODE) AND p.isfirst=1" . $fid_filter_sql_t . $audit_filter_sql_t . $is_deleted_filter_t . " GROUP BY p.tid LIMIT 100", array($keyword_boolean, $keyword_boolean));
+                $thread_ids_from_content = db_sql_find_prepared("SELECT p.tid, MAX(MATCH(p.message) AGAINST(? IN BOOLEAN MODE)) AS relevance FROM {$db->tablepre}post p JOIN {$db->tablepre}thread t ON p.tid = t.tid WHERE MATCH(p.message) AGAINST(? IN BOOLEAN MODE) AND p.isfirst=1" . $fid_filter_sql_t . $audit_filter_sql_t . $is_deleted_filter_t . " GROUP BY p.tid" . $sort_sql_t . " LIMIT 100", array($keyword_boolean, $keyword_boolean));
             } else {
-                $thread_ids_from_content = db_sql_find_prepared("SELECT tid, MAX(MATCH(message) AGAINST(? IN BOOLEAN MODE)) AS relevance FROM {$db->tablepre}post WHERE MATCH(message) AGAINST(? IN BOOLEAN MODE) AND isfirst=1 AND is_deleted=0 GROUP BY tid LIMIT 100", array($keyword_boolean, $keyword_boolean));
+                $thread_ids_from_content = db_sql_find_prepared("SELECT tid, MAX(MATCH(message) AGAINST(? IN BOOLEAN MODE)) AS relevance FROM {$db->tablepre}post WHERE MATCH(message) AGAINST(? IN BOOLEAN MODE) AND isfirst=1 AND is_deleted=0 GROUP BY tid" . $sort_sql_t . " LIMIT 100", array($keyword_boolean, $keyword_boolean));
             }
 
             // 合并结果，取最高相关度
@@ -317,7 +329,9 @@ if($keyword_safe) {
             }
 
             // 合并查询 1：subject LIKE（含自己待审帖子，OR 条件合并）
-            $subject_sql = "SELECT tid FROM {$db->tablepre}thread WHERE subject LIKE ?{$subject_perm_sql} ORDER BY tid DESC LIMIT 1000";
+            // 排序方向随 sort 参数：正序取最早批次，倒序/默认取最新批次
+            $order_dir = $sort_order !== '' ? $sort_order : 'DESC';
+            $subject_sql = "SELECT tid FROM {$db->tablepre}thread WHERE subject LIKE ?{$subject_perm_sql} ORDER BY tid {$order_dir} LIMIT 1000";
             $subject_threads = db_sql_find_prepared($subject_sql, array($kw_like));
             if($subject_threads) {
                 foreach($subject_threads as $row) {
@@ -326,7 +340,7 @@ if($keyword_safe) {
             }
 
             // 合并查询 2：post LIKE JOIN thread（含自己待审帖子，OR 条件合并）
-            $post_sql = "SELECT DISTINCT p.tid FROM {$db->tablepre}post p JOIN {$db->tablepre}thread t ON p.tid=t.tid WHERE p.message LIKE ? AND p.isfirst=1{$post_perm_sql} ORDER BY p.tid DESC LIMIT 1000";
+            $post_sql = "SELECT DISTINCT p.tid FROM {$db->tablepre}post p JOIN {$db->tablepre}thread t ON p.tid=t.tid WHERE p.message LIKE ? AND p.isfirst=1{$post_perm_sql} ORDER BY p.tid {$order_dir} LIMIT 1000";
             $post_threads = db_sql_find_prepared($post_sql, array($kw_like));
             if($post_threads) {
                 foreach($post_threads as $row) {
@@ -350,11 +364,20 @@ if($keyword_safe) {
         $total = count($merged);
 
         if($total > 0) {
-            // 按相关度排序
-            arsort($merged);
+            // 指定排序时按 tid 时间排序；未指定保持默认（FULLTEXT 相关度 arsort，LIKE 保持 SQL 顺序）
+            if($sort == 'asc') {
+                ksort($merged);
+            } elseif($sort == 'desc') {
+                krsort($merged);
+            } else {
+                // 按相关度排序
+                arsort($merged);
+            }
 
             // 分页
-            $pagination = pagination(route_url('search_page', array(), array('keyword' => $keyword_safe)), $total, $page, $pagesize);
+            $_search_query = array('keyword' => $keyword_safe);
+            if($sort !== '') $_search_query['sort'] = $sort;
+            $pagination = pagination(route_url('search_page', array(), $_search_query), $total, $page, $pagesize);
 
             // 取当前页的 tid 列表
             $merged_slice = array_slice($merged, ($page - 1) * $pagesize, $pagesize, true);
@@ -475,6 +498,10 @@ if($keyword_safe) {
 }
 
 // hook search_end.php
+
+// 排序按钮 URL（保留当前关键词，显式指定排序方向，供模板 tab 栏右侧按钮使用）
+$sort_url_asc = search_url(array('keyword' => $keyword_safe, 'sort' => 'asc'));
+$sort_url_desc = search_url(array('keyword' => $keyword_safe, 'sort' => 'desc'));
 
 $header['title'] = $keyword_safe ? lang('search_results') . ': ' . $keyword_safe : lang('search');
 $header['keywords'] = $keyword_safe;

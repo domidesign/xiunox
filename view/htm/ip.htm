@@ -1,0 +1,66 @@
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<!--{hook ip_start.htm}-->
+
+<?php ob_start();?>
+
+		<!-- 查询表单卡片 -->
+		<div class="x-card card">
+			<div class="card-body">
+				<h3 class="card-title small"><i class="ti ti-world me-1"></i> <?php echo lang('ip_page');?></h3>
+				<form action="<?php echo url('ip');?>" method="get" class="d-flex flex-wrap gap-2 mt-2">
+					<input type="text" name="ip" value="<?php echo esc_attr($_ip_input);?>" class="form-control flex-grow-1" style="min-width:200px" placeholder="<?php echo lang('ip_lookup_hint');?>" />
+					<button type="submit" class="btn btn-primary px-5 flex-shrink-0"><i class="ti ti-search me-1"></i> <?php echo lang('ip_query');?></button>
+				</form>
+			</div>
+		</div>
+
+		<?php if($_ip_error !== '') { ?>
+		<!-- 查询失败提示 -->
+		<div class="x-card card mt-3">
+			<div class="card-body text-center py-5">
+				<i class="ti ti-alert-circle display-4 text-body-tertiary"></i>
+				<p class="mt-2 text-body-secondary mb-0"><?php echo esc_html($_ip_error);?></p>
+			</div>
+		</div>
+		<?php } else { ?>
+		<!-- 查询结果卡片 -->
+		<div class="x-card card mt-3">
+			<div class="card-body">
+				<h3 class="card-title small"><i class="ti ti-map-pin me-1"></i> <?php echo lang('ip_result');?></h3>
+				<dl class="row mb-0 mt-2">
+					<?php
+					$_ip_fields = array(
+						'ip'          => 'ip_address',
+						'country'     => 'ip_country',
+						'prov'        => 'ip_province',
+						'city'        => 'ip_city',
+						'area'        => 'ip_area',
+						'isp'         => 'ip_isp',
+						'big_area'    => 'ip_big_area',
+						'post_code'   => 'ip_post_code',
+						'area_code'   => 'ip_area_code',
+						'lng'         => 'ip_lng',
+						'lat'         => 'ip_lat',
+					);
+					foreach($_ip_fields as $_fkey => $_flang) {
+						$_fval = (isset($_ip_info[$_fkey]) && $_ip_info[$_fkey] !== '') ? $_ip_info[$_fkey] : '-';
+					?>
+					<dt class="col-sm-3 text-body-secondary fw-normal"><?php echo lang($_flang);?></dt>
+					<dd class="col-sm-9 mb-2"><?php echo esc_html($_fval);?></dd>
+					<?php } ?>
+				</dl>
+			</div>
+		</div>
+		<?php } ?>
+
+		<!-- 数据来源说明 -->
+		<div class="text-body-secondary small text-center mt-2"><?php echo lang('ip_data_source');?></div>
+
+<?php $main_content = ob_get_clean(); $sidebar_left_file = ''; $sidebar_right_file = ''; include _include(APP_PATH.'view/htm/layout_three_column.inc.htm');?>
+
+<!--{hook ip_footer.htm}-->
+
+<!--{hook ip_end.htm}-->
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
