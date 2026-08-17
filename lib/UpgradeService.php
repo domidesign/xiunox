@@ -10,7 +10,11 @@ class UpgradeService {
     private $db;
     private array $conf;
     private string $backupPath;
-    private string $targetVersion = XIUNOX_VERSION;
+    // ponytail: 不用常量初始化（XIUNOX_VERSION 是进程启动时 include version.php 定义的常量，
+    // online_upgrade 的 extract 步骤覆盖磁盘 version.php 后，常量无法在同进程内重定义；
+    // 即使每步独立 HTTP 请求，OPcache 在 validate_timestamps=0 时仍持有旧字节码导致常量不变）。
+    // 改为构造函数从磁盘 version.php 直接读取真实版本号，切断对运行时常量的依赖。
+    private string $targetVersion = '';
     // ponytail: 表前缀统一从 db 对象取（conf['db'] 下无 tablepre 键，嵌在 db.{type}.master.tablepre），
     // db 对象构造时已从 master.tablepre 设置此属性；fallback 'bbs_' 仅在异常情况下兜底
     private string $tablepre;
@@ -23,6 +27,17 @@ class UpgradeService {
         $this->conf = $conf;
         $this->backupPath = $conf['tmp_path'] . 'upgrade_backup_' . date('Ymd_His') . '_' . substr(bin2hex(random_bytes(3)), 0, 6) . '/';
         $this->tablepre = (is_object($db) && isset($db->tablepre)) ? $db->tablepre : 'bbs_';
+
+        // 从磁盘 version.php 直接读取真实版本号
+        // （OPcache 可能缓存旧 XIUNOX_VERSION 常量；同进程 extract 后常量不可重定义）
+        $versionFile = APP_PATH . 'version.php';
+        $raw = is_file($versionFile) ? file_get_contents($versionFile) : '';
+        if ($raw !== false && preg_match("/define\('XIUNOX_VERSION',\s*'([^']+)'\)/", $raw, $m)) {
+            $this->targetVersion = $m[1];
+        } else {
+            // 兜底：文件不存在或格式不匹配时回退到常量（首次安装/异常场景）
+            $this->targetVersion = defined('XIUNOX_VERSION') ? XIUNOX_VERSION : '0.0.0';
+        }
     }
 
     /**
