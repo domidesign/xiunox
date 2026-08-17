@@ -27,6 +27,10 @@ foreach(plugin_paths_enabled() as $_path => $_pconf) {
 }
 unset($_pr, $_plugin_lang_file, $_path, $_pconf);
 
+// 提前写入语言包：下方动态覆盖中 lang() 读取 $_SERVER['lang']，
+// 若不提前写入会取不到 bbs_admin 的键，返回 lang[键名] 字面量
+$_SERVER['lang'] = $lang;
+
 // 积分类型名称动态覆盖
 if(isset($conf['credits_name']) && $conf['credits_name']) {
     $lang['credits_label'] = $conf['credits_name'];

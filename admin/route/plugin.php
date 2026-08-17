@@ -205,11 +205,12 @@ if($action == 'local') {
 	// 安装插件 / install plugin
 	plugin_install($dir);
 
-	// 同步作者信息：强制刷新 manifest（安装是低频操作，确保拉到最新数据）
-	// ponytail: 传 true 跳过 6h 缓存，避免旧 manifest（无 author_homepage 字段）导致写空值
+	// 同步作者信息：走 6h 缓存，不强制刷新 manifest
+	// ponytail: 之前传 true 强制刷新导致安装被远程网络拉取阻塞（主源+备源最多等 60s）；
+	//   作者信息时效性由官方市场页与手动刷新维护，安装流程仅需最新缓存数据即可
 	try {
 		$_sync_service = new OfficialPluginService();
-		$_sync_result = $_sync_service->syncInstalledPluginsAuthorInfo(true);
+		$_sync_result = $_sync_service->syncInstalledPluginsAuthorInfo();
 		xn_log('plugin_install sync author[dir=' . $dir . ']: ' . json_encode($_sync_result, JSON_UNESCAPED_UNICODE), 'plugin_author_sync_error');
 	} catch (\Throwable $e) {
 		xn_log('plugin_install sync author error[dir=' . $dir . ']: ' . $e->getMessage(), 'plugin_install_error');
@@ -392,10 +393,12 @@ admin_log_create('plugin_enable', 'plugin', $dir, lang('admin_log_plugin_enable'
 
 		plugin_install($dir);
 
-		// 同步作者信息：强制刷新 manifest（升级是低频操作，确保拉到最新数据）
+		// 同步作者信息：走 6h 缓存，不强制刷新 manifest
+		// ponytail: 之前传 true 强制刷新导致每次升级都等 GitHub/jsdelivr 网络往返（最多 60s），
+		//   作者信息时效性由官方市场页与手动刷新维护，升级仅需最新缓存数据即可
 		try {
 			$_sync_service = new OfficialPluginService();
-			$_sync_result = $_sync_service->syncInstalledPluginsAuthorInfo(true);
+			$_sync_result = $_sync_service->syncInstalledPluginsAuthorInfo();
 			xn_log('plugin_upgrade sync author[dir=' . $dir . ']: ' . json_encode($_sync_result, JSON_UNESCAPED_UNICODE), 'plugin_author_sync_error');
 		} catch (\Throwable $e) {
 			xn_log('plugin_upgrade sync author error[dir=' . $dir . ']: ' . $e->getMessage(), 'plugin_upgrade_error');
@@ -660,10 +663,10 @@ admin_log_create('plugin_enable', 'plugin', $dir, lang('admin_log_plugin_enable'
 		// 安装（写 conf.json + 数据库 + 清缓存，不执行 install.php）
 		plugin_install($pluginDir);
 
-		// 同步作者信息：强制刷新 manifest（上传安装是低频操作，确保拉到最新数据）
+		// 同步作者信息：走 6h 缓存，不强制刷新 manifest（避免上传安装被远程网络拉取阻塞）
 		try {
 			$_sync_service = new OfficialPluginService();
-			$_sync_result = $_sync_service->syncInstalledPluginsAuthorInfo(true);
+			$_sync_result = $_sync_service->syncInstalledPluginsAuthorInfo();
 			xn_log('plugin_upload_install sync author[dir=' . $pluginDir . ']: ' . json_encode($_sync_result, JSON_UNESCAPED_UNICODE), 'plugin_author_sync_error');
 		} catch (\Throwable $e) {
 			xn_log('plugin_upload_install sync author error[dir=' . $pluginDir . ']: ' . $e->getMessage(), 'plugin_install_error');
@@ -735,10 +738,10 @@ admin_log_create('plugin_enable', 'plugin', $dir, lang('admin_log_plugin_enable'
 			// 写 conf.json + 数据库状态（不执行 install.php）
 		plugin_install($pluginDir);
 
-		// 同步作者信息：强制刷新 manifest（上传升级是低频操作，确保拉到最新数据）
+		// 同步作者信息：走 6h 缓存，不强制刷新 manifest（避免上传升级被远程网络拉取阻塞）
 		try {
 			$_sync_service = new OfficialPluginService();
-			$_sync_result = $_sync_service->syncInstalledPluginsAuthorInfo(true);
+			$_sync_result = $_sync_service->syncInstalledPluginsAuthorInfo();
 			xn_log('plugin_upload_upgrade sync author[dir=' . $pluginDir . ']: ' . json_encode($_sync_result, JSON_UNESCAPED_UNICODE), 'plugin_author_sync_error');
 		} catch (\Throwable $e) {
 			xn_log('plugin_upload_upgrade sync author error[dir=' . $pluginDir . ']: ' . $e->getMessage(), 'plugin_upgrade_error');

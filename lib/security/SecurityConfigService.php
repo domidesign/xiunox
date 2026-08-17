@@ -28,6 +28,8 @@ class SecurityConfigService {
         'security_password_min_length' => 6,           // 密码最小长度
         'security_password_complexity' => 'none',      // 密码复杂度: none/number/mixed/special
         'security_allowed_email_domains' => '',         // 允许注册的邮箱域名后缀，逗号分隔，空=不限制
+        'security_user_login_expire' => 7,              // 用户登录时效（天），bbs_token cookie 有效期
+        'security_admin_login_expire' => 60,            // 管理员登录时效（分钟），后台自动退出时间
 
         // 邮箱验证码发送限制
         'security_email_code_interval' => 60,           // 发送验证码最小间隔（秒）

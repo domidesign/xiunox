@@ -22,7 +22,8 @@ class OfficialPluginService {
     const CACHE_FILE = 'tmp/cache/official_plugins.json';
     const CACHE_TTL = 21600; // 6 hours
     const ZIP_DOWNLOAD_TIMEOUT = 120;
-    const MANIFEST_TIMEOUT = 30;
+    // manifest 拉取超时：8s 够国内可访问源完成往返；主源+备源最坏 16s，避免升级/安装被网络长时间阻塞
+    const MANIFEST_TIMEOUT = 8;
 
     /**
      * 拉取插件清单（含缓存逻辑）
@@ -695,7 +696,7 @@ class OfficialPluginService {
      * @return int 同步的插件数量
      */
     public function syncAuthorInfoFromManifest(array $manifest): int {
-        if (!function_exists('plugin_db_set_author') || !function_exists('plugin_db_get')) {
+        if (!function_exists('plugin_db_set_author') || !function_exists('plugin_db_get_all')) {
             return 0;
         }
         $plugins = isset($manifest['plugins']) && is_array($manifest['plugins']) ? $manifest['plugins'] : [];
@@ -703,14 +704,18 @@ class OfficialPluginService {
             return 0;
         }
 
+        // 一次查出全部已安装插件（dir 为 key），避免对 manifest 里每个插件单独查库
+        // ponytail: 原实现逐插件 plugin_db_get()，40 个插件 = 40 次查询；plugin_db_get_all()
+        //   单次 find 全表，内存比对，升级/安装流程更快
+        $installed = plugin_db_get_all();
+
         $synced = 0;
         foreach ($plugins as $p) {
             $dir = isset($p['dir']) ? $p['dir'] : '';
             if ($dir === '') continue;
 
             // 仅更新本地已存在记录的插件（远程 manifest 没有的不写入）
-            $dbRow = plugin_db_get($dir);
-            if (empty($dbRow)) continue;
+            if (!isset($installed[$dir])) continue;
 
             $authorName = isset($p['author']) ? (string)$p['author'] : '';
             $authorHomepage = isset($p['author_homepage']) ? (string)$p['author_homepage'] : '';

@@ -1,5 +1,11 @@
 <?php include _include(ADMIN_PATH.'view/htm/header.inc.htm');?>
 
+<?php
+// 前台 IP 查询页绝对 URL：admin 下 url() 强制 ? 格式并带 ./ 前缀（会跳到 /admin/ 入口），
+// 这里剥离 /admin/ 路径前缀得到站点根，再拼接前台 ip 路由（伪静态下 ?ip.htm 会被前台 301 到正确格式）
+$_ip_base_url = rtrim(str_replace('/admin/', '/', http_url_path()), '/') . '/';
+?>
+
 <!--{hook admin_user_list_start.htm}-->
 
 <?php echo admin_tab_active($menu['user']['tab'], 'list');?>
@@ -81,7 +87,7 @@
 						<?php } ?>
 					</td>
 					<td class="text-body-secondary text-sm"><?php echo date('Y-n-j H:i', $_user['create_date']); ?></td>
-					<td><a href="https://bbs.xiuno.com/ip.htm?ip=<?php echo $_user['create_ip_fmt']; ?>" target="_blank" class="text-body-secondary text-sm"><?php echo $_user['create_ip_fmt']; ?></a></td>
+					<td><a href="<?php echo $_ip_base_url . '?ip.htm?ip=' . rawurlencode($_user['create_ip_fmt']); ?>" target="_blank" class="text-body-secondary text-sm"><?php echo $_user['create_ip_fmt']; ?></a></td>
 					<td>
 						<a href="<?php echo admin_user_update_url($_user['uid']); ?>" class="row-action" title="<?php echo lang('edit');?>"><i class="ti ti-pencil"></i></a>
 						<?php if($_user['gid'] != 1 && $_user['gid'] != 2) { ?>

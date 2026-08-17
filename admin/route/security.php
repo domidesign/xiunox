@@ -60,6 +60,8 @@ if($action == '' || $action == 'post_limit') {
         $data['security_password_min_length'] = param('security_password_min_length', 6);
         $data['security_password_complexity'] = param('security_password_complexity', 'none');
         $data['security_allowed_email_domains'] = param('security_allowed_email_domains', '', FALSE);
+        $data['security_user_login_expire'] = param('security_user_login_expire', 7);
+        $data['security_admin_login_expire'] = param('security_admin_login_expire', 60);
         $data['security_email_code_interval'] = param('security_email_code_interval', 60);
         $data['security_email_code_daily_limit'] = param('security_email_code_daily_limit', 5);
         $data['security_email_code_ip_hourly_limit'] = param('security_email_code_ip_hourly_limit', 10);

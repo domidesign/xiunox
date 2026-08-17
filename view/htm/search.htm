@@ -110,18 +110,24 @@ $search_disabled = ($search_require_login && (empty($uid) || $uid == 0));
 		<?php } elseif($keyword_safe) { ?>
 		<div class="x-card card mt-3">
 			<div class="card-body">
-				<ul class="nav nav-tabs card-header-tabs" id="searchTab" role="tablist">
-				<li class="nav-item">
-					<button class="nav-link<?php if(empty($search_type) || $search_type == 'thread') echo ' active'; ?>" data-bs-toggle="tab" data-bs-target="#search-thread" type="button">
-						<i class="ti ti-message-2 me-1"></i><span class="nav-link-text"><?php echo lang('user_thread');?></span><?php if(!empty($total)) { ?> <span class="badge bg-secondary"><?php echo $total;?></span><?php } ?>
-					</button>
-				</li>
-				<li class="nav-item">
-					<button class="nav-link<?php if(!empty($search_type) && $search_type == 'user') echo ' active'; ?>" data-bs-toggle="tab" data-bs-target="#search-user" type="button">
-						<i class="ti ti-user me-1"></i><span class="nav-link-text"><?php echo lang('users');?></span><?php if(!empty($user_total)) { ?> <span class="badge bg-secondary"><?php echo $user_total;?></span><?php } ?>
-					</button>
-				</li>
-			</ul>
+				<div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+					<ul class="nav nav-tabs card-header-tabs mb-0" id="searchTab" role="tablist">
+					<li class="nav-item">
+						<button class="nav-link<?php if(empty($search_type) || $search_type == 'thread') echo ' active'; ?>" data-bs-toggle="tab" data-bs-target="#search-thread" type="button">
+							<i class="ti ti-message-2 me-1"></i><span class="nav-link-text"><?php echo lang('user_thread');?></span><?php if(!empty($total)) { ?> <span class="badge bg-secondary"><?php echo $total;?></span><?php } ?>
+						</button>
+					</li>
+					<li class="nav-item">
+						<button class="nav-link<?php if(!empty($search_type) && $search_type == 'user') echo ' active'; ?>" data-bs-toggle="tab" data-bs-target="#search-user" type="button">
+							<i class="ti ti-user me-1"></i><span class="nav-link-text"><?php echo lang('users');?></span><?php if(!empty($user_total)) { ?> <span class="badge bg-secondary"><?php echo $user_total;?></span><?php } ?>
+						</button>
+					</li>
+					</ul>
+					<div class="btn-group btn-group-sm" role="group" aria-label="<?php echo lang('search_sort');?>">
+						<a href="<?php echo $sort_url_desc;?>" class="btn btn-sm btn-outline-secondary<?php if($sort == 'desc') echo ' active'; ?>" hx-get="<?php echo $sort_url_desc;?>" hx-target="#searchResults" hx-select="#searchResults" hx-swap="innerHTML" hx-push-url="true" title="<?php echo lang('search_sort_desc');?>"><i class="ti ti-sort-descending me-1"></i><?php echo lang('search_sort_desc');?></a>
+						<a href="<?php echo $sort_url_asc;?>" class="btn btn-sm btn-outline-secondary<?php if($sort == 'asc') echo ' active'; ?>" hx-get="<?php echo $sort_url_asc;?>" hx-target="#searchResults" hx-select="#searchResults" hx-swap="innerHTML" hx-push-url="true" title="<?php echo lang('search_sort_asc');?>"><i class="ti ti-sort-ascending me-1"></i><?php echo lang('search_sort_asc');?></a>
+					</div>
+				</div>
 			</div>
 			<div class="tab-content">
 				<div class="tab-pane fade<?php if(empty($search_type) || $search_type == 'thread') echo ' show active'; ?>" id="search-thread" role="tabpanel">
