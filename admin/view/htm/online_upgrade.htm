@@ -224,6 +224,104 @@ function escapeHtml(s) {
 	});
 }
 
+// 从非 JSON 响应（HTML 错误页）中提取人类可读的错误信息
+// ponytail: 在线升级路由走 admin/index.inc.php，POST 请求会被 CSRF/maintenance/权限拦截，
+// 这些拦截调 message() 渲染完整 HTML 页；PHP fatal error 也被 ErrorHandler 渲染成 HTML。
+// 前端 JSON.parse 失败后不应直接显示 <!DOCTYPE html>... 片段，应尝试从 HTML 中提取标题/正文
+function extractErrorMessage(xhr) {
+	var text = (xhr && xhr.responseText) ? xhr.responseText : '';
+	if (!text) return '<?php echo lang('admin_online_upgrade_request_failed');?>';
+
+	// 1. 优先提取 <title>（维护模式页、CSRF 失败页通常有标题）
+	var m = text.match(/<title>([^<]*)<\/title>/i);
+	if (m && m[1].trim()) return m[1].trim();
+
+	// 2. 提取 <h1>（错误页主标题，如 "页面不存在"、"系统维护中"）
+	m = text.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+	if (m) {
+		var h1Text = m[1].replace(/<[^>]+>/g, '').trim();
+		if (h1Text) return h1Text;
+	}
+
+	// 3. 提取 .alert / .message 容器内容（Xiuno message() 渲染的错误块）
+	m = text.match(/<div[^>]*class="[^"]*(?:alert|message)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+	if (m) {
+		var plainText = m[1].replace(/<[^>]+>/g, '').trim();
+		if (plainText) return plainText.substring(0, 500);
+	}
+
+	// 4. 提取 <body> 内纯文本（兜底，避免显示 <!DOCTYPE> 这种标签）
+	m = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+	if (m) {
+		var bodyText = m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+		if (bodyText) return bodyText.substring(0, 500);
+	}
+
+	// 5. 兜底：提示用户复制完整内容查看
+	return '<?php echo lang('admin_online_upgrade_html_response');?>';
+}
+
+// 渲染错误信息 + 复制按钮
+// shortMsg: 提取后的简短信息；fullText: 原始 responseText（用于复制，让用户能反馈完整问题）
+// wrapAlert: 是否外层包 .alert.alert-danger（默认 true；传入容器已是 alert 时设 false）
+var _errorCounter = 0;
+function renderErrorBox(container, shortMsg, fullText, wrapAlert) {
+	_errorCounter++;
+	var taId = 'err_full_' + _errorCounter;
+	var inner =
+		'<div class="d-flex justify-content-between align-items-start gap-2">' +
+			'<div class="flex-fill" style="min-width:0;word-break:break-word;"><i class="ti ti-alert-triangle"></i> ' + escapeHtml(shortMsg) + '</div>' +
+			'<button type="button" class="btn btn-sm btn-outline-danger flex-shrink-0" onclick="copyErrorText(this, \'' + taId + '\')">' +
+				'<i class="ti ti-copy"></i> <?php echo lang('admin_online_upgrade_copy_error');?></button>' +
+		'</div>' +
+		'<textarea id="' + taId + '" class="d-none" readonly style="position:absolute;left:-9999px;width:1px;height:1px;"></textarea>';
+	container.innerHTML = wrapAlert === false ? inner : '<div class="alert alert-danger py-2">' + inner + '</div>';
+	var ta = document.getElementById(taId);
+	if (ta) ta.value = fullText || shortMsg;
+}
+
+// 复制错误文本到剪贴板（兼容旧浏览器）
+// ponytail: 不依赖 xiuno-modern.js（在线升级是最后修复手段），用原生 clipboard API + execCommand 兜底
+function copyErrorText(btn, taId) {
+	var ta = document.getElementById(taId);
+	if (!ta) return;
+	var text = ta.value;
+
+	if (navigator.clipboard && navigator.clipboard.writeText) {
+		navigator.clipboard.writeText(text).then(function() {
+			markCopied(btn);
+		}).catch(function() {
+			fallbackCopy(btn, ta);
+		});
+	} else {
+		fallbackCopy(btn, ta);
+	}
+}
+
+function fallbackCopy(btn, ta) {
+	try {
+		ta.classList.remove('d-none');
+		ta.select();
+		var ok = document.execCommand('copy');
+		ta.classList.add('d-none');
+		if (ok) markCopied(btn);
+		else alert('<?php echo lang('admin_online_upgrade_copy_failed');?>');
+	} catch (e) {
+		ta.classList.add('d-none');
+		alert('<?php echo lang('admin_online_upgrade_copy_failed');?>');
+	}
+}
+
+function markCopied(btn) {
+	var oldHtml = btn.innerHTML;
+	btn.innerHTML = '<i class="ti ti-check"></i> <?php echo lang('admin_online_upgrade_copy_ok');?>';
+	btn.disabled = true;
+	setTimeout(function() {
+		btn.innerHTML = oldHtml;
+		btn.disabled = false;
+	}, 2000);
+}
+
 function checkUpdate() {
 	var btn = document.getElementById('checkBtn');
 	btn.disabled = true;
@@ -273,7 +371,7 @@ function checkUpdate() {
 			btn.disabled = false;
 			btn.innerHTML = '<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>';
 			var logArea = document.getElementById('logArea');
-			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + escapeHtml(xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
+			renderErrorBox(logArea, extractErrorMessage(xhr), xhr.responseText || '');
 		}
 	});
 }
@@ -433,8 +531,8 @@ function runPreflight(callback) {
 		},
 		error: function(xhr) {
 			alertEl.className = 'alert alert-danger py-2';
-			alertEl.innerHTML = '<strong><i class="ti ti-alert-triangle"></i> <?php echo lang('admin_online_upgrade_preflight_request_failed');?></strong>' + escapeHtml(xhr.responseText ? xhr.responseText.substring(0, 200) : '');
 			alertEl.classList.remove('d-none');
+			renderErrorBox(alertEl, '<?php echo lang('admin_online_upgrade_preflight_request_failed');?>' + extractErrorMessage(xhr), xhr.responseText || '', false);
 			callback(false);
 		}
 	});
@@ -491,12 +589,9 @@ function runNextStep() {
 			iconEl.innerHTML = '<i class="ti ti-x text-white"></i>';
 			iconEl.style.background = 'var(--bs-danger, #dc3545)';
 			statusEl.innerHTML = '<span class="text-danger fs-6"><?php echo lang('admin_online_upgrade_failed');?></span>';
-			var errMsg = '<?php echo lang('admin_online_upgrade_request_failed');?>';
-			if (xhr.responseText) {
-				errMsg += xhr.responseText.substring(0, 200);
-			}
-			resultEl.innerHTML = escapeHtml(errMsg);
-			showUpgradeError(errMsg);
+			var shortMsg = '<?php echo lang('admin_online_upgrade_request_failed');?>' + extractErrorMessage(xhr);
+			resultEl.innerHTML = escapeHtml(shortMsg);
+			showUpgradeError(shortMsg, xhr.responseText || '');
 		}
 	});
 }
@@ -522,7 +617,7 @@ function finishUpgrade() {
 	logArea.innerHTML = '<div class="alert alert-success py-2"><i class="ti ti-circle-check"></i><?php echo lang('admin_online_upgrade_success_msg');?>' + (latestVersion && latestVersion !== '—' ? '<b>' + escapeHtml(latestVersion) + '</b>' : '') + '</div>';
 }
 
-function showUpgradeError(msg) {
+function showUpgradeError(msg, fullText) {
 	isUpgrading = false;
 	var btn = document.getElementById('startBtn');
 	btn.innerHTML = '<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_retry');?>';
@@ -536,7 +631,12 @@ function showUpgradeError(msg) {
 	checkBtn.innerHTML = '<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>';
 
 	var logArea = document.getElementById('logArea');
-	logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + escapeHtml(msg) + '</div>';
+	// fullText 传入时（HTTP 错误响应）启用复制按钮；纯业务失败（res.ok=false）只显示 message
+	if (fullText) {
+		renderErrorBox(logArea, msg, fullText);
+	} else {
+		logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i>' + escapeHtml(msg) + '</div>';
+	}
 }
 
 function reinstall() {
@@ -564,7 +664,7 @@ function reinstall() {
 			btn.disabled = false;
 			btn.innerHTML = '<i class="ti ti-refresh"></i><?php echo lang('admin_online_upgrade_reinstall');?>';
 			var logArea = document.getElementById('logArea');
-			logArea.innerHTML = '<div class="alert alert-danger py-2"><i class="ti ti-alert-triangle"></i><?php echo lang('admin_online_upgrade_request_failed');?>' + escapeHtml(xhr.responseText ? xhr.responseText.substring(0, 200) : '') + '</div>';
+			renderErrorBox(logArea, '<?php echo lang('admin_online_upgrade_request_failed');?>' + extractErrorMessage(xhr), xhr.responseText || '');
 		}
 	});
 	}, {type: 'warning', okText: <?php echo json_encode(lang('admin_online_upgrade_reinstall'));?>});
