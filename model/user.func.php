@@ -5,7 +5,8 @@
 $g_static_users = array(); // 变量缓存
 
 // user_update() 受保护字段，禁止通过 user_update() 直接修改
-define('USER_UPDATE_PROTECTED_FIELDS', array('password', 'password_hash', 'salt', 'gid'));
+// ponytail: password_ver 必须受保护——否则外部 user_update(['password_ver'=>0]) 可重置版本号让改密前 token 复活
+define('USER_UPDATE_PROTECTED_FIELDS', array('password', 'password_hash', 'password_ver', 'salt', 'gid'));
 
 // hook model_user_start.php
 
@@ -251,6 +252,11 @@ function user_delete($uid) {
 		// ban_type 保留，用于审计识别已注销用户
 		'avatar'        => 0, // 0 = 默认头像
 	);
+	// ponytail: 匿名化时 password_ver +1，强制失效所有旧 token
+	// 注销账号属于"身份变更"，按安全最佳实践应立即撤销所有会话
+	if(db_check_column_exists('user', 'password_ver')) {
+		$anonymize_update['password_ver'] = intval($user['password_ver']) + 1;
+	}
 
 	$r = user__update($uid, $anonymize_update);
 	if($r === FALSE) return FALSE;
@@ -621,16 +627,20 @@ function user_safe_info($user) {
 
 // 用户
 function user_token_get() {
-	global $time;
+	global $time, $conf;
 	$_uid = user_token_get_do();
 	// hook model_user_token_get_start.php
 
 	if(!$_uid) {
-		//setcookie('bbs_token', '', $time - 86400, '');
+		// ponytail: token 校验失败必须清掉 cookie，否则浏览器继续带旧 token
+		// 每次请求都重复触发 user_token_get_do 写 password_changed 日志，导致日志爆炸
+		// cookie_path 必须与 user_token_set/user_token_clear 一致（默认 /），否则只清当前路径下的 cookie
+		$_cookie_path = !empty($conf['cookie_path']) ? $conf['cookie_path'] : '/';
+		setcookie('bbs_token', '', user_cookie_options($time - 8640000, $_cookie_path));
 	}
-	
+
 	// hook model_user_token_get_end.php
-	
+
 	return $_uid;
 }
 
@@ -687,11 +697,17 @@ function user_token_get_do() {
 		return FALSE;
 	}
 	$arr = explode("\t", $s);
-	if(count($arr) != 4) {
+	$_ver = null;
+	if(count($arr) == 5) {
+		// 新格式 token：ip \t time \t uid \t pwd_fingerprint \t password_ver
+		list($_ip, $_time, $_uid, $_pwd, $_ver) = $arr;
+	} elseif(count($arr) == 4) {
+		// 旧格式 token：ip \t time \t uid \t pwd_fingerprint（兼容期，存量 cookie 仍走 md5 指纹校验）
+		list($_ip, $_time, $_uid, $_pwd) = $arr;
+	} else {
 		user_login_trace('token_format_bad', 0, array('token_prefix' => xn_substr($token, 0, 8)));
 		return FALSE;
 	}
-	list($_ip, $_time, $_uid, $_pwd) = $arr;
 	// IP 校验已移除：
 	// ponytail: 原为同 /24 网段容错匹配，但全局 CDN（EdgeOne/Cloudflare 等）回源时
 	// REMOTE_ADDR 为边缘节点 IP 且跨节点即跨 C 段，token 校验失败导致用户被强制下线。
@@ -706,7 +722,16 @@ function user_token_get_do() {
 			user_login_trace('user_deleted', $_uid, array('token_ip' => $_ip, 'token_time' => $_time));
 			return 0;
 		}
-		if(md5(!empty($user['password_hash']) ? $user['password_hash'] : $user['password']) != $_pwd) {
+		// 新格式 token 优先校验 password_ver：改密时 +1，自动升级（md5+salt→bcrypt）不变
+		// ponytail: 用 ver 代替 md5(password_hash) 指纹校验的核心收益——
+		// 避免明文密码未变但存储格式升级时，多设备旧 token 因指纹变化被误踢下线
+		if($_ver !== null && db_check_column_exists('user', 'password_ver')) {
+			if(intval($user['password_ver']) !== intval($_ver)) {
+				user_login_trace('password_changed', $_uid, array('token_ip' => $_ip, 'token_time' => $_time, 'ver_token' => $_ver, 'ver_db' => $user['password_ver']));
+				return 0;
+			}
+		} elseif(md5(!empty($user['password_hash']) ? $user['password_hash'] : $user['password']) != $_pwd) {
+			// 兼容旧格式 token：md5 指纹校验。存量 token 仍走此路径直到自然过期（≤7 天）
 			user_login_trace('password_changed', $_uid, array('token_ip' => $_ip, 'token_time' => $_time));
 			return 0;
 		}
@@ -788,16 +813,19 @@ function user_token_clear() {
 
 function user_token_gen($uid) {
 	global $ip, $time, $conf;
-	
+
 	// hook model_user_token_gen_start.php
-	
+
 	$user = user_read($uid);
 	$pwd = md5(!empty($user['password_hash']) ? $user['password_hash'] : $user['password']);
+	// ponytail: 新格式 token 带 password_ver（5 字段），校验时优先比 ver 而非 md5 指纹
+	// 兼容：旧 token 为 4 字段，user_token_get_do 按 count($arr) 分流走旧 md5 校验路径
+	$ver = db_check_column_exists('user', 'password_ver') ? intval($user['password_ver']) : 0;
 	$tokenkey = md5(xn_key());
-	$token = xn_encrypt("$ip	$time	$uid	$pwd", $tokenkey);
-	
+	$token = xn_encrypt("$ip	$time	$uid	$pwd	$ver", $tokenkey);
+
 	// hook model_user_token_gen_end.php
-	
+
 	return $token;
 }
 
@@ -904,6 +932,13 @@ function user_change_password($uid, $new_password, $old_password = '', $is_admin
 
 	if(db_check_column_exists('user', 'password_hash')) {
 		$update['password_hash'] = password_hash($new_password, PASSWORD_DEFAULT);
+	}
+
+	// ponytail: password_ver +1 让所有旧 token（含其他设备）失效，符合 OAuth 2.1 改密撤销 token 最佳实践
+	// token 校验用 ver 代替 md5(password_hash) 指纹，避免 user_login_verify 自动升级（md5+salt→bcrypt）
+	// 时因指纹变化误踢明文密码未变的多设备用户
+	if(db_check_column_exists('user', 'password_ver')) {
+		$update['password_ver'] = intval($user['password_ver']) + 1;
 	}
 
 	// 直接调用 user__update 绕过白名单（本函数已做权限验证）

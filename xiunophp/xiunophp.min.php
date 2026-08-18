@@ -693,8 +693,13 @@ class cache_file {
 	public function connect() {
 		// 确保缓存目录存在
 		if(!is_dir($this->cache_dir)) {
-			if(!mkdir($this->cache_dir, 0755, TRUE)) {
-				return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_mkdir_failed') : '创建缓存目录失败：') . $this->cache_dir);
+			if (function_exists('mkdir')) {
+				// ponytail: 并发请求可能在此 is_dir 检查后、mkdir 前创建目录，
+				// 用 @ 抑制 File exists 警告，再用 is_dir 复核是否真正创建成功
+				@mkdir($this->cache_dir, 0755, TRUE);
+				if(!is_dir($this->cache_dir)) {
+					return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_mkdir_failed') : '创建缓存目录失败：') . $this->cache_dir);
+				}
 			}
 		}
 		return TRUE;
@@ -718,8 +723,13 @@ class cache_file {
 	public function ensure_dir($path) {
 		$dir = dirname($path);
 		if(!is_dir($dir)) {
-			if(!mkdir($dir, 0755, TRUE)) {
-				return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_mkdir_subdir_failed') : '创建缓存子目录失败：') . $dir);
+			if (function_exists('mkdir')) {
+				// ponytail: 并发请求可能在此 is_dir 检查后、mkdir 前创建目录，
+				// 用 @ 抑制 File exists 警告，再用 is_dir 复核是否真正创建成功
+				@mkdir($dir, 0755, TRUE);
+				if(!is_dir($dir)) {
+					return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_mkdir_subdir_failed') : '创建缓存子目录失败：') . $dir);
+				}
 			}
 		}
 		return TRUE;
@@ -804,8 +814,13 @@ class cache_file {
 		$this->rmdir_recursive($this->cache_dir);
 
 		// 重新创建缓存目录
-		if(!mkdir($this->cache_dir, 0755, TRUE)) {
-			return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_recreate_dir_failed') : '重建缓存目录失败：') . $this->cache_dir);
+		if (function_exists('mkdir')) {
+			// ponytail: 并发请求可能在 rmdir_recursive 之后、mkdir 之前重建目录，
+			// 用 @ 抑制 File exists 警告，再用 is_dir 复核
+			@mkdir($this->cache_dir, 0755, TRUE);
+			if(!is_dir($this->cache_dir)) {
+				return $this->error(-1, (function_exists('lang') && !empty($_SERVER['lang']) ? lang('cache_recreate_dir_failed') : '重建缓存目录失败：') . $this->cache_dir);
+			}
 		}
 		return TRUE;
 	}

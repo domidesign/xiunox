@@ -330,6 +330,7 @@ return array(
 	'plugin_upgrade_sucessfully'=>'升级插件 ( {name} ) 成功',
 	'plugin_need_upgrade'=>'需升级',
 	'plugin_need_upgrade_tip'=>'检测到代码版本与已安装版本不一致，建议立即升级',
+	'plugin_dir_tip'=>'插件目录标识',
 	'plugin_not_need_update'=>'已经是最新版本，无需更新',
 	'plugin_set_relatied_dir_writable'=>'在安装插件目录期间，请设置：{dir} 和文件为可写',
 	'plugin_dependency_following'=>'依赖以下插件：{s}，请先安装依赖的插件',

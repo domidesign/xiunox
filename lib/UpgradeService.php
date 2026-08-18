@@ -177,6 +177,10 @@ class UpgradeService {
             ['user', 'last_login_ip', "ALTER TABLE `{$tablepre}user` ADD COLUMN `last_login_ip` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `login_attempts`"],
             ['user', 'last_login_time', "ALTER TABLE `{$tablepre}user` ADD COLUMN `last_login_time` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `last_login_ip`"],
             ['user', 'banned_until', "ALTER TABLE `{$tablepre}user` ADD COLUMN `banned_until` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `last_login_time`"],
+            // ponytail: password_ver 密码版本号，token 校验用它代替 md5(password_hash) 指纹
+            // 改密时 +1 让所有旧 token 失效；user_login_verify 自动升级（md5+salt→bcrypt）不改 ver
+            // 避免明文密码没变却被误踢下线（多设备场景下旧 token 因指纹变化失效）
+            ['user', 'password_ver', "ALTER TABLE `{$tablepre}user` ADD COLUMN `password_ver` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `banned_until`"],
             ['thread', 'videos', "ALTER TABLE `{$tablepre}thread` ADD COLUMN `videos` tinyint(6) NOT NULL DEFAULT 0 AFTER `files`"],
             ['post', 'videos', "ALTER TABLE `{$tablepre}post` ADD COLUMN `videos` smallint(6) NOT NULL DEFAULT 0 AFTER `files`"],
             ['post', 'is_top', "ALTER TABLE `{$tablepre}post` ADD COLUMN `is_top` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否置顶评论: 0否/1是' AFTER `audit_status`"],

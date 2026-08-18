@@ -792,6 +792,12 @@ if(empty($action)) {
 		if(db_check_column_exists('user', 'password_hash')) {
 			$update['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
 		}
+		// ponytail: 找回密码绕过 user_change_password，必须手动补 password_ver +1
+		// 否则旧 token（含其他设备）仍能登录——攻击者偷 token 后即使受害者改密也无法踢下线
+		if(db_check_column_exists('user', 'password_ver')) {
+			$_old = user_read($_uid);
+			$update['password_ver'] = intval($_old['password_ver']) + 1;
+		}
 
 		!is_password($password, $err) AND message('password', $err);
 		// 找回密码已通过邮箱验证码验证身份，直接调用 user__update 绕过保护字段过滤
