@@ -146,10 +146,18 @@ if($action == 'local') {
 	$header['title']    = lang('local_plugin');
 	$header['mobile_title'] = lang('local_plugin');
 	
+	// 统计已启用插件数量，用于一键关闭按钮
+	$enabled_count = 0;
+	foreach($plugins as $dir => $plugin) {
+		$_p = plugin_read_by_dir_with_db($dir);
+		if(!empty($_p['enable'])) $enabled_count++;
+	}
+
 	// 传递给模板的参数
 	$input['type'] = $type_filter;
 	$input['status'] = $status_filter;
 	$input['keyword'] = $keyword;
+	$input['enabled_count'] = $enabled_count;
 	
 	include _include(ADMIN_PATH."view/htm/plugin_list.htm");
 
@@ -374,6 +382,42 @@ admin_log_create('plugin_enable', 'plugin', $dir, lang('admin_log_plugin_enable'
 	message(0, $msg, array('redirect_url' => admin_plugin_url()));
 	} else {
 		// GET: 已改为弹窗确认，直接返回列表页
+		http_location(admin_plugin_url());
+	}
+
+} elseif($action == 'disable-all') {
+
+	if($method == 'POST') {
+		// CSRF 校验
+		CsrfService::check();
+		plugin_lock_start();
+
+		// 遍历所有已启用的插件，逐个禁用
+		$disabled = 0;
+		$failed = 0;
+		foreach($plugins as $dir => $plugin) {
+			$_p = plugin_read_by_dir_with_db($dir);
+			if(!empty($_p['enable'])) {
+				if(plugin_disable($dir)) {
+					$disabled++;
+				} else {
+					$failed++;
+					xn_log('disable_all failed: '.$dir, 'plugin_disable_all_error');
+				}
+			}
+		}
+
+		plugin_lock_end();
+
+		if($failed > 0) {
+			$msg = lang('plugin_disable_all_partial', array('disabled'=>$disabled, 'failed'=>$failed));
+			message(-1, $msg, array('redirect_url' => admin_plugin_url()));
+		} else {
+			$msg = lang('plugin_disable_all_sucessfully', array('count'=>$disabled));
+			message(0, $msg, array('redirect_url' => admin_plugin_url()));
+		}
+	} else {
+		// GET: 直接返回列表页
 		http_location(admin_plugin_url());
 	}
 

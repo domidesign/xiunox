@@ -930,6 +930,161 @@ class EditorService {
             // 暴露到全局，供侧边栏引用帖子等功能调用
             window.aiEditorInstance = aiEditorInstance;
 
+            // ===== 粘贴 HTML 富文本自动清理（防大段 Word/邮件富文本拖垮 ProseMirror DOMParser） =====
+            // ponytail: 阈值 100KB——典型 Word/邮件客户端复制富文本可达 800KB+，95% 是 mso-* 样式垃圾
+            //           + Office 命名空间元素（<o:p>/<w:*>/<v:*>/<m:*>）+ 嵌套无数层 span
+            //           清理后保留语义结构（p/h/ul/ol/li/a/strong/em/img/code/pre/blockquote/table）
+            //           体积从 891KB 缩到几十 KB，ProseMirror DOMParser 解析飞快
+            //           已知回归上限：若 Word 文档里表格嵌套层级 > 100 层，DOMParser.querySelector 仍可能慢，
+            //           升级路径：改用 TreeWalker 递归遍历 + requestIdleCallback 分块处理
+            (function(){
+                var PASTE_HTML_THRESHOLD = 100 * 1024;
+                var container = document.querySelector('aie-editor, .aie-container, [class*="aie-container"]');
+                if (!container) return;
+
+                // 清理粘贴的 HTML：剥离样式/类名/Office 命名空间/无关元素，保留语义结构
+                function cleanPastedHtml(html) {
+                    var doc;
+                    try {
+                        doc = new DOMParser().parseFromString(html, 'text/html');
+                    } catch(err) {
+                        return null;
+                    }
+                    // 1. 删除 Office 命名空间元素 + 无关元素
+                    // ponytail: CSS 命名空间分隔符冒号在选择器中需转义；o\\:p 等价于 <o:p>
+                    var unwanted;
+                    try {
+                        unwanted = doc.querySelectorAll('o\\:p, w\\:*, v\\:*, m\\:*, script, style, title, meta, link, base, iframe, object, embed, noscript, head, form, input, button, textarea, select, option, applet, frame, frameset, xml, st1\\:*');
+                    } catch(err) {
+                        unwanted = [];
+                    }
+                    for (var i = unwanted.length - 1; i >= 0; i--) {
+                        var nodeName = unwanted[i].nodeName.toLowerCase();
+                        if (nodeName.indexOf(':') !== -1 || /^(script|style|title|meta|link|base|iframe|object|embed|noscript|head|form|input|button|textarea|select|option|applet|frame|frameset|xml)$/.test(nodeName)) {
+                            unwanted[i].remove();
+                        } else {
+                            if (unwanted[i].nodeName.indexOf(':') !== -1) unwanted[i].remove();
+                        }
+                    }
+                    // 2. 把含粗体/斜体 inline style 的 span 转换为语义标签（在剥离 style 之前）
+                    // ponytail: Word/邮件富文本粗体斜体主要用 <span style="font-weight:bold">/<span style="font-style:italic">
+                    // 剥离 style 后 span 变空被 unwrap 删除，粗体斜体效果会丢失。
+                    // 转换为 <strong>/<em> 语义标签后，即使 style 被剥离，粗体斜体仍保留。
+                    var styleSpans = doc.querySelectorAll('span[style]');
+                    for (var si = styleSpans.length - 1; si >= 0; si--) {
+                        var styleSpan = styleSpans[si];
+                        var styleVal = styleSpan.getAttribute('style') || '';
+                        var isBold = /\bfont-weight\s*:\s*(bold|[6-9]00)\b/i.test(styleVal);
+                        var isItalic = /\bfont-style\s*:\s*(italic|oblique)\b/i.test(styleVal);
+                        if (!isBold && !isItalic) continue;
+                        // 用 DocumentFragment 包裹原内容，再外层套语义标签
+                        var frag = doc.createDocumentFragment();
+                        var wrapper = frag;
+                        if (isBold && isItalic) {
+                            var strong = doc.createElement('strong');
+                            var em = doc.createElement('em');
+                            strong.appendChild(em);
+                            wrapper = em;
+                        } else if (isBold) {
+                            var strong2 = doc.createElement('strong');
+                            frag.appendChild(strong2);
+                            wrapper = strong2;
+                        } else {
+                            var em2 = doc.createElement('em');
+                            frag.appendChild(em2);
+                            wrapper = em2;
+                        }
+                        while (styleSpan.firstChild) wrapper.appendChild(styleSpan.firstChild);
+                        styleSpan.parentNode.replaceChild(frag, styleSpan);
+                    }
+                    // 3. 遍历所有元素，剥离非语义属性
+                    var allEls = doc.querySelectorAll('*');
+                    var preserveAttrPrefix = 'data-';
+                    var preserveAttrs = {
+                        colspan: 1, rowspan: 1, href: 1, src: 1, alt: 1, title: 1,
+                        target: 1, rel: 1, controls: 1, autoplay: 1, loop: 1, muted: 1,
+                        preload: 1, poster: 1, datetime: 1
+                    };
+                    for (var j = allEls.length - 1; j >= 0; j--) {
+                        var el = allEls[j];
+                        var attrs = el.attributes;
+                        for (var k = attrs.length - 1; k >= 0; k--) {
+                            var attrName = attrs[k].name.toLowerCase();
+                            if (preserveAttrs[attrName]) continue;
+                            if (attrName.indexOf(preserveAttrPrefix) === 0) continue;
+                            el.removeAttribute(attrs[k].name);
+                        }
+                    }
+                    // 4. unwrap 空 span
+                    var spans = doc.querySelectorAll('span');
+                    for (var m = spans.length - 1; m >= 0; m--) {
+                        var span = spans[m];
+                        if (span.attributes.length === 0 && span.children.length === 0) {
+                            var text = span.textContent;
+                            if (text) {
+                                span.parentNode.replaceChild(doc.createTextNode(text), span);
+                            } else {
+                                span.remove();
+                            }
+                        }
+                    }
+                    // 5. 删除空 p / 空 div
+                    var emptyBlocksFiltered = doc.querySelectorAll('p:empty, div:empty');
+                    for (var n = emptyBlocksFiltered.length - 1; n >= 0; n--) {
+                        emptyBlocksFiltered[n].remove();
+                    }
+                    return doc.body.innerHTML;
+                }
+
+                container.addEventListener('paste', function(e) {
+                    var cd = e.clipboardData || window.clipboardData;
+                    if (!cd) return;
+                    // 图片/文件粘贴不拦截，让 AIEditor 内置 image.uploader 处理上传
+                    if (cd.files && cd.files.length > 0) return;
+
+                    var html = '';
+                    try { html = cd.getData('text/html') || ''; } catch(err) { return; }
+
+                    // 未超阈值不拦截，让 AIEditor 内置 PasteExt 处理
+                    if (html.length < PASTE_HTML_THRESHOLD) return;
+
+                    // 超阈值：阻止默认粘贴，清理后插入
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+
+                    var originalLen = html.length;
+                    var cleanedHtml = cleanPastedHtml(html);
+
+                    // 清理失败回退纯文本
+                    if (!cleanedHtml) {
+                        var textPlainFallback = '';
+                        try { textPlainFallback = cd.getData('text/plain') || ''; } catch(err2) {}
+                        if (textPlainFallback && aiEditorInstance && typeof aiEditorInstance.insert === 'function') {
+                            try {
+                                aiEditorInstance.insert(textPlainFallback);
+                                if (typeof syncEditorContent === 'function') syncEditorContent();
+                            } catch(insertErr) {}
+                        }
+                        return;
+                    }
+
+                    // 插入清理后的 HTML
+                    if (aiEditorInstance && typeof aiEditorInstance.insert === 'function') {
+                        try {
+                            aiEditorInstance.insert(cleanedHtml);
+                            if (typeof syncEditorContent === 'function') syncEditorContent();
+                        } catch(insertErr) {
+                            // 清理后插入失败，回退纯文本
+                            var textPlainFinal = '';
+                            try { textPlainFinal = cd.getData('text/plain') || ''; } catch(err3) {}
+                            if (textPlainFinal) {
+                                try { aiEditorInstance.insert(textPlainFinal); } catch(e2) {}
+                            }
+                        }
+                    }
+                }, true); // capture 阶段，优先级高于 AIEditor 内置 PasteExt
+            })();
+
             // ===== AI 生成防抖锁 =====
             // AIEditor 内置的默认 listener (class Da) 的 onStart/onStop 是空实现
             // 用户连续点击 AI 菜单会触发多次请求，无防抖

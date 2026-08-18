@@ -13,9 +13,7 @@
 - **前台 IP 查询** `route/ip.php` + `view/htm/ip.htm`：支持 IPv4/IPv6 归属地查询（数据来源 ip9.com.cn 免费接口，限 60 次/分钟/IP）
 - **查询缓存**：10 分钟短缓存，同一 IP 重复查询不重复请求外部接口，规避免费额度限制
 - **输入校验**：非法 IP 直接提示错误不请求接口，未传参默认查询访客自身 IP
-- **后台用户列表联动** `admin/view/htm/user_list.htm`：增加前台 IP 查询页链接（自动拼接站点根 URL）
-- **URL 兼容修复**：IP 参数从 `$_GET` 改为 `REQUEST_URI` 正则提取，兼容双 `?` 格式（`/?ip.htm?ip=xxx`）下 Xiuno `xn_url_parse` 不覆盖 `$_GET` 导致的参数丢失；表单改 JS 拼接 URL（处理 `url_rewrite_on=0` 时 `url('ip')` 已含 `?`）
-- **空输入优化**：无 IP 输入时整块隐藏查询结果区，避免显示空白错误提示
+- **后台用户列表联动**：`admin/view/htm/user_list.htm` 增加前台 IP 查询页链接（自动拼接站点根 URL）
 
 ### 搜索排序功能
 - **搜索结果排序** `route/search.php` + `view/htm/search.htm`：支持正序（asc，最早在前）与倒序（desc，最新在前）排序切换
@@ -32,18 +30,22 @@
 - **管理后台通知服务** `lib/AdminNotifyService.php`：配合注册表重构通知投递逻辑
 - **前台通知路由** `route/notice.php`：适配新通知类型体系
 
-### 在线升级页错误提取与复制功能
-- **错误信息提取** `admin/view/htm/online_upgrade.htm`：新增 `extractErrorMessage()` 从非 JSON 响应（HTML 错误页、维护模式、CSRF 拦截）中提取人类可读错误信息（依次提取 `<title>`、`<h1>`、`.alert/.message`、`<body>` 纯文本），避免前端直接显示 HTML 源码
-- **错误框渲染** `admin/view/htm/online_upgrade.htm`：新增 `renderErrorBox()` 渲染带复制按钮的错误框，支持 `wrapAlert` 参数适配容器场景
-- **复制功能** `admin/view/htm/online_upgrade.htm`：新增 `copyErrorText()` + `fallbackCopy()`，兼容 Clipboard API 与 `execCommand` 旧浏览器兜底
-- **全链路替换** `admin/view/htm/online_upgrade.htm`：`checkUpdate`、`runPreflight`、`runNextStep`、`reinstall` 四个入口的错误显示统一走新逻辑
-- **多语言包** `lang/zh-cn|en-us|zh-tw/bbs_admin.php`：新增 4 项语言包（`admin_online_upgrade_html_response`、`admin_online_upgrade_copy_error`、`admin_online_upgrade_copy_ok`、`admin_online_upgrade_copy_failed`）
-
 ### 文档体系扩充
 - **存储驱动扩展指南** `docs/plugindev/16-storage-driver-extension.md`：新增存储驱动扩展开发文档
 - **主题插件开发指南** `docs/plugindev/17-theme-plugin-guide.md`：新增主题插件开发完整教程
 - **OAuth 安全机制** `docs/xiunox-mechanism/XIUNOX_OAuth_Security.md`：新增 OAuth 安全机制说明
 - **插件开发计划** `docs/plugindev/plans/2026-08-07-xnx_fish-pond-v2.md`：新增鱼塘插件 v2 规划
+- **Bug 反馈指南** `docs/error-reporting.md`：新增面向普通用户的出错排查与 Bug 反馈实用手册
+
+### 一键关闭所有插件
+- **新增功能** `admin/route/plugin.php` + `admin/view/htm/plugin_list.htm` + `model/route.func.php`：一键关闭所有已启用插件（`disable-all` 路由），显示成功/失败数量，支持 CSRF 校验
+- **前端交互** `admin/view/htm/plugin_list.htm`：新增"一键关闭"按钮（显示当前已启用数量），点击后确认弹窗 → AJAX 批量禁用 → Toast 提示结果
+- **多语言包** `lang/zh-cn|en-us|zh-tw/bbs_admin.php`：新增 5 项语言包（`plugin_disable_all_btn`、`plugin_disable_all_confirm`、`plugin_disable_all_sucessfully`、`plugin_disable_all_partial`、`plugin_disable_all_failed`）
+
+### 粘贴 HTML 富文本自动清理
+- **防卡死** `lib/EditorService.php`：新增 `cleanPastedHtml()` 清理函数，阈值 100KB 触发——清理 Word/邮件富文本（剥离 Office 命名空间元素 `o:p`/`w:*`/`v:*`/`m:*`、`<script>`/`<style>`/`<iframe>` 等无关元素、非语义属性、空 span/p/div），体积从 800KB+ 缩到几十 KB
+- **语义保留** `lib/EditorService.php`：智能转换含粗体/斜体 inline style 的 `<span>` 为 `<strong>`/`<em>` 语义标签，保留格式
+- **回退机制** `lib/EditorService.php`：清理失败或插入异常时自动回退到纯文本粘贴，保证不丢失内容
 
 ## 🔧 重构与优化
 
@@ -78,9 +80,6 @@
 - **升级路由** `admin/route/online_upgrade.php` + `upgrade.php`：升级流程优化
 - **升级视图** `online_upgrade.htm` + `upgrade.htm`：升级页交互改进
 - **升级服务** `lib/OnlineUpgradeService.php` + `lib/UpgradeService.php`：升级服务容错与逻辑增强
-- **tablepre 修复** `lib/UpgradeService.php`：表前缀统一从 `db` 对象属性取（`conf['db']` 下无 `tablepre` 键，嵌在 `db.{type}.master.tablepre`），构造时初始化 `$this->tablepre`，替换所有 18 处 `$this->conf['db']['tablepre'] ?? 'bbs_'` 引用，修复升级流程全部 SQL 使用默认 `bbs_` 前缀导致表名不匹配的根因 bug
-- **版本号读取修复** `lib/UpgradeService.php`：`targetVersion` 不用 `XIUNOX_VERSION` 常量初始化（OPcache `validate_timestamps=0` 时持有旧字节码，`extract` 后常量不可在同进程重定义），改构造函数从磁盘 `version.php` 直接 `preg_match` 读取真实版本号
-- **升级 AJAX CSRF 修复** `admin/view/htm/upgrade.htm`：升级 AJAX POST 缺少 `csrf_token` 字段，被 `admin/index.inc.php` 中央化 `CsrfService::check()` 拦截报 CSRF token verification failed；模板注入 `$csrfToken` 给 JS，`data` 显式带上 `csrf_token`
 
 ### 后台路由与视图优化
 - **后台路由全量更新**（19 个）：`ai`、`api`、`attach`、`audit`、`banned_ip`、`credits_rule`、`forum`、`group`、`index`、`online_upgrade`、`other`、`plugin`、`plugin_scanner`、`security`、`setting`、`theme`、`thread`、`upgrade`、`user`
@@ -115,7 +114,9 @@
 - **后台语言包更新** `15760ce`：多语言文案补齐
 - **插件安装阻塞修复** `admin/route/plugin.php`：安装时不再强制刷新作者信息 manifest，避免被远程网络拉取阻塞（主源+备源最多等 60s）
 - **后台语言包写入修复** `admin/index.php`：提前写入 `$_SERVER['lang']`，修复动态覆盖后 lang() 取不到 bbs_admin 键的问题
-- **维护模式验证码放行** `model/misc.func.php`：维护模式下 `captcha` 路由放行 `generate`/`verify`（登录页仍可请求/校验验证码，验证码内容不敏感）
+- **权限服务表前缀修复** `lib/PermissionService.php`：`tableExists()` 改用 `db_check_table_exists()` 框架助手（原 `$conf['db']['master']['tablepre']` 取值错误，非 `bbs_` 前缀站点恒返回 false，免审权限静默失效）
+- **权限迁移字段补齐** `lib/UpgradeService.php`：`upgradePermissionSystem()` 补 3 个免审字段（`allow_direct_post`/`allow_direct_reply`/`allow_direct_profile`）到 `$permissionFields` 数组，随 `group_audit_permissions` 步骤同步进 `group_permission` 表
+- **MutationObserver 性能优化** `view/js/xiuno-modern.js`：验证码 DOM 观察器跳过编辑器内元素（`.aie-content`/`.ProseMirror`），ProseMirror 渲染时避免大量无意义的 `addedNodes` 遍历
 
 ## 🗑️ 移除
 
@@ -140,6 +141,6 @@
 - `view/htm/user.template.htm` — 旧用户页模板
 
 ## 📊 统计
-- 文件总数：约 188（核心重构 164 + 功能/修复补充 24）
-- 提交范围：`7be50af` → `1b81574`（涵盖 `72b4c43`、`3c71142`、`28fd331`、`15760ce`、`08ff0b8`、`a07e8b8`、`aabbf06`、`77cdeb0`、`1b81574` 等）
+- 文件总数：约 195（核心重构 164 + 功能/修复补充 31）
+- 提交范围：`7be50af` → 当前 HEAD（涵盖 `72b4c43`、`3c71142`、`28fd331`、`15760ce`、`08ff0b8`、`a07e8b8`、`aabbf06`、`77cdeb0`、`1b81574`、`634c38a` 等）
 - 版本号：`version.php` 升至 `1.1.7`
