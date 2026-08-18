@@ -399,6 +399,11 @@ switch ($method) {
             $update['password'] = md5($password . $salt);
             $update['salt'] = $salt;
             $update['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+            // ponytail: 改密必须 password_ver +1 撤销所有旧 token
+            // ⚠️ 此 API 跳过旧密码验证（鉴权仅靠 access token），未来应改为走 user_change_password
+            if (db_check_column_exists('user', 'password_ver')) {
+                $update['password_ver'] = intval($user['password_ver']) + 1;
+            }
         }
         // 支持签名字段（兼容表单和 JSON 输入）
         $jsonInput = json_decode(file_get_contents('php://input'), true) ?? [];

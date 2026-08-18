@@ -393,6 +393,19 @@ class HTMLPurifier_CSSDefinition extends HTMLPurifier_Definition
 
         $this->info['border-spacing'] = new HTMLPurifier_AttrDef_CSS_Multiple(new HTMLPurifier_AttrDef_CSS_Length(), 2);
 
+        // 标准 CSS3 border-radius 属性，移至主 doSetup 以确保默认可用
+        $border_radius = new HTMLPurifier_AttrDef_CSS_Composite(
+            [
+                new HTMLPurifier_AttrDef_CSS_Percentage(true),
+                new HTMLPurifier_AttrDef_CSS_Length('0')
+            ]);
+
+        $this->info['border-top-left-radius'] =
+        $this->info['border-top-right-radius'] =
+        $this->info['border-bottom-right-radius'] =
+        $this->info['border-bottom-left-radius'] = new HTMLPurifier_AttrDef_CSS_Multiple($border_radius, 2);
+        $this->info['border-radius'] = new HTMLPurifier_AttrDef_CSS_Multiple($border_radius, 4);
+
         // These CSS properties don't work on many browsers, but we live
         // in THE FUTURE!
         $this->info['white-space'] = new HTMLPurifier_AttrDef_Enum(
@@ -452,19 +465,6 @@ class HTMLPurifier_CSSDefinition extends HTMLPurifier_Definition
             ]
         );
         $this->info['page-break-inside'] = new HTMLPurifier_AttrDef_Enum(['auto', 'avoid']);
-
-        $border_radius = new HTMLPurifier_AttrDef_CSS_Composite(
-            [
-                new HTMLPurifier_AttrDef_CSS_Percentage(true), // disallow negative
-                new HTMLPurifier_AttrDef_CSS_Length('0') // disallow negative
-            ]);
-
-        $this->info['border-top-left-radius'] =
-        $this->info['border-top-right-radius'] =
-        $this->info['border-bottom-right-radius'] =
-        $this->info['border-bottom-left-radius'] = new HTMLPurifier_AttrDef_CSS_Multiple($border_radius, 2);
-        // TODO: support SLASH syntax
-        $this->info['border-radius'] = new HTMLPurifier_AttrDef_CSS_Multiple($border_radius, 4);
 
     }
 

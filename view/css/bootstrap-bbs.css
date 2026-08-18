@@ -1075,11 +1075,11 @@ a.hover-bg-body-secondary:hover {
         padding-right: 0.75rem;
     }
 
-    img,
-    video,
-    iframe,
-    embed,
-    object {
+    .message img,
+    .message video ,
+     iframe,
+     embed,
+     object {
         max-width: 100%;
     }
 

@@ -319,6 +319,7 @@ return array(
 	'plugin_upgrade_sucessfully'=>'Upgrade Plugin ( {name} ) successfully',
 	'plugin_need_upgrade'=>'Upgrade',
 	'plugin_need_upgrade_tip'=>'Code version differs from installed version. Upgrade recommended.',
+	'plugin_dir_tip'=>'Plugin directory identifier',
 	'plugin_not_need_update'=>'Already is the latest version, no need to update',
 	'plugin_set_relatied_dir_writable'=>'During the installation of the plugin directory, please set: {dir} and file for writable',
 	'plugin_dependency_following'=>'Dependent on following plugin: {s}, please install them first.',
