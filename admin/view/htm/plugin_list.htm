@@ -75,6 +75,14 @@
                         <i class="ti ti-search"></i> <?php echo lang('search')?>
                     </button>
                 </form>
+                <?php if(!empty($input['enabled_count'])):?>
+                <button type="button" class="btn btn-outline-danger rounded-pill" 
+                        data-url="<?php echo admin_plugin_disable_all_url();?>"
+                        data-count="<?php echo intval($input['enabled_count']);?>"
+                        onclick="handleDisableAll(this)">
+                    <i class="ti ti-player-pause"></i> <?php echo lang('plugin_disable_all_btn', array('count'=>intval($input['enabled_count'])));?>
+                </button>
+                <?php endif;?>
             </div>
         </div>
     </div>
@@ -593,6 +601,47 @@ function submitPluginAction(btn, url) {
 
 // 初始化按钮绑定
 bindPluginActionButtons();
+
+// 一键关闭所有插件
+function handleDisableAll(btn) {
+    var count = parseInt(btn.getAttribute('data-count'));
+    var url = btn.getAttribute('data-url');
+    var msg = '<?php echo lang('plugin_disable_all_confirm');?>'.replace('{count}', count);
+
+    XN.confirm(msg, function() {
+        var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
+        var originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+        var formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+
+        fetch(url, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (parseInt(data.code) === 0) {
+                showToast(data.message, 'success');
+                setTimeout(function() {
+                    window.location.href = data.redirect_url || window.location.href;
+                }, 800);
+            } else {
+                showToast(data.message || <?php echo json_encode(lang('plugin_disable_all_failed'));?>, 'error');
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        })
+        .catch(function() {
+            showToast(<?php echo json_encode(lang('plugin_disable_all_failed'));?>, 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        });
+    }, {type: 'danger', okText: '<?php echo lang("confirm");?>'});
+}
 </script>
 
 <!-- 安装前预扫描弹窗 -->

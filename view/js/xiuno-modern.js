@@ -1021,10 +1021,16 @@
     }
 
     // MutationObserver 兜底：捕获动态插入的验证码元素
+    // ponytail: 跳过编辑器内 DOM 变化（.aie-content / .ProseMirror）
+    // —— ProseMirror view.updateState 递归渲染会触发大量 childList 变化，
+    // 大段粘贴/批量插入/AI 生成时上千次 addedNodes 遍历是性能浪费；
+    // 编辑器内不会有 [data-captcha-scene] 元素，跳过零副作用。
     var _captchaObserver = new MutationObserver(function(mutations) {
         var found = false;
         for (var i = 0; i < mutations.length; i++) {
-            var added = mutations[i].addedNodes;
+            var m = mutations[i];
+            if (m.target.closest && m.target.closest('.aie-content, .ProseMirror')) continue;
+            var added = m.addedNodes;
             for (var j = 0; j < added.length; j++) {
                 if (added[j].nodeType === 1) {
                     if (added[j].hasAttribute && added[j].hasAttribute('data-captcha-scene')) {

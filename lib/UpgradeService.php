@@ -1477,9 +1477,14 @@ class UpgradeService {
         $results[] = ['name' => 'group_permission', 'ok' => $r['ok'], 'message' => $r['message']];
 
         // 迁移旧权限数据
+        // ponytail: 补 3 个免审字段（allow_direct_post/reply/profile），随 group_audit_permissions 步骤添加到 bbs_group。
+        // 历史 bug：原数组漏列，导致 PermissionService::tableExists() 修复后这三个字段也未同步进 group_permission 表，
+        // 后台保存逻辑因表已存在会正确写入新值，但从未保存过的存量用户组仍会回退 bbs_group 旧值（默认 1=免审）。
+        // INSERT IGNORE 保证幂等：用户已手动保存过该组的记录不会被旧值覆盖。
         $permissionFields = [
             'allowread', 'allowthread', 'allowpost', 'allowattach', 'allowdown',
             'allowtop', 'allowupdate', 'allowdelete', 'allowmove', 'allowbanuser', 'allowdeleteuser', 'allowviewip',
+            'allow_direct_post', 'allow_direct_reply', 'allow_direct_profile',
         ];
 
         $groups = $this->db->find('group', [], [], 1, 1000, 'gid');

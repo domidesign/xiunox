@@ -224,10 +224,11 @@ class PermissionService {
     private static function tableExists(): bool {
         static $exists = NULL;
         if($exists === NULL) {
-            global $conf;
-            $tablepre = $conf['db']['master']['tablepre'] ?? 'bbs_';
-            $row = db_sql_find_one("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$tablepre}group_permission'");
-            $exists = !empty($row);
+            // ponytail: 复用框架助手 db_check_table_exists()（用 $db->tablepre 取运行时真实前缀），
+            // 与 updatePermissions() 第 159 行 $db->tablepre 写法一致。
+            // 历史 bug：曾用 $conf['db']['master']['tablepre']，但 $conf['db'] 下只有 mysql/pdo_mysql 两个键
+            // 没有 master 子键，导致非 'bbs_' 前缀站点恒返回 false，免审权限静默失效。
+            $exists = db_check_table_exists('group_permission');
         }
         return $exists;
     }

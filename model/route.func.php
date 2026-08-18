@@ -164,6 +164,7 @@ function route_table() {
 		'admin_plugin_setting'          => 'plugin-setting-{dir}',
 		'admin_plugin_install'          => 'plugin-install-{dir}',
 		'admin_plugin_disable'          => 'plugin-disable-{dir}',
+		'admin_plugin_disable_all'      => 'plugin-disable-all',
 		'admin_plugin_enable'           => 'plugin-enable-{dir}',
 		'admin_plugin_unstall'          => 'plugin-unstall-{dir}',
 		'admin_plugin_upgrade'          => 'plugin-upgrade-{dir}',
@@ -466,6 +467,7 @@ function admin_plugin_url($query = array())                          { return ro
 function admin_plugin_setting_url($dir, $query = array())            { return route_url('admin_plugin_setting', ['dir' => $dir], $query); }
 function admin_plugin_install_url($dir, $query = array())            { return route_url('admin_plugin_install', ['dir' => $dir], $query); }
 function admin_plugin_disable_url($dir, $query = array())           { return route_url('admin_plugin_disable', ['dir' => $dir], $query); }
+function admin_plugin_disable_all_url($query = array())             { return route_url('admin_plugin_disable_all', [], $query); }
 function admin_plugin_enable_url($dir, $query = array())             { return route_url('admin_plugin_enable', ['dir' => $dir], $query); }
 function admin_plugin_unstall_url($dir, $query = array())            { return route_url('admin_plugin_unstall', ['dir' => $dir], $query); }
 function admin_plugin_upgrade_url($dir, $query = array())           { return route_url('admin_plugin_upgrade', ['dir' => $dir], $query); }
