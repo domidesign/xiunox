@@ -9,17 +9,16 @@
 
 // 对于越权访问，可以默认为黑客企图，不用友好提示。
 // For unauthorized access, can default to the hacking attempt, without a friendly reminder.
-if(DEBUG < 3) {
-	// 管理组检查 / check admin group
-	if($gid != 1) {
-		setcookie('bbs_sid', '', $time - 86400);
-		//http_403();
-		http_location(url('../user-login'));
-	}
-	
-	// 管理员令牌检查 / check admin token
-	admin_token_check();
+// 旧版 DEBUG=3 超管免登录旁路已移除，登录检查无条件执行
+// 管理组检查 / check admin group
+if($gid != 1) {
+	setcookie('bbs_sid', '', $time - 86400);
+	//http_403();
+	http_location(url('../user-login'));
 }
+
+// 管理员令牌检查 / check admin token
+admin_token_check();
 
 $route = param(0, 'index');
 

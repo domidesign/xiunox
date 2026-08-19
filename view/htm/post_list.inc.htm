@@ -34,28 +34,29 @@
 						</div>
 						<!--{hook post_list_inc_avatar_after.htm}-->
 						<div class="flex-fill" style="min-width:0">
-							<div class="small text-body-secondary">
-								<!--{hook post_list_inc_username_before.htm}-->
-								<span class="username">
-							<a href="<?php echo user_url($_post['uid']);?>" class="text-body-secondary fw-semibold"><?php echo esc_html($_post['username']);?></a>
-							<?php echo user_ban_badge_html($_post['user']);?>
-							<!-- <span class="text-body-tertiary ms-1" style="font-size:0.85em">#<?php echo $_post['uid'];?></span> -->
-						</span>
-							<!--{hook post_list_inc_username_after.htm}-->
-								<?php if(!empty($_post['group_name'])): ?>
-							<span class="badge bg-primary bg-opacity-10 text-primary "  ><?php echo esc_html($_post['group_name']);?></span>
-							<?php endif; ?>
-                            
-							<?php if(!empty($thread) && $_post['uid'] == $thread['uid']): ?>
-							<span class="badge bg-primary ms-1" style="font-size:0.6em"><?php echo lang('post_author_label'); ?></span>
-							<?php endif; ?>
-							<?php if(!empty($_post['is_top'])): ?>
-								<span class="badge bg-success bg-opacity-10 text-success ms-1" style="font-size:0.6em"><i class="ti ti-pin"></i> <?php echo lang('post_top_label');?></span>
+							<div class="d-flex justify-content-between align-items-start">
+								<div class="small text-body-secondary">
+									<!--{hook post_list_inc_username_before.htm}-->
+									<span class="username">
+								<a href="<?php echo user_url($_post['uid']);?>" class="text-body-secondary fw-semibold"><?php echo esc_html($_post['username']);?></a>
+								<?php echo user_ban_badge_html($_post['user']);?>
+							</span>
+									<!--{hook post_list_inc_username_after.htm}-->
+									<?php if(!empty($_post['group_name'])): ?>
+								<span class="badge bg-primary bg-opacity-10 text-primary "  ><?php echo esc_html($_post['group_name']);?></span>
 								<?php endif; ?>
-								<?php if(isset($_post['audit_status']) && $_post['audit_status'] != 1): ?>
-								<span class="badge bg-warning text-dark ms-1" style="font-size:0.65em"><?php echo lang('pending_audit');?></span>
+	                            
+								<?php if(!empty($thread) && $_post['uid'] == $thread['uid']): ?>
+								<span class="badge bg-primary ms-1" style="font-size:0.6em"><?php echo lang('post_author_label'); ?></span>
 								<?php endif; ?>
-								  
+								<?php if(!empty($_post['is_top'])): ?>
+									<span class="badge bg-success bg-opacity-10 text-success ms-1" style="font-size:0.6em"><i class="ti ti-pin"></i> <?php echo lang('post_top_label');?></span>
+									<?php endif; ?>
+									<?php if(isset($_post['audit_status']) && $_post['audit_status'] != 1): ?>
+									<span class="badge bg-warning text-dark ms-1" style="font-size:0.65em"><?php echo lang('pending_audit');?></span>
+									<?php endif; ?>
+								</div>
+								<!--{hook post_list_inc_userinfo_actions_after.htm}-->
 							</div>
 
 							<div class="message    aie-content   mt-1 break-all">

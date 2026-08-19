@@ -44,6 +44,23 @@ if ($user_lang && is_dir(APP_PATH."lang/$user_lang")) {
 $_r = include _include(APP_PATH."lang/$conf[lang]/bbs.php");
 $_SERVER['lang'] = $lang = is_array($_r) ? $_r : array();
 
+// DEBUG 常量严格校验：仅支持 0/1/2
+// 旧版 DEBUG=3 超管免登录模式已移除，非法值给用户明确的配置错误提示（走语言包）
+// ponytail: 放在语言包加载后是为了文案多语言化，DEBUG=3 未安装站点会先跳安装页，装完即被阻断
+if (!in_array(DEBUG, array(0, 1, 2), true)) {
+	header('HTTP/1.1 500 Internal Server Error');
+	header('Content-Type: text/html; charset=utf-8');
+	echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' . lang('debug_invalid_title') . '</title>';
+	echo '<style>body{font-family:-apple-system,sans-serif;padding:40px;line-height:1.6;color:#333;max-width:720px;margin:0 auto}h1{color:#dc3545;margin-top:0}code{background:#f8f9fa;padding:2px 6px;border-radius:3px;color:#c7254e}</style>';
+	echo '</head><body>';
+	echo '<h1>' . lang('debug_invalid_title') . '</h1>';
+	echo '<p>' . lang('debug_invalid_current', array('value' => htmlspecialchars((string)DEBUG))) . '</p>';
+	echo '<p>' . lang('debug_invalid_removed') . '</p>';
+	echo '<p>' . lang('debug_invalid_fix') . '</p>';
+	echo '</body></html>';
+	exit;
+}
+
 // 积分类型名称动态覆盖
 if(isset($conf['credits_name']) && $conf['credits_name']) {
     $lang['credits_label'] = $conf['credits_name'];
