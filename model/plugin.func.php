@@ -566,10 +566,15 @@ function plugin_paths_enabled() {
 function plugin_compile_hooks($s) {
 	for($i = 0; $i < 10; $i++) {
 		if(strpos($s, '<!--{hook') !== FALSE || strpos($s, '// hook') !== FALSE) {
+			$before = $s;
 			$s = preg_replace('#<!--{hook\s+(.*?)}-->#', '// hook \\1', $s);
 			// hook 名只允许字母/数字/下划线/点/短横线，避免注释里 `// hook 位于...` 被误识别
 			// ponytail: 旧正则 \S+ 贪婪匹配中文，导致注释行被当 hook 名截断引发 ParseError；合法 hook 文件名均符合 [\w.\-]+
 			$s = preg_replace_callback('#//\s*hook\s+([\w\.\-]+)#is', 'plugin_compile_srcfile_callback', $s);
+			// 本轮无变化提前退出，避免 strpos 命中但 preg_replace 不匹配时的无效循环
+			// ponytail: xnx_medal 的 "// hook: post_list_inc_username_after.htm" 注释让 strpos 命中，
+			// 但正则不匹配（hook 后是冒号不是空白），无变化却仍循环 10 趟
+			if($s === $before) break;
 		} else {
 			break;
 		}
@@ -722,6 +727,32 @@ function plugin_compile_srcfile_callback($m) {
 				// 从 path 反推插件 dir：plugin/{dir}/hook/{hookname}
 				$plugin_dir = basename(dirname(dirname($path)));
 				$s .= "\n// plugin-compile: $plugin_dir  $path\n";
+			}
+			// 加固：剥离 hook 内容中可能被误匹配为占位符的 // hook xxx 注释
+			// ponytail: _include() 第二趟 plugin_compile_hooks 会重新扫描整个字符串，
+			// 若 hook 内容含 "// hook xxx"（hook 后空白+标识符）模式（如第三方插件
+			// 注释里的占位符警告文字，例如 xnx_login_alert 三个 hook 文件中的
+			// "禁止写 // hook xxx 格式" 警告，或 xnx_gift 1.1.3 之前的 hook 文件
+			// 含 "// hook post_list_inc_userinfo_actions_after.htm" 注释，hook 名与
+			// 宿主占位符相同），会被当作占位符再次拼接 hook 内容，每趟循环让 hook
+			// 内容数量线性增长（10 趟后 10 份，第二趟再 10 份共 20 份），导致同一
+			// 作用域 static 变量重复声明，触发 PHP 8
+			// "Duplicate declaration of static variable" fatal error
+			// （如 post_list.inc.htm 编译后 $xnx_reward_badge_data 与
+			// $_xnx_gift_reward_config 重复声明）。
+			// 规范要求 hook 注释用 "// hook: xxx"（冒号分隔）格式 + 禁止写
+			// "<!--{hook xxx}-->" 字符串，此处对两类违规注释强制改写为安全形式
+			// 实现兜底防御，无论第三方插件是否遵守规范都能根治重复拼接。
+			// 仅在含相关子串时触发正则，避免无谓开销。
+			if(strpos($t, '<!--{hook') !== false) {
+				// 把 hook 内容中的 <!--{hook xxx}--> 字符串改写为 [hook: xxx] 文字
+				// 描述，破坏 strpos 检测和后续正则匹配（避免被当作占位符再次处理）
+				$t = preg_replace('#<!--\{hook\s+([^}]*?)\}-->#is', '[hook: \\1]', $t);
+			}
+			if(strpos($t, '// hook') !== false) {
+				// 把 hook 内容中的 // hook xxx（hook 后空白+标识符）改写为
+				// // hook:xxx（hook 后冒号），破坏正则匹配但保留注释可读性
+				$t = preg_replace('#//\s*hook\s+([\w\.\-]+)#is', '// hook:\\1', $t);
 			}
 			$s .= $t;
 		}

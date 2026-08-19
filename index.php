@@ -34,6 +34,7 @@ include dirname(__FILE__) . '/version.php';  // NOCACHE
 
 // 0: Production mode; 1: Developer mode; 2: Plugin developement mode;
 // 0: 线上模式; 1: 调试模式; 2: 插件开发模式;
+// 仅支持 0/1/2；旧版 DEBUG=3 超管免登录模式已移除，非法值由 index.inc.php 语言包加载后统一报错
 !defined('DEBUG') AND define('DEBUG', 0);
 define('APP_PATH', dirname(__FILE__).'/'); // __DIR__
 !defined('ADMIN_PATH') AND define('ADMIN_PATH', APP_PATH.'admin/');

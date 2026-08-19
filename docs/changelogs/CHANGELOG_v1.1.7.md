@@ -35,17 +35,6 @@
 - **主题插件开发指南** `docs/plugindev/17-theme-plugin-guide.md`：新增主题插件开发完整教程
 - **OAuth 安全机制** `docs/xiunox-mechanism/XIUNOX_OAuth_Security.md`：新增 OAuth 安全机制说明
 - **插件开发计划** `docs/plugindev/plans/2026-08-07-xnx_fish-pond-v2.md`：新增鱼塘插件 v2 规划
-- **Bug 反馈指南** `docs/error-reporting.md`：新增面向普通用户的出错排查与 Bug 反馈实用手册
-
-### 一键关闭所有插件
-- **新增功能** `admin/route/plugin.php` + `admin/view/htm/plugin_list.htm` + `model/route.func.php`：一键关闭所有已启用插件（`disable-all` 路由），显示成功/失败数量，支持 CSRF 校验
-- **前端交互** `admin/view/htm/plugin_list.htm`：新增"一键关闭"按钮（显示当前已启用数量），点击后确认弹窗 → AJAX 批量禁用 → Toast 提示结果
-- **多语言包** `lang/zh-cn|en-us|zh-tw/bbs_admin.php`：新增 5 项语言包（`plugin_disable_all_btn`、`plugin_disable_all_confirm`、`plugin_disable_all_sucessfully`、`plugin_disable_all_partial`、`plugin_disable_all_failed`）
-
-### 粘贴 HTML 富文本自动清理
-- **防卡死** `lib/EditorService.php`：新增 `cleanPastedHtml()` 清理函数，阈值 100KB 触发——清理 Word/邮件富文本（剥离 Office 命名空间元素 `o:p`/`w:*`/`v:*`/`m:*`、`<script>`/`<style>`/`<iframe>` 等无关元素、非语义属性、空 span/p/div），体积从 800KB+ 缩到几十 KB
-- **语义保留** `lib/EditorService.php`：智能转换含粗体/斜体 inline style 的 `<span>` 为 `<strong>`/`<em>` 语义标签，保留格式
-- **回退机制** `lib/EditorService.php`：清理失败或插入异常时自动回退到纯文本粘贴，保证不丢失内容
 
 ## 🔧 重构与优化
 
@@ -114,9 +103,6 @@
 - **后台语言包更新** `15760ce`：多语言文案补齐
 - **插件安装阻塞修复** `admin/route/plugin.php`：安装时不再强制刷新作者信息 manifest，避免被远程网络拉取阻塞（主源+备源最多等 60s）
 - **后台语言包写入修复** `admin/index.php`：提前写入 `$_SERVER['lang']`，修复动态覆盖后 lang() 取不到 bbs_admin 键的问题
-- **权限服务表前缀修复** `lib/PermissionService.php`：`tableExists()` 改用 `db_check_table_exists()` 框架助手（原 `$conf['db']['master']['tablepre']` 取值错误，非 `bbs_` 前缀站点恒返回 false，免审权限静默失效）
-- **权限迁移字段补齐** `lib/UpgradeService.php`：`upgradePermissionSystem()` 补 3 个免审字段（`allow_direct_post`/`allow_direct_reply`/`allow_direct_profile`）到 `$permissionFields` 数组，随 `group_audit_permissions` 步骤同步进 `group_permission` 表
-- **MutationObserver 性能优化** `view/js/xiuno-modern.js`：验证码 DOM 观察器跳过编辑器内元素（`.aie-content`/`.ProseMirror`），ProseMirror 渲染时避免大量无意义的 `addedNodes` 遍历
 
 ## 🗑️ 移除
 
@@ -141,6 +127,6 @@
 - `view/htm/user.template.htm` — 旧用户页模板
 
 ## 📊 统计
-- 文件总数：约 195（核心重构 164 + 功能/修复补充 31）
-- 提交范围：`7be50af` → 当前 HEAD（涵盖 `72b4c43`、`3c71142`、`28fd331`、`15760ce`、`08ff0b8`、`a07e8b8`、`aabbf06`、`77cdeb0`、`1b81574`、`634c38a` 等）
+- 文件总数：约 183（核心重构 164 + 本次功能新增 19）
+- 提交范围：`7be50af` → 当前 HEAD（涵盖 `72b4c43`、`3c71142`、`28fd331`、`15760ce`、`08ff0b8`、`a07e8b8` 等）
 - 版本号：`version.php` 升至 `1.1.7`
