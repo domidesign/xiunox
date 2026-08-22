@@ -558,6 +558,7 @@
 | Admin Log | `model/admin_log.func.php` | `model_admin_log_end.php` |
 | User Follow | `model/user_follow.func.php` | `model_user_follow_start.php` / `model_user_follow_end.php` |
 | Notify | `model/notify.func.php` | `model_notify_start.php` / `model_notify_end.php` |
+| Plugin Notify（通知聚合中心） | `model/plugin_notify.func.php` | ✅ `plugin_notice_count.php` **协议 hook**：管理员通知红点数据源，核心 `plugin_notice_count_all()` 主动读取隔离执行（非编译 hook），写回 `$data['count']`/`$data['url']`，详见 [notify-patterns.md](notify-patterns.md) |
 | Table Day | `model/table_day.func.php` | `model_table_day_{start/end/read/maxid/cron/rebuild}` |
 | Misc | `model/misc.func.php` | `model_misc_start.php` / `model_misc_end.php`；✅ `model_url_start.php` / `model_url_end.php`（自定义 URL）；`model_check_runlevel_start.php` / `model_check_runlevel_end.php`；`model_message_start.php` / `model_message_end.php`；`model_xn_html_safe_{start/end/new_before/parse_before}` |
 | Route | `model/route.func.php` | ✅ `model_route_table_end.php` **常用**：扩展路由表，注册插件自定义路由；`model_route_start.php` / `model_route_func_end.php` / `model_route_end.php` |

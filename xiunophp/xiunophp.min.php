@@ -1147,8 +1147,15 @@ class cache_redis {
                 $timeBudget = 5.0;
                 $useUnlink = NULL;
                 try {
-                        while($keys = $this->link->scan($iterator, $fullPrefix . '*', 100)) {
-                                if(!empty($keys)) {
+                        // phpredis 未设 SCAN_RETRY 选项时，scan() 迭代过程中会返回空数组页
+                        // （该页无匹配键，键空间越大越常见）。旧写法 while($keys = scan(...))
+                        // 把空数组当 false 提前退出循环——前缀删除静默失败返回 0 键，
+                        // 表现为插件清缓存不生效、数据只能等 TTL 自然过期。
+                        // 正确写法：仅当 scan 返回 FALSE（迭代完成）或游标归零时退出，空页继续迭代。
+                        while (TRUE) {
+                                $keys = $this->link->scan($iterator, $fullPrefix . '*', 100);
+                                if ($keys === FALSE) break;
+                                if (!empty($keys)) {
                                         $scanned += count($keys);
                                         if($useUnlink === NULL) {
                                                 try {

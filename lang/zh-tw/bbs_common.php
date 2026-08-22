@@ -953,6 +953,9 @@ return array(
 
 	// ========== 頁腳/錯誤 ==========
 	'footer_processed_info'=>'Processed in {time} seconds, {queries} queries',
+	'footer_sitemap'=>'網站地圖',
+	'footer_banned'=>'小黑屋',
+	'footer_discover_more'=>'發現更多',
 	'error_label'=>'Error',
 
 	// ========== 使用者封禁狀態 ==========

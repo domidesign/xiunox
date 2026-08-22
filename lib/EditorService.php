@@ -931,14 +931,16 @@ class EditorService {
             window.aiEditorInstance = aiEditorInstance;
 
             // ===== 粘贴 HTML 富文本自动清理（防大段 Word/邮件富文本拖垮 ProseMirror DOMParser） =====
-            // ponytail: 阈值 100KB——典型 Word/邮件客户端复制富文本可达 800KB+，95% 是 mso-* 样式垃圾
+            // ponytail: 阈值 300KB——典型 Word/邮件客户端复制富文本可达 800KB+，95% 是 mso-* 样式垃圾
             //           + Office 命名空间元素（<o:p>/<w:*>/<v:*>/<m:*>）+ 嵌套无数层 span
             //           清理后保留语义结构（p/h/ul/ol/li/a/strong/em/img/code/pre/blockquote/table）
             //           体积从 891KB 缩到几十 KB，ProseMirror DOMParser 解析飞快
+            //           注意：阈值判断的是剪贴板 text/html 体积，从 IDE/网页复制几十 KB 文本时
+            //           HTML 包装（样式/行号结构）可能膨胀数倍，小于阈值的粘贴一律走 AIEditor 原生 PasteExt
             //           已知回归上限：若 Word 文档里表格嵌套层级 > 100 层，DOMParser.querySelector 仍可能慢，
             //           升级路径：改用 TreeWalker 递归遍历 + requestIdleCallback 分块处理
             (function(){
-                var PASTE_HTML_THRESHOLD = 100 * 1024;
+                var PASTE_HTML_THRESHOLD = 300 * 1024;
                 var container = document.querySelector('aie-editor, .aie-container, [class*="aie-container"]');
                 if (!container) return;
 
@@ -1044,6 +1046,9 @@ class EditorService {
 
                     var html = '';
                     try { html = cd.getData('text/html') || ''; } catch(err) { return; }
+
+                    // 调试日志：确认每次粘贴的 text/html 实际体积与是否触发清理
+                    console.log('[PasteClean] text/html 体积:', html.length, '/ 阈值:', PASTE_HTML_THRESHOLD, html.length >= PASTE_HTML_THRESHOLD ? '→ 走清理' : '→ 原生粘贴');
 
                     // 未超阈值不拦截，让 AIEditor 内置 PasteExt 处理
                     if (html.length < PASTE_HTML_THRESHOLD) return;

@@ -182,6 +182,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | 查 API 签名 / 参数细节 | [references/api-cheatsheet.md](references/api-cheatsheet.md) |
 | 查前端模式 / htmx 4 / XN.* | [references/frontend-patterns.md](references/frontend-patterns.md) |
 | 查后台 UI 模式 / Tab 独立页面 / 入口模式 / 搜索分页 | [references/admin-patterns.md](references/admin-patterns.md) |
+| 查通知聚合中心 / 管理员三通道通知（站内消息/邮件/红点） | [references/notify-patterns.md](references/notify-patterns.md) |
 | 查 AI 协作硬规则 / 扫描器分级 | [references/ai-rules.md](references/ai-rules.md) |
 | 查完整插件架构原理 | [../plugindev/01-architecture.md](../plugindev/01-architecture.md) |
 | 查 conf.json 完整字段 / zip 打包 | [../plugindev/02-plugin-structure.md](../plugindev/02-plugin-structure.md) |
@@ -197,6 +198,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | 查头像组件使用与扩展 | [../plugindev/12-avatar-component.md](../plugindev/12-avatar-component.md) |
 | 查后台/前台 UI 规范总览 | [../plugindev/14-plugin-admin-ui.md](../plugindev/14-plugin-admin-ui.md) |
 | 查存储驱动扩展 / 云存储插件开发 | [../plugindev/16-storage-driver-extension.md](../plugindev/16-storage-driver-extension.md) |
+| 查通知聚合中心 / 三通道通知 / 旧通知配置迁移 | [../plugindev/18-plugin-notify-hub.md](../plugindev/18-plugin-notify-hub.md) |
 | 查插件互斥机制 / 目录命名 | [../plugindev/plugin-mutex-guide.md](../plugindev/plugin-mutex-guide.md) |
 | 查主题插件开发 / overwrite / 主题色适配 / dark 模式 | [../plugindev/17-theme-plugin-guide.md](../plugindev/17-theme-plugin-guide.md) |
 | 查完整手册入口 | [../plugindev/README.md](../plugindev/README.md) |
@@ -218,6 +220,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | 注册插件路由表 | `model_route_table_end.php` |
 | 注册后台路由 | `admin_index_route_case_end.php` |
 | 注册存储驱动 | `admin_setting_upload_driver_register.php` + `storage_save.php` + `storage_serve.php` + `storage_delete.php` |
+| 管理员通知红点数据源（配合 plugin_notify_fire） | `plugin_notice_count.php` |
 | 后台侧边栏入口（顶部） | `admin_sidebar_start.htm` |
 | 后台侧边栏入口（底部） | `admin_sidebar_end.htm` |
 | 首页侧边栏组件 | `index_site_brief_after.htm` |

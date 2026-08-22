@@ -24,11 +24,11 @@
 ## 架构总览
 
 ```
-站长在后台选择存储驱动（local / mycloud_s3 / mycloud_oss ...）
+站长在后台选择存储驱动（local / xnx_clouds3 / mycloud_oss ...）
          │
          ├─ admin/route/setting.php
          │    ├─ GET: 初始化 $upload_drivers，触发 admin_setting_upload_driver_register.php
-         │    │        └─ 插件注册: $upload_drivers['mycloud_s3'] = 'AWS S3'
+         │    │        └─ 插件注册: $upload_drivers['xnx_clouds3'] = 'AWS S3'
          │    └─ POST: 同一 hook 构建白名单，校验后保存到 conf.php
          │
          ├─ route/attach.php（读取/下载/fetch）
@@ -93,10 +93,10 @@
 ```php
 <?php exit;
 // 注册存储驱动，同时在后台页面显示和保存校验中生效
-$upload_drivers['mycloud_s3'] = 'AWS S3';
+$upload_drivers['xnx_clouds3'] = 'AWS S3';
 ```
 
-> 驱动 key（如 `mycloud_s3`）必须带插件前缀，避免与其他插件冲突。
+> 驱动 key（如 `xnx_clouds3`）必须带插件前缀，避免与其他插件冲突。
 
 ### 第二步：在 conf.json 中声明所有 hook
 
@@ -122,10 +122,10 @@ $upload_drivers['mycloud_s3'] = 'AWS S3';
 ```php
 <?php exit;
 // 检查是否是自己被选中
-if ($conf['upload_driver'] !== 'mycloud_s3') return; // 闭包外 return 禁止，改为 if 包裹
+if ($conf['upload_driver'] !== 'xnx_clouds3') return; // 闭包外 return 禁止，改为 if 包裹
 
 // 正确写法：用 if 包裹整个逻辑
-if ($conf['upload_driver'] === 'mycloud_s3') {
+if ($conf['upload_driver'] === 'xnx_clouds3') {
     $s3_key = 'upload/attach/' . $filename;
     S3Service::upload($destfile, $s3_key);
     // 上传成功后删除本地文件（可选）
@@ -141,7 +141,7 @@ if ($conf['upload_driver'] === 'mycloud_s3') {
 
 ```php
 <?php exit;
-if ($conf['upload_driver'] === 'mycloud_s3') {
+if ($conf['upload_driver'] === 'xnx_clouds3') {
     $s3_url = S3Service::getSignedUrl($attach['filename']);
     // 302 重定向到云端 URL
     header("Location: $s3_url", true, 302);
@@ -156,7 +156,7 @@ if ($conf['upload_driver'] === 'mycloud_s3') {
 
 ```php
 <?php exit;
-if ($conf['upload_driver'] === 'mycloud_s3') {
+if ($conf['upload_driver'] === 'xnx_clouds3') {
     $s3_key = 'upload/attach/' . $attach['filename'];
     S3Service::delete($s3_key);
 }
@@ -177,7 +177,7 @@ admin/?plugin-setting-<你的插件目录名>.htm
 ### 目录结构
 
 ```
-plugin/mycloud_s3/
+plugin/xnx_clouds3/
 ├── conf.json
 ├── install.php
 ├── uninstall.php
@@ -197,14 +197,14 @@ plugin/mycloud_s3/
 
 ```php
 <?php exit;
-$upload_drivers['mycloud_s3'] = 'AWS S3';
+$upload_drivers['xnx_clouds3'] = 'AWS S3';
 ```
 
 ### hook/storage_save.php
 
 ```php
 <?php exit;
-if ($conf['upload_driver'] === 'mycloud_s3') {
+if ($conf['upload_driver'] === 'xnx_clouds3') {
     $s3_key = 'upload/attach/' . $filename;
     S3Service::upload($destfile, $s3_key);
     // 上传成功后删除本地文件，节省磁盘空间
@@ -216,7 +216,7 @@ if ($conf['upload_driver'] === 'mycloud_s3') {
 
 ```php
 <?php exit;
-if ($conf['upload_driver'] === 'mycloud_s3') {
+if ($conf['upload_driver'] === 'xnx_clouds3') {
     $s3_url = S3Service::getSignedUrl($attach['filename']);
     header("Location: $s3_url", true, 302);
     // ponytail: 重定向到 S3 URL 后必须终止请求
@@ -228,7 +228,7 @@ if ($conf['upload_driver'] === 'mycloud_s3') {
 
 ```php
 <?php exit;
-if ($conf['upload_driver'] === 'mycloud_s3') {
+if ($conf['upload_driver'] === 'xnx_clouds3') {
     $s3_key = 'upload/attach/' . $attach['filename'];
     S3Service::delete($s3_key);
 }
@@ -238,7 +238,7 @@ if ($conf['upload_driver'] === 'mycloud_s3') {
 
 ## 注意事项
 
-1. **驱动 key 必须带插件前缀**：如 `mycloud_s3`，禁止使用 `oss`、`cos`、`qiniu` 等通用名，避免多插件冲突
+1. **驱动 key 必须带插件前缀**：如 `xnx_clouds3`，禁止使用 `oss`、`cos`、`qiniu` 等通用名，避免多插件冲突
 2. **同一 hook 文件在 GET 和 POST 中都会执行**：`admin_setting_upload_driver_register.php` 在设置页 GET（显示）和 POST（保存校验）中都触发，hook 内只做 `$upload_drivers` 数组赋值
 3. **storage_serve.php 必须出口**：插件处理完后必须 `exit`，否则核心代码会继续执行本地 `readfile()`
 4. **hook 内禁止 return**：所有 storage hook 内必须用 `if (...) { ... }` 包裹逻辑，禁止 `return;`（会从宿主函数返回导致后续逻辑被跳过）

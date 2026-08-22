@@ -160,11 +160,18 @@ $nav_text_map = array(
 						<span class="menu-icon"><i class="ti <?php echo $icon;?>"></i></span>
 						<span class="menu-text"><?php echo $text;?></span>
 						<?php if($nav_key == 'audit') {
-							$_pending_total = AuditService::get_pending_count('thread') + AuditService::get_pending_count('post') + AuditService::get_pending_profile_count();
-							if($_pending_total > 0) {
-								echo '<span class="badge bg-danger ms-auto">' . $_pending_total . '</span>';
-							}
-						} ?>
+						$_pending_total = AuditService::get_pending_count('thread') + AuditService::get_pending_count('post') + AuditService::get_pending_profile_count();
+						if($_pending_total > 0) {
+							echo '<span class="badge bg-danger ms-auto">' . $_pending_total . '</span>';
+						}
+					} ?>
+					<?php if($nav_key == 'plugin' && function_exists('plugin_notice_total')) {
+						// 插件待处理事项聚合徽章（走 core_plugin_notice 聚合缓存，单次 cache_get）
+						$_plugin_notice_total = plugin_notice_total();
+						if($_plugin_notice_total > 0) {
+							echo '<span class="badge bg-danger ms-auto">' . ($_plugin_notice_total > 99 ? '99+' : $_plugin_notice_total) . '</span>';
+						}
+					} ?>
 					</a>
 				</li>
 				<?php } ?>

@@ -16,6 +16,7 @@ XIUNOX（XIUNO BBS X 重构版）插件开发规范与速查文档。文档面�
 | [references/ui-patterns.md](references/ui-patterns.md) | UI/样式规范速查（静态资源版本号/三栏布局/Card 组件/Toast vs Modal/视频附件显示/Tab 导航/表单交互） | 查 UI 样式规范 |
 | [references/admin-patterns.md](references/admin-patterns.md) | 后台 UI 模式速查（Tab 独立页面/后台入口/GET 搜索/分页 URL/命名快捷函数/菜单注册） | 查后台 UI 模式 |
 | [references/security-patterns.md](references/security-patterns.md) | 安全模式速查（CAS/幂等设计/GET_LOCK/部分成功回滚/频率限制） | 查并发安全与积分防刷 |
+| [references/notify-patterns.md](references/notify-patterns.md) | 通知聚合中心速查（plugin_notify_fire 三通道/红点 count hook/节流/旧配置迁移） | 给插件加管理员通知时 |
 
 ### 配套完整手册（plugindev/，深入细节时查）
 
@@ -39,6 +40,7 @@ XIUNOX（XIUNO BBS X 重构版）插件开发规范与速查文档。文档面�
 | [plugindev/12-avatar-component.md](../plugindev/12-avatar-component.md) | 头像组件（三层嵌套结构 + 2 个 hook 点 + avatar_shape 配置） |
 | [plugindev/14-plugin-admin-ui.md](../plugindev/14-plugin-admin-ui.md) | **插件后台与 UI 规范总览**（Tab 独立页面 / x-card / 三栏布局 / 后台入口 / 搜索分页 / 弹窗） |
 | [plugindev/16-storage-driver-extension.md](../plugindev/16-storage-driver-extension.md) | 存储驱动扩展机制（动态驱动注册 / 云存储插件开发指南 / OSS 完整示例） |
+| [plugindev/18-plugin-notify-hub.md](../plugindev/18-plugin-notify-hub.md) | **插件通知聚合中心**（plugin_notify_fire 三通道 / 红点 hook 协议 / 旧通知配置迁移规范） |
 | [plugindev/plugin-mutex-guide.md](../plugindev/plugin-mutex-guide.md) | 插件互斥指南 |
 
 ### 何时读哪个
@@ -49,6 +51,7 @@ XIUNOX（XIUNO BBS X 重构版）插件开发规范与速查文档。文档面�
 - **查 hook 注入点** → [references/hooks-catalog.md](references/hooks-catalog.md)
 - **前端/htmx 4/安全速查** → [references/frontend-patterns.md](references/frontend-patterns.md)
 - **UI/样式规范速查** → [references/ui-patterns.md](references/ui-patterns.md)（静态资源版本号、Card 组件、Toast vs Modal、视频显示等）
+- **给插件加管理员通知（站内消息/邮件/红点）** → [references/notify-patterns.md](references/notify-patterns.md)
 
 **深入细节（plugindev/，速查不够时查）**：
 - **理解架构原理** → [plugindev/01-architecture.md](../plugindev/01-architecture.md)
@@ -64,6 +67,7 @@ XIUNOX（XIUNO BBS X 重构版）插件开发规范与速查文档。文档面�
 - **jQuery 移除迁移** → [plugindev/10-jquery-removal-guide.md](../plugindev/10-jquery-removal-guide.md)
 - **插件互斥/目录命名** → [plugindev/plugin-mutex-guide.md](../plugindev/plugin-mutex-guide.md)
 - **存储驱动扩展/云存储插件** → [plugindev/16-storage-driver-extension.md](../plugindev/16-storage-driver-extension.md)
+- **通知聚合中心/管理员三通道通知** → [plugindev/18-plugin-notify-hub.md](../plugindev/18-plugin-notify-hub.md)
 
 ## 5 分钟快速上手
 

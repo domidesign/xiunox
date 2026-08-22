@@ -1676,64 +1676,118 @@ a.hover-bg-body-secondary:hover {
     color: var(--bs-primary);
 }
 
-/* ===== 底部导航 (footer_nav) ===== */
+/* ===== 底部导航 (footer_nav)：两行左右布局 ===== */
 .bbs-footer {
-    background: var(--bs-tertiary-bg);
-    padding: 2rem 0 1rem;
-
+    background: var(--bs-body-bg);
+    border-top: 1px solid var(--bs-border-color);
+    padding: 1.5rem 0 1.25rem;
+    font-size: 0.85rem;
 }
-
 
 .bbs-footer a {
     color: var(--bs-secondary-color);
     text-decoration: none;
-    transition: color 0.15s ease;
+    transition: color 0.15s ease, background 0.15s ease;
 }
 
 .bbs-footer a:hover {
     color: var(--bs-primary);
 }
 
-
-.bbs-footer-bottom {
-
-    font-size: 0.8rem;
-    color: var(--bs-secondary-color);
+/* 行容器：PC 左右两端对齐，中间留白 */
+.bbs-footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    line-height: 1.6;
 }
 
-.bbs-footer-filing a {
+.bbs-footer-row + .bbs-footer-row {
+    margin-top: 0.6rem;
+}
+
+/* 第一行左侧：logo + 版权 */
+.bbs-footer-brand {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-    margin-right: 1rem;
+    gap: 0.5rem;
+    min-width: 0;
 }
 
-/* Footer 左列 Logo/名称/简介 */
-.bbs-footer-logo img {
-    height: 40px;
+.bbs-footer-logo {
+    height: 22px;
     width: auto;
     object-fit: contain;
 }
 
-.bbs-footer-sitename {
-    font-size: 1rem;
+.bbs-footer-copy {
+    font-size: 0.88rem;
+    font-weight: 600;
     color: var(--bs-body-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.bbs-footer-brief {
-    font-size: 0.8rem;
-    color: var(--bs-secondary-color);
-    line-height: 1.5;
-    max-width: 280px;
+/* 第一行右侧：功能链接 */
+.bbs-footer-links {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.4rem;
 }
 
-/* Footer 二维码弹窗 */
-#footerQrcodeModal .modal-content {
-    border-radius: 0.75rem;
-}
-
-#footerQrcodeModal .modal-body img {
+.bbs-footer-links a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.6rem;
     border-radius: 0.5rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.bbs-footer-links a i {
+    font-size: 0.9rem;
+}
+
+.bbs-footer-links a:hover {
+    background: color-mix(in srgb, var(--bs-primary) 8%, transparent);
+}
+
+/* 第二行左侧：Powered by */
+.bbs-footer-powered {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+}
+
+/* 第二行右侧：备案 / 调试信息 */
+.bbs-footer-right {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem 1rem;
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+}
+
+.bbs-footer-filing-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    white-space: nowrap;
+}
+
+.bbs-footer-filing-item i {
+    font-size: 0.85rem;
+}
+
+.bbs-footer-debug {
+    font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+    font-size: 0.72rem;
+    white-space: nowrap;
 }
 
 
@@ -2251,18 +2305,30 @@ div.message .mention:hover {
 
 /* 移动端通知弹窗：靠右对齐，限制宽度不超出屏幕 */
 @media (max-width: 575.98px) {
-    .bbs-footer-logo img {
-        height: 32px;
+    /* 页脚：两行左右布局改为纵向居中 */
+    .bbs-footer-row {
+        flex-direction: column;
+        justify-content: center;
+        text-align: center;
+        gap: 0.4rem;
     }
 
-    .bbs-footer-brief {
+    .bbs-footer-row + .bbs-footer-row {
+        margin-top: 0.8rem;
+    }
+
+    .bbs-footer-copy {
+        white-space: normal;
         max-width: 100%;
     }
 
-    .bbs-footer-bottom .d-flex {
-        flex-direction: column;
-        text-align: center;
-        gap: 0.5rem;
+    .bbs-footer-links {
+        justify-content: center;
+    }
+
+    .bbs-footer-right {
+        justify-content: center;
+        gap: 0.35rem 0.75rem;
     }
 
     #notice-dropdown {

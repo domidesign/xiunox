@@ -65,6 +65,7 @@ class CacheHelper {
         'core_thread_pl_replies_*'  => array(60,    '帖子评论列表'),
         'core_thread_pl_count_*'    => array(300,   '帖子主楼统计'),
         'core_thread_pl_version_*'  => array(86400, '帖子列表版本号'),
+        'core_plugin_notice'        => array(60,    '插件待处理通知聚合'),
     );
 
     /**

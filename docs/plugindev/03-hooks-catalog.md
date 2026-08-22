@@ -1002,6 +1002,12 @@
 | `model_notify_start.php` | 文件开始 |
 | `model_notify_end.php` | 文件结束 |
 
+### Plugin Notify（通知聚合中心）— `model/plugin_notify.func.php`
+
+| Hook | 触发位置 |
+|---|---|
+| `plugin_notice_count.php` | ✅ **协议 hook**（非编译 hook）：核心 `plugin_notice_count_all()` 在后台插件列表/侧边栏渲染时主动读取并隔离执行（单插件报错计 0 不影响其他插件）。插件写回 `$data['count']`（待处理数）与 `$data['url']`（`admin_url()` 生成的后台待处理页地址）。体内禁 `exit`/`die`/`return`；执行环境为函数作用域，类常量不可用。详见 [18-plugin-notify-hub.md](18-plugin-notify-hub.md) |
+
 ### Table Day — `model/table_day.func.php`
 
 | Hook | 触发位置 |

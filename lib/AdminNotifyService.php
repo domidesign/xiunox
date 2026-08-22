@@ -43,6 +43,8 @@ class AdminNotifyService {
      *                           - admin_emails: 覆盖邮件接收人邮箱数组（默认读插件配置 admin_notify_emails）
      *                           - skip_notify: true 时跳过站内通知
      *                           - skip_mail: true 时跳过邮件
+     *                           - ignore_enabled: true 时跳过插件自身 admin_notify_enabled 总开关检查
+     *                             （plugin_notify_fire() 统一门面调用时由统一通知配置把关）
      * @return array ['ok'=>bool, 'reason'=>string, 'sent_notify'=>int, 'sent_mail'=>int]
      */
     public static function audit($plugin, $audit_type, $subject, $content, $url = '', $options = array()) {
@@ -56,12 +58,13 @@ class AdminNotifyService {
             'sent_mail' => 0,
         );
 
-        // 1. 读插件配置，检查总开关
+        // 1. 读插件配置，检查总开关（plugin_notify_fire() 传入 ignore_enabled 时跳过，由统一通知配置把关）
+        $ignore_enabled = !empty($options['ignore_enabled']);
         $plugin_cfg = setting_get($plugin);
         $enabled = is_array($plugin_cfg) && isset($plugin_cfg['admin_notify_enabled'])
             ? intval($plugin_cfg['admin_notify_enabled'])
             : 0;
-        if (empty($enabled)) {
+        if (!$ignore_enabled && empty($enabled)) {
             // 用户明确关闭，不写防抖标记，下次开启后立即生效
             $result['reason'] = 'disabled';
             return $result;

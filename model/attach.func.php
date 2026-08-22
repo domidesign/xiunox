@@ -474,6 +474,12 @@ function attach_assoc_post($pid, $pageToken = '') {
 				@unlink($tmp_file_path);
 			}
 
+			// 云存储驱动：非 local 时触发 storage_save hook（与方案1一致，兜底扫描路径同样需要上传云端）
+			$destfile = $dest_file_path;
+			if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
+				// hook storage_save.php
+			}
+
 			// 替换 message 中的 URL
 			$post['message'] = str_replace($tmp_file_url, $dest_file_url, $post['message']);
 			$post['message_fmt'] = str_replace($tmp_file_url, $dest_file_url, $post['message_fmt']);

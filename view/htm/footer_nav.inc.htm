@@ -1,10 +1,19 @@
 <?php
+// 页脚配置（后台 → 设置 → 页脚设置）
 $footer_config = isset($conf['footer']) ? $conf['footer'] : array();
 $footer_icp = isset($footer_config['icp']) ? $footer_config['icp'] : '';
 $footer_gongan = isset($footer_config['gongan']) ? $footer_config['gongan'] : '';
 $footer_gongan_url = isset($footer_config['gongan_url']) ? $footer_config['gongan_url'] : '';
 $footer_copyright = isset($footer_config['copyright']) ? $footer_config['copyright'] : '';
 $footer_show_powered = isset($footer_config['show_powered']) ? intval($footer_config['show_powered']) : 1;
+
+// 功能链接开关：sitemap / 小黑屋公示受后台配置控制（默认开启）
+$_footer_sitemap_on = !isset($conf['sitemap_enabled']) || $conf['sitemap_enabled'];
+$_footer_banned_on = !isset($conf['ban_show_public_list']) || $conf['ban_show_public_list'];
+// 备案信息（ICP / 公安备任一填写即展示备案区，否则展示调试信息）
+$_footer_has_filing = $footer_icp !== '' || $footer_gongan !== '';
+// OPcache 状态：扩展未安装或未启用均视为 off
+$_footer_opcache_on = function_exists('opcache_get_status') && opcache_get_status(false) !== false;
 ?>
 
 <footer class="bbs-footer">
@@ -12,34 +21,55 @@ $footer_show_powered = isset($footer_config['show_powered']) ? intval($footer_co
 
         <!--{hook footer_nav_start.htm}-->
 
-        <!-- 底部：版权 + 备案 + 系统信息 -->
-        <div class="bbs-footer-bottom">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 text-center text-md-start">
-                <div>
-                    <?php if(!empty($footer_copyright)): ?>
-                    <div class="mb-1"><?php echo $footer_copyright;?></div>
-                    <?php endif; ?>
-                    <a href="https://github.com/domidesign/xiunox" target="_blank" rel="noopener" title="Powered by XIUNOX"><img src="<?php echo $conf['view_url'];?>img/xiunox.svg" alt="XIUNOX" height="16" style="vertical-align:middle"></a>
-                </div>
-                <div class="text-center text-md-end">
-                    <div class="bbs-footer-filing mb-1">
-                        <?php if(!empty($footer_icp)): ?>
-                        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">
-                            <i class="ti ti-certificate" style="font-size:0.9rem"></i>
-                            <?php echo esc_html($footer_icp);?>
-                        </a>
-                        <?php endif; ?>
-                        <?php if(!empty($footer_gongan)): ?>
-                        <a href="<?php echo esc_html(!empty($footer_gongan_url) ? $footer_gongan_url : 'https://beian.mps.gov.cn/');?>" target="_blank" rel="noopener">
-                            <i class="ti ti-shield-check" style="font-size:0.9rem"></i>
-                            <?php echo esc_html($footer_gongan);?>
-                        </a>
-                        <?php endif; ?>
-                    </div>
-                    <div class="text-body-secondary" style="font-size:0.75rem">
-                        <?php echo lang('footer_processed_info', array('time'=>'<b>'.substr(microtime(1) - $starttime, 0, 5).'</b>', 'queries'=>'<b>'.count($db->sqls).'</b>'));?>
-                    </div>
-                </div>
+        <!-- 第一行：左 logo + 版权（未设置显示站点名称），右 功能链接 -->
+        <div class="bbs-footer-row">
+            <div class="bbs-footer-brand">
+                <img src="<?php echo esc_attr($conf['logo_mobile_url']);?>" class="bbs-footer-logo" alt="<?php echo esc_attr($conf['sitename']);?>">
+                <span class="bbs-footer-copy"><?php echo $footer_copyright !== '' ? $footer_copyright : esc_html($conf['sitename']);?></span>
+            </div>
+
+            <nav class="bbs-footer-links" aria-label="<?php echo lang('admin_footer_nav');?>">
+                <?php if($_footer_sitemap_on) { ?>
+                <a href="/sitemap.xml" target="_blank" rel="noopener">
+                    <i class="ti ti-sitemap"></i><?php echo lang('footer_sitemap');?>
+                </a>
+                <?php } ?>
+                <?php if($_footer_banned_on) { ?>
+                <a href="<?php echo url('banned');?>">
+                    <i class="ti ti-ban"></i><?php echo lang('footer_banned');?>
+                </a>
+                <?php } ?>
+                <a href="<?php echo url('more');?>">
+                    <i class="ti ti-compass"></i><?php echo lang('footer_discover_more');?>
+                </a>
+            </nav>
+        </div>
+
+        <!-- 第二行：左 Powered by XIUNOX，右 备案信息 / 调试信息 -->
+        <div class="bbs-footer-row bbs-footer-row-sub">
+            <?php if($footer_show_powered) { ?>
+            <div class="bbs-footer-powered">
+                Powered by <a class="bbs-footer-copy" href="https://github.com/domidesign/xiunox" target="_blank" rel="noopener" title="XIUNOX">XIUNOX</a>
+            </div>
+            <?php } ?>
+
+            <div class="bbs-footer-right">
+                <?php if($_footer_has_filing) { ?>
+                    <?php if($footer_icp !== '') { ?>
+                    <a class="bbs-footer-filing-item" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">
+                        <i class="ti ti-certificate"></i><?php echo esc_html($footer_icp);?>
+                    </a>
+                    <?php } ?>
+                    <?php if($footer_gongan !== '') { ?>
+                    <a class="bbs-footer-filing-item" href="<?php echo esc_attr($footer_gongan_url !== '' ? $footer_gongan_url : 'https://beian.mps.gov.cn/');?>" target="_blank" rel="noopener">
+                        <i class="ti ti-shield-check"></i><?php echo esc_html($footer_gongan);?>
+                    </a>
+                    <?php } ?>
+                <?php } else { ?>
+                    <span class="bbs-footer-debug">SQL: <?php echo count($db->sqls);?></span>
+                    <span class="bbs-footer-debug">Time: <?php echo substr(microtime(1) - $starttime, 0, 5);?></span>
+                    <span class="bbs-footer-debug">OPcache: <?php echo $_footer_opcache_on ? 'on' : 'off';?></span>
+                <?php } ?>
             </div>
         </div>
 

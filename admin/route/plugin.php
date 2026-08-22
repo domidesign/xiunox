@@ -153,13 +153,125 @@ if($action == 'local') {
 		if(!empty($_p['enable'])) $enabled_count++;
 	}
 
+	// 插件待处理事项计数（红点角标；走 core_plugin_notice 聚合缓存，单次 cache_get 无 N+1）
+	$plugin_notice_list = function_exists('plugin_notice_count_all') ? plugin_notice_count_all() : array();
+
 	// 传递给模板的参数
 	$input['type'] = $type_filter;
 	$input['status'] = $status_filter;
 	$input['keyword'] = $keyword;
 	$input['enabled_count'] = $enabled_count;
-	
+
 	include _include(ADMIN_PATH."view/htm/plugin_list.htm");
+
+} elseif($action == 'notice') {
+
+	// 插件通知设置页：统一管理各插件 站内消息/邮件/红点 三通道开关与提醒邮箱
+	if(!function_exists('plugin_notify_config_all')) {
+		message(-1, 'plugin_notify.func.php not loaded');
+	}
+
+	// 收集参与协议的插件（已启用且有 badge hook，或已有配置记录）——GET 渲染与 POST 保存共用
+	$notice_dirs = array();
+	if(function_exists('plugin_paths_enabled')) {
+		foreach((array)plugin_paths_enabled() as $path => $pconf) {
+			$dir = file_name($path);
+			if($dir && is_file(APP_PATH."plugin/$dir/hook/plugin_notice_count.php")) {
+				$notice_dirs[$dir] = $dir;
+			}
+		}
+	}
+	foreach(plugin_notify_config_all() as $k => $v) {
+		if($k !== '_global') $notice_dirs[$k] = $k;
+	}
+
+	if($method == 'POST') {
+		// CSRF 校验
+		CsrfService::check();
+		$op = param('op');
+
+		// ---- 发送测试邮件 ----
+		if($op == 'test') {
+			$test_email = trim(strval(param('test_email', '')));
+			$email = filter_var($test_email, FILTER_VALIDATE_EMAIL);
+			if($email === FALSE || $email === '') {
+				message(-1, lang('admin_plugin_notice_email_invalid'));
+			}
+			if(!class_exists('AdminNotifyService')) {
+				include_once APP_PATH.'lib/AdminNotifyService.php';
+			}
+			if(!class_exists('AdminNotifyService') || !AdminNotifyService::isSmtpConfigured()) {
+				message(-1, lang('admin_plugin_notice_smtp_missing'));
+			}
+			if(!function_exists('xn_send_mail')) {
+				include _include(XIUNOPHP_PATH.'xn_send_mail.func.php');
+			}
+			$smtp = xn_smtp_get();
+			if($smtp === FALSE) {
+				message(-1, lang('admin_plugin_notice_smtp_missing'));
+			}
+			$from_name = isset($conf['sitename']) ? $conf['sitename'] : 'BBS';
+			$subject = '['.$from_name.'] '.lang('admin_plugin_notice_test_subject');
+			$body = '<p>'.lang('admin_plugin_notice_test_body').'</p><p>'.lang('admin_notify_click_view').' <a href="'.esc_attr(http_url_path()).'">'.$from_name.'</a></p>';
+			$r = xn_send_mail($smtp, $from_name, $email, $subject, $body, array('is_html' => TRUE, 'timeout' => 5));
+			if($r === TRUE) {
+				message(0, lang('admin_plugin_notice_test_sent', array('email'=>$email)));
+			} else {
+				$err = is_string($r) ? $r : 'unknown';
+				message(-1, lang('admin_plugin_notice_test_failed', array('error'=>$err)));
+			}
+		}
+
+		// ---- 保存配置 ----
+		$global_email = trim(strval(param('global_email_to', '')));
+		if($global_email !== '' && filter_var($global_email, FILTER_VALIDATE_EMAIL) === FALSE) {
+			message(-1, lang('admin_plugin_notice_email_invalid'));
+		}
+		plugin_notify_config_save('_global', array('email_to' => $global_email));
+
+		// 插件维度：checkbox 数组接收（name="system[{dir}]"），未勾选=键缺失=0
+		$_pn_system = isset($_POST['system']) && is_array($_POST['system']) ? $_POST['system'] : array();
+		$_pn_email_ch = isset($_POST['email_ch']) && is_array($_POST['email_ch']) ? $_POST['email_ch'] : array();
+		$_pn_badge = isset($_POST['badge']) && is_array($_POST['badge']) ? $_POST['badge'] : array();
+		$_pn_email_to = isset($_POST['email_to']) && is_array($_POST['email_to']) ? $_POST['email_to'] : array();
+
+		foreach($notice_dirs as $dir) {
+			$email_to = isset($_pn_email_to[$dir]) ? trim(strval($_pn_email_to[$dir])) : '';
+			if($email_to !== '' && filter_var($email_to, FILTER_VALIDATE_EMAIL) === FALSE) {
+				message(-1, lang('admin_plugin_notice_email_invalid')." [$dir]");
+			}
+			plugin_notify_config_save($dir, array(
+				'system' => isset($_pn_system[$dir]) ? 1 : 0,
+				'email' => isset($_pn_email_ch[$dir]) ? 1 : 0,
+				'badge' => isset($_pn_badge[$dir]) ? 1 : 0,
+				'email_to' => $email_to,
+			));
+		}
+
+		// 配置变更后失效红点缓存（badge 开关变化需立即反映）
+		plugin_notice_flush();
+		message(0, lang('admin_plugin_notice_saved'));
+	}
+
+	// GET 渲染：插件显示名 + 当前待处理数 + 当前通道配置
+	$plugin_notice_rows = array();
+	$_pn_counts = plugin_notice_count_all();
+	global $user;
+	$plugin_notice_admin_email = isset($user['email']) && filter_var($user['email'], FILTER_VALIDATE_EMAIL) ? $user['email'] : '';
+	foreach($notice_dirs as $dir) {
+		$plugin_notice_rows[$dir] = array(
+			'name' => isset($plugins[$dir]['name']) ? $plugins[$dir]['name'] : $dir,
+			'enabled' => is_file(APP_PATH."plugin/$dir/hook/plugin_notice_count.php"),
+			'count' => isset($_pn_counts[$dir]['count']) ? intval($_pn_counts[$dir]['count']) : 0,
+			'config' => plugin_notify_config_get($dir),
+		);
+	}
+	$plugin_notice_global = plugin_notify_config_global();
+
+	$header['title'] = lang('admin_plugin_notice_title');
+	$header['mobile_title'] = lang('admin_plugin_notice_title');
+
+	include _include(ADMIN_PATH."view/htm/plugin_notice.htm");
 
 } elseif($action == 'install') {
 	
@@ -236,21 +348,9 @@ if($action == 'local') {
 
 	admin_log_create('plugin_install', 'plugin', $dir, lang('admin_log_plugin_install', array('name'=>$name)));
 
-	// 同类插件互斥：禁用其他已安装的同类插件（保留配置便于切换）。
-// 之前的实现用 plugin_unstall() 会执行 uninstall.php 清掉数据，过于激进；
-// 现统一改为 plugin_disable() 仅禁用，主题类与非主题类逻辑一致。
-// 匹配规则见 plugin_find_conflicts()：主题（第二段theme）全部互斥；基础功能（两段）按第二段互斥；扩展（三段+）不互斥。
-$conflicts = plugin_find_conflicts($dir);
-if(!empty($conflicts)) {
-	foreach($conflicts as $c) {
-		// 仅禁用处于启用状态的冲突插件，已禁用的跳过（避免无谓的 tmp 清理和重复日志）
-		if(!empty($c['enable'])) {
-			plugin_disable($c['dir']);
-			admin_log_create('plugin_disable', 'plugin', $c['dir'], lang('admin_log_plugin_conflict_disable_install', array('name'=>$name, 'conflict'=>$c['name'])));
-		}
-	}
-}
-	
+	// 同类插件互斥已下沉至 plugin_install() 内部的 plugin_disable_conflicts()
+	// （覆盖后台安装、应用中心在线安装、上传 zip 安装等全部路径）
+
 	$msg = lang('plugin_install_sucessfully', array('name'=>$name));
 
 	// 递增 static_version，强制浏览器刷新 JS/CSS 缓存
@@ -283,6 +383,11 @@ if(!empty($conflicts)) {
 	
 	// 卸载插件
 	plugin_unstall($dir);
+
+	// 清理插件通知配置（红点缓存走 TTL 自愈无需处理）
+	if(function_exists('plugin_notify_config_delete')) {
+		plugin_notify_config_delete($dir);
+	}
 
 	// 执行卸载脚本：优先标准拼写 uninstall.php，回退旧拼写 unstall.php（向后兼容）
 	$uninstallfile = APP_PATH."plugin/$dir/uninstall.php";
@@ -327,21 +432,8 @@ if(!empty($conflicts)) {
 	// 插件依赖检查
 	plugin_check_dependency($dir, 'install');
 
-	// 启用插件
+	// 启用插件（内部自动执行同类互斥禁用，见 plugin_disable_conflicts()）
 plugin_enable($dir);
-
-// 同类插件互斥：启用插件时自动禁用其他已启用的同类插件（保留配置，方便切换）
-// 与 install 分支使用相同的 plugin_find_conflicts() 规则：主题全部互斥；基础功能按第二段互斥；扩展不互斥
-// 之前的实现仅对 _theme_ 字符串包含判断做主题互斥，遗漏了非主题类同类插件的启用冲突
-$conflicts_on_enable = plugin_find_conflicts($dir);
-	if(!empty($conflicts_on_enable)) {
-	foreach($conflicts_on_enable as $c) {
-		if(!empty($c['enable'])) {
-			plugin_disable($c['dir']);
-			admin_log_create('plugin_disable', 'plugin', $c['dir'], lang('admin_log_plugin_conflict_disable_enable', array('name'=>$name, 'conflict'=>$c['name'])));
-		}
-	}
-}
 
 plugin_lock_end();
 
