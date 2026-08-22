@@ -2479,7 +2479,36 @@ return array(
 
 	// ========== 補充遺漏 ==========
 	'admin_api_app_reset_secret_failed'=>'重置密鑰失敗',
-	'api_token_sliding_renewal'=>'（滑動續期）',
+        'api_token_sliding_renewal'=>'（滑動續期）',
+
+        // ========== 插件通知聚合 ==========
+        'admin_plugin_notice_tab'=>'通知設定',
+        'admin_plugin_notice_title'=>'插件通知設定',
+        'admin_plugin_notice_desc'=>'統一管理各插件的站內消息、郵件提醒與紅點通知通道。',
+        'admin_plugin_notice_pending_tip'=>'項待處理',
+        'admin_plugin_notice_email_invalid'=>'信箱格式不正確',
+        'admin_plugin_notice_smtp_missing'=>'郵件發送失敗：SMTP 未配置，請先在系統設定中配置 SMTP',
+        'admin_plugin_notice_test_subject'=>'測試郵件',
+        'admin_plugin_notice_test_body'=>'這是一封測試郵件，收到說明郵件通道配置正常。',
+        'admin_plugin_notice_test_sent'=>'測試郵件已發送至 {email}，請查收',
+        'admin_plugin_notice_test_failed'=>'測試郵件發送失敗：{error}',
+        'admin_plugin_notice_saved'=>'儲存成功',
+        'admin_plugin_notice_test_title'=>'發送測試郵件',
+        'admin_plugin_notice_test_tip'=>'發送一封測試郵件，驗證 SMTP 郵件通道是否配置正常。',
+        'admin_plugin_notice_test_email'=>'收件信箱',
+        'admin_plugin_notice_test_btn'=>'發送測試',
+        'admin_plugin_notice_global_email'=>'全域預設提醒信箱',
+        'admin_plugin_notice_global_email_tip'=>'插件未單獨設定信箱時，郵件提醒發送至此地址。支援填寫多個，以逗號分隔。',
+        'admin_plugin_notice_empty'=>'暫無插件接入通知協議',
+        'admin_plugin_notice_col_plugin'=>'插件',
+        'admin_plugin_notice_col_pending'=>'待處理',
+        'admin_plugin_notice_col_system'=>'站內消息',
+        'admin_plugin_notice_col_email'=>'郵件',
+        'admin_plugin_notice_col_badge'=>'紅點',
+        'admin_plugin_notice_col_email_to'=>'提醒信箱',
+        'admin_plugin_notice_not_enabled'=>'未啟用',
+        'admin_plugin_notice_email_placeholder'=>'留空使用全域預設信箱',
+        'admin_plugin_notice_save_btn'=>'儲存設定',
 );
 
 ?>

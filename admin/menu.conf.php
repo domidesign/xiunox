@@ -137,12 +137,13 @@ return array(
 		)
 	),
 	'plugin' => array(
-		'url'=>url('plugin'), 
-		'text'=>lang('plugin'), 
+		'url'=>url('plugin'),
+		'text'=>lang('plugin'),
 		'icon'=>'icon-cogs',
 		'tab'=> array (
 			'local'=>array('url'=>url('plugin-local'), 'text'=>lang('admin_plugin_local_list')),
 			'official'=>array('url'=>url('plugin-official'), 'text'=>lang('admin_plugin_marketplace')),
+			'notice'=>array('url'=>url('plugin-notice'), 'text'=>'<i class="ti ti-bell me-1"></i>'.lang('admin_plugin_notice_tab')),
 		)
 	),
 	'theme' => array(

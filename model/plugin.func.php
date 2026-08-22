@@ -380,6 +380,30 @@ function plugin_mutex_category($dir) {
 	return implode('_', array_slice($parts, 1));
 }
 
+// 同类插件互斥禁用：禁用其他已启用的同类插件（保留配置便于切换）。
+// 规则见 plugin_find_conflicts()：主题（第二段theme）全部互斥；基础功能按第二段互斥；扩展不互斥。
+// 由 plugin_install()/plugin_enable() 内部调用，覆盖所有安装/启用路径
+// （后台手动安装、应用中心在线安装 OfficialPluginService、上传 zip 安装、启用），禁止在调用方重复实现。
+// ponytail: 下沉到共享函数修一次——此前仅在 admin/route/plugin.php 的 install/enable 分支做互斥，
+//   应用中心在线安装与上传 zip 安装直接调 plugin_install() 漏掉互斥，导致新装主题后旧主题未自动禁用。
+function plugin_disable_conflicts($dir, $logKey = 'admin_log_plugin_conflict_disable_install') {
+	$name = isset($GLOBALS['plugins'][$dir]['name']) ? $GLOBALS['plugins'][$dir]['name'] : $dir;
+
+	$conflicts = plugin_find_conflicts($dir);
+	if(empty($conflicts)) return;
+
+	foreach($conflicts as $c) {
+		// 仅禁用处于启用状态的冲突插件，已禁用的跳过（避免无谓的 tmp 清理和重复日志）
+		if(!empty($c['enable'])) {
+			plugin_disable($c['dir']);
+			// admin 上下文才记后台日志（CLI/安装向导等场景静默跳过）
+			if(function_exists('admin_log_create')) {
+				admin_log_create('plugin_disable', 'plugin', $c['dir'], lang($logKey, array('name'=>$name, 'conflict'=>$c['name'])));
+			}
+		}
+	}
+}
+
 function plugin_enable($dir) {
 	global $plugins;
 
@@ -395,6 +419,9 @@ function plugin_enable($dir) {
 	// 写入数据库（db 为权威，conf.json 不再被运行时改写）
 	plugin_db_init($dir, $plugins[$dir]);
 	plugin_db_set_enable($dir, 1);
+
+	// 同类插件互斥：启用时自动禁用其他已启用的同类插件
+	plugin_disable_conflicts($dir, 'admin_log_plugin_conflict_disable_enable');
 
 	plugin_clear_tmp_dir();
 
@@ -491,6 +518,9 @@ function plugin_install($dir) {
 	plugin_db_set_enable($dir, 1);
 	// 同步 conf.json.version 到 db.version，用于后续「需升级」检测
 	plugin_db_set_version($dir, isset($plugins[$dir]['version']) ? $plugins[$dir]['version'] : '');
+
+	// 同类插件互斥：安装后自动禁用其他已启用的同类插件（如安装新主题禁用旧主题）
+	plugin_disable_conflicts($dir);
 
 	plugin_clear_tmp_dir();
 

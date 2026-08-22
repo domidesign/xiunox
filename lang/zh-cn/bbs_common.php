@@ -993,6 +993,9 @@ return array(
 
 	// ========== 页脚/错误 ==========
 	'footer_processed_info'=>'Processed in {time} seconds, {queries} queries',
+	'footer_sitemap'=>'站点地图',
+	'footer_banned'=>'小黑屋',
+	'footer_discover_more'=>'发现更多',
 	'error_label'=>'Error',
 
 	// ========== 用户封禁状态 ==========

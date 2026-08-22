@@ -134,6 +134,20 @@
                                             <i class="ti ti-arrow-up"></i> <?php echo lang('plugin_need_upgrade');?>
                                         </span>
                                     <?php endif;?>
+                                    <?php if(!empty($plugin_notice_list[$dir]['count'])):
+                                        // 插件待处理事项角标：独立链接元素，点击跳转插件注册的待处理页
+                                        $_pn_count = intval($plugin_notice_list[$dir]['count']);
+                                        $_pn_url = isset($plugin_notice_list[$dir]['url']) ? $plugin_notice_list[$dir]['url'] : '';
+                                        $_pn_title = esc_attr($_pn_count . ' ' . lang('admin_plugin_notice_pending_tip'));
+                                        if($_pn_url !== ''):?>
+                                        <a class="badge bg-danger text-decoration-none" href="<?php echo esc_attr($_pn_url);?>" title="<?php echo $_pn_title;?>">
+                                            <i class="ti ti-bell"></i> <?php echo $_pn_count;?>
+                                        </a>
+                                    <?php else:?>
+                                        <span class="badge bg-danger" title="<?php echo $_pn_title;?>">
+                                            <i class="ti ti-bell"></i> <?php echo $_pn_count;?>
+                                        </span>
+                                    <?php endif; endif;?>
                                     <?php if($plugin['enable']):?>
                                         <span class="badge bg-success"><?php echo lang('admin_status_enabled')?></span>
                                     <?php elseif($plugin['installed']):?>

@@ -116,7 +116,9 @@ class cache_redis {
         public function truncate() {
                 if(!$this->link && !$this->connect()) return FALSE;
                 // 只清除当前 cachepre 前缀的键，不用 flushdb 避免误删 session 等其他数据
-                $count = $this->deleteByPrefix($this->cachepre);
+                // 注意：deleteByPrefix 内部会自动拼 cachepre，这里必须传 ''，
+                // 传 $this->cachepre 会拼成 bbs_bbs_* 恒匹配不到任何键（与 min.php 实现同步）
+                $count = $this->deleteByPrefix('');
                 return $count > 0;
         }
         /**
@@ -140,8 +142,15 @@ class cache_redis {
                 // Redis SCAN 是非阻塞迭代器，避免 KEYS 命令阻塞服务器
                 // 每次迭代返回 100 个键，比 KEYS 安全得多
                 try {
-                        while($keys = $this->link->scan($iterator, $fullPrefix . '*', 100)) {
-                                if(!empty($keys)) {
+                        // phpredis 未设 SCAN_RETRY 选项时，scan() 迭代过程中会返回空数组页
+                        // （该页无匹配键，键空间越大越常见）。旧写法 while($keys = scan(...))
+                        // 把空数组当 false 提前退出循环——前缀删除静默失败返回 0 键，
+                        // 表现为插件清缓存不生效、数据只能等 TTL 自然过期。
+                        // 正确写法：仅当 scan 返回 FALSE（迭代完成）或游标归零时退出，空页继续迭代。
+                        while (TRUE) {
+                                $keys = $this->link->scan($iterator, $fullPrefix . '*', 100);
+                                if ($keys === FALSE) break;
+                                if (!empty($keys)) {
                                         $scanned += count($keys);
                                         if($useUnlink === NULL) {
                                                 try {

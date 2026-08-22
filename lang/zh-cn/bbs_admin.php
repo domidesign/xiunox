@@ -2544,7 +2544,36 @@ return array(
 
 	// ========== 补充遗漏 ==========
 	'admin_api_app_reset_secret_failed'=>'重置密钥失败',
-	'api_token_sliding_renewal'=>'（滑动续期）',
+        'api_token_sliding_renewal'=>'（滑动续期）',
+
+        // ========== 插件通知聚合 ==========
+        'admin_plugin_notice_tab'=>'通知设置',
+        'admin_plugin_notice_title'=>'插件通知设置',
+        'admin_plugin_notice_desc'=>'统一管理各插件的站内消息、邮件提醒与红点通知通道。',
+        'admin_plugin_notice_pending_tip'=>'项待处理',
+        'admin_plugin_notice_email_invalid'=>'邮箱格式不正确',
+        'admin_plugin_notice_smtp_missing'=>'邮件发送失败：SMTP 未配置，请先在系统设置中配置 SMTP',
+        'admin_plugin_notice_test_subject'=>'测试邮件',
+        'admin_plugin_notice_test_body'=>'这是一封测试邮件，收到说明邮件通道配置正常。',
+        'admin_plugin_notice_test_sent'=>'测试邮件已发送至 {email}，请查收',
+        'admin_plugin_notice_test_failed'=>'测试邮件发送失败：{error}',
+        'admin_plugin_notice_saved'=>'保存成功',
+        'admin_plugin_notice_test_title'=>'发送测试邮件',
+        'admin_plugin_notice_test_tip'=>'发送一封测试邮件，验证 SMTP 邮件通道是否配置正常。',
+        'admin_plugin_notice_test_email'=>'收件邮箱',
+        'admin_plugin_notice_test_btn'=>'发送测试',
+        'admin_plugin_notice_global_email'=>'全局默认提醒邮箱',
+        'admin_plugin_notice_global_email_tip'=>'插件未单独设置邮箱时，邮件提醒发送至此地址。支持填写多个，用逗号分隔。',
+        'admin_plugin_notice_empty'=>'暂无插件接入通知协议',
+        'admin_plugin_notice_col_plugin'=>'插件',
+        'admin_plugin_notice_col_pending'=>'待处理',
+        'admin_plugin_notice_col_system'=>'站内消息',
+        'admin_plugin_notice_col_email'=>'邮件',
+        'admin_plugin_notice_col_badge'=>'红点',
+        'admin_plugin_notice_col_email_to'=>'提醒邮箱',
+        'admin_plugin_notice_not_enabled'=>'未启用',
+        'admin_plugin_notice_email_placeholder'=>'留空使用全局默认邮箱',
+        'admin_plugin_notice_save_btn'=>'保存设置',
 );
 
 ?>

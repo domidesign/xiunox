@@ -2500,7 +2500,36 @@ return array(
 
 	// ========== Supplement ==========
 	'admin_api_app_reset_secret_failed'=>'Failed to reset secret',
-	'api_token_sliding_renewal'=>'(sliding renewal)',
+        'api_token_sliding_renewal'=>'(sliding renewal)',
+
+        // ========== Plugin Notification Hub ==========
+        'admin_plugin_notice_tab'=>'Notifications',
+        'admin_plugin_notice_title'=>'Plugin Notification Settings',
+        'admin_plugin_notice_desc'=>'Manage in-site message, email and badge notification channels for plugins.',
+        'admin_plugin_notice_pending_tip'=>'pending item(s)',
+        'admin_plugin_notice_email_invalid'=>'Invalid email address',
+        'admin_plugin_notice_smtp_missing'=>'Failed to send email: SMTP is not configured. Please configure SMTP in system settings first.',
+        'admin_plugin_notice_test_subject'=>'Test Email',
+        'admin_plugin_notice_test_body'=>'This is a test email. If you received it, the email channel is working properly.',
+        'admin_plugin_notice_test_sent'=>'Test email sent to {email}, please check',
+        'admin_plugin_notice_test_failed'=>'Failed to send test email: {error}',
+        'admin_plugin_notice_saved'=>'Saved successfully',
+        'admin_plugin_notice_test_title'=>'Send Test Email',
+        'admin_plugin_notice_test_tip'=>'Send a test email to verify the SMTP email channel.',
+        'admin_plugin_notice_test_email'=>'Recipient Email',
+        'admin_plugin_notice_test_btn'=>'Send Test',
+        'admin_plugin_notice_global_email'=>'Default Notification Email',
+        'admin_plugin_notice_global_email_tip'=>'Email notifications will be sent to this address when a plugin has no dedicated email configured. Multiple addresses supported, separated by commas.',
+        'admin_plugin_notice_empty'=>'No plugins have joined the notification protocol yet',
+        'admin_plugin_notice_col_plugin'=>'Plugin',
+        'admin_plugin_notice_col_pending'=>'Pending',
+        'admin_plugin_notice_col_system'=>'In-site Message',
+        'admin_plugin_notice_col_email'=>'Email',
+        'admin_plugin_notice_col_badge'=>'Badge',
+        'admin_plugin_notice_col_email_to'=>'Notification Email',
+        'admin_plugin_notice_not_enabled'=>'Disabled',
+        'admin_plugin_notice_email_placeholder'=>'Leave empty to use default email',
+        'admin_plugin_notice_save_btn'=>'Save Settings',
 );
 
 ?>

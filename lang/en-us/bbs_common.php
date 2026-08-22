@@ -764,7 +764,7 @@ return array(
 // Notification page tab names (used by NotifyTypeRegistry)
 'notify_tab_all'=>'All',
 'notify_tab_like'=>'Likes',
-'notify_tab_reply'=>'Comments/Replies',
+'notify_tab_reply'=>'Replies',
 'notify_tab_favorite'=>'Favorites',
 'notify_tab_mention'=>'@',
 'notify_tab_follow'=>'Follows',
@@ -969,6 +969,9 @@ return array(
 
 	// ========== Footer/Error ==========
 	'footer_processed_info'=>'Processed in {time} seconds, {queries} queries',
+	'footer_sitemap'=>'Sitemap',
+	'footer_banned'=>'Banned',
+	'footer_discover_more'=>'Discover',
 	'error_label'=>'Error',
 
 	// ========== User Ban Status ==========

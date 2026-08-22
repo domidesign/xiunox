@@ -35,6 +35,7 @@ $include_model_files = array (
 	APP_PATH.'model/forum_follow.func.php',
 	APP_PATH.'model/post_like.func.php',
 	APP_PATH.'model/notify.func.php',
+	APP_PATH.'model/plugin_notify.func.php',
 	APP_PATH.'model/runtime.func.php',
 	APP_PATH.'model/table_day.func.php',
 	APP_PATH.'model/cron.func.php',

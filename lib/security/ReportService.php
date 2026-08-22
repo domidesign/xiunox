@@ -251,16 +251,12 @@ class ReportService {
     }
 
     /**
-     * 通知管理员审核待办（委托 AdminNotifyService，自动防抖）
-     * AdminNotifyService 内部从 setting_get('xnx_report') 读 admin_notify_enabled / admin_notify_uids
+     * 通知管理员审核待办（统一通知门面：站内消息 + 邮件 + 红点三通道）
+     * 通道开关与提醒邮箱配置位置：后台 - 插件 - 通知设置
+     * 节流 300s：同事件 5 分钟内只推送一次；待办清零时由 maybeClearAuditDebounce 清除标记
      * 语言键 report_notify_admin_subject/body 由插件 lang/{locale}.php 提供
      */
     private static function notifyAuditAdmins(string $target_type, int $target_id, int $count): void {
-        if (!class_exists('AdminNotifyService', false)) {
-            include_once APP_PATH . 'lib/AdminNotifyService.php';
-        }
-        if (!class_exists('AdminNotifyService')) return;
-
         // 取最新一条举报记录的 reason 作为通知正文（含分类与补充说明）
         $latest = db_find_one('report', array('target_type' => $target_type, 'target_id' => $target_id), array('reportid' => -1));
         $reason = '';
@@ -271,25 +267,31 @@ class ReportService {
             }
         }
 
-        // ponytail: 通知是副作用，try-catch 隔离避免通知异常导致举报处理主流程 500
+        // ponytail: 通知是副作用，try-catch 隔离避免通知异常导致举报主流程 500
+        // 核心文件与统一通知中心同步部署，无需旧核心回退分支；function_exists 守卫纯防御
+        if (!function_exists('plugin_notify_fire')) return;
         try {
-            AdminNotifyService::audit(
-                'xnx_report',
-                'report_trigger',
-                lang('report_notify_admin_subject'),
-                lang('report_notify_admin_body', array('count' => $count, 'reason' => $reason)),
-                admin_url('plugin-setting-xnx_report-list-pending')
-            );
+            plugin_notify_fire('xnx_report', 'new_pending', array(
+                'title'    => lang('report_notify_admin_subject'),
+                'content'  => lang('report_notify_admin_body', array('count' => $count, 'reason' => $reason)),
+                'url'      => function_exists('admin_url') ? admin_url('plugin-setting-xnx_report-list-pending') : '',
+                'throttle' => 300,
+            ));
         } catch (\Throwable $e) {
-            error_log('[xnx_report] handleAutoAudit notify exception: target_type=' . $target_type . ' target_id=' . $target_id . ' count=' . $count . ' ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+            error_log('[xnx_report] notifyAuditAdmins exception: target_type=' . $target_type . ' target_id=' . $target_id . ' count=' . $count . ' ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
         }
     }
 
     /**
-     * 处理完举报后检查 pending 是否清零，清零则清除审核通知防抖标记
+     * 处理完举报后：失效红点聚合缓存；待办清零时清除审核通知防抖/节流标记
      * 让下次新待办能再次发送（避免连续防抖导致漏通知）
+     * 由 handle_report / batch_handle 末尾统一调用（含 delete_ban 失败分支），覆盖全部处理完成点
      */
     private static function maybeClearAuditDebounce(): void {
+        // v1.0.3: 处理动作后失效插件通知红点聚合缓存（下次后台加载重建，红点实时消失）
+        if (function_exists('plugin_notice_flush')) {
+            plugin_notice_flush();
+        }
         $pending = db_count('report', array('status' => self::STATUS_PENDING));
         if ($pending > 0) return;
         if (!class_exists('AdminNotifyService', false)) {
@@ -297,6 +299,10 @@ class ReportService {
         }
         if (class_exists('AdminNotifyService')) {
             AdminNotifyService::clearDebounce('xnx_report', 'report_trigger');
+        }
+        // v1.0.3: 清统一通知门面 throttle 键（plugin_notify_fire 300s 节流），待办清零后允许下次新待办再发通知
+        if (function_exists('cache_delete')) {
+            cache_delete('core_plugin_notify_throttle_xnx_report_new_pending');
         }
     }
 
