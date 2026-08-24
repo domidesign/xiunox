@@ -1724,8 +1724,14 @@ return array(
 
 	// 发现导航
 	'admin_discover_nav'=>'发现导航',
-	'admin_discover_nav_desc'=>'配置"发现"页面的宫格应用列表，每项对应一个应用入口。',
+	'admin_discover_nav_desc'=>'配置"发现"页面的宫格应用列表，每项对应一个应用入口。插件注册项可拖拽调整顺序或临时关闭。',
 	'admin_add_discover_item'=>'添加应用',
+
+	// 用户导航（首页右侧栏用户卡片快捷入口）
+	'admin_user_nav'=>'用户导航',
+	'admin_user_nav_desc'=>'配置首页右侧栏用户信息卡片下方的快捷入口（两列宫格），项目由插件注册，可拖拽调整顺序或临时关闭。',
+	'admin_user_nav_empty'=>'暂无插件注册的用户导航项',
+	'admin_col_enabled'=>'启用',
 
 	// 用户编辑 - 积分调整
 	'admin_password_leave_empty_tip'=>'留空则不修改',

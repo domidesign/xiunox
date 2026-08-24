@@ -1425,6 +1425,7 @@ return array(
 	'upgrade_fid_unified'=>'已統一為 smallint(5) unsigned',
 	'upgrade_fid_done'=>'fid 欄位類型統一完成',
 	'upgrade_search_indexes_done'=>'全文搜尋索引升級完成（{n} 項新增）',
+	'upgrade_search_indexes_partial'=>'全文搜尋索引部分升級完成（{done} 項成功，{failed} 項失敗，搜尋功能將降級為 LIKE 匹配）',
 	'upgrade_icon_type_fixed'=>'icon 欄位類型已從 int 修改為 varchar(50)',
 	'upgrade_old_data_cleaned'=>'舊資料清理完成',
 	'upgrade_default_set'=>'預設值設置完成',

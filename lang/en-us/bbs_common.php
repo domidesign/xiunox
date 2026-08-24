@@ -1434,6 +1434,7 @@ return array(
 	'upgrade_fid_unified'=>'Unified to smallint(5) unsigned',
 	'upgrade_fid_done'=>'fid column type unification complete',
 	'upgrade_search_indexes_done'=>'Full-text search index upgrade complete ({n} items added)',
+	'upgrade_search_indexes_partial'=>'Full-text search index upgrade partially complete ({done} succeeded, {failed} failed, search will fallback to LIKE matching)',
 	'upgrade_icon_type_fixed'=>'icon column type changed from int to varchar(50)',
 	'upgrade_old_data_cleaned'=>'Old data cleanup complete',
 	'upgrade_default_set'=>'Default values set',

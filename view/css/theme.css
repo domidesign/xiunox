@@ -275,3 +275,29 @@ fieldset:disabled .btn {
 
 
 }
+
+/* ========== 明暗模式切换圆形扩散动画（View Transitions API） ========== */
+/* bbs.js 在切换时记录点击坐标到 --theme-swift-x/y 并调用 startViewTransition；
+   不支持的浏览器（Firefox 等）不会触发这些伪元素，自动降级为直接切换 */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+    animation: theme-swift-reveal 0.45s ease-in;
+}
+@keyframes theme-swift-reveal {
+    from {
+        clip-path: circle(0 at var(--theme-swift-x, 50%) var(--theme-swift-y, 50%));
+    }
+    to {
+        clip-path: circle(var(--theme-swift-r, 100vmax) at var(--theme-swift-x, 50%) var(--theme-swift-y, 50%));
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation: none !important;
+    }
+}

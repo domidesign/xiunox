@@ -55,41 +55,62 @@ if($_is_mobile) return;
 		</div>
 		<?php endif; ?>
 		<div class=" ">
-			<div class="d-grid text-center small rounded-3 py-3" style="grid-template-columns:1fr 1fr 1fr 1fr; ">
-				<div>
-					<span class="text-secondary">
-						<?php echo lang('threads_label');?>
-					</span><br>
-					<b class="stat-count" data-count="<?php echo $user['threads'];?>">
-						<?php echo $user['threads'];?>
-					</b>
-				</div>
-				<div>
-			<span class="text-secondary">
-				<?php echo !empty($conf['golds_name']) ? $conf['golds_name'] : lang('golds_label');?>
-			</span><br>
-			<b class="stat-count" data-count="<?php echo $user['golds'];?>" data-credit-type="golds">
-				<?php echo $user['golds'];?>
-			</b>
+		<div class="d-grid text-center small rounded-3 py-3" style="grid-template-columns:1fr 1fr 1fr 1fr; ">
+			<a href="<?php echo url('my-thread');?>" class="text-decoration-none text-body">
+				<span class="text-secondary">
+					<?php echo lang('threads_label');?>
+				</span><br>
+				<b class="stat-count" data-count="<?php echo $user['threads'];?>">
+					<?php echo $user['threads'];?>
+				</b>
+			</a>
+			<a href="<?php echo url('my-credits');?>" class="text-decoration-none text-body">
+		<span class="text-secondary">
+			<?php echo !empty($conf['golds_name']) ? $conf['golds_name'] : lang('golds_label');?>
+		</span><br>
+		<b class="stat-count" data-count="<?php echo $user['golds'];?>" data-credit-type="golds">
+			<?php echo $user['golds'];?>
+		</b>
+	</a>
+			<a href="<?php echo url('my-following');?>" class="text-decoration-none text-body">
+				<span class="text-secondary">
+					<?php echo lang('following_label');?>
+				</span><br>
+				<b class="stat-count" data-count="<?php echo $user['follows'];?>">
+					<?php echo $user['follows'];?>
+				</b>
+			</a>
+			<a href="<?php echo url('my-following', array('tab' => 'follower'));?>" class="text-decoration-none text-body">
+				<span class="text-secondary">
+					<?php echo lang('followers_label');?>
+				</span><br>
+				<b class="stat-count" data-count="<?php echo $user['followeds'];?>">
+					<?php echo $user['followeds'];?>
+				</b>
+			</a>
 		</div>
-				<div>
-					<span class="text-secondary">
-						<?php echo lang('following_label');?>
-					</span><br>
-					<b class="stat-count" data-count="<?php echo $user['follows'];?>">
-						<?php echo $user['follows'];?>
-					</b>
-				</div>
-				<div>
-					<span class="text-secondary">
-						<?php echo lang('followers_label');?>
-					</span><br>
-					<b class="stat-count" data-count="<?php echo $user['followeds'];?>">
-						<?php echo $user['followeds'];?>
-					</b>
-				</div>
-			</div>
+	</div>
+	<?php
+	// 用户导航：插件通过 user_nav_register.php 注册的快捷入口（后台-设置-导航-用户导航 可排序/启停）
+	$_user_nav_items = array();
+	if(!class_exists('UserNavService', false)) { include APP_PATH.'lib/UserNavService.php'; }
+	if(!class_exists('NavService', false)) { include APP_PATH.'lib/NavService.php'; }
+	if(class_exists('UserNavService')) {
+		$_user_nav_items = UserNavService::getPluginUserNavItems();
+	}
+	if(!empty($_user_nav_items)):
+	?>
+	<div class="pb-3 px-3">
+		<div class="d-grid small" style="grid-template-columns:1fr 1fr; gap:.375rem">
+			<?php foreach($_user_nav_items as $_unav): ?>
+			<a href="<?php echo NavService::href($_unav['url']);?>" class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded-1 text-body text-decoration-none bg-body-tertiary">
+				<i class="ti <?php echo esc_html($_unav['icon']);?>"></i>
+				<span class="text-truncate"><?php echo esc_html($_unav['name']);?></span>
+			</a>
+			<?php endforeach; ?>
 		</div>
+	</div>
+	<?php endif; ?>
 		<?php } else { ?>
 		<!-- 未登录站点信息 -->
 		<div class="card-body">

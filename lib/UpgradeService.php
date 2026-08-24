@@ -982,9 +982,21 @@ class UpgradeService {
         $tablepre = $this->tablepre;
         $results = [];
 
+        // ngram parser 为 MySQL 5.7.6+ 独有，MariaDB 全系不支持（含 11.4）；
+        // MariaDB 10.0.5+ InnoDB FULLTEXT 内建 CJK bigram 分词，普通 FULLTEXT 即可中文搜索。
+        // ngram 失败时回退普通 FULLTEXT，避免升级 fail-fast 中断导致后续步骤（digest 字段/缓存配置/重编译等）全部跳过。
+        // 与 route/search.php search_ensure_fulltext() 的运行时回退行为保持一致。
+        $tryCreateFulltext = function (string $table, string $index, string $column) use ($tablepre): array {
+            $r = $this->execSql("ALTER TABLE `{$tablepre}{$table}` ADD FULLTEXT INDEX {$index} ({$column}) WITH PARSER ngram");
+            if (!$r['ok']) {
+                $r = $this->execSql("ALTER TABLE `{$tablepre}{$table}` ADD FULLTEXT INDEX {$index} ({$column})");
+            }
+            return $r;
+        };
+
         // bbs_thread.subject FULLTEXT 索引
         if (!$this->dbIndexExists('thread', 'ft_subject', $tablepre)) {
-            $r = $this->execSql("ALTER TABLE `{$tablepre}thread` ADD FULLTEXT INDEX ft_subject (subject) WITH PARSER ngram");
+            $r = $tryCreateFulltext('thread', 'ft_subject', 'subject');
             $results[] = ['name' => 'thread.ft_subject', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
         } else {
             $results[] = ['name' => 'thread.ft_subject', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
@@ -992,17 +1004,21 @@ class UpgradeService {
 
         // bbs_post.message FULLTEXT 索引
         if (!$this->dbIndexExists('post', 'ft_message', $tablepre)) {
-            $r = $this->execSql("ALTER TABLE `{$tablepre}post` ADD FULLTEXT INDEX ft_message (message) WITH PARSER ngram");
+            $r = $tryCreateFulltext('post', 'ft_message', 'message');
             $results[] = ['name' => 'post.ft_message', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
         } else {
             $results[] = ['name' => 'post.ft_message', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
-        $allOk = !in_array(false, array_column($results, 'ok'), true);
+        // FULLTEXT 索引创建失败不阻断升级流程（MariaDB 不支持 ngram，普通 FULLTEXT 也可能因各种原因失败）
+        // 搜索功能会降级为 LIKE 模糊匹配，不影响核心功能
         $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === lang(self::MSG_DONE); }));
+        $failedCount = count(array_filter($results, function($r) { return !$r['ok']; }));
         return [
-            'ok' => $allOk,
-            'message' => $allOk ? lang('upgrade_search_indexes_done', array('n' => $doneCount)) : lang('upgrade_partial_index_failed'),
+            'ok' => true,  // 始终返回 ok=true，不阻断后续步骤
+            'message' => $failedCount > 0 
+                ? lang('upgrade_search_indexes_partial', array('done' => $doneCount, 'failed' => $failedCount))
+                : lang('upgrade_search_indexes_done', array('n' => $doneCount)),
             'results' => $results,
         ];
     }

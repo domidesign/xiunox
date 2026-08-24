@@ -1662,8 +1662,14 @@ return array(
 
 	// Discover navigation
 	'admin_discover_nav'=>'Discover Navigation',
-	'admin_discover_nav_desc'=>'Configure the grid app list on the "Discover" page. Each item corresponds to an app entry.',
+	'admin_discover_nav_desc'=>'Configure the grid app list on the "Discover" page. Each item corresponds to an app entry. Plugin items can be reordered by dragging or temporarily disabled.',
 	'admin_add_discover_item'=>'Add App',
+
+	// User navigation (sidebar user card quick links)
+	'admin_user_nav'=>'User Navigation',
+	'admin_user_nav_desc'=>'Configure the quick links (two-column grid) below the user info card in the homepage right sidebar. Items are registered by plugins and can be reordered by dragging or temporarily disabled.',
+	'admin_user_nav_empty'=>'No user navigation items registered by plugins',
+	'admin_col_enabled'=>'Enabled',
 
 	// User edit - credits adjustment
 	'admin_password_leave_empty_tip'=>'Leave empty to keep unchanged',

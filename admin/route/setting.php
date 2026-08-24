@@ -446,6 +446,8 @@ if($action == 'base') {
 	include _include(APP_PATH.'lib/NavService.php');
 	// 加载 DiscoverService（发现页插件项，GET 渲染和 POST 返回都需使用）
 	include APP_PATH.'lib/DiscoverService.php';
+	// 加载 UserNavService（用户导航插件项，首页右侧栏用户卡片快捷入口）
+	include APP_PATH.'lib/UserNavService.php';
 
 	if($method == 'GET') {
 
@@ -470,9 +472,11 @@ if($action == 'base') {
 		unset($_dni);
 
 		// top/side/mobile 插件项不再混入表格，仅在顶部"插件注册项"展示区显示（source=plugin_*）
-		// 发现导航合并 DiscoverService 返回的已启用插件项（前台 /more 实际显示的项）
-		$_plugin_discover = DiscoverService::getPluginDiscoverItems(true);
+		// 发现导航合并 DiscoverService 返回的全部插件项（含禁用，供后台启停/排序管理）
+		$_plugin_discover = DiscoverService::getPluginDiscoverItems(true, true);
 		$discover_items = array_merge($discover_items, $_plugin_discover);
+		// 用户导航插件项（含禁用，全部注册项供后台管理）
+		$plugin_user_nav_items = UserNavService::getPluginUserNavItems(true, true);
 
 		// 按 rank 排序，同 rank 时分类标题排在前，一级链接次之
 		$nav_sort = function($a, $b) {
@@ -616,6 +620,36 @@ if($action == 'base') {
 		}
 		$replace['discover_items'] = $discover_items;
 
+		// 插件注册的发现项配置（启用开关 + 排序，merge 保存不影响名称/图标覆盖）
+		$_pd_ids = param('plugin_discover_ids', array());
+		if(!empty($_pd_ids) && is_array($_pd_ids)) {
+			$_pd_enabled = param('plugin_discover_enabled', array());
+			$_pd_rank = param('plugin_discover_rank', array());
+			foreach($_pd_ids as $_pd_id) {
+				$_pd_id = trim($_pd_id);
+				if($_pd_id === '') continue;
+				DiscoverService::savePluginDiscoverConfig($_pd_id, array(
+					'enabled' => isset($_pd_enabled[$_pd_id]) ? intval($_pd_enabled[$_pd_id]) : 0,
+					'rank' => isset($_pd_rank[$_pd_id]) ? intval($_pd_rank[$_pd_id]) : 0,
+				));
+			}
+		}
+
+		// 插件注册的用户导航项配置（启用开关 + 排序）
+		$_un_ids = param('plugin_user_nav_ids', array());
+		if(!empty($_un_ids) && is_array($_un_ids)) {
+			$_un_enabled = param('plugin_user_nav_enabled', array());
+			$_un_rank = param('plugin_user_nav_rank', array());
+			foreach($_un_ids as $_un_id) {
+				$_un_id = trim($_un_id);
+				if($_un_id === '') continue;
+				UserNavService::savePluginUserNavConfig($_un_id, array(
+					'enabled' => isset($_un_enabled[$_un_id]) ? intval($_un_enabled[$_un_id]) : 0,
+					'rank' => isset($_un_rank[$_un_id]) ? intval($_un_rank[$_un_id]) : 0,
+				));
+			}
+		}
+
 		$replace['mobile_nav_items'] = $mobile_items;
 		$replace['mobile_nav_enable'] = param('mobile_nav_enable', 0) ? 1 : 0;
 		$replace['sidebar_nav_enable'] = param('sidebar_nav_enable', 0) ? 1 : 0;
@@ -661,7 +695,7 @@ if($action == 'base') {
 		$_return_discover = $discover_items;
 
 		// top/side/mobile 插件项不再混入表格返回数据，仅在顶部展示区显示
-		$_plugin_discover_ret = DiscoverService::getPluginDiscoverItems(true);
+		$_plugin_discover_ret = DiscoverService::getPluginDiscoverItems(true, true);
 		$_return_discover = array_merge($_return_discover, $_plugin_discover_ret);
 
 		$nav_sort_ret = function($a, $b) {
@@ -681,6 +715,7 @@ if($action == 'base') {
 			'sidebar_nav_items' => $_return_side,
 			'mobile_nav_items' => $_return_mobile,
 			'discover_items' => $_return_discover,
+			'plugin_user_nav_items' => UserNavService::getPluginUserNavItems(true, true),
 			'mobile_nav_enable' => $replace['mobile_nav_enable'],
 			'sidebar_nav_enable' => $replace['sidebar_nav_enable'],
 		));
