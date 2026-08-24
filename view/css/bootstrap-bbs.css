@@ -2340,3 +2340,20 @@ div.message .mention:hover {
 
     }
 }
+
+/* 首页右侧栏用户导航宫格（插件注册项）：hover/按压反馈 */
+.user-nav-item {
+    color: var(--bs-body-color);
+    background-color: var(--bs-tertiary-bg);
+    transition: background-color .15s ease-in-out, color .15s ease-in-out;
+}
+
+.user-nav-item:hover {
+    color: var(--bs-primary);
+    background-color: var(--bs-secondary-bg);
+}
+
+.user-nav-item:active {
+    color: #fff;
+    background-color: var(--bs-primary);
+}

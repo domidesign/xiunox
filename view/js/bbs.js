@@ -675,20 +675,13 @@ function updateSignatureDisplay(form) {
 	}
 
 	// 明暗切换圆形扩散动画（View Transitions API，不支持或用户偏好减少动画时降级为直接切换）
-	function animateThemeSwitch(updateFn, event) {
+	// 圆心与半径固定在 CSS（左上角 -> 右下角），JS 只负责触发
+	function animateThemeSwitch(updateFn) {
 		var reduceMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
 		if (reduceMQ.matches || !document.startViewTransition) {
 			updateFn();
 			return;
 		}
-		// 扩散圆心：点击坐标（键盘触发时 clientX/Y 为 0，取视口中心），半径覆盖最远角
-		var x = event && event.clientX ? event.clientX : innerWidth / 2;
-		var y = event && event.clientY ? event.clientY : innerHeight / 2;
-		var r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
-		var doc = document.documentElement;
-		doc.style.setProperty('--theme-swift-x', x + 'px');
-		doc.style.setProperty('--theme-swift-y', y + 'px');
-		doc.style.setProperty('--theme-swift-r', r + 'px');
 		document.startViewTransition(updateFn);
 	}
 
@@ -719,9 +712,9 @@ function updateSignatureDisplay(form) {
 
 	// 模式按钮点击
 	modeBtns.forEach(function(btn) {
-		btn.addEventListener('click', function(e) {
+		btn.addEventListener('click', function() {
 			var mode = this.getAttribute('data-mode');
-			animateThemeSwitch(function() { applyThemeMode(mode); }, e);
+			animateThemeSwitch(function() { applyThemeMode(mode); });
 		});
 	});
 

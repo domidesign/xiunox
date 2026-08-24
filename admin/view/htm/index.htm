@@ -17,6 +17,32 @@
 
 <!--{hook admin_index_site_stat_before.htm}-->
 
+<!-- 快捷入口 -->
+<h6 class="fw-semibold text-body-secondary mb-2" style="font-size:0.8rem;letter-spacing:0.03em;text-transform:uppercase">
+	<i class="ti ti-grid-dots me-1"></i><?php echo lang('admin_quick_actions'); ?>
+</h6>
+<div class="d-flex flex-wrap gap-2 mb-4">
+	<a href="index.php?audit.htm" class="quick-entry">
+		<i class="ti ti-clipboard-check"></i> <?php echo lang('admin_content_audit');?>
+	</a>
+	<a href="index.php?security-post_limit.htm" class="quick-entry">
+		<i class="ti ti-shield-lock"></i> <?php echo lang('admin_security_setting_short');?>
+	</a>
+	<a href="index.php?other-cache.htm" class="quick-entry">
+		<i class="ti ti-trash"></i> <?php echo lang('admin_clear_cache');?>
+	</a>
+	<a href="../" target="_blank" class="quick-entry">
+		<i class="ti ti-external-link"></i> <?php echo lang('admin_view_site');?>
+	</a>
+	<a href="<?php echo admin_plugin_url();?>" class="quick-entry">
+		<i class="ti ti-puzzle"></i> <?php echo lang('admin_plugin_manage');?>
+	</a>
+	<a href="index.php?setting-base-1.htm" class="quick-entry">
+		<i class="ti ti-settings"></i> <?php echo lang('admin_system_setting');?>
+	</a>
+</div>
+<!--{hook admin_index_quick_actions_after.htm}-->
+
 <style>
 /* 统计卡片 */
 .dash-stat { position: relative; overflow: hidden; }
@@ -63,7 +89,7 @@
 	padding: 0.5rem 0.85rem; border-radius: 0.5rem;
 	color: var(--bs-body-color); text-decoration: none;
 	font-size: 0.85rem; transition: all 0.15s ease;
-	border: 1px solid var(--bs-border-color); background: transparent;
+	border: 1px solid var(--bs-border-color); background: var(--bs-body-bg);
 }
 .quick-entry:hover { background: rgba(var(--bs-primary-rgb), 0.05); color: var(--bs-primary); border-color: rgba(var(--bs-primary-rgb), 0.2); }
 [data-bs-theme="dark"] .quick-entry:hover { background: rgba(37,99,235,0.12); border-color: rgba(37,99,235,0.3); }
@@ -192,31 +218,6 @@
 		</div>
 		<canvas id="statsChart" height="90"></canvas>
 	</div>
-</div>
-
-<!-- 快捷入口 -->
-<h6 class="fw-semibold text-body-secondary mt-4 mb-2" style="font-size:0.8rem;letter-spacing:0.03em;text-transform:uppercase">
-	<i class="ti ti-grid-dots me-1"></i><?php echo lang('admin_quick_actions'); ?>
-</h6>
-<div class="d-flex flex-wrap gap-2">
-	<a href="index.php?audit.htm" class="quick-entry">
-		<i class="ti ti-clipboard-check"></i> <?php echo lang('admin_content_audit');?>
-	</a>
-	<a href="index.php?security-post_limit.htm" class="quick-entry">
-		<i class="ti ti-shield-lock"></i> <?php echo lang('admin_security_setting_short');?>
-	</a>
-	<a href="index.php?other-cache.htm" class="quick-entry">
-		<i class="ti ti-trash"></i> <?php echo lang('admin_clear_cache');?>
-	</a>
-	<a href="../" target="_blank" class="quick-entry">
-		<i class="ti ti-external-link"></i> <?php echo lang('admin_view_site');?>
-	</a>
-	<a href="<?php echo admin_plugin_url();?>" class="quick-entry">
-		<i class="ti ti-puzzle"></i> <?php echo lang('admin_plugin_manage');?>
-	</a>
-	<a href="index.php?setting-base-1.htm" class="quick-entry">
-		<i class="ti ti-settings"></i> <?php echo lang('admin_system_setting');?>
-	</a>
 </div>
 
 <!--{hook admin_index_server_info_before.htm}-->

@@ -15,7 +15,7 @@ if($_is_mobile) return;
 		<?php if(!empty($uid) && !empty($user)) { ?>
 		<!-- 登录用户信息 -->
 		<div class="card-body">
-			<div class="d-flex align-items-center gap-2 mb-3">
+			<div class="d-flex align-items-center gap-2 mb-2">
 				<?php echo avatar_component($uid, 'lg'); ?>
 				<div class="flex-grow-1" style="min-width:0">
 					<div class="d-flex align-items-center flex-wrap gap-1">
@@ -36,60 +36,27 @@ if($_is_mobile) return;
 						} ?>
 					</div>
 					<div class="d-flex align-items-center flex-wrap gap-1 mt-1">
-						<span class="badge bg-secondary bg-opacity-10 text-secondary" style="font-size:0.65em">uid:<?php echo $uid;?></span>
-						<?php if(!empty($user['groupname'])): ?>
-						<span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:0.65em">
-							<?php echo esc_html($user['groupname']);?>
-						</span>
-						<?php endif; ?>
-					</div>
+					<span class="badge bg-secondary bg-opacity-10 text-secondary" style="font-size:0.65em">uid:<?php echo $uid;?></span>
+					<?php if(!empty($user['groupname'])): ?>
+					<span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:0.65em">
+						<?php echo esc_html($user['groupname']);?>
+					</span>
+					<?php endif; ?>
+					<a href="<?php echo url('my-credits');?>" class="badge bg-warning bg-opacity-10 text-warning text-decoration-none" style="font-size:0.65em">
+						<?php echo !empty($conf['golds_name']) ? $conf['golds_name'] : lang('golds_label');?>:<?php echo $user['golds'];?>
+					</a>
+				</div>
 				</div>
 			</div>
 		</div>
-		<?php if(!empty($user['signature'])): ?>
+		<?php  if(!empty($user['signature'])): ?>
 		<!-- 用户签名独立区块 -->
 		<div class="card-body py-2">
 			<div class="bg-body-tertiary rounded-1 p-1 small text-body-secondary">
 				<?php echo $user['signature'];?>
 			</div>
 		</div>
-		<?php endif; ?>
-		<div class=" ">
-		<div class="d-grid text-center small rounded-3 py-3" style="grid-template-columns:1fr 1fr 1fr 1fr; ">
-			<a href="<?php echo url('my-thread');?>" class="text-decoration-none text-body">
-				<span class="text-secondary">
-					<?php echo lang('threads_label');?>
-				</span><br>
-				<b class="stat-count" data-count="<?php echo $user['threads'];?>">
-					<?php echo $user['threads'];?>
-				</b>
-			</a>
-			<a href="<?php echo url('my-credits');?>" class="text-decoration-none text-body">
-		<span class="text-secondary">
-			<?php echo !empty($conf['golds_name']) ? $conf['golds_name'] : lang('golds_label');?>
-		</span><br>
-		<b class="stat-count" data-count="<?php echo $user['golds'];?>" data-credit-type="golds">
-			<?php echo $user['golds'];?>
-		</b>
-	</a>
-			<a href="<?php echo url('my-following');?>" class="text-decoration-none text-body">
-				<span class="text-secondary">
-					<?php echo lang('following_label');?>
-				</span><br>
-				<b class="stat-count" data-count="<?php echo $user['follows'];?>">
-					<?php echo $user['follows'];?>
-				</b>
-			</a>
-			<a href="<?php echo url('my-following', array('tab' => 'follower'));?>" class="text-decoration-none text-body">
-				<span class="text-secondary">
-					<?php echo lang('followers_label');?>
-				</span><br>
-				<b class="stat-count" data-count="<?php echo $user['followeds'];?>">
-					<?php echo $user['followeds'];?>
-				</b>
-			</a>
-		</div>
-	</div>
+		<?php endif;  ?>
 	<?php
 	// 用户导航：插件通过 user_nav_register.php 注册的快捷入口（后台-设置-导航-用户导航 可排序/启停）
 	$_user_nav_items = array();
@@ -100,10 +67,10 @@ if($_is_mobile) return;
 	}
 	if(!empty($_user_nav_items)):
 	?>
-	<div class="pb-3 px-3">
+	<div class="user-nav-plugin-grid">
 		<div class="d-grid small" style="grid-template-columns:1fr 1fr; gap:.375rem">
 			<?php foreach($_user_nav_items as $_unav): ?>
-			<a href="<?php echo NavService::href($_unav['url']);?>" class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded-1 text-body text-decoration-none bg-body-tertiary">
+			<a href="<?php echo NavService::href($_unav['url']);?>" class="user-nav-item d-inline-flex align-items-center gap-1 px-2 py-1 rounded-1 text-decoration-none">
 				<i class="ti <?php echo esc_html($_unav['icon']);?>"></i>
 				<span class="text-truncate"><?php echo esc_html($_unav['name']);?></span>
 			</a>
@@ -176,10 +143,8 @@ if($_is_mobile) return;
 		<?php } ?>
 		<div class="py-3 d-flex gap-2 flex-wrap">
 		<?php if(forum_can_post($fid, $gid)) { ?>
-		<a role="button" class="btn btn-primary flex-fill rounded-pill"
-			href="<?php echo thread_create_url($fid);?>" hx-boost="false"><i class="ti ti-pencil me-1"></i>
-			<?php echo lang('thread_create_new');?>
-		</a>
+		<a role="button" class="btn btn-primary rounded-pill" style="flex:1 1 0"
+			href="<?php echo thread_create_url($fid);?>" hx-boost="false"><i class="ti ti-pencil me-1"></i><?php echo lang('thread_create_new');?></a>
 		<?php } ?>
 		<!--{hook index_site_brief_post_after.htm}-->
 	</div>

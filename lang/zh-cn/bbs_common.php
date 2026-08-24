@@ -1439,7 +1439,6 @@ return array(
 	'upgrade_fid_unified'=>'已统一为 smallint(5) unsigned',
 	'upgrade_fid_done'=>'fid 字段类型统一完成',
 	'upgrade_search_indexes_done'=>'全文搜索索引升级完成（{n} 项新增）',
-	'upgrade_search_indexes_partial'=>'全文搜索索引部分升级完成（{done} 项成功，{failed} 项失败，搜索功能将降级为 LIKE 匹配）',
 	'upgrade_icon_type_fixed'=>'icon 字段类型已从 int 修改为 varchar(50)',
 	'upgrade_old_data_cleaned'=>'旧数据清理完成',
 	'upgrade_default_set'=>'默认值设置完成',
@@ -2058,6 +2057,11 @@ return array(
 	'api_doc_error_405'=>'方法不允许',
 	'api_doc_error_409'=>'资源冲突（已存在）',
 	'api_doc_error_429'=>'请求过于频繁',
+	// 用户导航内置项（首页右侧栏用户信息卡片宫格）
+	'user_nav_profile'=>'我的资料',
+	'user_nav_credits'=>'我的积分',
+	'user_nav_thread'=>'我的帖子',
+	'user_nav_following'=>'我的关注',
 );
 
 ?>
