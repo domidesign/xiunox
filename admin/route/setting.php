@@ -475,8 +475,13 @@ if($action == 'base') {
 		// 发现导航合并 DiscoverService 返回的全部插件项（含禁用，供后台启停/排序管理）
 		$_plugin_discover = DiscoverService::getPluginDiscoverItems(true, true);
 		$discover_items = array_merge($discover_items, $_plugin_discover);
-		// 用户导航插件项（含禁用，全部注册项供后台管理）
-		$plugin_user_nav_items = UserNavService::getPluginUserNavItems(true, true);
+		// 用户导航：自定义项（conf['user_nav_items']，未配置时回退内置默认项）+ 插件注册项（含禁用）
+		$user_nav_items = isset($conf['user_nav_items']) && is_array($conf['user_nav_items'])
+			? $conf['user_nav_items']
+			: UserNavService::getCustomUserNavItems();
+		foreach ($user_nav_items as &$_uui) { $_uui['source'] = 'custom'; }
+		unset($_uui);
+		$user_nav_items = array_merge($user_nav_items, UserNavService::getPluginUserNavItems(true, true));
 
 		// 按 rank 排序，同 rank 时分类标题排在前，一级链接次之
 		$nav_sort = function($a, $b) {
@@ -490,6 +495,8 @@ if($action == 'base') {
 		usort($sidebar_nav_items, $nav_sort);
 		usort($mobile_nav_items, $nav_sort);
 		usort($discover_items, $nav_sort);
+		$user_nav_rank_sort = function($a, $b) { return intval($a['rank'] ?? 0) - intval($b['rank'] ?? 0); };
+		usort($user_nav_items, $user_nav_rank_sort);
 
 		// 获取所有插件注册信息（用于后台只读展示）
 		$plugin_nav_registry_top = NavService::getPluginNavItems('top');
@@ -635,7 +642,31 @@ if($action == 'base') {
 			}
 		}
 
-		// 插件注册的用户导航项配置（启用开关 + 排序）
+		// 用户导航自定义列表（conf['user_nav_items']，可编辑/新增/删除，与发现导航同构）
+		$user_nav_icons = param('user_nav_icon', array());
+		$user_nav_names = param('user_nav_name', array());
+		$user_nav_slugs = param('user_nav_slug', array());
+		$user_nav_urls = param('user_nav_url', array());
+		$user_nav_ranks = param('user_nav_rank', array());
+		$user_nav_user_classes = param('user_nav_class', array());
+		$user_nav_items = array();
+		for($i = 0; $i < count($user_nav_names); $i++) {
+			// name/icon/url 均为空才跳过
+			if(empty($user_nav_names[$i]) && empty($user_nav_urls[$i]) && empty($user_nav_icons[$i])) continue;
+			// slug 留空时自动生成
+			$unav_slug = !empty($user_nav_slugs[$i]) ? $user_nav_slugs[$i] : 'unav-'.substr(md5(($user_nav_names[$i] ?? '').$i.microtime(true)), 0, 8);
+			$user_nav_items[] = array(
+				'icon' => $user_nav_icons[$i] ?? '',
+				'name' => $user_nav_names[$i] ?? '',
+				'slug' => $unav_slug,
+				'url' => NavService::normalize($user_nav_urls[$i] ?? ''),
+				'class' => trim($user_nav_user_classes[$i] ?? ''),
+				'rank' => intval($user_nav_ranks[$i] ?? 0),
+			);
+		}
+		$replace['user_nav_items'] = $user_nav_items;
+
+		// 插件注册的用户导航配置（启用开关 + 排序）
 		$_un_ids = param('plugin_user_nav_ids', array());
 		if(!empty($_un_ids) && is_array($_un_ids)) {
 			$_un_enabled = param('plugin_user_nav_enabled', array());
@@ -688,37 +719,43 @@ if($action == 'base') {
 		admin_log_create('setting_nav', 'setting', '', lang('admin_op_setting_nav'));
 
 		// 准备返回给前端的最新数据（合并插件项 + 排序）
-		// 前端用这些数据直接重新渲染页面，不依赖浏览器重新加载，完全绕过所有缓存层
-		$_return_nav = $nav_items;
-		$_return_side = $sidebar_nav_items;
-		$_return_mobile = $mobile_items;
-		$_return_discover = $discover_items;
+	// 前端用这些数据直接重新渲染页面，不依赖浏览器重新加载，完全绕过所有缓存层
+	$_return_nav = $nav_items;
+	$_return_side = $sidebar_nav_items;
+	$_return_mobile = $mobile_items;
+	$_return_discover = $discover_items;
 
-		// top/side/mobile 插件项不再混入表格返回数据，仅在顶部展示区显示
-		$_plugin_discover_ret = DiscoverService::getPluginDiscoverItems(true, true);
-		$_return_discover = array_merge($_return_discover, $_plugin_discover_ret);
+	// top/side/mobile 插件项不再混入表格返回数据，仅在顶部展示区显示
+	$_plugin_discover_ret = DiscoverService::getPluginDiscoverItems(true, true);
+	$_return_discover = array_merge($_return_discover, $_plugin_discover_ret);
 
-		$nav_sort_ret = function($a, $b) {
-			$ra = intval($a['rank'] ?? 0);
-			$rb = intval($b['rank'] ?? 0);
-			if ($ra !== $rb) return $ra - $rb;
-			$_type_order = function($t) { return $t === 'title' ? 0 : ($t === 'top_link' ? 1 : 2); };
-			return $_type_order($a['type'] ?? 'link') - $_type_order($b['type'] ?? 'link');
-		};
-		usort($_return_nav, $nav_sort_ret);
-		usort($_return_side, $nav_sort_ret);
-		usort($_return_mobile, $nav_sort_ret);
-		usort($_return_discover, $nav_sort_ret);
+	// 用户导航返回：自定义项（刚保存的 $user_nav_items）+ 插件注册项
+	$_return_user_nav = $user_nav_items;
+	$_return_user_nav = array_merge($_return_user_nav, UserNavService::getPluginUserNavItems(true, true));
 
-		message(0, lang('save_successfully'), array(
-			'nav_items' => $_return_nav,
-			'sidebar_nav_items' => $_return_side,
-			'mobile_nav_items' => $_return_mobile,
-			'discover_items' => $_return_discover,
-			'plugin_user_nav_items' => UserNavService::getPluginUserNavItems(true, true),
-			'mobile_nav_enable' => $replace['mobile_nav_enable'],
-			'sidebar_nav_enable' => $replace['sidebar_nav_enable'],
-		));
+	$nav_sort_ret = function($a, $b) {
+		$ra = intval($a['rank'] ?? 0);
+		$rb = intval($b['rank'] ?? 0);
+		if ($ra !== $rb) return $ra - $rb;
+		$_type_order = function($t) { return $t === 'title' ? 0 : ($t === 'top_link' ? 1 : 2); };
+		return $_type_order($a['type'] ?? 'link') - $_type_order($b['type'] ?? 'link');
+	};
+	usort($_return_nav, $nav_sort_ret);
+	usort($_return_side, $nav_sort_ret);
+	usort($_return_mobile, $nav_sort_ret);
+	usort($_return_discover, $nav_sort_ret);
+	$user_nav_rank_sort_ret = function($a, $b) { return intval($a['rank'] ?? 0) - intval($b['rank'] ?? 0); };
+	usort($_return_user_nav, $user_nav_rank_sort_ret);
+
+	message(0, lang('save_successfully'), array(
+		'nav_items' => $_return_nav,
+		'sidebar_nav_items' => $_return_side,
+		'mobile_nav_items' => $_return_mobile,
+		'discover_items' => $_return_discover,
+		'user_nav_items' => $_return_user_nav,
+		'mobile_nav_enable' => $replace['mobile_nav_enable'],
+		'sidebar_nav_enable' => $replace['sidebar_nav_enable'],
+	));
 	}
 
 } elseif($action == 'credits') {

@@ -63,7 +63,7 @@ if($_is_mobile) return;
 	if(!class_exists('UserNavService', false)) { include APP_PATH.'lib/UserNavService.php'; }
 	if(!class_exists('NavService', false)) { include APP_PATH.'lib/NavService.php'; }
 	if(class_exists('UserNavService')) {
-		$_user_nav_items = UserNavService::getPluginUserNavItems();
+		$_user_nav_items = UserNavService::getUserNavItems();
 	}
 	if(!empty($_user_nav_items)):
 	?>

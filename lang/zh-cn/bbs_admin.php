@@ -1729,6 +1729,7 @@ return array(
 
 	// 用户导航（首页右侧栏用户卡片快捷入口）
 	'admin_user_nav'=>'用户导航',
+	'admin_add_user_nav'=>'添加用户导航',
 	'admin_user_nav_desc'=>'配置首页右侧栏用户信息卡片下方的快捷入口（两列宫格），含内置入口（我的资料/积分/帖子/关注）与插件注册项，可拖拽调整顺序或临时关闭。',
 	'admin_user_nav_empty'=>'暂无用户导航项',
 	'admin_col_enabled'=>'启用',
