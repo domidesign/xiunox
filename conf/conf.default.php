@@ -239,6 +239,13 @@ return array (
 	'mobile_nav_items' => array(),       // 手机底部导航（空=使用默认）
 	'mobile_nav_enable' => 0,            // 手机底部导航开关
 	'sidebar_nav_enable' => 1,           // 左侧导航开关（1=开启，0=关闭，默认开启保持向前兼容）
+	// 用户导航（首页右侧栏用户信息卡片下方两列宫格）：核心内置默认项，后台存储后可编辑/新增/删除
+	'user_nav_items' => array(
+		array('icon' => 'ti-user',    'name_lang' => 'user_nav_profile',   'slug' => 'user-nav-profile',   'url' => 'my-profile',   'class' => '', 'rank' => 0),
+		array('icon' => 'ti-coins',   'name_lang' => 'user_nav_credits',   'slug' => 'user-nav-credits',   'url' => 'my-credits',   'class' => '', 'rank' => 1),
+		array('icon' => 'ti-message', 'name_lang' => 'user_nav_thread',    'slug' => 'user-nav-thread',    'url' => 'my-thread',    'class' => '', 'rank' => 2),
+		array('icon' => 'ti-heart',   'name_lang' => 'user_nav_following', 'slug' => 'user-nav-following', 'url' => 'my-following', 'class' => '', 'rank' => 3),
+	),
 
 	// -------------------> 基础设施配置（Task 9 新增）
 	// 字符集（数据库连接 + SET NAMES）

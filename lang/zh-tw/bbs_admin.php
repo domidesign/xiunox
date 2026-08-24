@@ -1536,6 +1536,7 @@ return array(
 	'admin_discover_nav_desc'=>'設定"發現"頁面的宮格應用列表，每項對應一個應用入口。插件註冊項可拖曳調整順序或臨時關閉。',
 	'admin_add_discover_item'=>'新增應用',
 	'admin_user_nav'=>'用戶導航',
+	'admin_add_user_nav'=>'新增用戶導航',
 	'admin_user_nav_desc'=>'設定首頁右側欄用戶資訊卡片下方的快捷入口（兩列宮格），含內置入口（我的資料/積分/帖子/關注）與插件註冊項，可拖曳調整順序或臨時關閉。',
 	'admin_user_nav_empty'=>'暫無用戶導航項',
 	'admin_col_enabled'=>'啟用',

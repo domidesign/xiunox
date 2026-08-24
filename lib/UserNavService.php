@@ -2,19 +2,18 @@
 !defined('DEBUG') AND exit('Access Denied');
 
 /**
- * 用户导航插件注册服务
- * 管理插件在首页右侧栏用户信息卡片下方的快捷入口（两列宫格）
+ * 用户导航服务
+ * 管理首页右侧栏用户信息卡片下方的快捷入口（两列宫格）
  *
- * 设计对齐 DiscoverService（v2 去核心化）：
- * - 注册表 $registry 初始为空，由各插件通过自己的 user_nav_register.php 调用 register() 自注册
- * - UserNavService 不硬编码任何插件条目，符合开闭原则
- * - lazy 加载：第一次被使用时扫描所有启用插件的 user_nav_register.php
- * - 默认启用：setting 中无记录视为启用，站长可在后台（设置-导航-用户导航）关闭/排序
+ * 与发现导航（DiscoverService）同构，数据分两层：
+ * - 自定义项：conf['user_nav_items']（后台可编辑/新增/删除；未配置时回退内置默认项）
+ *   新装站点由 conf/conf.default.php 播种内置 4 项；老站点升级后首次进入后台保存即落库
+ * - 插件项：注册表 $registry 初始为空，由各插件通过 user_nav_register.php 自注册（lazy 加载）
+ *   站长可在后台（设置-导航-用户导航）关闭/排序，配置存 setting 键 plugin_user_nav_items
  */
 class UserNavService {
 
-    // 内置项（核心提供）：key 以 _ 开头避免与插件 ID 冲突
-    // name 使用语言键，运行时通过 lang() 解析
+    // 内置默认项（conf['user_nav_items'] 未配置时的回退源；新装站点的同款种子见 conf/conf.default.php）
     private static $builtins = array(
         '_profile'   => array('url' => 'my-profile',   'icon' => 'ti-user',    'name_lang' => 'user_nav_profile',   'rank' => 0),
         '_credits'   => array('url' => 'my-credits',   'icon' => 'ti-coins',   'name_lang' => 'user_nav_credits',   'rank' => 1),
@@ -62,7 +61,67 @@ class UserNavService {
     }
 
     /**
-     * 获取用户导航项（内置项 + 插件注册项，按 rank 排序）
+     * 获取全部用户导航项（自定义项 + 插件注册项，按 rank 排序）
+     * @param bool $for_admin 后台调用时传 true：插件项 URL 用前台固定链接格式，附加 source 字段
+     * @param bool $include_disabled 后台管理传 true：含禁用插件项（前台默认只返回启用项）
+     * @return array
+     */
+    public static function getUserNavItems($for_admin = false, $include_disabled = false) {
+        $items = self::getCustomUserNavItems($for_admin);
+        $items = array_merge($items, self::getPluginUserNavItems($for_admin, $include_disabled));
+        // 按 rank 升序（PHP 8 usort 稳定排序，同 rank 自定义项在前）
+        usort($items, function($a, $b) { return $a['rank'] - $b['rank']; });
+        return $items;
+    }
+
+    /**
+     * 获取自定义用户导航项（conf['user_nav_items']；未配置时回退内置默认项）
+     * name 为空且带 name_lang 时运行时解析语言键（站长一旦编辑保存即为具体名称）
+     * @param bool $for_admin 后台调用时传 true：附加 source 字段
+     * @return array
+     */
+    public static function getCustomUserNavItems($for_admin = false) {
+        $conf = _SERVER('conf');
+        $items = array();
+        if (isset($conf['user_nav_items']) && is_array($conf['user_nav_items'])) {
+            $items = $conf['user_nav_items'];
+        } else {
+            // conf 未配置（老站点升级/从未保存过）：回退内置默认项
+            foreach (self::$builtins as $b) {
+                $items[] = array(
+                    'icon' => $b['icon'],
+                    'name' => '',
+                    'name_lang' => $b['name_lang'],
+                    'slug' => 'user-nav-' . str_replace('_', '-', ltrim(array_search($b, self::$builtins, true), '_')),
+                    'url' => $b['url'],
+                    'class' => '',
+                    'rank' => $b['rank'],
+                );
+            }
+        }
+
+        $out = array();
+        foreach ($items as $it) {
+            if (!is_array($it)) continue;
+            $name = !empty($it['name']) ? $it['name'] : (!empty($it['name_lang']) ? lang($it['name_lang']) : '');
+            $item = array(
+                'icon' => isset($it['icon']) ? $it['icon'] : '',
+                'name' => $name,
+                'slug' => isset($it['slug']) ? $it['slug'] : '',
+                'url'  => isset($it['url']) ? $it['url'] : '',
+                'class' => isset($it['class']) ? $it['class'] : '',
+                'rank' => intval(isset($it['rank']) ? $it['rank'] : 0),
+            );
+            if ($for_admin) {
+                $item['source'] = 'custom';
+            }
+            $out[] = $item;
+        }
+        return $out;
+    }
+
+    /**
+     * 获取插件注册的用户导航项（仅插件项，不含自定义项）
      * @param bool $for_admin 后台调用时传 true：URL 用前台固定链接格式，附加 source 字段
      * @param bool $include_disabled 后台管理传 true：含禁用项（前台默认只返回启用项）
      * @return array
@@ -73,9 +132,8 @@ class UserNavService {
         $items = array();
         $config = self::getAllConfig();
 
-        // 内置项在前 + 插件项在后，统一遍历（配置存储共用同一 setting key）
-        foreach (self::$builtins + self::$registry as $item_id => $defaults) {
-            $pc = isset($config[$item_id]) ? $config[$item_id] : array();
+        foreach (self::$registry as $plugin_id => $defaults) {
+            $pc = isset($config[$plugin_id]) ? $config[$plugin_id] : array();
             // 默认启用：仅显式配置 enabled=0 才禁用
             $enabled = isset($pc['enabled']) ? intval($pc['enabled']) : 1;
             if (!$include_disabled && empty($enabled)) continue;
@@ -94,13 +152,10 @@ class UserNavService {
                 'enabled' => $enabled,
             );
             if ($for_admin) {
-                $item['source'] = 'plugin_' . $item_id;
+                $item['source'] = 'plugin_' . $plugin_id;
             }
             $items[] = $item;
         }
-
-        // 按 rank 升序（PHP 8 usort 稳定排序，同 rank 保持内置在前）
-        usort($items, function($a, $b) { return $a['rank'] - $b['rank']; });
         return $items;
     }
 

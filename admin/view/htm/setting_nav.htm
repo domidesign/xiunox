@@ -259,14 +259,19 @@
 								<th style="width:36px"></th>
 								<th style="width:70px" class="text-center"><?php echo lang('admin_col_enabled')?></th>
 								<th style="width:140px"><?php echo lang('admin_col_icon')?></th>
-								<th style="width:140px"><?php echo lang('admin_col_name')?></th>
+								<th style="width:120px"><?php echo lang('admin_col_name')?></th>
+								<th><?php echo lang('admin_col_slug'); ?></th>
+								<th style="width:110px"><?php echo lang('admin_col_class')?></th>
 								<th><?php echo lang('admin_col_url'); ?></th>
+								<th style="width:50px"></th>
 							</tr>
 							</thead>
 							<tbody id="userNavBody"></tbody>
 						</table>
 					</div>
-					<div class="text-body-secondary small d-none" id="userNavEmptyTip"><?php echo lang('admin_user_nav_empty')?></div>
+					<a role="button" class="text-primary text-decoration-none" id="addUserNav">
+						<i class="ti ti-plus"></i> <?php echo lang('admin_add_user_nav')?>
+					</a>
 				</div>
 
 				<!-- 页脚设置 -->
@@ -362,7 +367,7 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 	var sideNavItems = <?php echo xn_json_encode($sidebar_nav_items);?>;
 	var discoverItems = <?php echo xn_json_encode($discover_items);?>;
 	var mobileNavItems = <?php echo xn_json_encode($mobile_nav_items);?>;
-	var pluginUserNavItems = <?php echo xn_json_encode(!empty($plugin_user_nav_items) ? $plugin_user_nav_items : array());?>;
+	var userNavItems = <?php echo xn_json_encode(!empty($user_nav_items) ? $user_nav_items : array());?>;
 
 	// ====== 插件注册项（只读展示，不参与表单提交） ======
 	var pluginItemsTop = <?php echo xn_json_encode($plugin_nav_registry_top ?? array());?>;
@@ -764,48 +769,90 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 		return tr;
 	}
 
-	// ====== 用户导航行（全部为插件注册项：启用开关 + 拖拽排序，字段只读+URL复制） ======
+	// ====== 用户导航行（custom 项可编辑可删除；插件注册项只读+启停+拖拽，与发现导航同构） ======
 	function createUserNavRow(item) {
 		var tr = document.createElement('tr');
 
 		var pid = (item.source || '').replace('plugin_', '');
 		var iconVal = item.icon || '';
 		var nameVal = item.name || '';
+		var slugVal = item.slug || '';
+		var classVal = item.class || '';
 		var urlVal = item.url || '';
 		var rankVal = item.rank || 0;
-		var enabledVal = (item.enabled === undefined || item.enabled) ? 1 : 0;
+		var sourceVal = item.source || 'custom';
+		var isPlugin = sourceVal.indexOf('plugin_') === 0;
 
-		tr.setAttribute('data-nav-source', item.source || 'custom');
-		tr.innerHTML =
-			'<td class="drag-handle" draggable="true" title="' + escHtml(pid) + '"><i class="ti ' + (pid.indexOf('_') === 0 ? 'ti-circle-dot' : 'ti-plug') + '"></i></td>' +
-			'<td class="text-center"><div class="form-check form-switch d-inline-block"><input type="hidden" name="plugin_user_nav_enabled[' + escHtml(pid) + ']" value="' + enabledVal + '"><input class="form-check-input" type="checkbox" value="1"' + (enabledVal ? ' checked' : '') + ' onchange="this.previousElementSibling.value=this.checked?\'1\':\'0\'"></div></td>' +
-			'<td>' +
-				'<div class="input-group input-group-sm">' +
-					'<span class="input-group-text p-0 px-2" style="min-width:32px;justify-content:center">' +
-						(iconVal ? '<i class="ti ' + escHtml(iconVal) + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
-					'</span>' +
-					'<input type="text" class="form-control form-control-sm" value="' + escHtml(iconVal) + '" readonly>' +
-				'</div>' +
-			'</td>' +
-			'<td><input type="text" class="form-control form-control-sm" value="' + escHtml(nameVal) + '" readonly></td>' +
-			'<td>' +
-				'<div class="input-group input-group-sm">' +
-					'<input type="text" class="form-control form-control-sm" value="' + escHtml(urlVal) + '" readonly>' +
-					'<button type="button" class="btn btn-outline-secondary btn-sm copy-url-btn" title="<?php echo lang('admin_copy_url');?>"><i class="ti ti-copy"></i></button>' +
-				'</div>' +
-			'</td>' +
-			'<input type="hidden" name="plugin_user_nav_ids[]" value="' + escHtml(pid) + '">' +
-			'<input type="hidden" name="plugin_user_nav_rank[' + escHtml(pid) + ']" value="' + rankVal + '" data-plugin-rank>';
+		tr.setAttribute('data-nav-source', sourceVal);
 
-		var copyBtn = tr.querySelector('.copy-url-btn');
-		if (copyBtn) {
-			copyBtn.addEventListener('click', function() {
-				var urlInput = this.parentElement.querySelector('input');
-				urlInput.select();
-				document.execCommand('copy');
-				showToast('<?php echo lang('admin_url_copied');?>', 'success');
-			});
+		if (isPlugin) {
+			// 插件项：启用开关 + 拖拽排序参与表单提交，名称/图标/URL 只读
+			var enabledVal = (item.enabled === undefined || item.enabled) ? 1 : 0;
+			tr.innerHTML =
+				'<td class="drag-handle" draggable="true" title="' + escHtml(pid) + '"><i class="ti ti-plug"></i></td>' +
+				'<td class="text-center"><div class="form-check form-switch d-inline-block"><input type="hidden" name="plugin_user_nav_enabled[' + escHtml(pid) + ']" value="' + enabledVal + '"><input class="form-check-input" type="checkbox" value="1"' + (enabledVal ? ' checked' : '') + ' onchange="this.previousElementSibling.value=this.checked?\'1\':\'0\'"></div></td>' +
+				'<td>' +
+					'<div class="input-group input-group-sm">' +
+						'<span class="input-group-text p-0 px-2" style="min-width:32px;justify-content:center">' +
+							(iconVal ? '<i class="ti ' + escHtml(iconVal) + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
+						'</span>' +
+						'<input type="text" class="form-control form-control-sm" value="' + escHtml(iconVal) + '" readonly>' +
+					'</div>' +
+				'</td>' +
+				'<td><input type="text" class="form-control form-control-sm" value="' + escHtml(nameVal) + '" readonly></td>' +
+				'<td><input type="text" class="form-control form-control-sm" value="' + escHtml(slugVal) + '" readonly></td>' +
+				'<td><input type="text" class="form-control form-control-sm" value="' + escHtml(classVal) + '" readonly></td>' +
+				'<td>' +
+					'<div class="input-group input-group-sm">' +
+						'<input type="text" class="form-control form-control-sm" value="' + escHtml(urlVal) + '" readonly>' +
+						'<button type="button" class="btn btn-outline-secondary btn-sm copy-url-btn" title="<?php echo lang('admin_copy_url');?>"><i class="ti ti-copy"></i></button>' +
+					'</div>' +
+				'</td>' +
+				'<td class="text-center text-body-secondary small" title="<?php echo lang('admin_plugin_nav_readonly');?>"><i class="ti ti-plug"></i></td>' +
+				'<input type="hidden" name="plugin_user_nav_ids[]" value="' + escHtml(pid) + '">' +
+				'<input type="hidden" name="plugin_user_nav_rank[' + escHtml(pid) + ']" value="' + rankVal + '" data-plugin-rank>';
+
+			var copyBtn = tr.querySelector('.copy-url-btn');
+			if (copyBtn) {
+				copyBtn.addEventListener('click', function() {
+					var urlInput = this.parentElement.querySelector('input');
+					urlInput.select();
+					document.execCommand('copy');
+					showToast('<?php echo lang('admin_url_copied');?>', 'success');
+				});
+			}
+			return tr;
 		}
+
+		// custom 项：正常可编辑行（启用列固定显示 —）
+		tr.innerHTML =
+			'<td class="drag-handle" draggable="true"><i class="ti ti-grip-vertical"></i></td>' +
+			'<td class="text-center text-body-secondary">—</td>' +
+			'<td>' +
+				'<div class="input-group input-group-sm">' +
+					'<span class="input-group-text p-0 px-2 icon-preview" style="min-width:32px;justify-content:center">' +
+						(iconVal ? '<i class="ti ' + iconVal + '"></i>' : '<i class="ti ti-circle-dot text-body-secondary"></i>') +
+					'</span>' +
+					'<input type="text" class="form-control form-control-sm" name="user_nav_icon[]" value="' + escHtml(iconVal) + '" placeholder="<?php echo lang('admin_click_to_select')?>" readonly style="cursor:pointer">' +
+				'</div>' +
+			'</td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="user_nav_name[]" value="' + escHtml(nameVal) + '" placeholder="<?php echo lang('admin_col_name')?>"></td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="user_nav_slug[]" value="' + escHtml(slugVal) + '" placeholder="<?php echo lang('admin_slug_auto_placeholder')?>"></td>' +
+			'<td><input type="text" class="form-control form-control-sm" name="user_nav_class[]" value="' + escHtml(classVal) + '" placeholder="<?php echo lang('admin_col_class')?>"></td>' +
+			'<td>' + buildUrlCell('user_nav', urlVal, 'user_nav_url[]') + '</td>' +
+			'<td class="text-center"><a role="button" class="text-danger" title="<?php echo lang('delete')?>"><i class="ti ti-trash"></i></a></td>' +
+			'<input type="hidden" name="user_nav_rank[]" value="' + rankVal + '">';
+
+		var iconInput = tr.querySelector('input[name="user_nav_icon[]"]');
+		var iconPreview = tr.querySelector('.icon-preview');
+		new TablerIconPicker({ input: iconInput, preview: iconPreview });
+
+		var urlTd = tr.querySelectorAll('td')[6];
+		bindUrlCell(urlTd, tr.querySelector('input[name="user_nav_url[]"]'));
+
+		var deleteBtn = tr.querySelector('a[title="<?php echo lang('delete')?>"]');
+		deleteBtn.addEventListener('click', function(e) { e.preventDefault(); tr.remove(); });
+
 		return tr;
 	}
 
@@ -814,8 +861,6 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 		if (!tbody) return;
 		tbody.innerHTML = '';
 		items.forEach(function(item) { tbody.appendChild(createUserNavRow(item)); });
-		var tip = document.getElementById('userNavEmptyTip');
-		if (tip) tip.classList.toggle('d-none', items.length > 0);
 	}
 
 	function renderDiscoverNavList(items) {
@@ -1011,7 +1056,7 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 	renderTopNavList(topNavItems);
 	renderSideNavList(sideNavItems);
 	renderDiscoverNavList(discoverItems);
-	renderUserNavList(pluginUserNavItems);
+	renderUserNavList(userNavItems);
 
 	// ====== 渲染插件注册项展示区（纯展示，URL 可复制） ======
 	function renderPluginList(containerId, items) {
@@ -1208,6 +1253,11 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 		e.preventDefault();
 		document.getElementById('discoverBody').appendChild(createDiscoverNavRow({}));
 	});
+	document.getElementById('addUserNav').addEventListener('click', function(e) {
+		e.preventDefault();
+		document.getElementById('userNavBody').appendChild(createUserNavRow({}));
+		refreshIndentAndRank(document.getElementById('userNavBody'));
+	});
 
 	// ====== 表单提交 ======
 	var form = document.getElementById('navForm');
@@ -1255,9 +1305,9 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 				discoverItems = data.discover_items;
 				renderDiscoverNavList(discoverItems);
 			}
-			if (data.plugin_user_nav_items) {
-				pluginUserNavItems = data.plugin_user_nav_items;
-				renderUserNavList(pluginUserNavItems);
+			if (data.user_nav_items !== undefined) {
+				userNavItems = data.user_nav_items;
+				renderUserNavList(userNavItems);
 			}
 				if (data.mobile_nav_items) {
 					mobileNavItems = data.mobile_nav_items;
