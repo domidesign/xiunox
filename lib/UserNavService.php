@@ -13,6 +13,15 @@
  */
 class UserNavService {
 
+    // 内置项（核心提供）：key 以 _ 开头避免与插件 ID 冲突
+    // name 使用语言键，运行时通过 lang() 解析
+    private static $builtins = array(
+        '_profile'   => array('url' => 'my-profile',   'icon' => 'ti-user',    'name_lang' => 'user_nav_profile',   'rank' => 0),
+        '_credits'   => array('url' => 'my-credits',   'icon' => 'ti-coins',   'name_lang' => 'user_nav_credits',   'rank' => 1),
+        '_thread'    => array('url' => 'my-thread',    'icon' => 'ti-message', 'name_lang' => 'user_nav_thread',    'rank' => 2),
+        '_following' => array('url' => 'my-following', 'icon' => 'ti-heart',   'name_lang' => 'user_nav_following', 'rank' => 3),
+    );
+
     // 插件用户导航注册表：插件ID => 默认配置（由插件 user_nav_register.php 自注册）
     // name 使用语言键，运行时通过 lang() 解析
     private static $registry = array();
@@ -53,7 +62,7 @@ class UserNavService {
     }
 
     /**
-     * 获取插件用户导航项
+     * 获取用户导航项（内置项 + 插件注册项，按 rank 排序）
      * @param bool $for_admin 后台调用时传 true：URL 用前台固定链接格式，附加 source 字段
      * @param bool $include_disabled 后台管理传 true：含禁用项（前台默认只返回启用项）
      * @return array
@@ -64,8 +73,9 @@ class UserNavService {
         $items = array();
         $config = self::getAllConfig();
 
-        foreach (self::$registry as $plugin_id => $defaults) {
-            $pc = isset($config[$plugin_id]) ? $config[$plugin_id] : array();
+        // 内置项在前 + 插件项在后，统一遍历（配置存储共用同一 setting key）
+        foreach (self::$builtins + self::$registry as $item_id => $defaults) {
+            $pc = isset($config[$item_id]) ? $config[$item_id] : array();
             // 默认启用：仅显式配置 enabled=0 才禁用
             $enabled = isset($pc['enabled']) ? intval($pc['enabled']) : 1;
             if (!$include_disabled && empty($enabled)) continue;
@@ -84,10 +94,13 @@ class UserNavService {
                 'enabled' => $enabled,
             );
             if ($for_admin) {
-                $item['source'] = 'plugin_' . $plugin_id;
+                $item['source'] = 'plugin_' . $item_id;
             }
             $items[] = $item;
         }
+
+        // 按 rank 升序（PHP 8 usort 稳定排序，同 rank 保持内置在前）
+        usort($items, function($a, $b) { return $a['rank'] - $b['rank']; });
         return $items;
     }
 

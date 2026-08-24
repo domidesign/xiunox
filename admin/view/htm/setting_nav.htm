@@ -777,7 +777,7 @@ document.querySelectorAll('#navTab .nav-link[data-nav-tab]').forEach(function(a)
 
 		tr.setAttribute('data-nav-source', item.source || 'custom');
 		tr.innerHTML =
-			'<td class="drag-handle" draggable="true" title="' + escHtml(pid) + '"><i class="ti ti-plug"></i></td>' +
+			'<td class="drag-handle" draggable="true" title="' + escHtml(pid) + '"><i class="ti ' + (pid.indexOf('_') === 0 ? 'ti-circle-dot' : 'ti-plug') + '"></i></td>' +
 			'<td class="text-center"><div class="form-check form-switch d-inline-block"><input type="hidden" name="plugin_user_nav_enabled[' + escHtml(pid) + ']" value="' + enabledVal + '"><input class="form-check-input" type="checkbox" value="1"' + (enabledVal ? ' checked' : '') + ' onchange="this.previousElementSibling.value=this.checked?\'1\':\'0\'"></div></td>' +
 			'<td>' +
 				'<div class="input-group input-group-sm">' +

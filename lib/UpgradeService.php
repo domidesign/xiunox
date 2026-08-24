@@ -1010,15 +1010,11 @@ class UpgradeService {
             $results[] = ['name' => 'post.ft_message', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
-        // FULLTEXT 索引创建失败不阻断升级流程（MariaDB 不支持 ngram，普通 FULLTEXT 也可能因各种原因失败）
-        // 搜索功能会降级为 LIKE 模糊匹配，不影响核心功能
+        $allOk = !in_array(false, array_column($results, 'ok'), true);
         $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === lang(self::MSG_DONE); }));
-        $failedCount = count(array_filter($results, function($r) { return !$r['ok']; }));
         return [
-            'ok' => true,  // 始终返回 ok=true，不阻断后续步骤
-            'message' => $failedCount > 0 
-                ? lang('upgrade_search_indexes_partial', array('done' => $doneCount, 'failed' => $failedCount))
-                : lang('upgrade_search_indexes_done', array('n' => $doneCount)),
+            'ok' => $allOk,
+            'message' => $allOk ? lang('upgrade_search_indexes_done', array('n' => $doneCount)) : lang('upgrade_partial_index_failed'),
             'results' => $results,
         ];
     }

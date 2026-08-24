@@ -1434,7 +1434,6 @@ return array(
 	'upgrade_fid_unified'=>'Unified to smallint(5) unsigned',
 	'upgrade_fid_done'=>'fid column type unification complete',
 	'upgrade_search_indexes_done'=>'Full-text search index upgrade complete ({n} items added)',
-	'upgrade_search_indexes_partial'=>'Full-text search index upgrade partially complete ({done} succeeded, {failed} failed, search will fallback to LIKE matching)',
 	'upgrade_icon_type_fixed'=>'icon column type changed from int to varchar(50)',
 	'upgrade_old_data_cleaned'=>'Old data cleanup complete',
 	'upgrade_default_set'=>'Default values set',
@@ -2053,6 +2052,11 @@ Authentication:
 	'api_doc_error_405'=>'Method Not Allowed',
 	'api_doc_error_409'=>'Resource Conflict (already exists)',
 	'api_doc_error_429'=>'Too Many Requests',
+	// User nav builtin items (homepage right sidebar user card grid)
+	'user_nav_profile'=>'My Profile',
+	'user_nav_credits'=>'My Credits',
+	'user_nav_thread'=>'My Threads',
+	'user_nav_following'=>'My Following',
 );
 
 ?>

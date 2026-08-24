@@ -1667,8 +1667,8 @@ return array(
 
 	// User navigation (sidebar user card quick links)
 	'admin_user_nav'=>'User Navigation',
-	'admin_user_nav_desc'=>'Configure the quick links (two-column grid) below the user info card in the homepage right sidebar. Items are registered by plugins and can be reordered by dragging or temporarily disabled.',
-	'admin_user_nav_empty'=>'No user navigation items registered by plugins',
+	'admin_user_nav_desc'=>'Configure the quick links (two-column grid) below the user info card in the homepage right sidebar. Includes builtin entries (profile/credits/threads/following) and plugin-registered items, reorderable by dragging or temporarily disabled.',
+	'admin_user_nav_empty'=>'No user navigation items',
 	'admin_col_enabled'=>'Enabled',
 
 	// User edit - credits adjustment

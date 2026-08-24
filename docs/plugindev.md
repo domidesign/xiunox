@@ -62,3 +62,4 @@ XIUNOX（Xiuno BBS X 重构版）插件开发文档入口。XIUNOX 在 Xiuno BBS
 | [08-login-security.md](plugindev/08-login-security.md) | 登录安全（运维指南、`LoginSecurityService` API） |
 | [10-jquery-removal-guide.md](plugindev/10-jquery-removal-guide.md) | jQuery 移除与原生 JS 迁移指南（关键修复页面规范、API 对照表） |
 | [18-plugin-notify-hub.md](plugindev/18-plugin-notify-hub.md) | 插件通知聚合中心（`plugin_notify_fire` 三通道 / 红点 count hook / 旧通知配置迁移规范） |
+| [19-user-nav.md](plugindev/19-user-nav.md) | 用户导航扩展机制（`user_nav_register.php` 注册 / 内置项 / 后台可排序启停） |

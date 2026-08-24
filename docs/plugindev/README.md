@@ -30,6 +30,7 @@
 | [插件互斥机制开发者指南](plugin-mutex-guide.md) | 主题插件互斥、功能插件冲突避免、目录命名规范 |
 | 做主题插件 / 改版式 / 换肤 | [17-theme-plugin-guide.md](17-theme-plugin-guide.md)（★主题插件开发：overwrite 保留 hook / 主题色适配 / dark 模式 / 与功能插件兼容性） |
 | 给插件加管理员通知（站内消息/邮件/红点） | [18-plugin-notify-hub.md](18-plugin-notify-hub.md)（★通知聚合中心：plugin_notify_fire 三通道 / 红点 count hook / 旧配置迁移规范） |
+| 给插件加"我的 xx"用户导航入口 | [19-user-nav.md](19-user-nav.md)（★用户导航注册：user_nav_register.php 一行接入首页右侧栏宫格 / 后台可排序启停） |
 
 文件命名带数字前缀，可按顺序读，也可单查。
 
