@@ -1439,6 +1439,7 @@ return array(
 	'upgrade_fid_unified'=>'已统一为 smallint(5) unsigned',
 	'upgrade_fid_done'=>'fid 字段类型统一完成',
 	'upgrade_search_indexes_done'=>'全文搜索索引升级完成（{n} 项新增）',
+	'upgrade_search_indexes_partial'=>'全文搜索索引部分升级完成（{done} 项成功，{failed} 项失败，搜索功能将降级为 LIKE 匹配）',
 	'upgrade_icon_type_fixed'=>'icon 字段类型已从 int 修改为 varchar(50)',
 	'upgrade_old_data_cleaned'=>'旧数据清理完成',
 	'upgrade_default_set'=>'默认值设置完成',

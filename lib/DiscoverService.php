@@ -20,6 +20,9 @@ class DiscoverService {
     // 是否已扫描启用插件加载自注册文件
     private static $registered = false;
 
+    // 配置缓存（save 后同步更新，避免同请求内读到旧值）
+    private static $configCache = null;
+
     /**
      * 注册插件到发现页（由插件 discover_register.php 调用）
      * @param string $plugin_id 插件ID（如 'xnx_medal'）
@@ -53,18 +56,21 @@ class DiscoverService {
     }
 
     /**
-     * 获取所有已启用的插件发现项（用于 more.php 展示）
+     * 获取插件发现项
      * @param bool $for_admin 后台调用时传 true：URL 用前台固定链接格式，附加 source/slug 字段
+     * @param bool $include_disabled 后台管理传 true：含禁用项（前台默认只返回启用项）
      * @return array
      */
-    public static function getPluginDiscoverItems($for_admin = false) {
+    public static function getPluginDiscoverItems($for_admin = false, $include_disabled = false) {
         self::ensureRegistered();
 
         $items = array();
         $config = self::getAllConfig();
 
         foreach (self::$registry as $plugin_id => $defaults) {
-            if (empty($config[$plugin_id]['enabled'])) continue;
+            // 默认启用：仅显式配置 enabled=0 才禁用（插件注册即在前台可见，站长可在后台关闭）
+            $enabled = isset($config[$plugin_id]['enabled']) ? intval($config[$plugin_id]['enabled']) : 1;
+            if (!$include_disabled && empty($enabled)) continue;
 
             // 后台调用时用 NavService::url_frontend 生成前台固定链接格式（绕过 admin 强制 ?xxx.htm）
             // 前台调用时保留原始路由名（如 'duel'），由 more.htm 的 NavService::href() 统一转换
@@ -80,6 +86,7 @@ class DiscoverService {
                 'url'  => $url,
                 'class' => isset($defaults['class']) ? $defaults['class'] : '',
                 'rank' => intval(isset($config[$plugin_id]['rank']) ? $config[$plugin_id]['rank'] : $defaults['rank']),
+                'enabled' => $enabled,
             );
             if ($for_admin) {
                 $item['source'] = 'plugin_' . $plugin_id;
@@ -106,7 +113,7 @@ class DiscoverService {
 
         $pc = isset($config[$plugin_id]) ? $config[$plugin_id] : array();
         return array(
-            'enabled' => isset($pc['enabled']) ? intval($pc['enabled']) : 0,
+            'enabled' => isset($pc['enabled']) ? intval($pc['enabled']) : 1,
             'icon'    => !empty($pc['icon']) ? $pc['icon'] : $defaults['icon'],
             'name'    => !empty($pc['name']) ? $pc['name'] : lang($defaults['name_lang']),
             'rank'    => isset($pc['rank']) ? intval($pc['rank']) : intval($defaults['rank']),
@@ -114,19 +121,16 @@ class DiscoverService {
     }
 
     /**
-     * 保存单个插件的发现页配置
+     * 保存单个插件的发现页配置（merge 语义：只覆盖传入的字段，未传字段保留原值）
      * @param string $plugin_id 插件ID
      * @param array $data 配置数据 (enabled, icon, name, rank)
      */
-    public static function savePluginDiscoverConfig($plugin_id, $data) {
+    public static function savePluginDiscoverConfig($plugin_id, array $data) {
         $config = self::getAllConfig();
-        $config[$plugin_id] = array(
-            'enabled' => intval($data['enabled'] ?? 0),
-            'icon'    => trim($data['icon'] ?? ''),
-            'name'    => trim($data['name'] ?? ''),
-            'rank'    => intval($data['rank'] ?? 0),
-        );
+        $old = isset($config[$plugin_id]) ? $config[$plugin_id] : array();
+        $config[$plugin_id] = array_merge($old, $data);
         setting_set('plugin_discover_items', $config);
+        self::$configCache = $config;
     }
 
     /**
@@ -134,12 +138,11 @@ class DiscoverService {
      * @return array
      */
     private static function getAllConfig() {
-        static $config = null;
-        if ($config === null) {
+        if (self::$configCache === null) {
             $raw = setting_get('plugin_discover_items');
-            $config = !empty($raw) ? $raw : array();
-            if (!is_array($config)) $config = array();
+            self::$configCache = !empty($raw) ? $raw : array();
+            if (!is_array(self::$configCache)) self::$configCache = array();
         }
-        return $config;
+        return self::$configCache;
     }
 }

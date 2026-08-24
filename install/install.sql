@@ -773,9 +773,15 @@ CREATE TABLE bbs_user_ban_log (
 
 # 全文搜索索引（MySQL 5.6+ InnoDB 支持 ngram parser，低版本或不支持时跳过不影响核心功能）
 # FULLTEXT_TOLERANT 标记：install_sql_file 遇到失败不中断安装
+# MySQL：ngram 成功后下方普通索引语句因重名失败，被 TOLERANT 忽略
+# MariaDB（含 11.4）：不支持 ngram，第一条被 TOLERANT 忽略，回退普通 FULLTEXT（10.0.5+ 内建 CJK bigram 分词）
 # FULLTEXT_TOLERANT
 CREATE FULLTEXT INDEX ft_subject ON bbs_thread (subject) WITH PARSER ngram;
 # FULLTEXT_TOLERANT
+CREATE FULLTEXT INDEX ft_subject ON bbs_thread (subject);
+# FULLTEXT_TOLERANT
 CREATE FULLTEXT INDEX ft_message ON bbs_post (message) WITH PARSER ngram;
+# FULLTEXT_TOLERANT
+CREATE FULLTEXT INDEX ft_message ON bbs_post (message);
 
 

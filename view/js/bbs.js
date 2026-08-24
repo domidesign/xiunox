@@ -674,6 +674,24 @@ function updateSignatureDisplay(form) {
 		safeSet('theme', mode);
 	}
 
+	// 明暗切换圆形扩散动画（View Transitions API，不支持或用户偏好减少动画时降级为直接切换）
+	function animateThemeSwitch(updateFn, event) {
+		var reduceMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
+		if (reduceMQ.matches || !document.startViewTransition) {
+			updateFn();
+			return;
+		}
+		// 扩散圆心：点击坐标（键盘触发时 clientX/Y 为 0，取视口中心），半径覆盖最远角
+		var x = event && event.clientX ? event.clientX : innerWidth / 2;
+		var y = event && event.clientY ? event.clientY : innerHeight / 2;
+		var r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+		var doc = document.documentElement;
+		doc.style.setProperty('--theme-swift-x', x + 'px');
+		doc.style.setProperty('--theme-swift-y', y + 'px');
+		doc.style.setProperty('--theme-swift-r', r + 'px');
+		document.startViewTransition(updateFn);
+	}
+
 	function applyThemeColor(color) {
 		document.documentElement.setAttribute('data-theme', color);
 		// 清除旧的自定义色
@@ -701,9 +719,9 @@ function updateSignatureDisplay(form) {
 
 	// 模式按钮点击
 	modeBtns.forEach(function(btn) {
-		btn.addEventListener('click', function() {
+		btn.addEventListener('click', function(e) {
 			var mode = this.getAttribute('data-mode');
-			applyThemeMode(mode);
+			animateThemeSwitch(function() { applyThemeMode(mode); }, e);
 		});
 	});
 
@@ -715,11 +733,11 @@ function updateSignatureDisplay(form) {
 		});
 	});
 
-	// 跟随系统模式时，监听系统主题变化
+	// 跟随系统模式时，监听系统主题变化（无点击坐标，从视口中心扩散）
 	darkMQ.addEventListener('change', function() {
 		var currentMode = safeGet('theme');
 		if (currentMode === 'auto') {
-			applyThemeMode('auto');
+			animateThemeSwitch(function() { applyThemeMode('auto'); });
 		}
 	});
 })();

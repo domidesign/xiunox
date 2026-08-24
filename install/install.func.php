@@ -83,25 +83,30 @@ function install_sql_file($sqlfile, $tablepre = 'bbs_') {
 	}
 	//$s = preg_replace('/#(.*?)\r\n/i', "", $s);
 	$arr = explode(";\n", $s);
-	$tolerant = false; // FULLTEXT_TOLERANT 标记：下一句失败不中断
 	foreach ($arr as $sql) {
 		$sql = trim($sql);
 		if(empty($sql)) continue;
-		// 检查 FULLTEXT_TOLERANT 标记（以 # 注释行标识）
-		if(stripos($sql, 'FULLTEXT_TOLERANT') !== false) {
-			$tolerant = true;
+		// FULLTEXT_TOLERANT 标记：标记后紧邻的 SQL 失败不中断安装
+		// 必须逐行剥离注释行——explode 按 ";\n" 分割时注释行与 SQL 语句落在同一段（如文件头注释+DROP TABLE、标记行+CREATE FULLTEXT），
+		// 段级判断会整段跳过导致语句漏执行（此前 FULLTEXT 索引从未在新装时创建，靠搜索页运行时兜底）
+		$tolerant = false;
+		$lines = array();
+		foreach (explode("\n", $sql) as $line) {
+			$t = ltrim($line);
+			if($t !== '' && $t[0] === '#') {
+				if(stripos($t, 'FULLTEXT_TOLERANT') !== false) $tolerant = true;
+				continue;
+			}
+			$lines[] = $line;
+		}
+		$sql = trim(implode("\n", $lines));
+		if($sql === '') {
+			// 纯注释段：无 SQL 可执行
 			continue;
 		}
 		$r = db_exec($sql);
-		if($r === FALSE) {
-			if($tolerant) {
-				// 全文索引等可选功能创建失败，跳过不中断安装
-				$tolerant = false;
-			} else {
-				message(-1, "sql: $sql, errno: $errno, errstr: $errstr");
-			}
-		} else {
-			$tolerant = false;
+		if($r === FALSE && !$tolerant) {
+			message(-1, "sql: $sql, errno: $errno, errstr: $errstr");
 		}
 	}
 }
