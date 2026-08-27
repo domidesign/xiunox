@@ -1,6 +1,6 @@
 # 前端模式速查
 
-> 本文件为前端模式速查，详细说明见 [plugindev/05-frontend-security.md](../../plugindev/05-frontend-security.md) 和 [plugindev/10-jquery-removal-guide.md](../../plugindev/10-jquery-removal-guide.md)
+> 本文件为前端模式速查，详细说明见 [plugindev/05-frontend-security.md](manual/05-frontend-security.md) 和 [plugindev/10-jquery-removal-guide.md](manual/10-jquery-removal-guide.md)
 
 ## 目录
 
@@ -438,4 +438,4 @@ fetch(url, {
 
 > 📖 **UI 规范总览**：三栏布局骨架完整变量表、x-card + card 组合规范、列表分隔规则、禁止用 `border` 的场景说明，已整合到：
 > - 速查版：[admin-patterns.md](admin-patterns.md)（速查表 + 最小代码片段）
-> - 完整版：[../../plugindev/14-plugin-admin-ui.md](../../plugindev/14-plugin-admin-ui.md) 第 3 节（x-card + card 组合规范）和第 4 节（前台三栏布局骨架）
+> - 完整版：[manual/14-plugin-admin-ui.md](manual/14-plugin-admin-ui.md) 第 3 节（x-card + card 组合规范）和第 4 节（前台三栏布局骨架）

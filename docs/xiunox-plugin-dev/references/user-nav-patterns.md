@@ -1,6 +1,6 @@
 # 用户导航注册速查
 
-> 本文件为用户导航（User Nav）注册速查，详细说明见 [../plugindev/19-user-nav.md](../../plugindev/19-user-nav.md)
+> 本文件为用户导航（User Nav）注册速查，详细说明见 [manual/19-user-nav.md](manual/19-user-nav.md)
 
 ## 目录
 
@@ -18,10 +18,10 @@
 | 项 | 说明 |
 |---|---|
 | 入口位置 | 首页右侧栏用户信息卡片下方两列宫格（**仅登录用户**） |
+| 数据分层 | 自定义项（含内置种子的 4 项：资料/积分/帖子/关注）存 `conf['user_nav_items']`；插件项存 setting `plugin_user_nav_items` |
 | 注册方式 | 插件目录**根部**放 `user_nav_register.php`（不是 hook/ 目录） |
-| 加载机制 | `UserNavService::ensureRegistered()` lazy 扫描启用插件，单次 include |
-| 站长管理 | 后台 → 设置 → 导航 → 用户导航：拖拽排序 + 启用开关（默认全启用） |
-| 配置存储 | setting 键 `plugin_user_nav_items`（merge 语义，无记录=默认启用） |
+| 加载机制 | `UserNavService::getUserNavItems()` 自动合并：custom(conf，回退内置) + plugin(lazy 扫描启用插件注册) |
+| 站长管理 | 后台 → 设置 → 导航 → 用户导航：自定义行可编辑/新增/删除（「添加用户导航」按钮），插件行只读 + 启用开关 + 拖拽排序 |
 | 插件禁用 | 注册文件不再被加载，入口自动消失，无需卸载清理 |
 
 ## 2. 注册文件最小代码
@@ -36,7 +36,7 @@ UserNavService::register('your_plugin', array(
     'url'       => 'my-quest',        // 原始路由名，未经 url() 转换
     'icon'      => 'ti-checklist',    // Tabler Icons 类名
     'name_lang' => 'quest_my_title',  // 插件语言包真实键（三语同步）
-    'rank'      => 10,                // ≥10，避开内置项 0-3
+    'rank'      => 10,                // ≥10，避开内置/自定义项 0-3
 ));
 ```
 
@@ -53,9 +53,9 @@ UserNavService::register('your_plugin', array(
 
 ## 4. 内置项与 rank 约定
 
-核心内置 4 项（key 以 `_` 前缀防插件 ID 冲突）：`_profile` 我的资料(0) / `_credits` 我的积分(1) / `_thread` 我的帖子(2) / `_following` 我的关注(3)。
+核心内置 4 项以 **custom 项**（conf 播种）+ Service 回退双保险提供：conf.php 无 `user_nav_items` 时 `getCustomUserNavItems()` 回退内置，保证无插件也显示、默认排最前（rank 0-3：我的资料/我的积分/我的帖子/我的关注）。
 
-插件项 **rank 从 10 起步**（多插件错开：10/20/30...），默认排内置项之后；站长可在后台拖拽混排。一个插件 ID 只注册一个入口，多功能页选主入口。
+插件项 **rank 从 10 起步**（多插件错开：10/20/30...）。一个插件 ID 只注册一个入口，多功能页选主入口。内置/自定义项无启用开关（启用列显示 —），要隐藏=删除该行；插件项才有启用开关。
 
 ## 5. 与发现导航对比
 
@@ -63,7 +63,8 @@ UserNavService::register('your_plugin', array(
 |---|---|---|
 | 注册文件 | `user_nav_register.php` | `discover_register.php` |
 | 面向 | 用户个人功能页（我的 xx），仅登录 | 站点级应用入口，所有访客 |
-| 配置键 | `plugin_user_nav_items` | `plugin_discover_items` |
+| 自定义项存储 | `conf['user_nav_items']`（内置 4 项播种） | `conf['discover_items']`（无内置） |
+| 插件项配置键 | `plugin_user_nav_items` | `plugin_discover_items` |
 
 同一插件可同时注册两处（发现页"在线答题" + 用户导航"我的答题记录"），互不冲突。
 
@@ -76,4 +77,4 @@ UserNavService::register('your_plugin', array(
 - [ ] `conf.json` version 递增
 - [ ] php -l + 清 tmp/
 
-> 完整规范（含 xnx_duel 真实范例、前台渲染细节、后台管理说明）见 [../plugindev/19-user-nav.md](../../plugindev/19-user-nav.md)
+> 完整规范（含 xnx_duel 真实范例、数据分层细节、后台管理说明）见 [manual/19-user-nav.md](manual/19-user-nav.md)

@@ -117,6 +117,11 @@ function user__delete($uid) {
 function user_create($arr) {
 	// hook model_user_create_start.php
 	global $conf;
+	// ponytail: nickname 是 UNIQUE 索引且 NOT NULL DEFAULT ''，调用点漏传时第二个空串会撞唯一约束报 Duplicate entry ''。
+	// 天花板：若 username 也为空则兜底仍为空，但 username 同为 UNIQUE 且各创建路径均校验非空，不会触发；升级路径见 UpgradeService::upgradeNicknameField()。
+	if(!isset($arr['nickname']) || $arr['nickname'] === '') {
+		$arr['nickname'] = isset($arr['username']) ? $arr['username'] : '';
+	}
 	$r = user__create($arr);
 	
 	// 全站统计

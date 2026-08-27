@@ -1,6 +1,6 @@
 # Hook 点速查表
 
-> 本文件为 Hook 点速查，完整目录见 [plugindev/03-hooks-catalog.md](../../plugindev/03-hooks-catalog.md)
+> 本文件为 Hook 点速查，完整目录见 [plugindev/03-hooks-catalog.md](manual/03-hooks-catalog.md)
 
 > ⚠️ 本文件中的 hook 名均已核对源码真实存在。如发现不存在的 hook，请报告。
 
@@ -567,7 +567,7 @@
 
 ## 13. 编辑器工具栏
 
-> `lib/EditorService.php` 的 `renderEditorHtml()` 方法内。完整教程见 [plugindev/11-editor-toolbar-integration.md](../../plugindev/11-editor-toolbar-integration.md)。
+> `lib/EditorService.php` 的 `renderEditorHtml()` 方法内。完整教程见 [plugindev/11-editor-toolbar-integration.md](manual/11-editor-toolbar-integration.md)。
 
 | Hook | 触发位置 | 典型用途 |
 |---|---|---|
@@ -589,7 +589,7 @@ $data[] = array(
 
 ## 14. 头像组件
 
-> 来源：`lib/avatar_component.php` 的 `avatar_component_from_data()` 函数内的 `plugin_hook()` 调用。完整教程见 [plugindev/12-avatar-component.md](../../plugindev/12-avatar-component.md)。
+> 来源：`lib/avatar_component.php` 的 `avatar_component_from_data()` 函数内的 `plugin_hook()` 调用。完整教程见 [plugindev/12-avatar-component.md](manual/12-avatar-component.md)。
 
 | Hook | 注入位置 | 模式 | 典型用途 |
 |---|---|---|---|

@@ -1,6 +1,6 @@
 # UI 与样式规范速查
 
-> 本文件为 UI/样式规范速查，详细说明见 [plugindev/14-plugin-admin-ui.md](../../plugindev/14-plugin-admin-ui.md) 第 3-4 节和 [plugindev/05-frontend-security.md](../../plugindev/05-frontend-security.md) 第 1 节
+> 本文件为 UI/样式规范速查，详细说明见 [plugindev/14-plugin-admin-ui.md](manual/14-plugin-admin-ui.md) 第 3-4 节和 [plugindev/05-frontend-security.md](manual/05-frontend-security.md) 第 1 节
 
 ## 目录
 
@@ -219,7 +219,7 @@ include _include(ADMIN_PATH.'view/htm/footer.inc.htm');
 </div>
 ```
 
-> 完整说明见 [plugindev/14-plugin-admin-ui.md#3.5 右侧栏插件模块 card header 规范](../../plugindev/14-plugin-admin-ui.md)
+> 完整说明见 [plugindev/14-plugin-admin-ui.md#3.5 右侧栏插件模块 card header 规范](manual/14-plugin-admin-ui.md)
 
 ---
 
@@ -452,7 +452,7 @@ echo admin_tab_active($tabs, $sub_action);
 
 | 文档 | 内容 |
 |---|---|
-| [plugindev/14-plugin-admin-ui.md](../../plugindev/14-plugin-admin-ui.md) | 完整 UI 规范总览 |
+| [plugindev/14-plugin-admin-ui.md](manual/14-plugin-admin-ui.md) | 完整 UI 规范总览 |
 | [references/frontend-patterns.md](frontend-patterns.md) | 前端模式速查 |
 | [references/admin-patterns.md](admin-patterns.md) | 后台 UI 模式速查 |
 | [references/ai-rules.md](ai-rules.md) | AI 协作规则速查 |

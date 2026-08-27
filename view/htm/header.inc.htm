@@ -132,8 +132,11 @@ $_robots_content = !empty($header['noindex']) ? 'noindex, follow' : 'index, foll
 	<!--{hook header_bootstrap_bbs_before.htm}-->
 	<!--{hook header_bootstrap_bbs_after.htm}-->
 
-	<link rel="stylesheet" href="<?php echo $conf['view_url'];?>vendor/tabler-icons/tabler-icons.min.css">
-	<link rel="stylesheet" href="<?php echo $conf['view_url'];?>vendor/tabler-icons/tabler-icons-filled.min.css">
+	<!-- tabler-icons 为装饰性图标字体，改异步加载移出关键渲染路径（media=print+onload 技巧），noscript 兜底保证无 JS 场景可用 -->
+	<link rel="stylesheet" href="<?php echo $conf['view_url'];?>vendor/tabler-icons/tabler-icons.min.css" media="print" onload="this.media='all'">
+	<noscript>
+		<link rel="stylesheet" href="<?php echo $conf['view_url'];?>vendor/tabler-icons/tabler-icons.min.css">
+	</noscript>
 
 	<!--{hook header_link_after.htm}-->
 

@@ -1,6 +1,6 @@
 # 插件通知聚合中心速查
 
-> 本文件为通知聚合中心（Notify Hub）速查，详细说明见 [../plugindev/18-plugin-notify-hub.md](../../plugindev/18-plugin-notify-hub.md)
+> 本文件为通知聚合中心（Notify Hub）速查，详细说明见 [manual/18-plugin-notify-hub.md](manual/18-plugin-notify-hub.md)
 
 ## 目录
 
@@ -109,4 +109,4 @@ if (function_exists('cache_delete')) {
 - [ ] 插件设置页无任何通知开关/邮箱控件
 - [ ] php -l + 三语 key 一致 + 清 tmp/
 
-> 完整规范（含 xnx_verify 真实范例、缓存建议、双审核流模式）见 [../plugindev/18-plugin-notify-hub.md](../../plugindev/18-plugin-notify-hub.md)
+> 完整规范（含 xnx_verify 真实范例、缓存建议、双审核流模式）见 [manual/18-plugin-notify-hub.md](manual/18-plugin-notify-hub.md)

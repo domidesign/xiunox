@@ -1,6 +1,6 @@
 # 后台开发模式速查
 
-> 本文件为后台开发模式速查，详细说明见 [../plugindev/14-plugin-admin-ui.md](../../plugindev/14-plugin-admin-ui.md)
+> 本文件为后台开发模式速查，详细说明见 [manual/14-plugin-admin-ui.md](manual/14-plugin-admin-ui.md)
 
 ## 目录
 
@@ -58,7 +58,7 @@ switch ($sub_action) {
 include _include(ADMIN_PATH . 'view/htm/footer.inc.htm');
 ```
 
-> 详见 [14-plugin-admin-ui.md 第 5 节](../../plugindev/14-plugin-admin-ui.md#5-tab-独立页面模式)
+> 详见 [14-plugin-admin-ui.md 第 5 节](manual/14-plugin-admin-ui.md#5-tab-独立页面模式)
 
 ---
 
@@ -87,7 +87,7 @@ conf.json 必须注册：
 
 > ⚠️ case 值禁止含 `-`（`-` 是 URL 参数分隔符，`param(1)` 只取单段）
 
-> 详见 [14-plugin-admin-ui.md 第 6 节](../../plugindev/14-plugin-admin-ui.md#6-插件后台入口模式)
+> 详见 [14-plugin-admin-ui.md 第 6 节](manual/14-plugin-admin-ui.md#6-插件后台入口模式)
 
 ---
 
@@ -115,7 +115,7 @@ form.addEventListener('submit', function(e) {
 
 **判定标准**：后台插件 GET 搜索表单（含筛选条件且需翻页保留参数）必须用 JS 拦截 submit 手动构建 URL。
 
-> 详见 [14-plugin-admin-ui.md 第 8 节](../../plugindev/14-plugin-admin-ui.md#8-后台-get-搜索表单-js-拦截)
+> 详见 [14-plugin-admin-ui.md 第 8 节](manual/14-plugin-admin-ui.md#8-后台-get-搜索表单-js-拦截)
 
 ---
 
@@ -140,7 +140,7 @@ $pagination = pagination($pagination_base . $pagination_qs, $total, $page, $page
 
 **判定标准**：凡是用 `pagination()` 且 URL 需带筛选参数的场景，`{page}` 必须手动拼接 query string，禁止通过 `url(..., $extra)` 传递。
 
-> 详见 [14-plugin-admin-ui.md 第 9 节](../../plugindev/14-plugin-admin-ui.md#9-后台分页-url-手动拼接)
+> 详见 [14-plugin-admin-ui.md 第 9 节](manual/14-plugin-admin-ui.md#9-后台分页-url-手动拼接)
 
 ---
 
@@ -192,7 +192,7 @@ $pagination = pagination($pagination_base . $pagination_qs, $total, $page, $page
 | 后台生成前台 URL 用 `url('thread-'.$tid)` | 用 `frontend_thread_url($tid)`（否则 admin 下解析为 admin 子路径 404） |
 | 硬编码 `.htm`/`.html` 后缀 | 用命名快捷函数或 `url()` |
 
-> 详见 [14-plugin-admin-ui.md 第 10 节](../../plugindev/14-plugin-admin-ui.md#10-命名快捷函数完整列表)
+> 详见 [14-plugin-admin-ui.md 第 10 节](manual/14-plugin-admin-ui.md#10-命名快捷函数完整列表)
 
 ---
 
@@ -221,4 +221,4 @@ $pagination = pagination($pagination_base . $pagination_qs, $total, $page, $page
 
 只要插件目录下存在 `setting.php` 文件，系统在插件列表页自动显示"设置"按钮，链接到 `?plugin-setting-<dir>.htm`，无需额外注册。
 
-> 详见 [14-plugin-admin-ui.md 第 7 节](../../plugindev/14-plugin-admin-ui.md#7-后台菜单侧边栏注册)
+> 详见 [14-plugin-admin-ui.md 第 7 节](manual/14-plugin-admin-ui.md#7-后台菜单侧边栏注册)

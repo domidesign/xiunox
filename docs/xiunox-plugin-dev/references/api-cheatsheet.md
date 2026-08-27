@@ -1,6 +1,6 @@
 # API 速查表
 
-> 本文件为 API 速查，详细说明见 [plugindev/04-api-cheatsheet.md](../../plugindev/04-api-cheatsheet.md)
+> 本文件为 API 速查，详细说明见 [plugindev/04-api-cheatsheet.md](manual/04-api-cheatsheet.md)
 
 ## 目录
 
@@ -37,7 +37,7 @@ $page = param('page', 1);         // int
 $password = param('password', '', FALSE);  // 敏感字段必须关闭 htmlspecialchars
 ```
 
-> ⚠️ **URL 按 `-` 分隔参数，`case` 值禁止含 `-`**（已违反 1 次）：`-` 是参数分隔符，`myplugin-list-settings` 被解析为 `param(1)='list'`、`param(2)='settings'`——`param(1)` 只取单段。路由 `switch` 的 `case` 值必须是不含 `-` 的单段字符串，多段子动作用 `param(2)`/`param(3)` 逐段取。详见 [04-api-cheatsheet.md](../../plugindev/04-api-cheatsheet.md) 第 1 节。
+> ⚠️ **URL 按 `-` 分隔参数，`case` 值禁止含 `-`**（已违反 1 次）：`-` 是参数分隔符，`myplugin-list-settings` 被解析为 `param(1)='list'`、`param(2)='settings'`——`param(1)` 只取单段。路由 `switch` 的 `case` 值必须是不含 `-` 的单段字符串，多段子动作用 `param(2)`/`param(3)` 逐段取。详见 [04-api-cheatsheet.md](manual/04-api-cheatsheet.md) 第 1 节。
 
 > ⚠️ 密码 / token / API key 等敏感字段必须传第 3 参 `FALSE`，否则 `<`、`>`、`&` 被转义后比对失败。
 
@@ -379,4 +379,4 @@ if ($r === TRUE) {
 
 > ⚠️ **`xn_send_mail_async()` 已于 2026-08-05 移除**：原伪异步通过 `register_shutdown_function` 实现，PHP-FPM 进程仍被占用且失败时错误被静默吞掉，调用方无法判断邮件是否真发出。所有场景统一用同步 `xn_send_mail()`。
 >
-> 详细说明（`$options` 参数、频率规则、模板格式）见 [plugindev/04-api-cheatsheet.md](../../plugindev/04-api-cheatsheet.md#11-邮件发送-api)
+> 详细说明（`$options` 参数、频率规则、模板格式）见 [plugindev/04-api-cheatsheet.md](manual/04-api-cheatsheet.md#11-邮件发送-api)

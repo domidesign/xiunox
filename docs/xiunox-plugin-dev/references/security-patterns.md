@@ -1,6 +1,6 @@
 # 安全模式速查
 
-> 本文件为并发安全与积分防刷速查，详细说明见 [plugindev/15-concurrency-security.md](../../plugindev/15-concurrency-security.md)
+> 本文件为并发安全与积分防刷速查，详细说明见 [plugindev/15-concurrency-security.md](manual/15-concurrency-security.md)
 >
 > 基于 2026-08-03 P0+P1 安全审计沉淀，所有模式均来自真实漏洞修复。
 
@@ -245,6 +245,6 @@ if ($last) {
 
 ## 相关文档
 
-- [plugindev/15-concurrency-security.md](../../plugindev/15-concurrency-security.md) —— 完整版并发安全手册
+- [plugindev/15-concurrency-security.md](manual/15-concurrency-security.md) —— 完整版并发安全手册
 - [api-cheatsheet.md](api-cheatsheet.md) —— `db_update` 返回值、`db_cond_to_sqladd` 条件数组语法
 - [ai-rules.md](ai-rules.md) —— AI 协作规则速查（含安全检查清单）

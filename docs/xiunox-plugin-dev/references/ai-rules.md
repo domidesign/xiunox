@@ -1,6 +1,6 @@
 # AI 协作规则速查
 
-> 本文件为 AI 协作规则速查，详细说明见 [plugindev/06-ai-collaboration.md](../../plugindev/06-ai-collaboration.md)
+> 本文件为 AI 协作规则速查，详细说明见 [plugindev/06-ai-collaboration.md](manual/06-ai-collaboration.md)
 
 ## 目录
 
@@ -103,7 +103,7 @@
 | 扩展名写错（`.php` ≠ `.htm`） | 与源标记**一模一样** |
 | 忘记 `<?php exit;` | PHP hook 以 `<?php exit;` 开头（`.htm` hook 只用 `<?php`） |
 | 改 hook 不清缓存 | 改完清 `tmp/`（含 OPcache） |
-| hook 名拼错 | 对照 [03-hooks-catalog.md](../../plugindev/03-hooks-catalog.md) 核对 |
+| hook 名拼错 | 对照 [03-hooks-catalog.md](manual/03-hooks-catalog.md) 核对 |
 | lang hook 格式错 | 每行严格 `$lang['my_prefix_xxx'] = 'xxx';` |
 | `model_inc_file.php` 忘逗号 | 每行 `APP_PATH.'plugin/...',` 以逗号结尾 |
 | hook 内 `return` | 用 `if` 包裹 + `ob_start/ob_get_clean` 暂存输出，UA 检测分支尤其警惕 |
@@ -124,7 +124,7 @@
 | 坑 | 正确做法 |
 |---|---|
 | 建表忘加 `$tablepre` | `{$db->tablepre}my_plugin` |
-| 用 PDO `bindValue` | 用**条件数组**语法（见 [04-api-cheatsheet.md](../../plugindev/04-api-cheatsheet.md)） |
+| 用 PDO `bindValue` | 用**条件数组**语法（见 [04-api-cheatsheet.md](manual/04-api-cheatsheet.md)） |
 | `user_update()` 改密码/组 | 用 `user_change_password()`/`user_change_group()`（受保护字段会被剥离） |
 | 直接调 `__` 层（`thread__create`） | 调单下划线业务层（`thread_create`） |
 | `install.php` 无幂等保护 | `CREATE TABLE IF NOT EXISTS` / `IF NOT EXISTS` 判断 |
@@ -162,7 +162,7 @@
 
 ## 七、并发安全与积分防刷
 
-> 详细说明见 [plugindev/15-concurrency-security.md](../../plugindev/15-concurrency-security.md) 和 [security-patterns.md](security-patterns.md)
+> 详细说明见 [plugindev/15-concurrency-security.md](manual/15-concurrency-security.md) 和 [security-patterns.md](security-patterns.md)
 
 ### CAS（Compare-And-Swap）模式
 
