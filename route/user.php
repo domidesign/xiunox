@@ -41,6 +41,11 @@ if(empty($action)) {
 		'name' => $_user['display_name'] ?? $_user['username'],
 		'url' => $_user_url,
 		'description' => $header['description'],
+		'mainEntity' => array(
+			'@type' => 'Person',
+			'name' => $_user['display_name'] ?? $_user['username'],
+			'url' => $_user_url,
+		),
 	);
 
 	$page = param(2, 1);

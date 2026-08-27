@@ -1111,6 +1111,7 @@ if(isset($_main_count) && $pagesize > 0) {
 			'dateModified' => date('c', $thread['last_date']),
 			'author' => $_author_jsonld,
 			'description' => $header['description'],
+			'text' => $header['description'],
 		);
 		// SEO: DiscussionForumPosting 加 image（Google 富媒体摘要推荐）
 		if(!empty($header['og_image'])) {

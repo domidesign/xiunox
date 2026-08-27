@@ -116,8 +116,10 @@ if($action == 'base') {
 		);
 		$seo_checks['robots'] = array(
 			'label' => lang('seo_check_robots'),
-			'status' => is_file(APP_PATH . 'robots.txt') ? 'ok' : 'error',
-			'msg' => is_file(APP_PATH . 'robots.txt') ? lang('seo_check_robots_ok') : lang('seo_check_robots_missing'),
+			// robots.txt 已改为动态生成（route/robots.php + index.php 早期拦截），
+			// 检测根目录静态文件恒为不存在，改为检测动态生成源文件
+			'status' => is_file(APP_PATH . 'route/robots.php') ? 'ok' : 'error',
+			'msg' => is_file(APP_PATH . 'route/robots.php') ? lang('seo_check_robots_ok') : lang('seo_check_robots_missing'),
 		);
 		$seo_checks['llms'] = array(
 			'label' => lang('seo_check_llms'),

@@ -190,6 +190,14 @@ if(isset($_SERVER['REQUEST_URI']) && preg_match('#/sitemap\.xml($|\?)#', $_SERVE
 	exit;
 }
 
+// SEO: /robots.txt 早期拦截，动态生成确保 Sitemap 行是完整 URL（含协议+域名）
+// ponytail: Google 抓取工具要求 Sitemap 字段必须是完整 URL，相对路径 /sitemap.xml 会报 Invalid sitemap URL
+// robots.php 调用 http_url_path() 拼站点根 URL，xiunophp.php 启动时已 include model/misc.func.php
+if(isset($_SERVER['REQUEST_URI']) && preg_match('#^/robots\.txt($|\?)#', $_SERVER['REQUEST_URI'])) {
+	include APP_PATH.'route/robots.php';
+	exit;
+}
+
 include _include(APP_PATH.'index.inc.php');
 
 //file_put_contents((ini_get('xhprof.output_dir') ? : '/tmp') . '/' . uniqid() . '.xhprof.xhprof', serialize(xhprof_disable()));
