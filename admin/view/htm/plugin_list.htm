@@ -110,8 +110,8 @@
                 // ponytail: 显示 db_version 让用户能确认升级生效（1.0.0→1.0.1），避免"已显示新版但还有升级按钮"的困惑
                 $display_version = !empty($plugin['db_version']) ? $plugin['db_version'] : $plugin['version'];
             ?>
-            <div class="col-12 col-md-6 col-lg-4 col-xl-3">
-                <div class="x-card card   hover-shadow">
+            <div class="col-12 col-md-6  col-xl-4 col-xxl-3 overflow-hidden">
+                <div class="x-card card   hover-shadow overflow-hidden">
                     <div class=" ">
                         <div class="d-flex align-items-start gap-2 mb-3">
                             <img src="<?php echo esc_attr($plugin['icon_url'] ?? '');?>" 
