@@ -13,7 +13,8 @@ function runtime_init() {
 		|| (isset($runtime['users']) && $runtime['users'] < 0);
 	if($_need_rebuild) {
 		$runtime = array();
-		$runtime['users'] = user_count();
+		// 与后台仪表盘口径一致：传非空 cond 触发 COUNT(*) 精确统计，避免 InnoDB 空 cond 走 information_schema 估算值导致前后台不一致
+		$runtime['users'] = user_count(array('uid' => array('>' => 0)));
 		// 仅统计未软删且已审核通过的帖子，与 thread_create/soft_delete 的统计口径一致
 		$runtime['threads'] = thread_count(array('is_deleted'=>0, 'audit_status'=>1));
 		// 评论数 = 非首帖且未软删且已审核通过的 post 数，口径与 threads 完全一致，避免相减出现负数
