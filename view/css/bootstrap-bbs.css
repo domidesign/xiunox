@@ -69,7 +69,8 @@ html {
 /* ===== Layout ===== */
 #header {
     flex: 0 0 auto;
-    padding: 12px 0;
+    /* 顶部安全距离：PWA/全面屏模式下不被状态栏、刘海遮挡（普通浏览器下 env 为 0） */
+    padding: calc(12px + env(safe-area-inset-top)) 0 12px;
 }
 
  
@@ -141,6 +142,8 @@ html {
     padding-bottom: constant(safe-area-inset-bottom);
     box-shadow: 0 -1px 8px rgba(0, 0, 0, 0.04);
     border-radius: 12px 12px 0 0;
+    /* 强制独立合成层：真机上防止惯性滚动期间 fixed 导航掉帧滞后（跟着页面滑动） */
+    transform: translateZ(0);
 }
 
 .bottom-nav-item {
@@ -1788,6 +1791,16 @@ a.hover-bg-body-secondary:hover {
     font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
     font-size: 0.72rem;
     white-space: nowrap;
+}
+
+/* 移动端：底部导航悬浮固定会遮挡页脚，预留其高度；
+   --bottom-nav-h 由 bottom_nav.inc.htm 脚本写入实际导航高度，
+   导航未启用时退化为系统全面屏安全区距离。
+   用 footer.bbs-footer 提高优先级，避免被主题插件的 .bbs-footer padding 简写覆盖 */
+@media (max-width: 767.98px) {
+    footer.bbs-footer {
+        padding-bottom: calc(max(var(--bottom-nav-h, 0px), env(safe-area-inset-bottom)) + 8px);
+    }
 }
 
 

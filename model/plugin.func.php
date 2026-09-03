@@ -821,31 +821,14 @@ function plugin_read_by_dir($dir) {
 	return $plugin;
 }
 
-// 判断是否为主题/模板插件
-function plugin_is_theme($dir, $conf = []) {
-    // 1. 优先检查 conf.json 中的 type 字段
-    if (isset($conf['type']) && in_array(strtolower($conf['type']), ['theme', 'template', 'skin'])) {
-        return true;
-    }
-    
-    // 2. 检查目录名关键词
-    $theme_keywords = ['theme', 'template', 'skin', '风格', '模板'];
-    foreach ($theme_keywords as $keyword) {
-        if (stripos($dir, $keyword) !== false) {
-            return true;
-        }
-    }
-    
-    // 3. 检查插件名称关键词
-    if (isset($conf['name'])) {
-        foreach ($theme_keywords as $keyword) {
-            if (stripos($conf['name'], $keyword) !== false) {
-                return true;
-            }
-        }
-    }
-    
-    return false;
+// 判断是否为主题/模板插件：conf.json 的 type 字段为唯一权威源（theme/template/skin）
+// ponytail: 旧版 type 未声明时按目录名/插件名关键词（theme/template/skin/风格/模板）猜测，
+//   「主题编辑器」「模板管理」类功能插件被误判为主题，且首见写库后永不纠错；
+//   平台规范要求主题插件在 conf.json 声明 "type":"theme"，关键词猜测已废弃。
+//   type 未声明时由调用方回退 db bbs_plugin.type 字段（存量分类）
+function plugin_is_theme($dir, $conf = array()) {
+    if (!isset($conf['type']) || strval($conf['type']) === '') return FALSE;
+    return in_array(strtolower(strval($conf['type'])), array('theme', 'template', 'skin'));
 }
 
 // 获取插件数据库记录
@@ -863,15 +846,22 @@ function plugin_db_get_all() {
 }
 
 // 初始化插件数据库记录（如果不存在则创建）
+// type 同步：conf.json 显式声明 type 时以其为准（权威源），与 db 不一致则自愈更新；
+//   未声明时不触碰 db type（保留存量分类，避免误覆盖关键词时代写入的旧数据）
 function plugin_db_init($dir, $conf = array()) {
     global $db, $tablepre, $time;
 
     $arr = plugin_db_get($dir);
+    $conf_type = NULL;
+    if (isset($conf['type']) && strval($conf['type']) !== '') {
+        $conf_type = plugin_is_theme($dir, $conf) ? 1 : 0;
+    }
+
     if (empty($arr)) {
         $arr = array(
             'dir' => $dir,
             'name' => isset($conf['name']) ? $conf['name'] : '',
-            'type' => plugin_is_theme($dir, $conf) ? 1 : 0,
+            'type' => $conf_type === NULL ? 0 : $conf_type,
             'installed' => isset($conf['installed']) ? $conf['installed'] : 0,
             'enable' => isset($conf['enable']) ? $conf['enable'] : 0,
             'version' => isset($conf['version']) ? $conf['version'] : '',
@@ -884,6 +874,9 @@ function plugin_db_init($dir, $conf = array()) {
             'author_homepage' => '',
         );
         $db->insert($tablepre.'plugin', $arr);
+    } elseif($conf_type !== NULL && intval(array_value($arr, 'type', 0)) !== $conf_type) {
+        $db->update($tablepre.'plugin', array('dir'=>$dir), array('type'=>$conf_type, 'update_time'=>$time));
+        $arr['type'] = $conf_type;
     }
     return $arr;
 }
@@ -952,13 +945,16 @@ function plugin_db_init_all() {
 // 获取插件信息（合并数据库和conf.json）
 function plugin_read_by_dir_with_db($dir) {
     $plugin = plugin_read_by_dir($dir);
+    // conf.json 显式声明的 type 为权威源；此时 $plugin['type'] 尚未被 db 覆盖，是 conf.json 原始字符串
+    $conf_is_theme = plugin_is_theme($dir, $plugin) ? 1 : (isset($plugin['type']) && strval($plugin['type']) !== '' ? 0 : NULL);
     $db_data = plugin_db_get($dir);
 
     if (!empty($db_data)) {
         $plugin['install_time'] = isset($db_data['install_time']) ? $db_data['install_time'] : 0;
         $plugin['enable_time'] = isset($db_data['enable_time']) ? $db_data['enable_time'] : 0;
         $plugin['disable_time'] = isset($db_data['disable_time']) ? $db_data['disable_time'] : 0;
-        $plugin['type'] = isset($db_data['type']) ? $db_data['type'] : 0;
+        // type 解析优先级：conf.json 显式声明（权威，作者改 conf.json 立即生效）→ db 字段（存量回退）
+        $plugin['type'] = $conf_is_theme !== NULL ? $conf_is_theme : (isset($db_data['type']) ? intval($db_data['type']) : 0);
         $plugin['db_version'] = isset($db_data['version']) ? $db_data['version'] : '';
         $plugin['author_name'] = isset($db_data['author_name']) ? $db_data['author_name'] : '';
         $plugin['author_homepage'] = isset($db_data['author_homepage']) ? $db_data['author_homepage'] : '';
@@ -966,7 +962,7 @@ function plugin_read_by_dir_with_db($dir) {
         $plugin['install_time'] = 0;
         $plugin['enable_time'] = 0;
         $plugin['disable_time'] = 0;
-        $plugin['type'] = plugin_is_theme($dir, $plugin) ? 1 : 0;
+        $plugin['type'] = $conf_is_theme === NULL ? 0 : $conf_is_theme;
         $plugin['db_version'] = '';
         $plugin['author_name'] = '';
         $plugin['author_homepage'] = '';

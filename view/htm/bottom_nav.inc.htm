@@ -136,4 +136,25 @@ if(!empty($_mobile_nav_items)) {
 		setActive(items[0]);
 	}
 })();
+
+// 导航实际高度写入 CSS 变量，供页脚预留底部空间（移动端遮挡/安全区计算）
+(function() {
+	var tabbar = document.getElementById('mobileTabbar');
+	if (!tabbar) return;
+
+	// 线程页等场景导航 display:none 时写 0，页脚不预留
+	function syncHeight() {
+		var bar = document.getElementById('mobileTabbar');
+		if (!bar) return;
+		var h = getComputedStyle(bar).display === 'none' ? 0 : bar.offsetHeight;
+		document.documentElement.style.setProperty('--bottom-nav-h', h + 'px');
+	}
+	syncHeight();
+
+	// htmx 局部跳转会重新执行本脚本，监听只绑定一次；元素每次按 id 重新获取
+	if (window.__mobileTabbarHeightBound) return;
+	window.__mobileTabbarHeightBound = true;
+	window.addEventListener('resize', syncHeight);
+	document.addEventListener('htmx:after:swap', syncHeight);
+})();
 </script>
