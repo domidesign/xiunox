@@ -62,7 +62,26 @@
 - `view/vendor/tabler-icons/fonts/tabler-icons-filled.woff2` — filled 图标字体
 - `view/vendor/tabler-icons/tabler-icons-filled.min.css` — filled 图标样式
 
+## 🔧 后续修复补充（2026-09-03）
+
+### 主题插件判定重构（plugin_is_theme 权威源）
+- **conf.json type 字段为唯一权威源** `model/plugin.func.php`：`plugin_is_theme()` 废弃目录名/插件名关键词猜测（theme/template/skin/风格/模板），「主题编辑器」「模板管理」类功能插件不再被误判为主题插件
+- **type 自愈同步** `plugin_db_init()`：conf.json 显式声明 type 且与 db 不一致时自动更新 db，作者改 conf.json 立即生效；未声明时不触碰 db 存量分类
+- **读取优先级** `plugin_read_by_dir_with_db()`：conf.json 显式声明（权威）→ db 字段（存量回退）
+
+### 移动端底部导航体验修复
+- **页脚遮挡** `view/htm/bottom_nav.inc.htm` + `view/css/bootstrap-bbs.css`：导航实际高度写入 CSS 变量 `--bottom-nav-h`（resize / htmx:after:swap 同步），页脚按 max(导航高度, 安全区) 预留底部空间；导航隐藏（线程页）时不预留
+- **惯性滚动掉帧** `view/css/bootstrap-bbs.css`：底部导航 `transform: translateZ(0)` 强制独立合成层，修复真机 fixed 导航跟随页面滑动滞后
+- **PWA 顶栏遮挡** `view/css/bootstrap-bbs.css`：`#header` 顶部加 `env(safe-area-inset-top)`，全面屏/ standalone 模式不被状态栏遮挡
+
+### 编辑器资源加载修复
+- **URL 双问号** `view/htm/post.htm`：editor_assets 部分 URL 已自带 `?v=`（filemtime 版本号），static_version 拼接时自动将 `?` 转 `&`
+- **脚本加载失败守卫** `view/htm/post.htm`：UploadService 加载失败（如 522）时跳过初始化，避免 ReferenceError 中断后续顶层逻辑（版块联动/引用搜索）
+
+### 图标库扩充
+- **tabler-icons 更新** `view/vendor/tabler-icons/`：新增约 350 个图标（filled 变体回归主 CSS、brand 品牌图标、file-type 文件类型等）；header 引用补 `$static_version` 版本号
+
 ## 📊 统计
-- 文件：77（新增 ~27，修改 ~45，删除 ~5），代码 +11,325 / -4,718
-- 提交范围：`c0c7451` → `a6aaaf1`（5 个实质提交：623bc73、7b26343、93d5127、a38f229、a6aaaf1）
+- 文件：84（新增 ~27，修改 ~52，删除 ~5），代码 +11,396 / -4,757
+- 提交范围：`c0c7451` → `caebc8c`（6 个实质提交：623bc73、7b26343、93d5127、a38f229、a6aaaf1、caebc8c）
 - 版本号：1.1.8 → 1.1.9
