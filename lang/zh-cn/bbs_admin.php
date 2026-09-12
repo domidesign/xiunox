@@ -2581,6 +2581,16 @@ return array(
         'admin_plugin_notice_not_enabled'=>'未启用',
         'admin_plugin_notice_email_placeholder'=>'留空使用全局默认邮箱',
         'admin_plugin_notice_save_btn'=>'保存设置',
+        // 审核页通知设置（admin/?audit.htm，配置存 plugin_notify_config 的 core_audit 键）
+        'admin_audit_notify_title'=>'内容审核通知设置',
+        'admin_audit_notify_desc'=>'新主题、回帖或资料变更进入待审队列时，按以下通道提醒管理员。红点指左侧导航"内容审核"菜单的待审徽章。',
+        'admin_audit_notify_email'=>'审核提醒邮箱',
+        'admin_audit_notify_email_tip'=>'留空时回退：插件通知页的全局默认邮箱 > 管理员账号邮箱。支持填写多个，用逗号分隔。',
+        'admin_audit_notify_col_type'=>'待审内容',
+        'admin_audit_notify_row_thread'=>'待审主题',
+        'admin_audit_notify_row_post'=>'待审回帖',
+        'admin_audit_notify_row_profile'=>'待审资料',
+        'admin_audit_notify_saved'=>'保存成功',
 );
 
 ?>

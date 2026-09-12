@@ -201,6 +201,11 @@ if($action == 'create') {
 		message(-1, lang('create_post_failed'));
 	}
 
+	// 新回帖进入待审队列，按后台审核页通知设置推送管理员
+	if($need_reply_audit) {
+		AuditService::notify_new_pending('post', $message);
+	}
+
 	// 管理员回复待审评论时，自动通过被引用评论
 	// 避免引用块（blockquote）在帖子详情页泄露待审内容
 	// 管理员回复即代表已审阅，符合论坛惯例

@@ -1799,6 +1799,12 @@ return array(
 	'audit_resubmit_limit_reached'=>'Resubmission limit reached ({n} times), please contact the administrator',
 	'audit_reply_not_exists'=>'Reply does not exist',
 	'audit_log_reason'=>' Reason: {reason}',
+	'audit_notify_type_thread'=>'thread',
+	'audit_notify_type_post'=>'reply',
+	'audit_notify_type_profile'=>'profile change',
+	'audit_notify_pending_subject'=>'New {type} pending review',
+	'audit_notify_pending_body'=>'{summary}
+There are now {count} pending {type} item(s). Please review them in the admin panel.',
 	'security_obfuscate_error'=>'Operation failed, please check the input',
 	// hook lang_en_us_bbs_common.php
 	// ========== API doc supplementary keys ==========

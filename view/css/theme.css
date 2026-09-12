@@ -302,3 +302,9 @@ fieldset:disabled .btn {
         animation: none !important;
     }
 }
+/* Tabler 图标光学对齐：tabler 字形无下伸部、几乎占满 em 框上部（约 0.92em），
+   与相邻文字按基线对齐后视觉整体偏高；在图标独占的 btn-sm 小按钮、.small 操作行里最明显。
+   参考 Bootstrap Icons 的做法，统一下沉 0.125em 实现光学居中 */
+.ti {
+    vertical-align: -0.125em;
+}

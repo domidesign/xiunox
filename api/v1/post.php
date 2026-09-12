@@ -152,6 +152,8 @@ switch ($method) {
         if (!$authUser) {
             ApiResponse::unauthorized();
         }
+        // 封禁检查：禁言/禁止访问/锁定用户不能回帖（与 Web route/post.php 对齐）
+        api_check_ban_scene(intval($authUser['uid']), intval($authUser['gid']), 'post');
         $tid = param('tid', 0);
         $message = param('message', '', false);
         $attach_keys = param('attach_keys', '');
@@ -245,6 +247,8 @@ switch ($method) {
         if (!$authUser) {
             ApiResponse::unauthorized();
         }
+        // 封禁检查：禁言/禁止访问/锁定用户不能编辑回帖（与 Web route/post.php 编辑前检查对齐）
+        api_check_ban_scene(intval($authUser['uid']), intval($authUser['gid']), 'post');
         $post = $postService->getPostById($id);
         if (!$post) {
             ApiResponse::notFound('Post not found');

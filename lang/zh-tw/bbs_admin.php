@@ -2514,6 +2514,16 @@ return array(
         'admin_plugin_notice_not_enabled'=>'未啟用',
         'admin_plugin_notice_email_placeholder'=>'留空使用全域預設信箱',
         'admin_plugin_notice_save_btn'=>'儲存設定',
+        // 審核頁通知設定（admin/?audit.htm，配置存 plugin_notify_config 的 core_audit 鍵）
+        'admin_audit_notify_title'=>'內容審核通知設定',
+        'admin_audit_notify_desc'=>'新主題、回帖或資料變更進入待審佇列時，按以下通道提醒管理員。紅點指左側導航「內容審核」選單的待審徽章。',
+        'admin_audit_notify_email'=>'審核提醒信箱',
+        'admin_audit_notify_email_tip'=>'留空時回退：插件通知頁的全域預設信箱 > 管理員帳號信箱。支援填寫多個，以逗號分隔。',
+        'admin_audit_notify_col_type'=>'待審內容',
+        'admin_audit_notify_row_thread'=>'待審主題',
+        'admin_audit_notify_row_post'=>'待審回帖',
+        'admin_audit_notify_row_profile'=>'待審資料',
+        'admin_audit_notify_saved'=>'儲存成功',
 );
 
 ?>

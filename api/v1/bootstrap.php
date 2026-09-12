@@ -244,6 +244,29 @@ $gid = $earlyAuthUser ? intval($earlyAuthUser['gid'] ?? 0) : 0;
 $user = $earlyAuthUser ?: null;
 global $uid, $gid, $user;
 
+// === 封禁检查辅助函数：按场景拦截（login/browse/post），与 Web 端 UserBanService 检查对齐 ===
+// API 模式不走 index.inc.php 的全局 browse 封禁检查，封禁用户曾可在 API 侧登录/发帖绕过封禁
+// 场景规则见 UserBanService::checkBanByScene：login/browse 拒 ban_type=2,3；post 拒 1,2,3
+if (!function_exists('api_check_ban_scene')) {
+    function api_check_ban_scene($uid, $gid, $scene) {
+        if (intval($uid) <= 0) return;
+        if (!class_exists('UserBanService')) {
+            include_once APP_PATH . 'lib/UserBanService.php';
+        }
+        // 管理员组豁免（与 Web 端一致，避免误封导致无法管理）
+        if (in_array(intval($gid), UserBanService::ADMIN_GIDS, true)) return;
+        $ban_check = UserBanService::checkBanByScene(intval($uid), $scene);
+        if (!$ban_check['allowed']) {
+            ApiResponse::error(403, $ban_check['message']);
+        }
+    }
+}
+
+// 全局 browse 场景检查：禁止访问/锁定用户持有效 token 也禁止使用任何 API
+if ($uid > 0) {
+    api_check_ban_scene($uid, $gid, 'browse');
+}
+
 if ($rateLimitEnabled) {
     if ($earlyAuthUser && intval($earlyAuthUser['gid'] ?? 0) === 1) {
         $rateLimitEnabled = false;

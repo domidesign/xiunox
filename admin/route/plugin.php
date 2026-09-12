@@ -190,36 +190,11 @@ if($action == 'local') {
 		CsrfService::check();
 		$op = param('op');
 
-		// ---- 发送测试邮件 ----
+		// ---- 发送测试邮件（共用逻辑见 model/plugin_notify.func.php 的 plugin_notify_send_test）----
 		if($op == 'test') {
 			$test_email = trim(strval(param('test_email', '')));
-			$email = filter_var($test_email, FILTER_VALIDATE_EMAIL);
-			if($email === FALSE || $email === '') {
-				message(-1, lang('admin_plugin_notice_email_invalid'));
-			}
-			if(!class_exists('AdminNotifyService')) {
-				include_once APP_PATH.'lib/AdminNotifyService.php';
-			}
-			if(!class_exists('AdminNotifyService') || !AdminNotifyService::isSmtpConfigured()) {
-				message(-1, lang('admin_plugin_notice_smtp_missing'));
-			}
-			if(!function_exists('xn_send_mail')) {
-				include _include(XIUNOPHP_PATH.'xn_send_mail.func.php');
-			}
-			$smtp = xn_smtp_get();
-			if($smtp === FALSE) {
-				message(-1, lang('admin_plugin_notice_smtp_missing'));
-			}
-			$from_name = isset($conf['sitename']) ? $conf['sitename'] : 'BBS';
-			$subject = '['.$from_name.'] '.lang('admin_plugin_notice_test_subject');
-			$body = '<p>'.lang('admin_plugin_notice_test_body').'</p><p>'.lang('admin_notify_click_view').' <a href="'.esc_attr(http_url_path()).'">'.$from_name.'</a></p>';
-			$r = xn_send_mail($smtp, $from_name, $email, $subject, $body, array('is_html' => TRUE, 'timeout' => 5));
-			if($r === TRUE) {
-				message(0, lang('admin_plugin_notice_test_sent', array('email'=>$email)));
-			} else {
-				$err = is_string($r) ? $r : 'unknown';
-				message(-1, lang('admin_plugin_notice_test_failed', array('error'=>$err)));
-			}
+			$_pn_test = plugin_notify_send_test($test_email);
+			$_pn_test['ok'] ? message(0, $_pn_test['message']) : message(-1, $_pn_test['message']);
 		}
 
 		// ---- 保存配置 ----

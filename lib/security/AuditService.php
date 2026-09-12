@@ -187,6 +187,59 @@ class AuditService {
         return db_count($type, $cond);
     }
 
+    // ================= 待审内容通知（后台审核页"通知设置"，配置存 plugin_notify_config 的 core_audit 键） =================
+
+    /**
+     * 读取审核通知配置（带默认值兜底：未配置=三类型三通道全开）
+     * @return array array('thread_system'=>1,'thread_email'=>1,'thread_badge'=>1,'post_...'=>...,'profile_...'=>...,'email_to'=>'')
+     */
+    public static function notify_config(): array {
+        $all = function_exists('plugin_notify_config_all') ? plugin_notify_config_all() : array();
+        $item = isset($all['core_audit']) && is_array($all['core_audit']) ? $all['core_audit'] : array();
+        $config = array('email_to' => isset($item['email_to']) ? strval($item['email_to']) : '');
+        foreach (array('thread', 'post', 'profile') as $type) {
+            foreach (array('system', 'email', 'badge') as $ch) {
+                $key = $type.'_'.$ch;
+                $config[$key] = isset($item[$key]) ? intval($item[$key]) : 1;
+            }
+        }
+        return $config;
+    }
+
+    /**
+     * 新内容进入待审队列时按后台通知设置推送管理员（三通道统一走 plugin_notify_fire 门面）
+     * 邮箱解析链复用统一门面：core_audit 的 email_to > 全局默认邮箱 > 管理员账号邮箱
+     * @param string $type thread|post|profile
+     * @param string $summary 内容摘要（主题标题/回帖摘要/变更用户名）
+     */
+    public static function notify_new_pending(string $type, string $summary = ''): void {
+        if (!in_array($type, array('thread', 'post', 'profile'), true)) return;
+        if (!function_exists('plugin_notify_fire')) return;
+
+        $config = self::notify_config();
+        $channels = array();
+        foreach (array('system', 'email', 'badge') as $ch) {
+            if (!empty($config[$type.'_'.$ch])) $channels[] = $ch;
+        }
+        // 该类型三通道全部关闭时直接跳过，省去计数查询
+        if (empty($channels)) return;
+
+        $count = $type === 'profile' ? self::get_pending_profile_count() : self::get_pending_count($type);
+        if ($count <= 0) return;
+
+        plugin_notify_fire('core_audit', 'new_pending_'.$type, array(
+            'title' => lang('audit_notify_pending_subject', array('type' => lang('audit_notify_type_'.$type))),
+            'content' => lang('audit_notify_pending_body', array(
+                'type' => lang('audit_notify_type_'.$type),
+                'summary' => mb_substr($summary, 0, 60),
+                'count' => $count,
+            )),
+            'url' => admin_url('audit'),
+            'channels' => $channels,
+            'throttle' => 300, // 同类型 5 分钟内只推一次，防止刷屏
+        ));
+    }
+
     /**
      * 审核通过
      */
@@ -674,6 +727,7 @@ class AuditService {
             if(function_exists('index_list_cache_delete')) {
                 index_list_cache_delete();
             }
+            $_summary = strval($thread['subject'] ?? '');
         } else {
             $post = post__read($target_id);
             if (empty($post)) return ['ok'=>false, 'message'=>lang('audit_reply_not_exists')];
@@ -704,7 +758,11 @@ class AuditService {
             if(function_exists('index_list_cache_delete')) {
                 index_list_cache_delete();
             }
+            $_summary = trim(strip_tags(strval($post['message'] ?? '')));
         }
+
+        // 重新进入待审队列，按后台通知设置推送管理员
+        self::notify_new_pending($target_type, isset($_summary) ? $_summary : '');
 
         return ['ok'=>true, 'message'=>lang('resubmit_success')];
     }

@@ -211,6 +211,9 @@ if(empty($action)) {
 						'create_date' => $time,
 					));
 				}
+				// 新资料变更进入待审队列，按后台审核页通知设置推送管理员
+				if(!class_exists('AuditService')) include_once APP_PATH.'lib/security/AuditService.php';
+				AuditService::notify_new_pending('profile', strval($user['username']));
 				// 记录昵称修改日志（审核模式同样消耗次数，防止无限刷审核队列）
 				if(isset($update['nickname']) && db_check_table_exists('nickname_change_log')) {
 					db_insert('nickname_change_log', array(
@@ -637,6 +640,9 @@ if(empty($action)) {
 					'audit_status' => 0,
 					'create_date' => $time,
 				));
+				// 新头像进入待审队列，按后台审核页通知设置推送管理员
+				if(!class_exists('AuditService')) include_once APP_PATH.'lib/security/AuditService.php';
+				AuditService::notify_new_pending('profile', strval($user['username']));
 				header('Location: '.my_avatar_url());
 				exit;
 			}
@@ -690,6 +696,9 @@ if(empty($action)) {
 				'audit_status' => 0,
 				'create_date' => $time,
 			));
+			// 新头像进入待审队列，按后台审核页通知设置推送管理员
+			if(!class_exists('AuditService')) include_once APP_PATH.'lib/security/AuditService.php';
+			AuditService::notify_new_pending('profile', strval($user['username']));
 			header('Location: '.my_avatar_url());
 			exit;
 		}

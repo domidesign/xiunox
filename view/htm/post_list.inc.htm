@@ -22,7 +22,7 @@
 				<p class="mb-0"><?php echo lang('no_reply');?></p>
 			</li> -->
 			<?php } else { foreach($postlist as $_post) { ?>
-					<li class="d-flex <?php echo $_post['classname'];?>" data-pid="<?php echo $_post['pid'];?>" data-uid="<?php echo $_post['uid'];?>">
+					<li id="pid<?php echo $_post['pid'];?>" class="d-flex <?php echo $_post['classname'];?>" data-pid="<?php echo $_post['pid'];?>" data-uid="<?php echo $_post['uid'];?>">
 					<?php
 					// 被封禁作者内容隐藏：作者 ban_type>0 且当前用户非管理员(gid=1,2)且非作者本人
 					$_author_banned = (isset($_post['user']['ban_type']) ? intval($_post['user']['ban_type']) : 0) > 0 && !($gid == 1 || $gid == 2) && (empty($uid) || $uid != $_post['uid']);
@@ -35,7 +35,7 @@
 						<!--{hook post_list_inc_avatar_after.htm}-->
 						<div class="flex-fill" style="min-width:0">
 							<div class="d-flex justify-content-between align-items-start">
-								<div class="small text-body-secondary">
+								<div class="small text-body-secondary d-flex flex-wrap align-items-center" style="gap:4px 6px;">
 									<!--{hook post_list_inc_username_before.htm}-->
 									<span class="username">
 								<a href="<?php echo user_url($_post['uid']);?>" class="text-body-secondary fw-semibold"><?php echo esc_html($_post['username']);?></a>
@@ -206,7 +206,7 @@
 								<?php if($_need_collapse && $_reply_idx === $_reply_collapse_threshold + 1): ?>
 								<div class="reply-extra d-none" data-pid="<?php echo $_post['pid'];?>">
 								<?php endif; ?>
-								<div class="d-flex mb-2 <?php echo $_reply['classname'];?>" data-pid="<?php echo $_reply['pid'];?>" data-uid="<?php echo $_reply['uid'];?>">
+								<div id="pid<?php echo $_reply['pid'];?>" class="d-flex mb-2 <?php echo $_reply['classname'];?>" data-pid="<?php echo $_reply['pid'];?>" data-uid="<?php echo $_reply['uid'];?>">
 									<?php
 									$_reply_banned = (isset($_reply['user']['ban_type']) ? intval($_reply['user']['ban_type']) : 0) > 0 && !($gid == 1 || $gid == 2) && (empty($uid) || $uid != $_reply['uid']);
 									?>
@@ -216,7 +216,7 @@
 										</a>
 									</div>
 									<div class="flex-fill" style="min-width:0">
-										<div class="small text-body-secondary">
+										<div class="small text-body-secondary d-flex flex-wrap align-items-center" style="gap:4px 6px;">
 											<span class="username">
 											<a href="<?php echo user_url($_reply['uid']);?>" class="text-body-secondary fw-semibold small"><?php echo esc_html($_reply['username']);?></a>
 											<?php echo user_ban_badge_html($_reply['user']);?>

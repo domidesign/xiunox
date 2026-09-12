@@ -160,7 +160,12 @@ $nav_text_map = array(
 						<span class="menu-icon"><i class="ti <?php echo $icon;?>"></i></span>
 						<span class="menu-text"><?php echo $text;?></span>
 						<?php if($nav_key == 'audit') {
-						$_pending_total = AuditService::get_pending_count('thread') + AuditService::get_pending_count('post') + AuditService::get_pending_profile_count();
+						// 红点通道按审核页通知设置的分类型开关累计（notify_config 未配置时默认全开，向后兼容）
+						$_audit_ncfg = AuditService::notify_config();
+						$_pending_total = 0;
+						if(!empty($_audit_ncfg['thread_badge'])) $_pending_total += AuditService::get_pending_count('thread');
+						if(!empty($_audit_ncfg['post_badge'])) $_pending_total += AuditService::get_pending_count('post');
+						if(!empty($_audit_ncfg['profile_badge'])) $_pending_total += AuditService::get_pending_profile_count();
 						if($_pending_total > 0) {
 							echo '<span class="badge bg-danger ms-auto">' . $_pending_total . '</span>';
 						}

@@ -1790,6 +1790,12 @@ return array(
 	'audit_resubmit_limit_reached'=>'已達重新提交上限（{n}次），請聯繫管理員',
 	'audit_reply_not_exists'=>'回帖不存在',
 	'audit_log_reason'=>' 原因：{reason}',
+	'audit_notify_type_thread'=>'主題',
+	'audit_notify_type_post'=>'回帖',
+	'audit_notify_type_profile'=>'資料變更',
+	'audit_notify_pending_subject'=>'有新的{type}等待審核',
+	'audit_notify_pending_body'=>'{summary}
+當前待審{type}共 {count} 項，請前往後台處理。',
 	'security_obfuscate_error'=>'操作失敗，請檢查輸入資訊',
 	// hook lang_zh_tw_bbs_common.php
 	// ========== API 文檔補鍵 ==========

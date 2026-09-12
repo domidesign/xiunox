@@ -2537,6 +2537,16 @@ return array(
         'admin_plugin_notice_not_enabled'=>'Disabled',
         'admin_plugin_notice_email_placeholder'=>'Leave empty to use default email',
         'admin_plugin_notice_save_btn'=>'Save Settings',
+        // Audit page notification settings (admin/?audit.htm, stored under the core_audit key of plugin_notify_config)
+        'admin_audit_notify_title'=>'Content Audit Notification Settings',
+        'admin_audit_notify_desc'=>'Notify admins via the channels below when a new thread, reply or profile change enters the pending queue. Badge refers to the pending badge on the "Content Audit" item in the sidebar.',
+        'admin_audit_notify_email'=>'Audit Notification Email',
+        'admin_audit_notify_email_tip'=>'Leave empty to fall back to: the global default email on the plugin notice page, then admin account emails. Multiple addresses supported, separated by commas.',
+        'admin_audit_notify_col_type'=>'Pending Content',
+        'admin_audit_notify_row_thread'=>'Pending Threads',
+        'admin_audit_notify_row_post'=>'Pending Replies',
+        'admin_audit_notify_row_profile'=>'Pending Profiles',
+        'admin_audit_notify_saved'=>'Saved successfully',
 );
 
 ?>
