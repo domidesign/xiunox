@@ -966,7 +966,8 @@ function thread_format(&$thread) {
 	$thread['is_favorited'] = 0;
 
 	// XSS 防护：转义用户可控的文本字段
-	$thread['subject'] = esc_html($thread['subject']);
+	// ponytail: subject 不在此层转义。标题接收时已 strip_tags 无 HTML 标签，DB 存原样；此处再转义一次、模板又转义一次，
+	// 会双重转义，使 & " ' < > 显示成 &amp;/&quot;/&#039; 等实体字面量。subject 统一交给模板层单次 esc_html/esc_attr。
 	$thread['username'] = esc_html($thread['username']);
 	$thread['forumname'] = esc_html($thread['forumname']);
 	$thread['lastusername'] = esc_html($thread['lastusername'] ?? '');

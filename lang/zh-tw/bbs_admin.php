@@ -246,6 +246,7 @@ return array(
 	'moderator'=>'版主',
 	'add_new_line'=>'增加壹行',
 	'forum_edit_tip'=>'請謹慎編輯版塊，壹旦確定後不要輕易變動，否則可能會導致數據關聯錯誤，壹般在正式運營時就不要再變動。',
+	'admin_forum_sort_tip'=>'排序值（rank）即版塊的權重/優先級，權重越高越靠前。版塊按 rank 從大到小排列，數值越大越靠前；rank 相同時按版塊 ID（fid）從小到大排列，即越早創建越靠前。',
 	'forum_cant_delete_system_reserved'=>'不能刪除系統保留的版塊。',
 	'forum_moduid_format_tips'=>'最多允許10個，逗號隔開，如：Jack,Lisa,Mike',
 	'user_privilege'=>'用戶權限',

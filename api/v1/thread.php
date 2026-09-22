@@ -168,7 +168,7 @@ if ($seg1 === 'hot') {
                 // 封禁检查：禁言/禁止访问/锁定用户不能编辑主题（与 Web 编辑回帖前检查对齐）
                 api_check_ban_scene(intval($authUser['uid']), intval($authUser['gid']), 'post');
                 $update = [];
-                $subject = param('subject', '');
+                $subject = param('subject', '', FALSE);
                 if (!empty($subject)) $update['subject'] = $subject;
                 if (!empty($update)) {
                     $threadService->updateThread($tid, $update);
@@ -372,7 +372,7 @@ if ($seg1 === 'hot') {
             // 封禁检查：禁言/禁止访问/锁定用户不能发帖（与 Web route/thread.php 对齐）
             api_check_ban_scene(intval($authUser['uid']), intval($authUser['gid']), 'post');
             $fid = param('fid', 0);
-            $subject = param('subject', '');
+            $subject = param('subject', '', FALSE);
             $message = param('message', '', false);
             $attach_keys = param('attach_keys', '');
             if (empty($fid) || empty($subject) || empty($message)) {

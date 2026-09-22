@@ -246,6 +246,7 @@ return array(
 	'moderator'=>'Moderator',
 	'add_new_line'=>'New Line',
 	'forum_edit_tip'=>'Please carefully edit the section, once determined, do not easily change, or may lead to data related errors, generally do not change in the formal operation.',
+	'admin_forum_sort_tip'=>'The sort value (rank) is the forum\'s weight/priority; the higher the weight, the higher it appears. Forums are sorted by rank in descending order (the larger the value, the higher it appears); when ranks are equal, they are sorted by forum ID (fid) in ascending order, i.e. the earlier created appears first.',
 	'forum_cant_delete_system_reserved'=>'Cannot delete system reserved section.',
 	'forum_moduid_format_tips'=>'Up to 10, comma separated, such as: Jack,Lisa,Mike',
 	'user_privilege'=>'User Privilege',

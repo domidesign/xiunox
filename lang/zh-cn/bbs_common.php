@@ -50,6 +50,7 @@ return array(
 	'threads'=>'帖子数',
 	'posts'=>'评论数',
 	'users'=>'用户数',
+	'user'=>'用户',
 	'attachs'=>'附件总数',
 	'attach_size'=>'附件大小',
 	'online'=>'在线',
@@ -708,6 +709,14 @@ return array(
 	'search_sort'=>'排序',
 	'search_sort_asc'=>'正序',
 	'search_sort_desc'=>'倒序',
+	'search_filter'=>'高级筛选',
+	'search_filter_active'=>'筛选已启用',
+	'search_all_forums'=>'全部版块',
+	'search_author'=>'作者',
+	'search_author_placeholder'=>'用户名或用户ID',
+	'search_date_range'=>'时间范围',
+	'search_date_to'=>'至',
+	'search_filter_reset'=>'重置',
 
 	// ========== 主题/AI设置 (原 bbs_theme.php) ==========
 	'theme_settings'=>'主题设置',

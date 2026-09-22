@@ -71,6 +71,49 @@ $sort = param('sort', '');
 $sort_explicit = $sort !== '';
 $sort = in_array($sort, array('asc', 'desc'), true) ? $sort : '';
 
+// ===== 高级筛选参数：版块 fid / 作者 author（用户名或UID）/ 起止日期 ds、et（Y-m-d） =====
+$filter_fid = intval(param('fid', 0));
+$filter_author = trim(param('author', ''));
+$filter_date_start = trim(param('ds', ''));
+$filter_date_end = trim(param('et', ''));
+
+// 版块校验：仅允许当前用户可访问的版块，防止通过 URL 枚举无权版块
+// $search_forumlist 同时供模板渲染版块下拉
+if(!isset($forumlist)) forum_list_cache();
+$search_forumlist = forum_list_access_filter($forumlist, $gid);
+if($filter_fid && !isset($search_forumlist[$filter_fid])) $filter_fid = 0;
+
+// 作者解析：纯数字视为 UID，否则精确匹配用户名/昵称（URL 保留 author 原文便于表单回填）
+$filter_uid = 0;
+if($filter_author !== '') {
+    if(preg_match('/^\d+$/', $filter_author)) {
+        $filter_uid = intval($filter_author);
+    } else {
+        $_author_user = db_sql_find_one_prepared("SELECT uid FROM {$db->tablepre}user WHERE username = ? LIMIT 1", array($filter_author));
+        empty($_author_user) AND $_author_user = db_sql_find_one_prepared("SELECT uid FROM {$db->tablepre}user WHERE nickname = ? LIMIT 1", array($filter_author));
+        if(!empty($_author_user)) $filter_uid = intval($_author_user['uid']);
+    }
+}
+
+// 日期校验：Y-m-d → 时间戳（开始当天 0 点 / 结束当天 23:59:59）；开始晚于结束视为未设置
+if($filter_date_start !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_date_start)) $filter_date_start = '';
+if($filter_date_end !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_date_end)) $filter_date_end = '';
+$filter_date_start_ts = $filter_date_start !== '' ? @strtotime($filter_date_start . ' 00:00:00') : 0;
+$filter_date_end_ts = $filter_date_end !== '' ? @strtotime($filter_date_end . ' 23:59:59') : 0;
+$filter_date_start_ts = $filter_date_start_ts === false ? 0 : intval($filter_date_start_ts);
+$filter_date_end_ts = $filter_date_end_ts === false ? 0 : intval($filter_date_end_ts);
+if($filter_date_start_ts && $filter_date_end_ts && $filter_date_start_ts > $filter_date_end_ts) {
+    $filter_date_start = $filter_date_end = '';
+    $filter_date_start_ts = $filter_date_end_ts = 0;
+}
+
+// 筛选参数集合（供分页 / 排序 URL 复用）
+$search_adv_query = array();
+if($filter_fid) $search_adv_query['fid'] = $filter_fid;
+if($filter_author !== '') $search_adv_query['author'] = $filter_author;
+if($filter_date_start !== '') $search_adv_query['ds'] = $filter_date_start;
+if($filter_date_end !== '') $search_adv_query['et'] = $filter_date_end;
+
 // hook search_keyword_after.php
 
 $userlist = array();
@@ -247,6 +290,30 @@ if($keyword_safe) {
             }
         }
 
+        // 高级筛选 SQL（版块/作者/时间），值均已 intval / 时间戳严格校验，内联拼接安全
+        $adv_filter_sql = '';
+        $adv_filter_sql_t = '';
+        if($filter_fid) {
+            $adv_filter_sql .= ' AND fid = ' . $filter_fid;
+            $adv_filter_sql_t .= ' AND t.fid = ' . $filter_fid;
+        }
+        if($filter_uid) {
+            $adv_filter_sql .= ' AND uid = ' . $filter_uid;
+            $adv_filter_sql_t .= ' AND t.uid = ' . $filter_uid;
+        } elseif($filter_author !== '') {
+            // 指定了作者但未匹配到用户：恒空结果
+            $adv_filter_sql .= ' AND 1=0';
+            $adv_filter_sql_t .= ' AND 1=0';
+        }
+        if($filter_date_start_ts) {
+            $adv_filter_sql .= ' AND create_date >= ' . $filter_date_start_ts;
+            $adv_filter_sql_t .= ' AND t.create_date >= ' . $filter_date_start_ts;
+        }
+        if($filter_date_end_ts) {
+            $adv_filter_sql .= ' AND create_date <= ' . $filter_date_end_ts;
+            $adv_filter_sql_t .= ' AND t.create_date <= ' . $filter_date_end_ts;
+        }
+
         $has_fulltext_subject = search_ensure_fulltext('thread', 'subject', 'ft_subject');
         $has_fulltext_message = search_ensure_fulltext('post', 'message', 'ft_message');
         // 纯 ASCII 关键词跳过 FULLTEXT（ngram 对英文/符号分词不友好），直接走 LIKE 精确子串匹配
@@ -261,11 +328,11 @@ if($keyword_safe) {
         if($use_fulltext) {
             // FULLTEXT 搜索：BOOLEAN MODE + 双引号实现精确短语匹配
             // 搜索标题（加入权限/审核过滤，LIMIT 限制避免无分页查询返回过多数据）
-            $thread_ids_from_subject = db_sql_find_prepared("SELECT tid, MATCH(subject) AGAINST(? IN BOOLEAN MODE) AS relevance FROM {$db->tablepre}thread WHERE MATCH(subject) AGAINST(? IN BOOLEAN MODE)" . $fid_filter_sql . $audit_filter_sql . $is_deleted_filter . $sort_sql . " LIMIT 100", array($keyword_boolean, $keyword_boolean));
+            $thread_ids_from_subject = db_sql_find_prepared("SELECT tid, MATCH(subject) AGAINST(? IN BOOLEAN MODE) AS relevance FROM {$db->tablepre}thread WHERE MATCH(subject) AGAINST(? IN BOOLEAN MODE)" . $fid_filter_sql . $audit_filter_sql . $is_deleted_filter . $adv_filter_sql . $sort_sql . " LIMIT 100", array($keyword_boolean, $keyword_boolean));
 
             // 搜索内容（只搜主帖 isfirst=1，JOIN thread 表过滤权限/审核，字段需加 t. 前缀避免歧义）
-            if($fid_filter_sql_t || $audit_filter_sql_t) {
-                $thread_ids_from_content = db_sql_find_prepared("SELECT p.tid, MAX(MATCH(p.message) AGAINST(? IN BOOLEAN MODE)) AS relevance FROM {$db->tablepre}post p JOIN {$db->tablepre}thread t ON p.tid = t.tid WHERE MATCH(p.message) AGAINST(? IN BOOLEAN MODE) AND p.isfirst=1" . $fid_filter_sql_t . $audit_filter_sql_t . $is_deleted_filter_t . " GROUP BY p.tid" . $sort_sql_t . " LIMIT 100", array($keyword_boolean, $keyword_boolean));
+            if($fid_filter_sql_t || $audit_filter_sql_t || $adv_filter_sql_t) {
+                $thread_ids_from_content = db_sql_find_prepared("SELECT p.tid, MAX(MATCH(p.message) AGAINST(? IN BOOLEAN MODE)) AS relevance FROM {$db->tablepre}post p JOIN {$db->tablepre}thread t ON p.tid = t.tid WHERE MATCH(p.message) AGAINST(? IN BOOLEAN MODE) AND p.isfirst=1" . $fid_filter_sql_t . $audit_filter_sql_t . $is_deleted_filter_t . $adv_filter_sql_t . " GROUP BY p.tid" . $sort_sql_t . " LIMIT 100", array($keyword_boolean, $keyword_boolean));
             } else {
                 $thread_ids_from_content = db_sql_find_prepared("SELECT tid, MAX(MATCH(message) AGAINST(? IN BOOLEAN MODE)) AS relevance FROM {$db->tablepre}post WHERE MATCH(message) AGAINST(? IN BOOLEAN MODE) AND isfirst=1 AND is_deleted=0 GROUP BY tid" . $sort_sql_t . " LIMIT 100", array($keyword_boolean, $keyword_boolean));
             }
@@ -331,7 +398,7 @@ if($keyword_safe) {
             // 合并查询 1：subject LIKE（含自己待审帖子，OR 条件合并）
             // 排序方向随 sort 参数：正序取最早批次，倒序/默认取最新批次
             $order_dir = $sort_order !== '' ? $sort_order : 'DESC';
-            $subject_sql = "SELECT tid FROM {$db->tablepre}thread WHERE subject LIKE ?{$subject_perm_sql} ORDER BY tid {$order_dir} LIMIT 1000";
+            $subject_sql = "SELECT tid FROM {$db->tablepre}thread WHERE subject LIKE ?{$subject_perm_sql}{$adv_filter_sql} ORDER BY tid {$order_dir} LIMIT 1000";
             $subject_threads = db_sql_find_prepared($subject_sql, array($kw_like));
             if($subject_threads) {
                 foreach($subject_threads as $row) {
@@ -340,7 +407,7 @@ if($keyword_safe) {
             }
 
             // 合并查询 2：post LIKE JOIN thread（含自己待审帖子，OR 条件合并）
-            $post_sql = "SELECT DISTINCT p.tid FROM {$db->tablepre}post p JOIN {$db->tablepre}thread t ON p.tid=t.tid WHERE p.message LIKE ? AND p.isfirst=1{$post_perm_sql} ORDER BY p.tid {$order_dir} LIMIT 1000";
+            $post_sql = "SELECT DISTINCT p.tid FROM {$db->tablepre}post p JOIN {$db->tablepre}thread t ON p.tid=t.tid WHERE p.message LIKE ? AND p.isfirst=1{$post_perm_sql}{$adv_filter_sql_t} ORDER BY p.tid {$order_dir} LIMIT 1000";
             $post_threads = db_sql_find_prepared($post_sql, array($kw_like));
             if($post_threads) {
                 foreach($post_threads as $row) {
@@ -374,8 +441,8 @@ if($keyword_safe) {
                 arsort($merged);
             }
 
-            // 分页
-            $_search_query = array('keyword' => $keyword_safe);
+            // 分页（保留关键词 + 筛选 + 排序参数）
+            $_search_query = array('keyword' => $keyword_safe) + $search_adv_query;
             if($sort !== '') $_search_query['sort'] = $sort;
             $pagination = pagination(route_url('search_page', array(), $_search_query), $total, $page, $pagesize);
 
@@ -499,9 +566,9 @@ if($keyword_safe) {
 
 // hook search_end.php
 
-// 排序按钮 URL（保留当前关键词，显式指定排序方向，供模板 tab 栏右侧按钮使用）
-$sort_url_asc = search_url(array('keyword' => $keyword_safe, 'sort' => 'asc'));
-$sort_url_desc = search_url(array('keyword' => $keyword_safe, 'sort' => 'desc'));
+// 排序按钮 URL（保留当前关键词 + 筛选参数，显式指定排序方向，供模板 tab 栏右侧按钮使用）
+$sort_url_asc = search_url(array('keyword' => $keyword_safe, 'sort' => 'asc') + $search_adv_query);
+$sort_url_desc = search_url(array('keyword' => $keyword_safe, 'sort' => 'desc') + $search_adv_query);
 
 $header['title'] = $keyword_safe ? lang('search_results') . ': ' . $keyword_safe : lang('search');
 $header['keywords'] = $keyword_safe;

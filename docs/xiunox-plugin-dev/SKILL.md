@@ -1,11 +1,31 @@
 ---
 name: xiunox-plugin-dev
-description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno BBS X 开发、调试、修复插件时使用，涵盖插件架构、hook 注册、API 调用、前端集成、安全规范、安装/卸载脚本、Service 类、路由扩展等。涉及创建新插件、修改现有插件、加 hook/路由/后台设置页、写 install/uninstall/upgrade 脚本、排查插件不生效/hook 失效/扫描器拦截、修复 fatal/warning、将旧插件从 jQuery/Alpine.js 迁移到 htmx 4 + 原生 JS 架构时触发。Also triggers on English or mixed-language requests about Xiuno BBS / XIUNOX / xiunobbs plugin development, hooks, routes, admin pages, Service classes, conf.json, or theme plugins.
+display_name: XIUNOX 插件开发专家
+display_name_en: XIUNOX Plugin Development Expert
+description: "XIUNOX (Xiuno BBS X) 插件开发专家。开发、调试、修复、迁移 Xiuno BBS X 插件时使用，覆盖插件架构、hook 注册、conf.json、Service 类、路由、后台设置页、install/uninstall/upgrade 脚本、安全规范、htmx 4 + 原生 JS、主题插件、存储驱动扩展。触发词：插件开发、写插件、加 hook、加路由、插件不生效、扫描器拦截、xiuno plugin、theme plugin。"
+description_zh: "Xiuno BBS X（XIUNOX）插件开发全流程知识库：架构、hook、API、前端、安全、脚本与故障排查。"
+description_en: "End-to-end expertise for developing, debugging and migrating Xiuno BBS X (XIUNOX) plugins: architecture, hooks, APIs, frontend patterns, security and troubleshooting."
+category: coding
+version: 1.1.0
+author: XIUNOX
 ---
 
 # Xiuno BBS X 插件开发 Skill
 
 > 本 Skill 是精简入口，深入细节查 `references/`（速查）和 `references/manual/`（完整手册）。写代码时对照本文件的硬规则与工作流。
+
+## 目录
+
+- [When to Use](#when-to-use)
+- [输入 / 输出](#输入--输出)
+- [核心架构要点](#核心架构要点)
+- [硬规则](#硬规则)
+- [开发工作流](#开发工作流)
+- [速查参考](#速查参考)
+- [Hook 选择速查](#hook-选择速查)
+- [失败策略](#失败策略)
+- [交付检查表](#交付检查表)
+- [输出要求](#输出要求)
 
 ## When to Use
 
@@ -28,6 +48,11 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 - 仅查询 Xiuno BBS 使用方法（如后台操作、发帖流程），不涉及代码开发
 - 部署运维（nginx 配置、数据库备份、PHP 环境搭建）问题
 
+## 输入 / 输出
+
+- **输入**：功能需求或问题描述；目标插件目录名（未给出则按 `作者_功能标识` 新建并说明）；现有插件代码 / 报错信息 / 截图描述。
+- **输出**：变更文件清单 + 关键架构决策 + 使用说明 + 测试结果 + 遗留风险 + Grep 审计结果，格式见文末 [输出要求](#输出要求)。
+
 ## 核心架构要点
 
 1. **编译期合并 hook，无运行时事件分发。** 把文件放到 `plugin/<dir>/hook/<hook名>` 即注册 hook，没有 `add_hook()` 函数。`_include()` 编译时把 hook 内容物理拼进源文件，缓存到 `tmp/`。改 hook 后必须清 `tmp/`。
@@ -36,7 +61,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 4. **db 是插件状态的唯一权威源。** `bbs_plugin` 表存 `installed`/`enable`/`version`；`conf.json` 的 `installed`/`enable`/`id` 已彻底废弃，代码层任何情况下都不读。前台判断启用用 `plugin_paths_enabled()`，禁止 `global $plugins`（前台未初始化）。
 5. **双模板系统：** PC 端 + 移动端通过成对 hook（如 `post_ref_thread_after.htm` + `*_mobile.htm`）各渲染一份，CSS 控制显隐。移动端 id 必须加 `-mobile` 后缀。
 
-> 完整架构说明见 [references/manual/01-architecture.md](references/manual/01-architecture.md)
+> 完整架构说明见 [references/manual/01-architecture.md](references/01-architecture.md)
 
 ## 硬规则
 
@@ -92,7 +117,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | 改核心文件后 | 清 `tmp/` 编译缓存（`_include()` 不比较 mtime） |
 | Service 调用核心类 | `if (!class_exists('XxxService')) { include_once APP_PATH.'lib/XxxService.php'; }` 守卫前置 |
 | Card 组件 | **必须 `x-card` + `card` 组合**，禁止裸用 `card`/`border`/`border-*`；列表分隔用 `py-*`/`mb-*` 间距 |
-| **右侧栏插件模块 card header** | **必须按范本格式**：`<div class="x-card card mt-3"><div class="card-body"><h3 class="card-title small"><i class="ti ti-xxx"></i> 标题</h3></div><div class="card-body">...</div></div>`。**禁止** `card-header`、`h5`/`h6`、`fw-bold`/`fw-semibold`、`me-1`/`me-2`；副标题用 `<small class="text-muted ms-2">副标题</small>` 紧跟主标题。详见 [plugindev/14-plugin-admin-ui.md#3.5](references/manual/14-plugin-admin-ui.md) |
+| **右侧栏插件模块 card header** | **必须按范本格式**：`<div class="x-card card mt-3"><div class="card-body"><h3 class="card-title small"><i class="ti ti-xxx"></i> 标题</h3></div><div class="card-body">...</div></div>`。**禁止** `card-header`、`h5`/`h6`、`fw-bold`/`fw-semibold`、`me-1`/`me-2`；副标题用 `<small class="text-muted ms-2">副标题</small>` 紧跟主标题。详见 [references/manual/14-plugin-admin-ui.md §3.5](references/14-plugin-admin-ui.md) |
 | 前台布局 | **必须用三栏骨架** `layout_three_column.inc.htm`（`ob_start` + `$main_content` + include）；禁止自行写 `container`/`row`/`col-lg-*`；不需左右栏时设 `$sidebar_*_file=''` |
 | 头像渲染 | `avatar_component_from_data()`（非原生 `<img>`） |
 | 改 `static/*.js`/`*.css` 后 | 递增 `conf/conf.php` 的 `static_version` |
@@ -109,8 +134,6 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | Toast vs Modal | 轻提示（成功/失败/信息/警告）用 `XN.toast()`；需要确认（删除/卸载/重置）用 `XN.confirm()`；重要错误/长文本用 `XN.alert()`；需输入文本用 `XN.prompt()` |
 | 视频显示 | 视频作为内联播放器显示在正文位置，不出现在附件列表中，不显示下载链接 |
 | 附件显示 | 附件列表仅显示图片、文档等非视频附件；视频通过内联 `<video>` 标签直接播放 |
-| Card 组件 | **必须 `x-card` + `card` 组合**，禁止裸用 `card`/`border`/`border-*`；列表分隔用 `py-*`/`mb-*` 间距 |
-| 前台布局 | **必须用三栏骨架** `layout_three_column.inc.htm`（`ob_start` + `$main_content` + include）；不需左右栏时设 `$sidebar_*_file=''`；禁止自行写 `container`/`row`/`col-lg-*` |
 | 右侧边栏 | 放置帖子目录（替代"最新帖子"区域） |
 | 个人签名 | 放在统计信息上方，浅色背景，与论坛描述样式一致 |
 | 按钮样式 | 禁止在按钮上使用 `w-100` 类；按钮内禁止使用过多样式 |
@@ -137,7 +160,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 
 ### Step 3: 实现
 
-按顺序创建文件（详见 [references/manual/02-plugin-structure.md](references/manual/02-plugin-structure.md)）：
+按顺序创建文件（详见 [references/manual/02-plugin-structure.md](references/02-plugin-structure.md)）：
 
 1. **`conf.json`** — 必填字段 + `hooks_rank`（键名与 hook 文件名含扩展名完全一致）+ `overwrites_rank`（object，非 array）+ `dependencies`（推荐 object `{"dir":"ver"}`，兼容 array `["dir"]`）
 2. **`install.php`** — `CREATE TABLE IF NOT EXISTS` + `setting_set()` 默认配置 + `!defined('DEBUG') AND exit('Access Denied');`
@@ -154,7 +177,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 
 ### Step 4: 测试
 
-1. 清 `tmp/` 编译缓存：`rm -f tmp/route_*.php tmp/model_*.func.php tmp/view_htm_*.htm tmp/lang_*_bbs.php`
+1. 清 `tmp/` 编译缓存：`rm -f tmp/route_*.php tmp/model_*.func.php tmp/view_htm_*.htm tmp/plugin_*.php tmp/plugin_*.htm tmp/lang_*_bbs.php`（`plugin_*` 是插件 Service 与模板的编译产物，漏清会导致改动不生效）
 2. 若改了 `static/*.js`/`*.css`，递增 `conf/conf.php` 的 `static_version`，硬刷新浏览器（Ctrl+F5）
 3. 启用插件，检查扫描器报告（fatal/error 不可跳过，warning/info 可跳过）
 4. 验证核心场景：发帖/回帖/编辑/删除/列表/详情/个人中心/后台设置
@@ -172,7 +195,7 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
    - `Grep "return;"` 在 `hook/` 目录下应无结果（闭包内除外）
    - `Grep "<\\?php" plugin/*/static/*.js` 应无结果
 3. 确认 `conf.json` 不含 `id`/`installed`/`enable` 字段
-4. 打包 zip（保留 `conf.json` 在根目录，详见 [references/manual/02-plugin-structure.md](references/manual/02-plugin-structure.md)）
+4. 打包 zip（保留 `conf.json` 在根目录，详见 [references/manual/02-plugin-structure.md](references/02-plugin-structure.md)）
 
 ## 速查参考
 
@@ -184,24 +207,30 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 | 查后台 UI 模式 / Tab 独立页面 / 入口模式 / 搜索分页 | [references/admin-patterns.md](references/admin-patterns.md) |
 | 查通知聚合中心 / 管理员三通道通知（站内消息/邮件/红点） | [references/notify-patterns.md](references/notify-patterns.md) |
 | 查 AI 协作硬规则 / 扫描器分级 | [references/ai-rules.md](references/ai-rules.md) |
-| 查完整插件架构原理 | [references/manual/01-architecture.md](references/manual/01-architecture.md) |
-| 查 conf.json 完整字段 / zip 打包 | [references/manual/02-plugin-structure.md](references/manual/02-plugin-structure.md) |
-| 查完整 Hook 全量目录 | [references/manual/03-hooks-catalog.md](references/manual/03-hooks-catalog.md) |
-| 查完整 API 速查 | [references/manual/04-api-cheatsheet.md](references/manual/04-api-cheatsheet.md) |
-| 查前端 / 安全 / htmx 4 详解 | [references/manual/05-frontend-security.md](references/manual/05-frontend-security.md) |
-| 查 AI 协作完整规则 | [references/manual/06-ai-collaboration.md](references/manual/06-ai-collaboration.md) |
-| 查运行时安全 / 崩溃自动禁用 | [references/manual/07-runtime-safety.md](references/manual/07-runtime-safety.md) |
-| 查登录安全 / 账号锁定 | [references/manual/08-login-security.md](references/manual/08-login-security.md) |
-| 查 model 加载机制重构 | [references/manual/09-model-loading-refactor.md](references/manual/09-model-loading-refactor.md) |
-| 查 jQuery 移除迁移指南 | [references/manual/10-jquery-removal-guide.md](references/manual/10-jquery-removal-guide.md) |
-| 查编辑器工具栏按钮集成 | [references/manual/11-editor-toolbar-integration.md](references/manual/11-editor-toolbar-integration.md) |
-| 查头像组件使用与扩展 | [references/manual/12-avatar-component.md](references/manual/12-avatar-component.md) |
-| 查后台/前台 UI 规范总览 | [references/manual/14-plugin-admin-ui.md](references/manual/14-plugin-admin-ui.md) |
-| 查存储驱动扩展 / 云存储插件开发 | [references/manual/16-storage-driver-extension.md](references/manual/16-storage-driver-extension.md) |
-| 查通知聚合中心 / 三通道通知 / 旧通知配置迁移 | [references/manual/18-plugin-notify-hub.md](references/manual/18-plugin-notify-hub.md) |
-| 查插件互斥机制 / 目录命名 | [references/manual/plugin-mutex-guide.md](references/manual/plugin-mutex-guide.md) |
-| 查主题插件开发 / overwrite / 主题色适配 / dark 模式 | [references/manual/17-theme-plugin-guide.md](references/manual/17-theme-plugin-guide.md) |
-| 查完整手册入口 | [references/manual/README.md](references/manual/README.md) |
+| 查 UI 组件模式 / Card / Tab / 图标 | [references/ui-patterns.md](references/ui-patterns.md) |
+| 查个人中心导航 / 用户页模式 | [references/user-nav-patterns.md](references/user-nav-patterns.md) |
+| 查并发安全 / 积分防刷 / CAS / GET_LOCK | [references/security-patterns.md](references/security-patterns.md) |
+| 查完整插件架构原理 | [references/manual/01-architecture.md](references/01-architecture.md) |
+| 查 conf.json 完整字段 / zip 打包 | [references/manual/02-plugin-structure.md](references/02-plugin-structure.md) |
+| 查完整 Hook 全量目录 | [references/manual/03-hooks-catalog.md](references/03-hooks-catalog.md) |
+| 查完整 API 速查 | [references/manual/04-api-cheatsheet.md](references/04-api-cheatsheet.md) |
+| 查前端 / 安全 / htmx 4 详解 | [references/manual/05-frontend-security.md](references/05-frontend-security.md) |
+| 查 AI 协作完整规则 | [references/manual/06-ai-collaboration.md](references/06-ai-collaboration.md) |
+| 查运行时安全 / 崩溃自动禁用 | [references/manual/07-runtime-safety.md](references/07-runtime-safety.md) |
+| 查登录安全 / 账号锁定 | [references/manual/08-login-security.md](references/08-login-security.md) |
+| 查 model 加载机制重构 | [references/manual/09-model-loading-refactor.md](references/09-model-loading-refactor.md) |
+| 查 jQuery 移除迁移指南 | [references/manual/10-jquery-removal-guide.md](references/10-jquery-removal-guide.md) |
+| 查编辑器工具栏按钮集成 | [references/manual/11-editor-toolbar-integration.md](references/11-editor-toolbar-integration.md) |
+| 查头像组件使用与扩展 | [references/manual/12-avatar-component.md](references/12-avatar-component.md) |
+| 查官方插件仓库 / 示例插件索引 | [references/manual/13-official-plugins-repo.md](references/13-official-plugins-repo.md) |
+| 查后台/前台 UI 规范总览 | [references/manual/14-plugin-admin-ui.md](references/14-plugin-admin-ui.md) |
+| 查并发安全 / CAS / 幂等 / 部分成功回滚 | [references/manual/15-concurrency-security.md](references/15-concurrency-security.md) |
+| 查存储驱动扩展 / 云存储插件开发 | [references/manual/16-storage-driver-extension.md](references/16-storage-driver-extension.md) |
+| 查通知聚合中心 / 三通道通知 / 旧通知配置迁移 | [references/manual/18-plugin-notify-hub.md](references/18-plugin-notify-hub.md) |
+| 查插件互斥机制 / 目录命名 | [references/manual/plugin-mutex-guide.md](references/plugin-mutex-guide.md) |
+| 查主题插件开发 / overwrite / 主题色适配 / dark 模式 | [references/manual/17-theme-plugin-guide.md](references/17-theme-plugin-guide.md) |
+| 查个人中心导航扩展 / my 页面模式 | [references/manual/19-user-nav.md](references/19-user-nav.md) |
+| 查完整手册入口 | [references/manual/README.md](references/manual-index.md) |
 
 ## Hook 选择速查
 
@@ -299,4 +328,4 @@ description: XIUNOX (Xiuno BBS X) 插件开发专家。当用户需要为 Xiuno 
 5. **遗留风险**：未覆盖的边缘场景、潜在冲突、后续优化建议
 6. **审计结果**：Grep 审计命令的执行结果（`esc_textarea`/`jQuery`/`Alpine`/`return;`/`<?php` in `static/*.js` 等均应无结果）
 
-> 详细 API 见 [references/api-cheatsheet.md](references/api-cheatsheet.md)；详细前端模式见 [references/frontend-patterns.md](references/frontend-patterns.md)；完整手册见 [references/manual/README.md](references/manual/README.md)。
+> 详细 API 见 [references/api-cheatsheet.md](references/api-cheatsheet.md)；详细前端模式见 [references/frontend-patterns.md](references/frontend-patterns.md)；完整手册见 [references/manual/README.md](references/manual-index.md)。

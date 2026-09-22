@@ -407,7 +407,7 @@ if($action == 'create') {
 		}
 	}
 
-		$subject = param('subject');
+		$subject = param('subject', '', FALSE);
 		// 标题只允许纯文本，过滤所有HTML标签
 		$subject = strip_tags($subject);
 		// 去除首尾空格后再计算字数（空格不计入标题长度）

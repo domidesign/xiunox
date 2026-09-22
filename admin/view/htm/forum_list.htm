@@ -64,6 +64,11 @@ if(!function_exists('forum_frontend_url')) {
 
 	<div class=" ">
 
+		<div class="alert alert-info border-0 d-flex align-items-center gap-2 py-2 mb-3 small">
+			<i class="ti ti-info-circle"></i>
+			<span><?php echo esc_html(lang('admin_forum_sort_tip'));?></span>
+		</div>
+
 		<?php if(empty($categories) && empty($orphans)): ?>
 		<!-- 空状态 -->
 		<div class="text-center py-5">

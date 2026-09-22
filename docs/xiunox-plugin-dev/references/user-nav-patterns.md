@@ -1,6 +1,6 @@
 # 用户导航注册速查
 
-> 本文件为用户导航（User Nav）注册速查，详细说明见 [manual/19-user-nav.md](manual/19-user-nav.md)
+> 本文件为用户导航（User Nav）注册速查，详细说明见 [19-user-nav.md](19-user-nav.md)
 
 ## 目录
 
@@ -77,4 +77,4 @@ UserNavService::register('your_plugin', array(
 - [ ] `conf.json` version 递增
 - [ ] php -l + 清 tmp/
 
-> 完整规范（含 xnx_duel 真实范例、数据分层细节、后台管理说明）见 [manual/19-user-nav.md](manual/19-user-nav.md)
+> 完整规范（含 xnx_duel 真实范例、数据分层细节、后台管理说明）见 [19-user-nav.md](19-user-nav.md)

@@ -1,6 +1,6 @@
 # Hook 点速查表
 
-> 本文件为 Hook 点速查，完整目录见 [plugindev/03-hooks-catalog.md](manual/03-hooks-catalog.md)
+> 本文件为 Hook 点速查，完整目录见 [03-hooks-catalog.md](03-hooks-catalog.md)
 
 > ⚠️ 本文件中的 hook 名均已核对源码真实存在。如发现不存在的 hook，请报告。
 
@@ -57,16 +57,25 @@
 | `header_nav_admin_page_before.htm` / `header_nav_admin_page_after.htm` | 管理入口前/后 | 管理入口扩展 |
 | `header_nav_end.htm` | `</nav>` 结束 | 导航栏底部组件 |
 
-### Footer（`view/htm/footer.inc.htm` / `footer_nav.inc.htm`）
+### Footer（`view/htm/footer.inc.htm` / `footer_nav.inc.htm` / `bottom_nav.inc.htm`）
 
 | Hook | 触发位置 | 典型用途 |
 |---|---|---|
 | `footer_start.htm` | footer 区域开始 | 页脚组件 |
+| `footer_main_end.htm` | 主内容区末尾（`</main>` 前） | 随页面滚动的底部内容 |
 | `footer_nav_before.htm` / `footer_nav_after.htm` | 页脚导航前/后 | |
-| `footer_nav_start.htm` / `footer_nav_end.htm` | 底部导航栏开始/结束（footer_nav.inc.htm） | |
+| `footer_nav_logo_before.htm` / `footer_nav_site_name_before.htm` / `footer_nav_site_name_after.htm` | Logo 前 / 站点名前 / 站点名后（footer_nav.inc.htm 品牌区） | |
+| `footer_nav_links_start.htm` / `footer_nav_links_after.htm` | 功能链接导航前/后 | |
+| `footer_nav_links_item_start.htm` / `footer_nav_links_item_after.htm` | 导航内首链接前/末链接后 | 追加链接项（友链等，继承导航样式） |
+| `footer_nav_powered_start.htm` / `footer_nav_powered_after.htm` | Powered by 区前/后 | |
+| `footer_nav_info_before.htm` / `footer_nav_info_after.htm` | 右侧信息区（备案/SQL/OPcache）前/后 | 追加信息项 |
+| `footer_nav_end.htm` | 底部导航栏结束（footer_nav.inc.htm） | |
+| `bottom_nav_end.htm` | 移动端底部导航 `</nav>` 前 | 追加自定义导航项（class 用 `bottom-nav-item` 可参与高亮） |
 | `footer_js_before.htm` / `footer_js_after.htm` | JS 加载前/后 | ✅ `footer_js_after.htm` **推荐**：注入全局插件 JS |
-| `footer_body_after.htm` | `</body>` 前 | ✅ **常用**：全局底部组件（统计代码/弹窗） |
-| `footer_end.htm` | 页脚最末 | 备案号 |
+| `footer_js_config_after.htm` | 内联全局配置脚本后、bbs.js 前 | ✅ 覆盖 `bbs_lang` / `XIUNO_I18N` 等全局 JS 配置 |
+| `footer_body_end.htm` | `</body>` 前（核心脚本全部加载后） | ✅ **常用**：最后的 HTML/JS 注入点（统计代码/弹窗） |
+| `footer_body_after.htm` | `</body>` 后（浏览器会并入 body 末尾渲染） | |
+| `footer_end.htm` | 页脚最末（`</html>` 后） | 备案号 |
 
 ---
 
@@ -567,7 +576,7 @@
 
 ## 13. 编辑器工具栏
 
-> `lib/EditorService.php` 的 `renderEditorHtml()` 方法内。完整教程见 [plugindev/11-editor-toolbar-integration.md](manual/11-editor-toolbar-integration.md)。
+> `lib/EditorService.php` 的 `renderEditorHtml()` 方法内。完整教程见 [11-editor-toolbar-integration.md](11-editor-toolbar-integration.md)。
 
 | Hook | 触发位置 | 典型用途 |
 |---|---|---|
@@ -589,7 +598,7 @@ $data[] = array(
 
 ## 14. 头像组件
 
-> 来源：`lib/avatar_component.php` 的 `avatar_component_from_data()` 函数内的 `plugin_hook()` 调用。完整教程见 [plugindev/12-avatar-component.md](manual/12-avatar-component.md)。
+> 来源：`lib/avatar_component.php` 的 `avatar_component_from_data()` 函数内的 `plugin_hook()` 调用。完整教程见 [12-avatar-component.md](12-avatar-component.md)。
 
 | Hook | 注入位置 | 模式 | 典型用途 |
 |---|---|---|---|

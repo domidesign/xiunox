@@ -70,19 +70,38 @@
 | Hook | 触发位置 | 典型用途 |
 |---|---|---|
 | `footer_start.htm` | footer 区域开始 | 页脚组件 |
+| `footer_main_end.htm` | 主内容区末尾（`</main>` 前） | 随页面滚动的底部内容 |
 | `footer_nav_before.htm` | 页脚导航前 | |
 | `footer_nav_after.htm` | 页脚导航后 | |
 | `footer_js_before.htm` | JS 加载前 | 额外 JS 配置 |
+| `footer_js_config_after.htm` | 内联全局配置脚本后、bbs.js 加载前 | ✅ 覆盖 `bbs_lang` / `XIUNO_I18N` / `bbs_notify_urls` 等全局 JS 配置 |
 | `footer_js_after.htm` | JS 加载后 | ✅ **推荐**：注入全局插件 JS |
-| `footer_body_after.htm` | `</body>` 前、footer 结束后 | ✅ **常用**：全局底部组件（统计代码/弹窗） |
-| `footer_end.htm` | 页脚最末 | 备案号 |
+| `footer_body_end.htm` | `</body>` 前（核心脚本全部加载后） | ✅ **常用**：最后的 HTML/JS 注入点（统计代码/弹窗/全局组件） |
+| `footer_body_after.htm` | `</body>` 后（浏览器会并入 body 末尾渲染） | |
+| `footer_end.htm` | 页脚最末（`</html>` 后） | 备案号 |
 
 ### Footer 导航（`view/htm/footer_nav.inc.htm`）
 
 | Hook | 触发位置 | 典型用途 |
 |---|---|---|
-| `footer_nav_start.htm` | 底部导航栏开始 | 底部导航组件 |
+| `footer_nav_logo_before.htm` | 站点 Logo 前 | Logo 前组件 |
+| `footer_nav_site_name_before.htm` | 站点名/版权前（Logo 与站点名之间） | |
+| `footer_nav_site_name_after.htm` | 站点名/版权后 | 品牌区扩展（认证标等） |
+| `footer_nav_links_start.htm` | 功能链接导航前 | 导航前内容 |
+| `footer_nav_links_item_start.htm` | 导航内、首个链接前 | 追加前置链接项（继承导航样式） |
+| `footer_nav_links_item_after.htm` | 导航内、末个链接后 | 追加链接项（友链等，继承导航样式） |
+| `footer_nav_links_after.htm` | 功能链接导航（`</nav>`）后 | 导航后内容 |
+| `footer_nav_powered_start.htm` | Powered by 区前 | |
+| `footer_nav_powered_after.htm` | Powered by 区后 | |
+| `footer_nav_info_before.htm` | 右侧信息区前（备案 / SQL 调试前） | 追加信息项 |
+| `footer_nav_info_after.htm` | 右侧信息区后（备案 / OPcache 后） | 追加信息项 |
 | `footer_nav_end.htm` | 底部导航栏结束 | 底部导航扩展 |
+
+### 移动端底部导航（`view/htm/bottom_nav.inc.htm`）
+
+| Hook | 触发位置 | 典型用途 |
+|---|---|---|
+| `bottom_nav_end.htm` | `</nav>` 结束前 | 追加自定义导航项（`class` 用 `bottom-nav-item`、配 `data-nav` 可参与高亮） |
 
 ---
 

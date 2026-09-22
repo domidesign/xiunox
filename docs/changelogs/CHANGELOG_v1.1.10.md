@@ -110,3 +110,37 @@
 - 升级后后台审核页新增通知设置功能，默认全开（向后兼容）
 - API 封禁检查补全后，此前绕过封禁的封禁用户将被正确拦截
 - 通知链接带精确楼层锚点，后端需确保 post 表 pid 字段可用（无 schema 变更）
+
+## 🔧 后续修复补充（2026-09-22）
+
+### 搜索高级筛选（版块 / 作者 / 日期范围）
+
+- **后端解析** `route/search.php`：新增 `fid`（版块）、`author`（用户名或 UID，纯数字视为 UID，否则精确匹配 username/nickname）、`ds`（开始日期 Y-m-d）、`et`（结束日期 Y-m-d）四个高级筛选参数
+
+- **SQL 拼接安全**：筛选值均 intval / 时间戳严格校验（开始当天 0 点、结束当天 23:59:59），内联拼接无注入面；指定作者但未匹配到用户时恒空结果（`AND 1=0`）；开始晚于结束视为未设置；版块经 `forum_list_access_filter` 权限过滤，防止 URL 枚举无权版块
+
+- **前端 UI** `view/htm/search.htm`：搜索框下方新增折叠筛选面板（版块下拉分组 / 作者输入 / 日期范围 / 一键重置），已有筛选时默认展开并显示"筛选已生效"标识
+
+- **参数透传**：分页 URL、排序按钮 URL 均保留关键词 + 筛选参数，翻页/切换排序不丢失筛选条件
+
+- **语言包**：zh-cn/zh-tw/en-us 新增筛选相关文案（search\_filter / search\_filter\_active / search\_author / search\_date\_range / search\_filter\_reset 等）
+
+### 标题双重转义修复
+
+- **model 层移除** `model/thread.func.php`：`thread_format()` 不再对 subject 调 `esc_html`。标题接收时已 `strip_tags` 无 HTML 标签、DB 存原样，此前 model 层 + 模板层各转义一次造成双重转义，`& " ' < >` 显示为 `&amp;/&quot;/&#039;` 等实体字面量；现统一交给模板层单次 esc\_html / esc\_attr
+
+- **参数配合** `api/v1/thread.php` + `route/thread.php`：`param('subject', '', FALSE)` 取消 param 层转义，避免与模板层重复转义
+
+### 版块管理排序提示
+
+- **后台版块列表** `admin/view/htm/forum_list.htm`：列表顶部新增 info 提示条，说明分区/子版块排序交互，文案走 `admin_forum_sort_tip` 语言包
+
+### 插件开发文档 manual 目录清理
+
+- **冗余副本移除** `docs/xiunox-plugin-dev/references/manual/`：22 篇文档（01 架构 ~ 19 用户导航 + README + plans + plugin-mutex-guide）删除，references 根下同名文档为唯一权威源
+
+- **链接更新** `references/` 下 9 篇速查文档：`manual/xx.md` → `xx.md` 平级引用
+
+### Footer hooks 目录补全
+
+- `docs/plugindev/03-hooks-catalog.md`：Footer 章节补全 `footer_main_end`、`footer_js_config_after`、`footer_nav_logo_before`、`footer_nav_links_item_start/after`、`footer_nav_powered_*`、`footer_nav_info_*` 等 hook 点，新增移动端底部导航 `bottom_nav_end` hook 说明
