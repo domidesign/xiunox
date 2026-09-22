@@ -246,6 +246,7 @@ return array(
 	'moderator'=>'Moderator',
 	'add_new_line'=>'New Line',
 	'forum_edit_tip'=>'Please carefully edit the section, once determined, do not easily change, or may lead to data related errors, generally do not change in the formal operation.',
+	'admin_forum_sort_tip'=>'The sort value (rank) is the forum\'s weight/priority; the higher the weight, the higher it appears. Forums are sorted by rank in descending order (the larger the value, the higher it appears); when ranks are equal, they are sorted by forum ID (fid) in ascending order, i.e. the earlier created appears first.',
 	'forum_cant_delete_system_reserved'=>'Cannot delete system reserved section.',
 	'forum_moduid_format_tips'=>'Up to 10, comma separated, such as: Jack,Lisa,Mike',
 	'user_privilege'=>'User Privilege',
@@ -2537,6 +2538,16 @@ return array(
         'admin_plugin_notice_not_enabled'=>'Disabled',
         'admin_plugin_notice_email_placeholder'=>'Leave empty to use default email',
         'admin_plugin_notice_save_btn'=>'Save Settings',
+        // Audit page notification settings (admin/?audit.htm, stored under the core_audit key of plugin_notify_config)
+        'admin_audit_notify_title'=>'Content Audit Notification Settings',
+        'admin_audit_notify_desc'=>'Notify admins via the channels below when a new thread, reply or profile change enters the pending queue. Badge refers to the pending badge on the "Content Audit" item in the sidebar.',
+        'admin_audit_notify_email'=>'Audit Notification Email',
+        'admin_audit_notify_email_tip'=>'Leave empty to fall back to: the global default email on the plugin notice page, then admin account emails. Multiple addresses supported, separated by commas.',
+        'admin_audit_notify_col_type'=>'Pending Content',
+        'admin_audit_notify_row_thread'=>'Pending Threads',
+        'admin_audit_notify_row_post'=>'Pending Replies',
+        'admin_audit_notify_row_profile'=>'Pending Profiles',
+        'admin_audit_notify_saved'=>'Saved successfully',
 );
 
 ?>

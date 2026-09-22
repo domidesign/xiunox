@@ -248,6 +248,7 @@ return array(
 	'moderator'=>'版主',
 	'add_new_line'=>'增加一行',
 	'forum_edit_tip'=>'请谨慎编辑版块，一旦确定后不要轻易变动，否则可能会导致数据关联错误，一般在正式运营时就不要再变动。',
+	'admin_forum_sort_tip'=>'排序值（rank）即版块的权重/优先级，权重越高越靠前。版块按 rank 从大到小排列，数值越大越靠前；rank 相同时按版块 ID（fid）从小到大排列，即越早创建越靠前。',
 	'forum_cant_delete_system_reserved'=>'不能删除系统保留的版块。',
 	'forum_moduid_format_tips'=>'最多允许10个，逗号隔开，如：Jack,Lisa,Mike',
 	'user_privilege'=>'用户权限',
@@ -2581,6 +2582,16 @@ return array(
         'admin_plugin_notice_not_enabled'=>'未启用',
         'admin_plugin_notice_email_placeholder'=>'留空使用全局默认邮箱',
         'admin_plugin_notice_save_btn'=>'保存设置',
+        // 审核页通知设置（admin/?audit.htm，配置存 plugin_notify_config 的 core_audit 键）
+        'admin_audit_notify_title'=>'内容审核通知设置',
+        'admin_audit_notify_desc'=>'新主题、回帖或资料变更进入待审队列时，按以下通道提醒管理员。红点指左侧导航"内容审核"菜单的待审徽章。',
+        'admin_audit_notify_email'=>'审核提醒邮箱',
+        'admin_audit_notify_email_tip'=>'留空时回退：插件通知页的全局默认邮箱 > 管理员账号邮箱。支持填写多个，用逗号分隔。',
+        'admin_audit_notify_col_type'=>'待审内容',
+        'admin_audit_notify_row_thread'=>'待审主题',
+        'admin_audit_notify_row_post'=>'待审回帖',
+        'admin_audit_notify_row_profile'=>'待审资料',
+        'admin_audit_notify_saved'=>'保存成功',
 );
 
 ?>

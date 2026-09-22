@@ -49,6 +49,7 @@ if($_is_mobile) return;
 				</div>
 			</div>
 		</div>
+		<!--{hook index_site_brief_user_after.htm}-->
 		<?php  if(!empty($user['signature'])): ?>
 		<!-- 用户签名独立区块 -->
 		<div class="card-body py-2">
@@ -57,6 +58,7 @@ if($_is_mobile) return;
 			</div>
 		</div>
 		<?php endif;  ?>
+		<!--{hook index_site_brief_signature_after.htm}-->
 	<?php
 	// 用户导航：插件通过 user_nav_register.php 注册的快捷入口（后台-设置-导航-用户导航 可排序/启停）
 	$_user_nav_items = array();
@@ -74,10 +76,11 @@ if($_is_mobile) return;
 				<i class="ti <?php echo esc_html($_unav['icon']);?>"></i>
 				<span class="text-truncate"><?php echo esc_html($_unav['name']);?></span>
 			</a>
-			<?php endforeach; ?>
+		<?php endforeach; ?>
+			</div>
 		</div>
-	</div>
-	<?php endif; ?>
+		<?php endif; ?>
+		<!--{hook index_site_brief_user_nav_after.htm}-->
 		<?php } else { ?>
 		<!-- 未登录站点信息 -->
 		<div class="card-body">
@@ -104,6 +107,7 @@ if($_is_mobile) return;
 				<div class="bg-body-tertiary rounded-1 p-1 small text-body-secondary">
 					<?php echo esc_html($conf['sitebrief']);?> </div>
 			</div>
+			<!--{hook index_site_brief_guest_brief_after.htm}-->
 		<div class="pt-3 ">
 			<div class="d-grid text-center small rounded-3 p-2" style="grid-template-columns:1fr 1fr 1fr 1fr;">
 				<div>
@@ -140,6 +144,7 @@ if($_is_mobile) return;
 				</div>
 			</div>
 		</div>
+		<!--{hook index_site_brief_guest_stats_after.htm}-->
 		<?php } ?>
 		<div class="py-3 d-flex gap-2 flex-wrap">
 		<?php if(forum_can_post($fid, $gid)) { ?>

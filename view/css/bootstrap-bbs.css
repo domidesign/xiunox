@@ -1725,7 +1725,7 @@ a.hover-bg-body-secondary:hover {
     object-fit: contain;
 }
 
-.bbs-footer-copy {
+.bbs-footer-site-name {
     font-size: 0.88rem;
     font-weight: 600;
     color: var(--bs-body-color);
@@ -1963,7 +1963,6 @@ a.hover-bg-body-secondary:hover {
     justify-content: center;
     width: 48px;
     height: 48px;
-    margin-left: 90px;
     background-color: var(--bs-body-bg);
     background-position: 50%;
     background-repeat: no-repeat;
@@ -2330,7 +2329,7 @@ div.message .mention:hover {
         margin-top: 0.8rem;
     }
 
-    .bbs-footer-copy {
+    .bbs-footer-site-name {
         white-space: normal;
         max-width: 100%;
     }

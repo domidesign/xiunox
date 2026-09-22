@@ -66,6 +66,11 @@ switch ($action) {
             ApiResponse::error(401, 'Invalid credentials');
         }
 
+        // 封禁检查：禁止访问/锁定用户不能登录（与 Web 登录 route/user.php 对齐，管理员组豁免）
+        // LoginSecurityService::checkBan 在 ban_type>0 时直接放行（假定封禁由 UserBanService 处理），
+        // Web 路径有 checkBanByScene('login') 兜底，API 路径此前缺失导致封禁用户可换取 token
+        api_check_ban_scene(intval($user['uid']), intval($user['gid'] ?? 0), 'login');
+
         // 登录成功时清空失败计数
         LoginSecurityService::recordAttempt($user['uid'], TRUE, $longip, $_SERVER['HTTP_USER_AGENT']);
 
@@ -178,6 +183,13 @@ switch ($action) {
         }
         if (empty($result)) {
             ApiResponse::unauthorized('Invalid or expired refresh token');
+        }
+
+        // 封禁检查：禁止访问/锁定用户不能通过 refresh_token 续期换新 token（对齐 login 拦截）
+        if (!empty($result['uid'])) {
+            $_refresh_user = $userService->getUserById(intval($result['uid']));
+            api_check_ban_scene(intval($result['uid']), intval($_refresh_user['gid'] ?? 0), 'login');
+            unset($_refresh_user);
         }
 
         ApiResponse::success([

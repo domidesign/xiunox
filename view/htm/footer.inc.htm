@@ -14,6 +14,8 @@
 
 			<?php if(!empty($uid) && !empty($gid) && $gid <= 2) echo xn_debug_info(); ?>
 	
+		<!--{hook footer_main_end.htm}-->
+
 		</div>
 	</main>
 
@@ -97,6 +99,7 @@
 	// 验证码 URL 模板（用 PHP url() 函数生成，兼容所有伪静态格式）
 	var bbs_captcha_url_template = <?php echo json_encode(route_url('captcha', ['scene' => '__SCENE__']));?>;
 	</script>
+	<!--{hook footer_js_config_after.htm}-->
 	<script src="<?php echo $conf['view_url'];?>js/bbs.js<?php echo $static_version;?>"></script>
 	<!--{hook footer_js_after.htm}-->
 	<!-- 表单自动保存（草稿箱）：原生 JS，在 xiuno-modern.js + bbs.js 之后加载，复用已暴露的 var uid -->
@@ -161,6 +164,8 @@
 		}
 	})();
 	</script>
+
+	<!--{hook footer_body_end.htm}-->
 
 </body>
 <!--{hook footer_body_after.htm}-->

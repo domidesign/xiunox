@@ -50,6 +50,7 @@ return array(
 	'threads'=>'Threads',
 	'posts'=>'Comments',
 	'users'=>'Users',
+	'user'=>'User',
 	'attachs'=>'Attachments',
 	'attach_size'=>'Attachment Size',
 	'online'=>'Online',
@@ -691,6 +692,14 @@ return array(
 	'search_sort'=>'Sort',
 	'search_sort_asc'=>'Ascending',
 	'search_sort_desc'=>'Descending',
+	'search_filter'=>'Advanced Filter',
+	'search_filter_active'=>'Filter Active',
+	'search_all_forums'=>'All Forums',
+	'search_author'=>'Author',
+	'search_author_placeholder'=>'Username or UID',
+	'search_date_range'=>'Date Range',
+	'search_date_to'=>'to',
+	'search_filter_reset'=>'Reset',
 
 	// ========== 主题/AI设置 (原 bbs_theme.php) ==========
 	'theme_settings'=>'Theme Settings',
@@ -1799,6 +1808,12 @@ return array(
 	'audit_resubmit_limit_reached'=>'Resubmission limit reached ({n} times), please contact the administrator',
 	'audit_reply_not_exists'=>'Reply does not exist',
 	'audit_log_reason'=>' Reason: {reason}',
+	'audit_notify_type_thread'=>'thread',
+	'audit_notify_type_post'=>'reply',
+	'audit_notify_type_profile'=>'profile change',
+	'audit_notify_pending_subject'=>'New {type} pending review',
+	'audit_notify_pending_body'=>'{summary}
+There are now {count} pending {type} item(s). Please review them in the admin panel.',
 	'security_obfuscate_error'=>'Operation failed, please check the input',
 	// hook lang_en_us_bbs_common.php
 	// ========== API doc supplementary keys ==========

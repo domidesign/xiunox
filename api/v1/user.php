@@ -395,6 +395,8 @@ switch ($method) {
         // 头像更新应走 POST /user/{uid}/avatar（上传）或 POST /user/{uid}/avatar/preset（预设）。
         $password = param('password', '', FALSE);
         if (!empty($password)) {
+            // 封禁检查：锁定(ban_type=3)用户不能改密（与 Web route/user.php 改密前检查对齐）
+            api_check_ban_scene(intval($authUser['uid']), intval($authUser['gid']), 'password');
             $salt = xn_rand(16);
             $update['password'] = md5($password . $salt);
             $update['salt'] = $salt;

@@ -231,8 +231,14 @@ class ApiAuthService {
             return null;
         }
 
-        // 标记 used=1（保留行用于后续重用检测，不再删除）
-        $this->db->update('api_token', ['id' => $row['id']], ['used' => 1]);
+        // 原子占用：UPDATE ... WHERE used=0，并发时仅第一个请求 affected=1，
+        // 其余请求本次刷新失败（读-改-写两步在此前的实现中存在竞态）。
+        // 竞态败者只拒绝本次请求、不撤销整链：并发双发是合法客户端的正常场景
+        // （如多标签页），无法与窃取区分；整链撤销仅针对时序上可判定的重用（下方 used 快路径）。
+        $claimed = $this->db->update('api_token', ['id' => $row['id'], 'used' => 0], ['used' => 1]);
+        if ($claimed <= 0) {
+            return null;
+        }
 
         // 删除关联的旧 access_token（已无价值，新对会生成新 access）
         if ($relatedId > 0) {
@@ -287,6 +293,7 @@ class ApiAuthService {
         $this->db->update('api_token', ['id' => $refreshId], ['related_id' => $accessId]);
 
         return [
+            'uid' => $uid,
             'access_token' => $newAccessToken,
             'refresh_token' => $newRefreshToken,
             'expires_in' => $this->accessTokenExpireHours * 3600,

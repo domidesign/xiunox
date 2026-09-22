@@ -136,6 +136,40 @@ function plugin_notice_flush() {
 	return CacheHelper::delete('core_plugin_notice');
 }
 
+/**
+ * 发送测试邮件（后台通知设置页共用：插件通知页 plugin-notice / 内容审核页 audit）
+ * @param string $email 收件邮箱
+ * @return array array('ok'=>bool, 'message'=>string) message 为已渲染多语言的提示文案
+ */
+function plugin_notify_send_test($email) {
+	$email = filter_var(trim(strval($email)), FILTER_VALIDATE_EMAIL);
+	if($email === FALSE || $email === '') {
+		return array('ok' => FALSE, 'message' => lang('admin_plugin_notice_email_invalid'));
+	}
+	if(!class_exists('AdminNotifyService')) {
+		include_once APP_PATH.'lib/AdminNotifyService.php';
+	}
+	if(!class_exists('AdminNotifyService') || !AdminNotifyService::isSmtpConfigured()) {
+		return array('ok' => FALSE, 'message' => lang('admin_plugin_notice_smtp_missing'));
+	}
+	if(!function_exists('xn_send_mail')) {
+		include _include(XIUNOPHP_PATH.'xn_send_mail.func.php');
+	}
+	$smtp = xn_smtp_get();
+	if($smtp === FALSE) {
+		return array('ok' => FALSE, 'message' => lang('admin_plugin_notice_smtp_missing'));
+	}
+	$from_name = isset($GLOBALS['conf']['sitename']) ? $GLOBALS['conf']['sitename'] : 'BBS';
+	$subject = '['.$from_name.'] '.lang('admin_plugin_notice_test_subject');
+	$body = '<p>'.lang('admin_plugin_notice_test_body').'</p><p>'.lang('admin_notify_click_view').' <a href="'.esc_attr(http_url_path()).'">'.$from_name.'</a></p>';
+	$r = xn_send_mail($smtp, $from_name, $email, $subject, $body, array('is_html' => TRUE, 'timeout' => 5));
+	if($r === TRUE) {
+		return array('ok' => TRUE, 'message' => lang('admin_plugin_notice_test_sent', array('email'=>$email)));
+	}
+	$err = is_string($r) ? $r : 'unknown';
+	return array('ok' => FALSE, 'message' => lang('admin_plugin_notice_test_failed', array('error'=>$err)));
+}
+
 // ================= 统一事件门面（三通道一次接入） =================
 
 /**

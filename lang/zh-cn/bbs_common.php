@@ -50,6 +50,7 @@ return array(
 	'threads'=>'帖子数',
 	'posts'=>'评论数',
 	'users'=>'用户数',
+	'user'=>'用户',
 	'attachs'=>'附件总数',
 	'attach_size'=>'附件大小',
 	'online'=>'在线',
@@ -708,6 +709,14 @@ return array(
 	'search_sort'=>'排序',
 	'search_sort_asc'=>'正序',
 	'search_sort_desc'=>'倒序',
+	'search_filter'=>'高级筛选',
+	'search_filter_active'=>'筛选已启用',
+	'search_all_forums'=>'全部版块',
+	'search_author'=>'作者',
+	'search_author_placeholder'=>'用户名或用户ID',
+	'search_date_range'=>'时间范围',
+	'search_date_to'=>'至',
+	'search_filter_reset'=>'重置',
 
 	// ========== 主题/AI设置 (原 bbs_theme.php) ==========
 	'theme_settings'=>'主题设置',
@@ -1804,6 +1813,12 @@ return array(
 	'audit_resubmit_limit_reached'=>'已达重新提交上限（{n}次），请联系管理员',
 	'audit_reply_not_exists'=>'回帖不存在',
 	'audit_log_reason'=>' 原因：{reason}',
+	'audit_notify_type_thread'=>'主题',
+	'audit_notify_type_post'=>'回帖',
+	'audit_notify_type_profile'=>'资料变更',
+	'audit_notify_pending_subject'=>'有新的{type}等待审核',
+	'audit_notify_pending_body'=>'{summary}
+当前待审{type}共 {count} 项，请前往后台处理。',
 	'security_obfuscate_error'=>'操作失败，请检查输入信息',
 	// hook lang_zh_cn_bbs_common.php
 	// ========== API 文档补键 ==========

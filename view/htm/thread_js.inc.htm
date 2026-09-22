@@ -552,6 +552,14 @@
             }
         }
 
+        // 一级回复成功（新楼 <li data-pid> 已追加到列表末尾）：滚动到新回复
+        // 否则长列表/视口不在列表末尾时，用户感知为"回复后没显示"
+        if (lastChild && lastChild.tagName === 'LI' && lastChild.hasAttribute('data-pid')) {
+            setTimeout(function() {
+                lastChild.scrollIntoView({behavior: 'smooth', block: 'center'});
+            }, 50);
+        }
+
         // 成功：清空表单 + 隐藏引用条
         form.reset();
         var quoteBar = document.getElementById('reply-quote-bar');
@@ -731,6 +739,55 @@ document.body.addEventListener('htmx:after:swap', function(e) {
             btn.innerHTML = '<i class="ti ti-chevron-down"></i> <?php echo lang('expand_replies');?>';
         }
     });
+})();
+</script>
+
+<!-- pid 锚点定位：#pidNNN 展开折叠的楼中楼并滚动高亮 -->
+<style>
+/* 原生锚点跳转兜底：预留吸顶导航高度，防止目标楼层被顶部栏遮挡 */
+[id^="pid"] { scroll-margin-top: 64px; }
+</style>
+<script>
+(function() {
+    // 动态测量吸顶/固定导航的实际底边，滚动预留偏移（兼容不同主题的顶栏高度）
+    function headerOffset() {
+        var off = 0;
+        var els = document.querySelectorAll('#header, header, .navbar, .bottom-nav');
+        els.forEach(function(el) {
+            var cs = getComputedStyle(el);
+            if(cs.position === 'fixed' || cs.position === 'sticky') {
+                var r = el.getBoundingClientRect();
+                if(r.height > 0 && r.height < 200 && r.bottom > 0) {
+                    off = Math.max(off, r.bottom);
+                }
+            }
+        });
+        return off + 16;
+    }
+    function scrollToEl(el) {
+        var top = el.getBoundingClientRect().top + window.pageYOffset - headerOffset();
+        window.scrollTo({top: top, behavior: 'smooth'});
+        el.style.transition = 'background-color 1.5s ease';
+        el.style.backgroundColor = 'rgba(255, 213, 79, 0.35)';
+        setTimeout(function() { el.style.backgroundColor = 'transparent'; }, 100);
+    }
+    function locatePidAnchor() {
+        var m = /^#pid(\d+)$/.exec(location.hash || '');
+        if (!m) return;
+        var el = document.getElementById('pid' + m[1]);
+        if (!el) return;
+        // 目标是折叠的楼中楼：先展开
+        var extra = el.closest('.reply-extra');
+        if (extra && extra.classList.contains('d-none')) {
+            var container = extra.closest('.replies-container');
+            var btn = container ? container.querySelector('.reply-toggle-btn[data-collapsed="1"]') : null;
+            if (btn) btn.click();
+        }
+        setTimeout(function() { scrollToEl(el); }, extra ? 60 : 0);
+    }
+    window.addEventListener('DOMContentLoaded', locatePidAnchor);
+    // bfcache 恢复时 hash 定位可能丢失
+    window.addEventListener('pageshow', function(e) { if (e.persisted) locatePidAnchor(); });
 })();
 </script>
 
@@ -1094,12 +1151,42 @@ document.body.addEventListener('htmx:after:swap', function(e) {
                 if (postlist) {
                     var emptyEl = postlist.querySelector('.postlist-empty');
                     if (emptyEl) emptyEl.remove();
-                    // 追加新评论到列表末尾
+                    // 追加新评论：楼中楼回复（data-parent-pid）归位到父评论容器，一级回复追加到列表末尾
+                    var appendedNode = null;
                     mainNodes.forEach(function(node) {
+                        var parentPid = node.hasAttribute && node.getAttribute('data-parent-pid');
+                        if (parentPid) {
+                            var parentLi = postlist.querySelector('li[data-pid="' + parentPid + '"]');
+                            if (parentLi) {
+                                var repliesContainer = parentLi.querySelector('.replies-container[data-pid="' + parentPid + '"]');
+                                if (!repliesContainer) {
+                                    repliesContainer = document.createElement('div');
+                                    repliesContainer.className = 'replies-container mt-2';
+                                    repliesContainer.setAttribute('data-pid', parentPid);
+                                    var flexFill = parentLi.querySelector('.flex-fill');
+                                    (flexFill || parentLi).appendChild(repliesContainer);
+                                }
+                                var replyExtra = repliesContainer.querySelector('.reply-extra.d-none');
+                                if (replyExtra) {
+                                    replyExtra.classList.remove('d-none');
+                                    var toggleBtn = repliesContainer.querySelector('.reply-toggle-btn');
+                                    if (toggleBtn) toggleBtn.remove();
+                                }
+                                repliesContainer.appendChild(node);
+                                appendedNode = node;
+                                return;
+                            }
+                            // 找不到父评论：降级保留在列表末尾（刷新后由后端重新渲染）
+                        }
                         postlist.appendChild(node);
+                        appendedNode = node;
                     });
                     // 滚动到新评论
-                    postlist.lastElementChild.scrollIntoView({behavior: 'smooth', block: 'center'});
+                    if (appendedNode) {
+                        appendedNode.scrollIntoView({behavior: 'smooth', block: 'center'});
+                    } else if (postlist.lastElementChild) {
+                        postlist.lastElementChild.scrollIntoView({behavior: 'smooth', block: 'center'});
+                    }
                 }
 
                 // 处理OOB更新（评论数、楼层、积分提示）

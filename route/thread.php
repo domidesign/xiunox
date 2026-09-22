@@ -205,8 +205,11 @@ if($action == 'favorite') {
 	// hook thread_favorite_end.php
 
 	// 积分规则：被收藏者获得积分，收藏者可选扣分；取消收藏时反向处理
+	// 必须以数据层操作真实生效为门控（对齐点赞分支范式）：
+	// thread_favorite_create 返回 1=新增/0=已存在(并发双击败者)/FALSE=失败；
+	// thread_favorite_delete 返回 rowCount>0=真删除/0=被并发抢先删除/FALSE=未删除
 	$fav_change_desc = '';
-	if(empty($exists)) {
+	if(empty($exists) && $r == 1) {
 		if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
 		if(!empty($thread['uid']) && $thread['uid'] != $uid) {
 			CreditsRuleService::applyRule('be_favorited', intval($thread['uid']), intval($thread['fid']), false, strval($tid));
@@ -219,7 +222,7 @@ if($action == 'favorite') {
 		if(!empty($favResult['daily_limit_reached'])) {
 			$fav_change_desc = lang('favorite_no_credits_deduct_tip', array('message'=>$favResult['message'], 'credits_label'=>lang('credits_label')));
 		}
-	} else {
+	} elseif(!empty($exists) && $r > 0) {
 		// 取消收藏：应用 unfavorite 规则（管理员可设置取消时扣减/返还积分）
 		if(!class_exists('CreditsRuleService')) include_once APP_PATH . 'service/CreditsRuleService.php';
 		$unfavResult = CreditsRuleService::applyRule('unfavorite', $uid, intval($thread['fid']), false, strval($tid));
@@ -404,7 +407,7 @@ if($action == 'create') {
 		}
 	}
 
-		$subject = param('subject');
+		$subject = param('subject', '', FALSE);
 		// 标题只允许纯文本，过滤所有HTML标签
 		$subject = strip_tags($subject);
 		// 去除首尾空格后再计算字数（空格不计入标题长度）
@@ -518,7 +521,12 @@ if($action == 'create') {
 		$tid = thread_create($thread, $pid, array('page_token' => param('page_token', '')));
 		$pid === FALSE AND message(-1, lang('create_post_failed'));
 		$tid === FALSE AND message(-1, lang('create_thread_failed'));
-		
+
+		// 新主题进入待审队列，按后台审核页通知设置推送管理员
+		if($need_audit) {
+			AuditService::notify_new_pending('thread', $subject);
+		}
+
 		// 仅审核通过的帖子才通知关注版块的用户和@提及（待审帖子审核通过后在 AuditService::approve 中补发）
 		if(!$need_audit) {
 			// 通知关注该版块的用户有新帖
@@ -1163,6 +1171,11 @@ if(isset($_main_count) && $pagesize > 0) {
 	$allowdown = forum_access_user($fid, $gid, 'allowdown') ? 1 : 0;
 
 	// $thread_url 已在上方 SEO 区块提前定义（canonical/og/json-ld 复用）
+
+	// 帖子详情页禁用浏览器 HTTP 缓存：回帖后普通导航/刷新必须拿到最新回复列表。
+	// no-cache 只要求再验证（仍允许 bfcache 返回还原，不影响返回键体验），
+	// 不用 no-store（此前全局注释掉 no-store 就是因为返回键强制重载）
+	header('Cache-Control: no-cache, private');
 
 	include _include(APP_PATH.'view/htm/thread.htm');
 }

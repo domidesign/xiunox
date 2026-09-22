@@ -49,7 +49,7 @@ $_allow_ban_user = !empty($uid) && forum_access_mod($fid, $gid, 'allowbanuser');
 $_ban_is_admin = in_array($gid, array(1, 2));
 ?>
 
-<article class="x-card card card-thread" itemscope itemtype="https://schema.org/DiscussionForumPosting">
+<article id="pid<?php echo $thread['firstpid'];?>" class="x-card card card-thread" itemscope itemtype="https://schema.org/DiscussionForumPosting">
     <div class="card-body">
         <!--{hook thread_subject_before.htm}-->
         <h1 class="break-all mb-2 h4" itemprop="headline">

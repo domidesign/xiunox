@@ -372,6 +372,44 @@ function notify_delete($nid) {
 	return $r;
 }
 
+/**
+ * 生成定位到具体楼层的帖子链接：thread-{tid}-{page}.htm#pid{pid}
+ * 楼中楼（quotepid 不为 0/首楼）沿引用链回溯到所属一级楼层再定位。
+ * 页码按一级评论分页规则计算（isfirst=0 且 quotepid IN (0, firstpid)），与 route/thread.php 一致。
+ * 返回 '' 表示无法定位（帖子不存在等），调用方保留原链接。
+ */
+function notify_thread_post_url($tid, $pid) {
+	global $conf;
+	$tid = intval($tid);
+	$pid = intval($pid);
+	if($tid <= 0 || $pid <= 0) return '';
+	$thread = thread_read_cache($tid);
+	if(empty($thread)) return '';
+	$firstpid = intval($thread['firstpid']);
+	if($pid == $firstpid) return frontend_thread_url($tid).'#pid'.$pid;
+
+	// 楼中楼：沿 quotepid 回溯（上限 10 层防止异常环形引用死循环）
+	$target = $pid;
+	$walk = 0;
+	while($target > 0 && $walk < 10) {
+		$post = post_read_cache($target);
+		if(empty($post)) return '';
+		$quotepid = intval($post['quotepid']);
+		if($quotepid == 0 || $quotepid == $firstpid) break;
+		$target = $quotepid;
+		$walk++;
+	}
+	if($target <= 0) return '';
+
+	// 该一级楼层之前的楼层数 -> 所在页码
+	$pagesize = isset($conf['postlist_pagesize']) ? intval($conf['postlist_pagesize']) : 20;
+	if($pagesize <= 0) $pagesize = 20;
+	$before = db_count('post', array('tid'=>$tid, 'isfirst'=>0, 'quotepid'=>array(0, $firstpid), 'pid'=>array('<'=>$target)));
+	$page = intval($before / $pagesize) + 1;
+	$url = $page > 1 ? route_url('../thread-{tid}-{page}', array('tid'=>$tid, 'page'=>$page)) : frontend_thread_url($tid);
+	return $url.'#pid'.$target;
+}
+
 function notify_format(&$notify, $prefetched = array()) {
 	if(empty($notify)) return;
 	include_once APP_PATH . 'lib/NotifyTypeRegistry.php';
@@ -396,6 +434,11 @@ function notify_format(&$notify, $prefetched = array()) {
 	// 导致后台通知列表帖子链接被浏览器解析为 /admin/?thread-xxx.htm（参考 bugfix_rules.md 0b 条）
 	if($notify['tid'] > 0) {
 		$notify['url'] = frontend_thread_url($notify['tid']);
+		// pid>0 时定位到具体楼层：计算页码并追加 #pid 锚点（楼中楼回溯到所属一级楼层）
+		$_anchor_url = notify_thread_post_url($notify['tid'], intval($notify['pid']));
+		if($_anchor_url) {
+			$notify['url'] = $_anchor_url;
+		}
 	}
 	// 防御 javascript:/data:/vbscript: 等危险协议（XSS 防护）
 	if($notify['url'] !== '' && preg_match('/^\s*(javascript|data|vbscript):/i', $notify['url'])) {
