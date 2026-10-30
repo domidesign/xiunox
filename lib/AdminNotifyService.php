@@ -135,6 +135,10 @@ class AdminNotifyService {
                     'message' => $content,
                     'url' => $url,
                 );
+                // icon 子类型透传（如 core_audit 的 audit_thread/audit_post/audit_profile），存 notify.icon 供渲染层区分跳转目标
+                if (!empty($options['icon'])) {
+                    $extra['icon'] = strval($options['icon']);
+                }
                 $ret = notify_create($uid, $from_uid, 'audit_pending', 0, 0, $subject, $extra);
                 if ($ret !== FALSE) {
                     $sent_notify++;

@@ -197,6 +197,8 @@ class db_pdo_sqlite {
 	}
 
 	public function maxid($table, $field, $cond = array()) {
+		// 安全: 与 db_pdo_mysql 同款字段名白名单（MAX() 内不可参数化）
+		if(!preg_match('#^[a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)?$#', (string)$field)) return 0;
 		list($sqladd, $condParams) = db_cond_to_sqladd($cond);
 		$sql = "SELECT MAX($field) AS maxid FROM `$table` $sqladd";
 		$arr = $this->prepare_one($sql, $condParams);

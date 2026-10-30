@@ -236,6 +236,9 @@ function post_delete($pid) {
 	
 	($post['images'] || $post['files']) AND attach_delete_by_pid($pid);
 
+	// 清理该回帖的点赞行并递减 thread.likes（硬删；软删/恢复保留点赞行，天然对称）
+	post_like_delete_by_pids(array($pid));
+
 	$r = post__delete($pid);
 
 	// 更新最后的 lastpid
@@ -297,6 +300,11 @@ function post_restore($pid) {
 	$uid = $post['uid'];
 	$isfirst = $post['isfirst'];
 
+	// 父主题已软删/不存在时禁止单独恢复回帖：
+	// 此时补加计数会在主题恢复时被 thread_restore 再补一次（同一回帖 +2），且主题未恢复期间计数与可见内容不符
+	$thread = thread__read($tid);
+	if(empty($thread) || !empty($thread['is_deleted'])) return FALSE;
+
 	// hook model_post_restore_start.php
 
 	// 恢复回帖
@@ -340,61 +348,99 @@ function post_list_cache_bump_version($tid) {
 	}
 }
 
-// 此处有可能会超时
+// 删除主题下的所有回帖（含软删回帖）并递减统计
+// ponytail: 旧实现用 post__find + pagesize=1000000 一次性拉全表 + SELECT * 带 message/message_fmt longtext，
+//           老帖数万回帖时 MySQL 回表 + PHP 内存爆；且 post__find 默认追加 is_deleted=0 过滤，
+//           导致回收站里软删过的回帖不进清理列表，其附件文件与 attach 表记录永久残留（数据脏）。
+//           改为：直接 db_find 分批扫描（每批 500 行），SELECT 只取统计/关联所需列；
+//           含附件的 pid 分批 unlink+批量 DELETE；回帖本体最后走 KEY(tid,pid) 范围一次 DELETE。
 function post_delete_by_tid($tid) {
 	// hook model_post_delete_by_tid_start.php
-	// 使用 post__find 避免触发 post_format 的 N+1 查询，获取所有回帖
-	$postlist = post__find(array('tid'=>$tid), array('pid'=>1), 1, 1000000);
-	if(empty($postlist)) return 0;
+	$tid = intval($tid);
+	if($tid <= 0) return 0;
+	global $conf;
 
-	// 批量收集需要删除附件的 pid
-	$pids_with_attach = array();
-	foreach($postlist as $post) {
-		if(($post['images'] || $post['files']) && $post['pid']) {
-			$pids_with_attach[] = $post['pid'];
-		}
-	}
+	$batch_size = 500;
+	$page = 1;
+	$user_post_count = array();   // uid => 应减 posts 数（仅未软删 + 审核通过 + 非首帖）
+	$non_first_count = 0;         // 全站 posts 递减值
+	$soft_deleted_count = 0;      // 观测日志：本次一并物理清除的软删回帖数
+	$total_deleted = 0;
 
-	// 批量删除附件（物理文件 + 数据库记录）
-	if(!empty($pids_with_attach)) {
-		global $conf;
-		$attachlist = db_find('attach', array('pid'=>$pids_with_attach), array(), 1, count($pids_with_attach) * 100);
-		if($attachlist) {
-			foreach($attachlist as $attach) {
-				$path = $conf['upload_path'].'attach/'.$attach['filename'];
-				file_exists($path) AND unlink($path);
-				$thumb_path = attach_thumb_path($attach['filename']);
-				if($thumb_path) {
-					$full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
-					file_exists($full_thumb_path) AND unlink($full_thumb_path);
-				}
+	while(TRUE) {
+		// db_find 绕过 post__find 的 is_deleted=0 过滤，一并清理软删回帖的附件；精简列避开 longtext
+		$batch = db_find('post', array('tid'=>$tid), array('pid'=>1), $page, $batch_size, 'pid',
+			array('pid','uid','isfirst','audit_status','is_deleted','images','files'));
+		if(empty($batch)) break;
+
+		$pids_with_attach = array();
+		foreach($batch as $post) {
+			$pid = intval($post['pid']);
+			if((intval($post['images']) || intval($post['files'])) && $pid > 0) {
+				$pids_with_attach[] = $pid;
 			}
-			db_delete('attach', array('pid'=>$pids_with_attach));
+			if(intval($post['isfirst'])) continue;
+			$_audit = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
+			if($_audit != 1) continue;  // 待审/驳回评论创建时未计入 posts
+			if(intval($post['is_deleted']) == 1) {
+				// 软删时已减过 thread.posts/user.posts/runtime.posts，硬删时只清附件、不再减统计
+				$soft_deleted_count++;
+				continue;
+			}
+			$non_first_count++;
+			$u = intval($post['uid']);
+			if($u > 0) {
+				if(!isset($user_post_count[$u])) $user_post_count[$u] = 0;
+				$user_post_count[$u]++;
+			}
 		}
+
+		// 分批清理附件（物理文件 + 缩略图 + attach 表记录）
+		if(!empty($pids_with_attach)) {
+			$attachlist = db_find('attach', array('pid'=>$pids_with_attach), array(), 1, count($pids_with_attach) * 100,
+				'', array('aid','filename','isimage'));
+			if($attachlist) {
+				foreach($attachlist as $attach) {
+					$path = $conf['upload_path'].'attach/'.$attach['filename'];
+					file_exists($path) AND @unlink($path);
+					$thumb_path = attach_thumb_path($attach['filename']);
+					if($thumb_path) {
+						$full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
+						file_exists($full_thumb_path) AND @unlink($full_thumb_path);
+					}
+				}
+				db_delete('attach', array('pid'=>$pids_with_attach));
+			}
+		}
+
+		$total_deleted += count($batch);
+		if(count($batch) < $batch_size) break;
+		$page++;
 	}
 
-	// 批量删除回帖
+	if($total_deleted == 0) {
+		// hook model_post_delete_by_tid_end.php
+		return 0;
+	}
+
+	// 回帖本体一次批量删除（走 KEY(tid,pid) 索引范围扫描）
 	$n = db_delete('post', array('tid'=>$tid));
 
-	// 更新用户 posts 统计（仅审核通过的非首帖，待审评论创建时未计入）
-	$user_post_count = array();
-	$non_first_count = 0;
-	foreach($postlist as $post) {
-		if($post['isfirst']) continue;
-		$_audit = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
-		if($_audit != 1) continue; // 待审评论不计入
-		$non_first_count++;
-		if($post['uid']) {
-			if(!isset($user_post_count[$post['uid']])) $user_post_count[$post['uid']] = 0;
-			$user_post_count[$post['uid']]++;
-		}
-	}
+	// 清理点赞行（thread 行将由 thread_delete 一并删除，仅清孤儿数据，无需递减 thread.likes）
+	post_like_delete_by_tid($tid);
+
+	// 递减用户 posts 统计（含 GREATEST 下限保护）
 	foreach($user_post_count as $_uid => $cnt) {
 		user_dec($_uid, 'posts', $cnt);
 	}
 
-	// 更新全站统计
+	// 全站统计
 	$non_first_count AND runtime_set('posts-', $non_first_count);
+
+	// 软删回帖一并物理清除时记一笔观测日志，方便排查历史遗留脏数据
+	if($soft_deleted_count > 0) {
+		xn_log("post_delete_by_tid: tid=$tid also purged $soft_deleted_count soft-deleted replies", 'thread_delete_perf');
+	}
 
 	// hook model_post_delete_by_tid_end.php
 	return $n;
@@ -402,6 +448,11 @@ function post_delete_by_tid($tid) {
 
 // 批量删除多个主题的所有回帖，合并查询消除 N+1（用于 thread_delete_batch）
 // 内部逻辑与 post_delete_by_tid 一致，但将 find attach / delete post / 统计更新全部合并为单次查询
+// ponytail: 旧实现 pagesize=1000000 + SELECT * 拉全表，遇到几万回帖的热门主题时 PHP 内存 + MySQL 回表双重爆；
+//           且只判断 images/files 未区分软删——回收站软删过的回帖附件永远残留（post__find 会过滤但 db_find 不会，
+//           旧代码走 db_find 却没意识到需要显式包含软删的清理路径）。
+//           改为：按 100 个 tid 一批 IN 查询 + 列裁剪避开 longtext；附件按 pid 批量删；
+//           软删回帖一并物理清除但不重复扣统计（与 post_delete_by_tid 口径一致）。
 function post_delete_by_tids_batch($tids) {
 	// hook model_post_delete_by_tids_batch_start.php
 	if(empty($tids) || !is_array($tids)) return 0;
@@ -411,58 +462,86 @@ function post_delete_by_tids_batch($tids) {
 	$tids = array_filter($tids);
 	if(empty($tids)) return 0;
 
-	// 一次查询获取所有回帖
-	$postlist = db_find('post', array('tid'=>$tids), array(), 1, 1000000, 'pid');
-	if(empty($postlist)) return 0;
+	global $conf;
+	$tid_chunk_size = 100;
+	$user_post_count = array();
+	$non_first_count = 0;
+	$soft_deleted_count = 0;
+	$all_pids_with_attach = array();
+	$total_posts = 0;
 
-	// 批量收集需要删除附件的 pid
-	$pids_with_attach = array();
-	foreach($postlist as $post) {
-		if(($post['images'] || $post['files']) && $post['pid']) {
-			$pids_with_attach[] = $post['pid'];
+	$tid_chunks = array_chunk($tids, $tid_chunk_size);
+	foreach($tid_chunks as $chunk) {
+		// 精简列避开 message/message_fmt longtext；db_find 不追加 is_deleted=0 过滤，一并捕获软删回帖的附件路径
+		$postlist = db_find('post', array('tid'=>$chunk), array(), 1, 1000000, 'pid',
+			array('pid','uid','isfirst','audit_status','is_deleted','images','files'));
+		if(empty($postlist)) continue;
+		$total_posts += count($postlist);
+
+		foreach($postlist as $post) {
+			$pid = intval($post['pid']);
+			if((intval($post['images']) || intval($post['files'])) && $pid > 0) {
+				$all_pids_with_attach[] = $pid;
+			}
+			if(intval($post['isfirst'])) continue;
+			$_audit = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
+			if($_audit != 1) continue;   // 待审评论创建时未计入 posts
+			if(intval($post['is_deleted']) == 1) {
+				// 软删时已减过统计，硬删只清附件，不重复扣
+				$soft_deleted_count++;
+				continue;
+			}
+			$non_first_count++;
+			$u = intval($post['uid']);
+			if($u > 0) {
+				if(!isset($user_post_count[$u])) $user_post_count[$u] = 0;
+				$user_post_count[$u]++;
+			}
 		}
 	}
 
-	// 批量删除附件（物理文件 + 数据库记录，一次查询）
-	if(!empty($pids_with_attach)) {
-		global $conf;
-		$attachlist = db_find('attach', array('pid'=>$pids_with_attach), array(), 1, count($pids_with_attach) * 100);
-		if($attachlist) {
+	if($total_posts == 0) {
+		// hook model_post_delete_by_tids_batch_end.php
+		return 0;
+	}
+
+	// 批量删除附件（分小批 unlink 物理文件 + 一次 IN DELETE）
+	if(!empty($all_pids_with_attach)) {
+		$all_pids_with_attach = array_values(array_unique($all_pids_with_attach));
+		$attach_pid_chunks = array_chunk($all_pids_with_attach, 500);
+		foreach($attach_pid_chunks as $apchunk) {
+			$attachlist = db_find('attach', array('pid'=>$apchunk), array(), 1, count($apchunk) * 100,
+				'', array('aid','filename','isimage'));
+			if(!$attachlist) continue;
 			foreach($attachlist as $attach) {
 				$path = $conf['upload_path'].'attach/'.$attach['filename'];
-				file_exists($path) AND unlink($path);
+				file_exists($path) AND @unlink($path);
 				$thumb_path = attach_thumb_path($attach['filename']);
 				if($thumb_path) {
 					$full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
-					file_exists($full_thumb_path) AND unlink($full_thumb_path);
+					file_exists($full_thumb_path) AND @unlink($full_thumb_path);
 				}
 			}
-			db_delete('attach', array('pid'=>$pids_with_attach));
+			db_delete('attach', array('pid'=>$apchunk));
 		}
 	}
 
-	// 批量删除所有回帖（一次 DELETE）
-	$n = db_delete('post', array('tid'=>$tids));
-
-	// 汇总用户 posts 统计（仅审核通过的非首帖，待审评论创建时未计入）
-	$user_post_count = array();
-	$non_first_count = 0;
-	foreach($postlist as $post) {
-		if($post['isfirst']) continue;
-		$_audit = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
-		if($_audit != 1) continue; // 待审评论不计入
-		$non_first_count++;
-		if($post['uid']) {
-			if(!isset($user_post_count[$post['uid']])) $user_post_count[$post['uid']] = 0;
-			$user_post_count[$post['uid']]++;
-		}
+	// 批量删除所有回帖（按 tid 分片一次 DELETE）
+	$n = 0;
+	foreach($tid_chunks as $chunk) {
+		$n += db_delete('post', array('tid'=>$chunk));
+		// 清理点赞行（thread 行将由 thread_delete_batch 一并删除，仅清孤儿数据）
+		db_delete('post_like', array('tid'=>$chunk));
 	}
+
 	foreach($user_post_count as $_uid => $cnt) {
 		user_dec($_uid, 'posts', $cnt);
 	}
-
-	// 更新全站统计
 	$non_first_count AND runtime_set('posts-', $non_first_count);
+
+	if($soft_deleted_count > 0) {
+		xn_log("post_delete_by_tids_batch: tids=".count($tids)." also purged $soft_deleted_count soft-deleted replies", 'thread_delete_perf');
+	}
 
 	// hook model_post_delete_by_tids_batch_end.php
 	return $n;
@@ -470,33 +549,115 @@ function post_delete_by_tids_batch($tids) {
 
 // 此处有可能会超时，并且导致统计不准确，需要重建统计数
 // ponytail: 原实现仅 db_delete 不维护 user.posts / runtime.posts 统计，
-// 被 UserBanService::clearUserContent 和 user_delete() 调用，导致 runtime.posts 永久偏高、user.posts 与实际脱节
-// 现在删除前先汇总该用户「审核通过且未软删的非首帖」数量，删除后用 user_dec / runtime_set 递减
+// 被 UserBanService::clearUserContent 和 user_delete() 调用，导致 runtime.posts 永久偏高、user.posts 与实际脱节。
+// 现在（1）列裁剪避开 longtext；（2）db_find 分批扫描以覆盖软删回帖的附件物理清理；
+// （3）汇总「审核通过且未软删的非首帖」数一次性递减，与 post_delete_by_tid 口径一致。
+// 实案 2026-10-30：清空用户数据后受影响主题的 thread.posts 残留虚高——详情页按 bbs_post 实际行数
+// 计数、列表页显示 thread.posts，两处回复数不符。须按 tid 汇总逐帖递减 thread.posts + 重算 lastpid。
 function post_delete_by_uid($uid) {
 	// hook model_post_delete_by_uid_start.php
 	$uid = intval($uid);
 	if($uid <= 0) return 0;
 
-	// 先统计待删除的审核通过且未软删的非首帖数（首帖不计入 posts；待审/已软删不计入）
+	global $conf;
+	$batch_size = 500;
+	$page = 1;
 	$non_first_count = 0;
-	$postlist = post__find(array('uid'=>$uid), array(), 1, 1000000);
-	if($postlist) {
-		foreach($postlist as $post) {
-			if($post['isfirst']) continue;
+	$soft_deleted_count = 0;
+	$all_pids_with_attach = array();
+	$total_posts = 0;
+	$thread_post_count = array(); // tid => 待删且计入统计的回帖数（用于递减 thread.posts）
+	$thread_last_pids = array();  // tid => [pid => 1] 待删 pid 集合（用于判断 thread.lastpid 是否被删）
+	$all_pids = array();          // 全部待删 pid（含首帖/待审/软删，用于清理点赞行）
+
+	while(TRUE) {
+		// 用 db_find 而非 post__find：后者会自动追加 is_deleted=0，漏清软删回帖的附件
+		$batch = db_find('post', array('uid'=>$uid), array('pid'=>1), $page, $batch_size, 'pid',
+			array('pid','tid','uid','isfirst','audit_status','is_deleted','images','files'));
+		if(empty($batch)) break;
+		$total_posts += count($batch);
+
+		foreach($batch as $post) {
+			$pid = intval($post['pid']);
+			$all_pids[] = $pid;
+			if((intval($post['images']) || intval($post['files'])) && $pid > 0) {
+				$all_pids_with_attach[] = $pid;
+			}
+			if(intval($post['isfirst'])) continue;
 			$_audit = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
 			if($_audit != 1) continue;
-			$_is_deleted = isset($post['is_deleted']) ? intval($post['is_deleted']) : 0;
-			if($_is_deleted) continue;
+			if(intval($post['is_deleted']) == 1) { $soft_deleted_count++; continue; }
 			$non_first_count++;
+			$_tid = intval($post['tid']);
+			if($_tid > 0) {
+				if(!isset($thread_post_count[$_tid])) $thread_post_count[$_tid] = 0;
+				$thread_post_count[$_tid]++;
+				$thread_last_pids[$_tid][$pid] = 1;
+			}
+		}
+
+		if(count($batch) < $batch_size) break;
+		$page++;
+	}
+
+	if($total_posts == 0) {
+		// hook model_post_delete_by_uid_end.php
+		return 0;
+	}
+
+	// 清理该用户所有回帖的附件（物理文件 + attach 表）
+	if(!empty($all_pids_with_attach)) {
+		$all_pids_with_attach = array_values(array_unique($all_pids_with_attach));
+		$chunks = array_chunk($all_pids_with_attach, 500);
+		foreach($chunks as $c) {
+			$attachlist = db_find('attach', array('pid'=>$c), array(), 1, count($c) * 100,
+				'', array('aid','filename','isimage'));
+			if(!$attachlist) continue;
+			foreach($attachlist as $attach) {
+				$path = $conf['upload_path'].'attach/'.$attach['filename'];
+				file_exists($path) AND @unlink($path);
+				$thumb_path = attach_thumb_path($attach['filename']);
+				if($thumb_path) {
+					$full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
+					file_exists($full_thumb_path) AND @unlink($full_thumb_path);
+				}
+			}
+			db_delete('attach', array('pid'=>$c));
 		}
 	}
 
 	$r = db_delete('post', array('uid'=>$uid));
 
-	// 递减统计（GREATEST 下限保护 + runtime_set max 保护）
+	// 清理被删回帖（含首帖）的点赞行并按 tid 聚合递减 thread.likes
+	post_like_delete_by_pids($all_pids);
+
 	if($non_first_count > 0) {
 		user_dec($uid, 'posts', $non_first_count);
 		runtime_set('posts-', $non_first_count);
+	}
+
+	// 逐帖同步冗余数据（与 post_delete 单条版口径一致）：
+	// thread.posts 递减（GREATEST 下限保护）、回帖列表缓存失效、lastpid 被删时重算
+	$_affected_fids = array();
+	foreach($thread_post_count as $_tid => $cnt) {
+		thread_dec($_tid, 'posts', $cnt);
+		post_list_cache_bump_version($_tid);
+		$_thread = thread__read($_tid);
+		if(empty($_thread)) continue;
+		if(!empty($_thread['fid'])) $_affected_fids[intval($_thread['fid'])] = 1;
+		if(!empty($thread_last_pids[$_tid][intval($_thread['lastpid'])])) {
+			thread_update_last($_tid);
+		}
+	}
+	foreach($_affected_fids as $_fid => $_) {
+		thread_forum_list_cache_delete($_fid);
+	}
+	if($_affected_fids) {
+		index_list_cache_delete();
+	}
+
+	if($soft_deleted_count > 0) {
+		xn_log("post_delete_by_uid: uid=$uid also purged $soft_deleted_count soft-deleted replies", 'thread_delete_perf');
 	}
 
 	// hook model_post_delete_by_uid_end.php
@@ -610,12 +771,20 @@ function post_find_deleted($cond = array(), $orderby = array('pid'=>-1), $page =
 
 	$sql = "SELECT p.pid, p.tid, p.uid, p.isfirst, p.create_date, p.deleted_date, p.deleted_by, p.message, t.fid, t.subject FROM {$tablepre}post p LEFT JOIN {$tablepre}thread t ON p.tid=t.tid WHERE ";
 	$cond_parts = array();
+	$cond_params = array();
 	foreach($where as $k=>$v) {
 		$cond_parts[] = "$k=" . intval($v);
 	}
 	if($filter_keyword !== '') {
-		$cond_parts[] = "(p.message LIKE '%" . addcslashes($filter_keyword, "'%_\\") . "%' OR t.subject LIKE '%" . addcslashes($filter_keyword, "'%_\\") . "%')";
+		// 安全: LIKE 通配符转义后走预处理绑定，不再依赖连接层 sql_mode='' 的反斜杠转义
+		$_kw_like = '%' . addcslashes($filter_keyword, "\\%_") . '%';
+		$cond_parts[] = "(p.message LIKE ? OR t.subject LIKE ?)";
+		$cond_params[] = $_kw_like;
+		$cond_params[] = $_kw_like;
 	}
+	// 主题软删时其回帖会一并标记 is_deleted=1，只能随主题整体恢复；单独列出再恢复会被 post_restore 拒绝，
+	// 且主题硬删时也不会再减计数。仅展示"活主题下的软删回帖"+孤儿回帖（t.tid IS NULL，便于清理）
+	$cond_parts[] = "(t.is_deleted = 0 OR t.tid IS NULL)";
 	$sql .= implode(' AND ', $cond_parts);
 
 	$orderby_field = 'p.pid';
@@ -635,7 +804,7 @@ function post_find_deleted($cond = array(), $orderby = array('pid'=>-1), $page =
 	$offset = max(0, ($page - 1) * $pagesize);
 	$sql .= " LIMIT $offset, $pagesize";
 
-	$postlist = db_sql_find($sql);
+	$postlist = db_sql_find_prepared($sql, $cond_params);
 
 	if($postlist) {
 		$uids = arrlist_values($postlist, 'uid');
@@ -675,15 +844,22 @@ function post_count_deleted($cond = array()) {
 
 	$sql = "SELECT COUNT(*) as cnt FROM {$tablepre}post p LEFT JOIN {$tablepre}thread t ON p.tid=t.tid WHERE ";
 	$cond_parts = array();
+	$cond_params = array();
 	foreach($where as $k=>$v) {
 		$cond_parts[] = "$k=" . intval($v);
 	}
 	if($filter_keyword !== '') {
-		$cond_parts[] = "(p.message LIKE '%" . addcslashes($filter_keyword, "'%_\\") . "%' OR t.subject LIKE '%" . addcslashes($filter_keyword, "'%_\\") . "%')";
+		// 安全: 与 post_find_deleted 同口径，预处理绑定不依赖反斜杠转义
+		$_kw_like = '%' . addcslashes($filter_keyword, "\\%_") . '%';
+		$cond_parts[] = "(p.message LIKE ? OR t.subject LIKE ?)";
+		$cond_params[] = $_kw_like;
+		$cond_params[] = $_kw_like;
 	}
+	// 与 post_find_deleted 保持一致：排除随主题软删的回帖（只能随主题整体恢复）
+	$cond_parts[] = "(t.is_deleted = 0 OR t.tid IS NULL)";
 	$sql .= implode(' AND ', $cond_parts);
 
-	$row = db_sql_find_one($sql);
+	$row = db_sql_find_one_prepared($sql, $cond_params);
 	// hook model_post_count_deleted_end.php
 	return !empty($row['cnt']) ? intval($row['cnt']) : 0;
 }
@@ -744,6 +920,9 @@ function post_hard_delete($pid) {
 	if($post['images'] || $post['files']) {
 		attach_delete_by_pid($pid);
 	}
+
+	// 清理该回帖的点赞行并递减 thread.likes（含已软删回帖被彻底删除时的残留点赞行）
+	post_like_delete_by_pids(array($pid));
 
 	$r = post__delete($pid);
 
@@ -1110,6 +1289,10 @@ function post_format(&$post) {
 		}
 	}
 
+	if (!class_exists('HiddenService', false)) {
+		include_once APP_PATH . 'lib/HiddenContentGuard.php';
+		$post['message_fmt'] = HiddenContentGuard::filter((string)$post['message_fmt']);
+	}
 	// hook model_post_format_end.php
 
 }
@@ -1167,6 +1350,8 @@ function post_message_looks_html($s) {
 
 // 获取内容的简介 0: html, 1: txt; 2: markdown; 3: ubb
 function post_brief($s, $len = 100) {
+	if (!class_exists('HiddenContentGuard', false)) include_once APP_PATH . 'lib/HiddenContentGuard.php';
+	$s = HiddenContentGuard::filter((string)$s);
 	// hook post_brief_start.php
 	$s = strip_tags($s);
 	$s = htmlspecialchars($s);

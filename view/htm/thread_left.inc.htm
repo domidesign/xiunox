@@ -1,5 +1,4 @@
-<?php if($page == 1): ?>
-<!-- 帖子详情页左侧操作栏（替换全局导航） -->
+<!-- 帖子详情页左侧操作栏（替换全局导航，所有分页一致） -->
 <div class="thread-action-bar" style="position:sticky;top:5rem;z-index:10">
     <!--{hook thread_action_bar_top.htm}-->
     <div class="d-flex flex-column align-items-center gap-3 py-3">
@@ -38,6 +37,3 @@
         <!--{hook thread_action_bar_bottom.htm}-->
     </div>
 </div>
-<?php else: ?>
-<?php include _include(APP_PATH.'view/htm/sidebar_left.inc.htm');?>
-<?php endif; ?>

@@ -467,17 +467,24 @@ if($keyword_safe) {
                 $_search_tids = array_column($threadlist, 'tid');
                 $_first_posts = empty($_search_tids) ? array() : db_find('post', array('tid'=>$_search_tids, 'isfirst'=>1), array(), 1, count($_search_tids), 'tid');
 
+                // 安全: 存储态 message/message_fmt 含 xnx_hidden 原文，摘要必须按查看者权限过滤后再截取
+                include_once APP_PATH.'lib/ApiContentService.php';
+
                 foreach($threadlist as &$thread) {
                     thread_format($thread);
 
-                    // 标题高亮：thread_format 已对 subject 做 esc_html，关键词也需转义后在已转义的 subject 中匹配
+                    // 标题高亮：thread_format 不转义 subject（见 model/thread.func.php 注释），模板 search.htm 裸输出，
+                    // 必须先 esc_html 再打 <mark>（与下方 summary 同模式），否则存储型 HTML 直接进首页搜索结果
                     $_kw_esc = esc_html($keyword_safe);
-                    $thread['subject'] = str_ireplace($_kw_esc, '<mark>' . $_kw_esc . '</mark>', $thread['subject']);
+                    $thread['subject'] = str_ireplace($_kw_esc, '<mark>' . $_kw_esc . '</mark>', esc_html($thread['subject']));
 
                     // 获取内容摘要（从批量查询结果取）
                     $post = isset($_first_posts[$thread['tid']]) ? $_first_posts[$thread['tid']] : array();
                     if($post) {
-                        $message = strip_tags($post['message_fmt'] ? $post['message_fmt'] : $post['message']);
+                        $_summary_src = $post['message_fmt'] ? $post['message_fmt'] : $post['message'];
+                        $_summary_src = ApiContentService::hidden((string)$_summary_src, intval($post['pid']), intval($uid), intval($gid));
+                        $message = strip_tags($_summary_src);
+                        $message = preg_replace('/\[\/?[a-z][a-z0-9_]*(?:\s+[^\]]*)?\]/si', '', $message);
                         $message = preg_replace('/\s+/', ' ', $message);
                         $message = trim($message);
 

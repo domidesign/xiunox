@@ -327,6 +327,34 @@ function user_purge($uid) {
 
 	user_follow_delete_by_uid($uid);
 
+	// 清理该用户的点赞与收藏行，并递减对应主题的 likes/favorites 冗余计数
+	// ponytail: 遗漏会导致被删用户的点赞/收藏"阴魂不散"，继续抬高他人主题的计数（全量审计 2026-10-30）
+	// 注意须在 post_delete_by_uid 之后执行：post_delete_by_uid 清的是"点赞该用户被删回帖"的行（按 pid），
+	// 这里清的是"该用户发出的点赞/收藏"（按 uid），两组行不相交，不会二次递减
+	$_purge_like_rows = db_find('post_like', array('uid'=>$uid), array(), 1, 1000000, 'pid', array('pid','tid'));
+	if($_purge_like_rows) {
+		$_purge_likes_dec = array();
+		foreach($_purge_like_rows as $_row) {
+			$_t = intval($_row['tid']);
+			if($_t > 0) {
+				if(!isset($_purge_likes_dec[$_t])) $_purge_likes_dec[$_t] = 0;
+				$_purge_likes_dec[$_t]++;
+			}
+		}
+		db_delete('post_like', array('uid'=>$uid));
+		foreach($_purge_likes_dec as $_t => $cnt) {
+			thread_dec($_t, 'likes', $cnt);
+		}
+	}
+	$_purge_fav_rows = db_find('thread_favorite', array('uid'=>$uid), array(), 1, 1000000, '', array('tid'));
+	if($_purge_fav_rows) {
+		db_delete('thread_favorite', array('uid'=>$uid));
+		foreach($_purge_fav_rows as $_row) {
+			$_t = intval($_row['tid']);
+			$_t > 0 AND thread_dec($_t, 'favorites', 1);
+		}
+	}
+
 	$user['avatar_path'] AND xn_unlink($user['avatar_path']);
 
 	$r = user__delete($uid);
@@ -417,6 +445,17 @@ function user_count($cond = array()) {
 	$n = db_count('user', $cond);
 	// hook model_user_count_end.php
 	return $n;
+}
+
+// 实际在册用户数：排除已注销（匿名化）用户
+// ponytail: user_delete() 注销是匿名化（user 行保留、username 置为 deleted_{uid}）且 runtime users-1，
+// 裸 user_count(uid>0) 会把已注销行也算进去，造成后台用户总数比前台 runtime 多出注销数。
+// 统计口径必须与 user_is_anonymized() 的判定模式一致（^deleted_[0-9]+$）。
+function user_count_real() {
+	// hook model_user_count_real_start.php
+	global $db;
+	$row = db_sql_find_one("SELECT COUNT(*) AS cnt FROM {$db->tablepre}user WHERE uid > 0 AND username NOT REGEXP '^deleted_[0-9]+$'");
+	return !empty($row['cnt']) ? intval($row['cnt']) : 0;
 }
 
 function user_maxid($cond = array()) {

@@ -37,7 +37,18 @@ $csrfToken = CsrfService::getToken();
 					<code id="latestVersionCode">—</code>
 					<span class="badge bg-secondary d-none" id="updateBadge"></span>
 				</div>
-				<div class="fs-6 text-secondary d-none" id="releaseNotes"></div>
+				<!-- 版本说明：默认收起，点击标题栏展开 markdown 渲染后的内容 -->
+				<div class="d-none" id="releaseNotesWrap">
+					<div class="border rounded-3 overflow-hidden">
+						<button type="button" class="btn btn-toggle w-100 d-flex align-items-center justify-content-between text-start fw-semibold" id="releaseNotesToggle" aria-expanded="false">
+							<span><i class="ti ti-notes text-secondary"></i> <?php echo lang('admin_online_upgrade_release_notes');?></span>
+							<i class="ti ti-chevron-down" id="releaseNotesChevron"></i>
+						</button>
+						<div class="d-none" id="releaseNotes">
+							<div class="border-top px-3 py-3 fs-6 text-secondary" id="releaseNotesBody" style="max-height:420px; overflow-y:auto;"></div>
+						</div>
+					</div>
+				</div>
 			</div>
 
 			<!-- 3 个操作按钮（已移除「立即回滚」：自动备份步骤已下线，回滚无备份源） -->
@@ -224,6 +235,141 @@ function escapeHtml(s) {
 	});
 }
 
+// 极简 markdown → HTML 转换（纯前端，覆盖 Gitee release body 常用语法）
+// 支持：标题 #..######、无序/有序列表、- 分隔线、行内代码、**加粗**、[文本](链接)、围栏代码块 ```、缩进代码块
+// ponytail: 不引第三方 markdown 库（在线升级页禁用依赖/最小改动），覆盖主流语法即可，未知语法按纯文本输出
+function mdToHtml(src) {
+	if (!src) return '';
+	// 先转义 XML 敏感字符避免注入，再解析标记
+	src = escapeHtml(src);
+	src = src.replace(/\r\n?/g, '\n');
+
+	function inline(s) {
+		// 链接 [text](url)
+		s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function(m, t, u) {
+			return '<a href="' + u + '" target="_blank" rel="noopener noreferrer">' + t + '</a>';
+		});
+		// 行内代码 `code`
+		s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+		// 加粗 **text**
+		s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+		return s;
+	}
+
+	var lines = src.split('\n');
+	var html = [];
+	var listBuf = [];   // 当前累积的无序列表项
+	var inFence = false;// 围栏代码块内
+	var fenceBuf = [];
+	var indentBuf = []; // 缩进代码块累积
+
+	function flushList() {
+		if (listBuf.length) {
+			html.push('<ul class="mb-2 ps-3">' + listBuf.map(function(x){ return '<li>' + x + '</li>'; }).join('') + '</ul>');
+			listBuf = [];
+		}
+	}
+	function outCodeBlock(buf) {
+		// ponytail: src 已在入口整体 escapeHtml 过，代码块内容是安全的转义态，不能二次转义
+		html.push('<pre class="mb-2 p-2 bg-body border rounded" style="max-height:300px;overflow:auto;"><code>' + buf.join('\n') + '</code></pre>');
+	}
+
+	for (var i = 0; i < lines.length; i++) {
+		var line = lines[i];
+
+		// 围栏代码块 ``` ... ```
+		if (inFence) {
+			if (/^```/.test(line)) {
+				inFence = false;
+				outCodeBlock(fenceBuf);
+				fenceBuf = [];
+			} else {
+				fenceBuf.push(line);
+			}
+			continue;
+		}
+		if (/^```/.test(line)) {
+			flushList();
+			inFence = true;
+			fenceBuf = [];
+			continue;
+		}
+
+		// 缩进代码块：连续 ≥4 空格 / tab 的行累积
+		if (/^( {4}|\t)/.test(line)) {
+			indentBuf.push(line.replace(/^( {4}|\t)/, ''));
+			continue;
+		}
+		// 遇到非缩进行：先输出已累积的缩进代码块，再处理当前行
+		if (indentBuf.length) {
+			outCodeBlock(indentBuf);
+			indentBuf = [];
+		}
+
+		// 引用 >（已被 escapeHtml 转义为 &gt;）
+		if (/^&gt;\s?/.test(line)) {
+			flushList();
+			html.push('<blockquote class="mb-2 ps-3 border-start border-2 text-secondary">' + inline(line.replace(/^&gt;\s?/, '')) + '</blockquote>');
+			continue;
+		}
+
+		var trimmed = line.trim();
+		if (!trimmed) { flushList(); continue; }
+
+		// 标题 #..######（映射 h4~h6 分层，避免 top 级标题过大）
+		var m = trimmed.match(/^(#{1,6})\s+(.*)$/);
+		if (m) {
+			flushList();
+			var tag = 'h' + Math.min(6, Math.max(4, m[1].length + 2));
+			html.push('<' + tag + ' class="fs-6 fw-bold mb-2">' + inline(m[2]) + '</' + tag + '>');
+			continue;
+		}
+
+		// 分隔线 --- 或 ***
+		if (/^(-{3,}|\*{3,})$/.test(trimmed)) { flushList(); html.push('<hr class="my-2">'); continue; }
+
+		// 无序列表
+		m = trimmed.match(/^[-*]\s+(.*)$/);
+		if (m) { listBuf.push(inline(m[1])); continue; }
+
+		// 有序列表（简化：不分级）
+		m = trimmed.match(/^\d+[.)]\s+(.*)$/);
+		if (m) { flushList(); listBuf.push(inline(m[1])); continue; }
+
+		flushList();
+		html.push('<p class="mb-2">' + inline(trimmed) + '</p>');
+	}
+
+	// 收尾：未闭合的代码块
+	if (inFence && fenceBuf.length) outCodeBlock(fenceBuf);
+	if (indentBuf.length) outCodeBlock(indentBuf);
+	flushList();
+
+	return html.join('\n');
+}
+
+// 版本说明折叠卡片：expanded=true 展开，false 收起
+function collapseReleaseNotes(expanded) {
+	var body = document.getElementById('releaseNotes');
+	var chevron = document.getElementById('releaseNotesChevron');
+	var toggle = document.getElementById('releaseNotesToggle');
+	if (!body) return;
+	var show = expanded !== false;
+	body.classList.toggle('d-none', !show);
+	if (chevron) chevron.className = show ? 'ti ti-chevron-up' : 'ti ti-chevron-down';
+	if (toggle) toggle.setAttribute('aria-expanded', show ? 'true' : 'false');
+}
+
+// 版本说明标题栏点击展开/收起
+document.addEventListener('DOMContentLoaded', function() {
+	var toggle = document.getElementById('releaseNotesToggle');
+	if (!toggle) return;
+	toggle.addEventListener('click', function() {
+		var body = document.getElementById('releaseNotes');
+		collapseReleaseNotes(body.classList.contains('d-none'));
+	});
+});
+
 // 从非 JSON 响应（HTML 错误页）中提取人类可读的错误信息
 // ponytail: 在线升级路由走 admin/index.inc.php，POST 请求会被 CSRF/maintenance/权限拦截，
 // 这些拦截调 message() 渲染完整 HTML 页；PHP fatal error 也被 ErrorHandler 渲染成 HTML。
@@ -333,29 +479,33 @@ function checkUpdate() {
 		data: { csrf_token: csrfToken },
 		dataType: 'json',
 		success: function(res) {
-			var latestCode = document.getElementById('latestVersionCode');
-			var updateBadge = document.getElementById('updateBadge');
-			var releaseNotes = document.getElementById('releaseNotes');
-			var startBtn = document.getElementById('startBtn');
-			var logArea = document.getElementById('logArea');
+				var latestCode = document.getElementById('latestVersionCode');
+				var updateBadge = document.getElementById('updateBadge');
+				var releaseNotesWrap = document.getElementById('releaseNotesWrap');
+				var startBtn = document.getElementById('startBtn');
+				var logArea = document.getElementById('logArea');
 
-			if (res.ok) {
-				latestCode.textContent = res.latest_version || '—';
-				if (res.has_update) {
-					updateBadge.className = 'badge bg-success';
-					updateBadge.textContent = '<?php echo lang('admin_online_upgrade_has_update');?>';
-					updateBadge.classList.remove('d-none');
-					startBtn.disabled = false;
-				} else {
-					updateBadge.className = 'badge bg-secondary';
-					updateBadge.textContent = '<?php echo lang('admin_online_upgrade_no_update');?>';
-					updateBadge.classList.remove('d-none');
-					startBtn.disabled = true;
-				}
-				if (res.release_notes) {
-					releaseNotes.textContent = res.release_notes;
-					releaseNotes.classList.remove('d-none');
-				}
+				if (res.ok) {
+					latestCode.textContent = res.latest_version || '—';
+					if (res.has_update) {
+						updateBadge.className = 'badge bg-success';
+						updateBadge.textContent = '<?php echo lang('admin_online_upgrade_has_update');?>';
+						updateBadge.classList.remove('d-none');
+						startBtn.disabled = false;
+					} else {
+						updateBadge.className = 'badge bg-secondary';
+						updateBadge.textContent = '<?php echo lang('admin_online_upgrade_no_update');?>';
+						updateBadge.classList.remove('d-none');
+						startBtn.disabled = true;
+					}
+					if (res.release_notes) {
+						// markdown 渲染为 HTML 填入折叠卡片，默认收起
+						document.getElementById('releaseNotesBody').innerHTML = mdToHtml(res.release_notes);
+						collapseReleaseNotes(true);
+						releaseNotesWrap.classList.remove('d-none');
+					} else {
+						releaseNotesWrap.classList.add('d-none');
+					}
 
 				btn.disabled = false;
 				btn.innerHTML = '<i class="ti ti-refresh-dot"></i><?php echo lang('admin_online_upgrade_check');?>';

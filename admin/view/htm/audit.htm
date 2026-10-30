@@ -127,7 +127,12 @@
                         <tr>
                             <td><input type="checkbox" class="form-check-input post-check" value="<?php echo $post['pid'];?>"></td>
                             <td>
-                                <?php echo esc_html(mb_substr($post['message'] ?? '', 0, 80));?>
+                                <?php echo esc_html(mb_substr(strip_tags($post['message'] ?? ''), 0, 80));?>
+                                <?php if(!empty($post['quote_summary'])): ?>
+                                <div class="small text-body-secondary bg-primary bg-opacity-10 rounded px-2 py-1 mt-1" style="font-size:0.75rem;max-width:360px;">
+                                    <span class="fw-medium text-body"><?php echo esc_html($post['quote_name']);?>：</span><?php echo esc_html($post['quote_summary']);?>
+                                </div>
+                                <?php endif; ?>
                                 <?php if(intval($post['audit_status']) === AuditService::STATUS_IGNORED): ?>
                                 <span class="badge bg-secondary ms-1"><?php echo lang('admin_status_ignored');?></span>
                                 <?php endif; ?>

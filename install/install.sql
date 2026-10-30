@@ -261,6 +261,7 @@ CREATE TABLE bbs_attach (
   driver varchar(32) NOT NULL DEFAULT 'local' COMMENT '存储驱动',
   PRIMARY KEY (aid),					# aid
   KEY pid (pid),					# 每个帖子下多个附件
+  KEY tid (tid),					# 删帖按主题反查附件（xnx_attach_access 权限级联清理依赖，缺失会全表扫 attach）
   KEY uid (uid)						# 我的附件，清理数据需要。
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 

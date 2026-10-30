@@ -223,7 +223,7 @@ if($action == 'base') {
 			$email_templates = include $tpl_confile;
 		}
 		if(!is_array($email_templates)) $email_templates = array();
-		$default_tpl_keys = array('user_create_code', 'user_resetpw_code', 'email_change_code');
+		$default_tpl_keys = array('user_create_code', 'user_resetpw_code', 'email_change_code', 'password_change_notify', 'email_change_notify');
 		foreach($default_tpl_keys as $dk) {
 			if(!isset($email_templates[$dk])) {
 				$default_templates = include APP_PATH . 'conf/email_templates.conf.php';
@@ -1096,8 +1096,9 @@ respond @hidden 404
         }
         if(!is_array($templates)) $templates = array();
 
-        // 确保所有默认模板都存在
-        $default_keys = array('user_create_code', 'user_resetpw_code', 'email_change_code');
+        // 确保所有默认模板都存在（与 conf/email_templates.conf.php 内置的 5 个模板保持一致，
+        // 否则缺失的通知类模板不会回填表单，保存时按已提交 key 重建 conf 会被永久丢弃）
+        $default_keys = array('user_create_code', 'user_resetpw_code', 'email_change_code', 'password_change_notify', 'email_change_notify');
         foreach($default_keys as $key) {
             if(!isset($templates[$key])) {
                 // 加载默认模板
@@ -1117,8 +1118,10 @@ respond @hidden 404
         CsrfService::check();
 
         $template_keys = param('template_key', array());
-        $subjects = param('subject', array(''));
-        $bodies = param('body', array('', ''));  // 注意 body 可能有 HTML
+        // 邮件模板 body/subject 含 HTML，输入侧不做 htmlspecialchars（否则会把模板转义污染后存盘，导致重载乱码、发信 HTML 错乱）。
+        // XSS 防护在输出侧：setting_email_template.htm 已用 esc_html() 转义 textarea/value；conf 用 var_export() 序列化无注入风险。
+        $subjects = param('subject', array(''), FALSE);
+        $bodies = param('body', array('', ''), FALSE);
 
         $templates = array();
         foreach($template_keys as $k => $key) {

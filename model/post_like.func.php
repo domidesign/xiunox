@@ -123,6 +123,51 @@ function post_like_count_by_pid($pid) {
 	return $n;
 }
 
+// 整帖删除时按 tid 清理点赞行（thread 行同删，thread.likes 随行消失，仅清孤儿数据）
+function post_like_delete_by_tid($tid) {
+	// hook model_post_like_delete_by_tid_start.php
+	$tid = intval($tid);
+	if($tid <= 0) return 0;
+	// hook model_post_like_delete_by_tid_end.php
+	return db_delete('post_like', array('tid'=>$tid));
+}
+
+// 硬删回帖时按 pid 清理点赞行，并按 tid 聚合递减 thread.likes（GREATEST 下限保护）
+// ponytail: 此前所有硬删路径（楼层删除/回收站彻底删除/清空用户数据）都不清理点赞行，
+// thread.likes 永久虚高且列表页可见（心形计数）。软删/恢复不走此函数：软删保留点赞行，
+// 恢复后点赞原样可见，天然对称。首帖点赞即主题点赞，首帖被清时同样适用。
+function post_like_delete_by_pids($pids) {
+	// hook model_post_like_delete_by_pids_start.php
+	if(empty($pids) || !is_array($pids)) return 0;
+	$pids = array_map('intval', $pids);
+	$pids = array_values(array_unique(array_filter($pids)));
+	if(empty($pids)) return 0;
+	// 按 tid 聚合将被清理的点赞数（删行后就查不到了）；pid 分片防 IN 子句超长
+	$thread_likes_dec = array();
+	$r = 0;
+	foreach(array_chunk($pids, 500) as $_pid_chunk) {
+		global $db;
+		$tablepre = $db->tablepre;
+		$pid_in = implode(',', $_pid_chunk);
+		$rows = db_sql_find("SELECT tid, COUNT(*) AS c FROM {$tablepre}post_like WHERE pid IN ($pid_in) GROUP BY tid");
+		if($rows) {
+			foreach($rows as $row) {
+				$_tid = intval($row['tid']);
+				if($_tid > 0) {
+					if(!isset($thread_likes_dec[$_tid])) $thread_likes_dec[$_tid] = 0;
+					$thread_likes_dec[$_tid] += intval($row['c']);
+				}
+			}
+		}
+		$r += db_delete('post_like', array('pid'=>$_pid_chunk));
+	}
+	foreach($thread_likes_dec as $_tid => $cnt) {
+		thread_dec($_tid, 'likes', $cnt);
+	}
+	// hook model_post_like_delete_by_pids_end.php
+	return $r;
+}
+
 // hook model_post_like_end.php
 
 ?>

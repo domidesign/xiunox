@@ -1099,8 +1099,8 @@ document.addEventListener('click', function(e) {
 	var isDelete = jthis.classList.contains('post_delete');
 	var isfirst = jthis.getAttribute('isfirst') === '1' || jthis.getAttribute('isfirst') === 1;
 	var creditsEvent = isfirst ? 'thread_delete' : 'reply_delete';
-	// 管理员/版主（gid<5）删除时不弹积分确认窗：扣的是作者积分，不应拿操作者余额做预检查
-	var isModDelete = (typeof gid !== 'undefined' && parseInt(gid) > 0 && parseInt(gid) < 5);
+	// 管理员/版主（gid<6，含实习版主）删除时不弹积分确认窗：扣的是作者积分，不应拿操作者余额做预检查
+	var isModDelete = (typeof gid !== 'undefined' && parseInt(gid) > 0 && parseInt(gid) < 6);
 
 	XN.confirm(text, function() {
 		if (isDelete && !isModDelete && typeof XN.confirmCreditsDeduct === 'function') {

@@ -1,4 +1,5 @@
 <?php
+include_once APP_PATH . 'lib/AttachmentAccessService.php';
 
 // ponytail: 加载 $grouplist，PermissionService::check 对非管理员会回退查 $grouplist[$_gid]['allowattach']
 // 未加载时非管理员上传附件必然 403（与 post.php/thread.php/mod.php 一致）
@@ -13,19 +14,35 @@ $id = intval($segments[1] ?? 0);
 
 switch ($method) {
     case 'GET':
+        // ponytail: 应用凭据只授权调用 API，不能代替附件所有者身份。
+        // 元数据查询不发放下载能力；实际下载仍须经过所属业务的权限检查。
+        header('Cache-Control: private, no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
+        $attachToken = ApiAuthService::getBearerToken();
+        $attachViewer = $attachToken ? $apiAuth->validateAccessToken($attachToken) : null;
+        if (!$attachViewer || intval($attachViewer['uid']) <= 0) {
+            ApiResponse::unauthorized();
+        }
         if ($id <= 0) {
             ApiResponse::validationError('Attachment ID is required');
         }
         $attach = $attachmentService->getAttachmentById($id);
-        if (!$attach) {
+        $attachViewerIsAdmin = in_array(intval($attachViewer['gid']), array(1, 2), true);
+        if (!$attach || !AttachmentAccessService::allowed($attach, intval($attachViewer['uid']), intval($attachViewer['gid']), 'metadata')) {
+            // 对不存在与无权访问的 aid 返回同一结果，避免枚举附件归属。
             ApiResponse::notFound('Attachment not found');
         }
-        unset($attach['driver']);
-        ApiResponse::success($attach);
+        // 白名单响应：禁止返回 filename/path/url/thumb_url/存储驱动字段。
+        $attachMetadataFields = array_flip(array(
+            'aid', 'tid', 'pid', 'uid', 'create_date', 'orgfilename',
+            'filetype', 'filesize', 'width', 'height', 'isimage', 'downloads', 'duration',
+        ));
+        ApiResponse::success(array_intersect_key($attach, $attachMetadataFields));
         break;
 
     case 'POST':
-        $authUser = $apiAuth->validateAccessToken(ApiAuthService::getBearerToken());
+        $attachToken = ApiAuthService::getBearerToken();
+        $authUser = $attachToken ? $apiAuth->validateAccessToken($attachToken) : null;
         if (!$authUser) {
             ApiResponse::unauthorized();
         }
@@ -94,7 +111,7 @@ switch ($method) {
         // 生成临时文件名（密码学安全随机数）
         $uid = intval($authUser['uid']);
         $tmpname = $uid.'_'.bin2hex(random_bytes(16)).'.'.$ext;
-        $tmpfile = $conf['upload_path'].'tmp/'.$tmpname;
+        $tmpfile = PrivateAttachmentStorage::publicMedia(array('filename'=>$tmpname, 'isimage'=>$filetype === 'image', 'filetype'=>$filetype)) ? $conf['upload_path'].'tmp/'.$tmpname : PrivateAttachmentStorage::privatePath($tmpname, 'tmp');
         $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
 
         // ponytail: 确保上传临时目录存在（与 route/attach.php 一致）
@@ -155,7 +172,7 @@ switch ($method) {
             'uid'         => $uid,
             'duration'    => $duration,
         );
-        $meta_file = $conf['upload_path'].'tmp/'.$tmpname.'.meta.json';
+        $meta_file = PrivateAttachmentStorage::privatePath($tmpname.'.meta.json', 'tmp');
         file_put_contents($meta_file, json_encode($meta, JSON_UNESCAPED_UNICODE));
 
         $result = array(
@@ -177,7 +194,8 @@ switch ($method) {
         break;
 
     case 'DELETE':
-        $authUser = $apiAuth->validateAccessToken(ApiAuthService::getBearerToken());
+        $attachToken = ApiAuthService::getBearerToken();
+        $authUser = $attachToken ? $apiAuth->validateAccessToken($attachToken) : null;
         if (!$authUser) {
             ApiResponse::unauthorized();
         }
@@ -188,7 +206,7 @@ switch ($method) {
         if (!$attach) {
             ApiResponse::notFound('Attachment not found');
         }
-        if (intval($attach['uid']) !== intval($authUser['uid']) && intval($authUser['gid']) !== 1) {
+        if (!AttachmentAccessService::allowed($attach, intval($authUser['uid']), intval($authUser['gid']), 'delete')) {
             ApiResponse::forbidden();
         }
         $attachmentService->deleteAttachment($id);

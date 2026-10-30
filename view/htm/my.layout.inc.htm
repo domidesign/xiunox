@@ -84,6 +84,16 @@
 			</a>
 		</li>
 		<!--{hook my_sidebar_nav_item_after.htm}-->
+		<?php $_mod_audit_url = mod_auditlist_entry_url(); ?>
+		<?php if(!empty($_mod_audit_url)) { ?>
+		<li class="side-nav-title mt-2"><?php echo lang('management_center');?></li>
+		<li class="side-nav-item">
+			<a href="<?php echo $_mod_audit_url;?>" class="side-nav-link">
+				<span class="menu-icon"><i class="ti ti-shield-check"></i></span>
+				<span class="menu-text"><?php echo lang('mod_auditlist_title');?></span>
+			</a>
+		</li>
+		<?php } ?>
 		</ul>
 			<!--{hook my_sidebar_nav_after.htm}-->
 		</div>
@@ -126,6 +136,12 @@
         <li class="nav-item" role="presentation">
                 <a href="<?php echo my_following_url();?>" class="nav-link<?php if(!empty($active_tab) && $active_tab == 'following') echo ' active'; ?>"><?php echo lang('i_following');?></a>
         </li>
+        <?php $_mod_audit_url_m = mod_auditlist_entry_url(); ?>
+        <?php if(!empty($_mod_audit_url_m)) { ?>
+        <li class="nav-item" role="presentation">
+                <a href="<?php echo $_mod_audit_url_m;?>" class="nav-link"><?php echo lang('mod_auditlist_title');?></a>
+        </li>
+        <?php } ?>
         </ul>
 
 		<!-- 用户信息卡片 -->

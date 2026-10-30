@@ -30,7 +30,7 @@
             <a href="<?php echo user_login_url();?>" class="btn btn-sm btn-primary rounded-pill flex-shrink-0"><i class="ti ti-user-plus me-1"></i><?php echo lang('follow');?></a>
             <?php } elseif($uid != $thread['uid']) { ?>
             <?php if($author_followed) { ?>
-            <button class="btn btn-sm btn-outline-primary rounded-pill flex-shrink-0" hx-post="<?php echo user_follow_url($thread['uid']);?>" hx-target="this" hx-swap="outerHTML" hx-optimistic><i class="ti me-1 ti-user-minus"></i><span><?php echo lang('followed');?></span></button>
+            <button class="btn btn-sm btn-outline-primary rounded-pill flex-shrink-0" hx-post="<?php echo user_follow_url($thread['uid']);?>" hx-target="this" hx-swap="outerHTML" hx-optimistic><i class="ti me-1 ti-user-minus"></i><span><?php echo lang('followed_short');?></span></button>
             <?php } else { ?>
             <button class="btn btn-sm btn-primary rounded-pill flex-shrink-0" hx-post="<?php echo user_follow_url($thread['uid']);?>" hx-target="this" hx-swap="outerHTML" hx-optimistic><i class="ti me-1 ti-user-plus"></i><span><?php echo lang('follow');?></span></button>
             <?php } ?>

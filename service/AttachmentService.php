@@ -1,4 +1,5 @@
 <?php
+include_once APP_PATH . 'lib/PrivateAttachmentStorage.php';
 
 /**
  * 附件统一上传服务类
@@ -114,7 +115,7 @@ class AttachmentService {
         // 生成临时文件
         $uid = $uid ?: intval($GLOBALS['uid']);
         $tmpname = $uid.'_'.xn_rand(15).'.'.$ext;
-        $tmpfile = $conf['upload_path'].'tmp/'.$tmpname;
+        $tmpfile = PrivateAttachmentStorage::publicMedia(array('filename'=>$tmpname, 'isimage'=>($filetype ?? 'image') === 'image', 'filetype'=>$filetype ?? 'image')) ? $conf['upload_path'].'tmp/'.$tmpname : PrivateAttachmentStorage::privatePath($tmpname, 'tmp');
         $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
 
         if(!move_uploaded_file($tmp_name, $tmpfile)) {
@@ -200,7 +201,7 @@ class AttachmentService {
         // 生成临时文件
         $uid = $uid ?: intval($GLOBALS['uid']);
         $tmpname = $uid.'_'.xn_rand(15).'.'.$ext;
-        $tmpfile = $conf['upload_path'].'tmp/'.$tmpname;
+        $tmpfile = PrivateAttachmentStorage::publicMedia(array('filename'=>$tmpname, 'isimage'=>false, 'filetype'=>'video')) ? $conf['upload_path'].'tmp/'.$tmpname : PrivateAttachmentStorage::privatePath($tmpname, 'tmp');
         $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
 
         if(!move_uploaded_file($tmp_name, $tmpfile)) {
@@ -281,7 +282,7 @@ class AttachmentService {
         // 生成临时文件
         $uid = $uid ?: intval($GLOBALS['uid']);
         $tmpname = $uid.'_'.xn_rand(15).'.'.$ext;
-        $tmpfile = $conf['upload_path'].'tmp/'.$tmpname;
+        $tmpfile = PrivateAttachmentStorage::publicMedia(array('filename'=>$tmpname, 'isimage'=>($filetype ?? 'image') === 'image', 'filetype'=>$filetype ?? 'image')) ? $conf['upload_path'].'tmp/'.$tmpname : PrivateAttachmentStorage::privatePath($tmpname, 'tmp');
         $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
 
         if(!move_uploaded_file($tmp_name, $tmpfile)) {
@@ -459,7 +460,10 @@ class AttachmentService {
         sess_restart();
 
         empty($_SESSION['tmp_files']) AND $_SESSION['tmp_files'] = array();
-        $n = count($_SESSION['tmp_files']);
+        // ponytail: 用 max(array_keys)+1 替代 count()，避免并发上传或中途删除某项后 key 重叠覆盖
+        // （与 route/attach.php 同款修复，两侧必须一致）
+        $_tmp_keys = array_keys($_SESSION['tmp_files']);
+        $n = empty($_tmp_keys) ? 0 : (intval(max($_tmp_keys)) + 1);
         $attach = array(
             'url'         => $url,
             'thumb_url'   => $thumb_url,
@@ -750,8 +754,8 @@ class AttachmentService {
 
         global $conf;
         if(!empty($attach['filename'])) {
-            $filepath = $conf['upload_path'].'attach/'.$attach['filename'];
-            if(file_exists($filepath)) @unlink($filepath);
+            $filepath = PrivateAttachmentStorage::path((string)$attach['filename']);
+            PrivateAttachmentStorage::delete($attach);
         }
 
         if($this->db) {

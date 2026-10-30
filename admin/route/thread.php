@@ -53,7 +53,7 @@ function admin_thread_build_cond() {
 		$create_date_end AND $cond['create_date']['<='] = $create_date_end + 86399;
 	}
 	if($userip) $cond['userip'] = sprintf('%u', ip2long($userip));
-	if($keyword) $cond['subject'] = array('LIKE' => $keyword);
+	if($keyword) $cond['subject'] = array('LIKE' => xn_like_escape($keyword));
 	// 状态过滤：top>0 / digest>0 利用 db_cond_to_sqladd 的比较符后缀解析
 	if($status === 'digest') $cond['digest>'] = 0;
 	elseif($status === 'top') $cond['top>'] = 0;
@@ -104,11 +104,12 @@ if(empty($action) || $action == 'list') {
 				thread_soft_delete_batch($valid_tids, $uid);
 				$success_count = count($valid_tids);
 			} else {
-				// 删除涉及级联，保持循环
-				foreach($valid_tids as $tid) {
-					thread_delete($tid);
-					$success_count++;
-				}
+				// 硬删除：走 thread_delete_batch 批量 SQL；
+				// 插件级联由新增的 model_thread_delete_batch_start/end hook 承接
+				// （xnx_attach_access/xnx_hidden/xnx_poll/xnx_related/xnx_private_reply/
+				//  xnx_comment_visibility/xnx_reward/xnx_fields/xnx_lottery/xnx_tag）
+				thread_delete_batch($valid_tids);
+				$success_count = count($valid_tids);
 			}
 		} elseif($op == 'close') {
 		// 批量更新
@@ -277,7 +278,7 @@ if(empty($action) || $action == 'list') {
 		} else {
 			// 帖子回收站
 			$_thread_cond = $cond;
-			$filter_keyword AND $_thread_cond['subject'] = array('LIKE' => $filter_keyword);
+			$filter_keyword AND $_thread_cond['subject'] = array('LIKE' => xn_like_escape($filter_keyword));
 			unset($_thread_cond['keyword']);
 
 			$threadlist = thread_find_deleted($_thread_cond, array('deleted_date'=>-1), $page, $pagesize);
@@ -359,10 +360,11 @@ if(empty($action) || $action == 'list') {
 				$success_count = count($valid_tids);
 				admin_log_create('thread_restore', 'thread', $valid_tids, lang('admin_log_thread_restore', array('n'=>$success_count)));
 			} elseif($op == 'hard_delete') {
-				foreach($valid_tids as $tid) {
-					thread_delete($tid);
-					$success_count++;
-				}
+				// 回收站硬删：走 thread_delete_batch 批量 SQL
+				// thread_delete_batch 内部按 audit_status/is_deleted 过滤统计递减，已软删帖不重复扣；
+				// 插件级联由新增的 model_thread_delete_batch_start/end hook 承接
+				thread_delete_batch($valid_tids);
+				$success_count = count($valid_tids);
 				admin_log_create('thread_hard_delete', 'thread', $valid_tids, lang('admin_log_thread_hard_delete', array('n'=>$success_count)));
 			} else {
 				message(-1, lang('admin_unknown_action'));

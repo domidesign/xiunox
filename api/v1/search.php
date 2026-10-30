@@ -40,21 +40,36 @@ $searchIsAdmin = $searchAuthUser && in_array(intval($searchAuthUser['gid']), [1,
 $searchGid = $searchAuthUser ? intval($searchAuthUser['gid']) : 0;
 $searchUid = $searchAuthUser ? intval($searchAuthUser['uid']) : 0;
 
-$like = '%' . $q . '%';
+include_once APP_PATH . 'lib/ApiContentService.php';
+if (!function_exists('forum_access_user')) include_once APP_PATH . 'model/forum_access.func.php';
+if (empty($GLOBALS['forumlist'])) $GLOBALS['forumlist'] = forum_list_cache();
+if (empty($GLOBALS['grouplist'])) $GLOBALS['grouplist'] = group_list_cache();
+$searchFids = array_map('intval', array_keys(forum_list_access_filter($GLOBALS['forumlist'], $searchGid, 'allowread')));
+if (empty($searchFids) && in_array($type, ['thread', 'post'], true)) ApiResponse::success(paginateResult([], $page, $pagesize, 0));
+
+$like = '%' . xn_like_escape($q) . '%';
 
 switch ($type) {
     case 'thread':
-        $cond = ['subject' => ['LIKE' => $like]];
+        $cond = ['subject' => ['LIKE' => $like], 'is_deleted' => 0, 'fid' => $searchFids];
         ApiResponse::filterByAuditStatus($cond, $searchGid, $searchUid);
         $list = $db->find('thread', $cond, ['tid' => -1], $page, $pagesize, 'tid');
         $total = $db->count('thread', $cond);
         break;
 
     case 'post':
-        $cond = ['message' => ['LIKE' => $like]];
-        ApiResponse::filterByAuditStatus($cond, $searchGid, $searchUid);
-        $list = $db->find('post', $cond, ['pid' => -1], $page, $pagesize, 'pid');
-        $total = $db->count('post', $cond);
+        // Search only public body text; hidden posts are excluded before counts/pagination.
+        // 保留 db_sql_find: post requires a thread JOIN for visibility and private-body exclusion.
+        $fidSql = implode(',', $searchFids);
+        $likeSql = $db->quote($like);
+        $offset = ($page - 1) * $pagesize;
+        $where = "p.audit_status=1 AND p.is_deleted=0 AND t.audit_status=1 AND t.is_deleted=0 AND t.fid IN ($fidSql) AND p.message LIKE '$likeSql' AND LOWER(p.message) NOT LIKE '%hidden%'";
+        $list = db_sql_find("SELECT p.* FROM " . $db->table('post') . " p JOIN " . $db->table('thread') . " t ON t.tid=p.tid WHERE $where ORDER BY p.pid DESC LIMIT $offset,$pagesize") ?: [];
+        $count = db_sql_find_one("SELECT COUNT(*) AS cnt FROM " . $db->table('post') . " p JOIN " . $db->table('thread') . " t ON t.tid=p.tid WHERE $where");
+        $total = intval($count['cnt'] ?? 0);
+        $list = array_values(array_filter(array_map(static function ($post) use ($searchUid, $searchGid) {
+            return ApiContentService::post($post, $searchUid, $searchGid);
+        }, $list)));
         break;
 
     case 'user':

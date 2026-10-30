@@ -146,6 +146,9 @@ function route_table() {
 			'mod_audit'             => 'mod-audit',
 			'mod_audit_post'        => 'mod-audit_post',
 			'mod_ban_user'          => 'mod-ban_user',
+			// 前台审核队列：../ 前缀让 admin 上下文（通知列表）生成的链接指向前台，同 frontend_thread 模式
+			'mod_auditlist'         => '../mod-auditlist',
+			'mod_auditlist_page'    => '../mod-auditlist-{page}',
 
 			// ===== 全局通用 =====
 			'index'                 => 'index',
@@ -449,7 +452,24 @@ function mod_digest_url($query = array())                { return route_url('mod
 function mod_announcement_url($query = array())          { return route_url('mod_announcement', [], $query); }
 function mod_audit_url($query = array())                 { return route_url('mod_audit', [], $query); }
 function mod_audit_post_url($query = array())            { return route_url('mod_audit_post', [], $query); }
+function mod_auditlist_url($query = array())             { return route_url('mod_auditlist', [], $query); }
+function mod_auditlist_page_url($page, $query = array()) { return route_url('mod_auditlist_page', ['page' => $page], $query); }
 function mod_ban_user_url($query = array())              { return route_url('mod_ban_user', [], $query); }
+
+// 前台审核队列入口：按当前浏览者权限返回 URL，无权限返回 ''。
+// 头部下拉/我的页侧栏/右侧栏用户卡片共用同一判断，语义与 AuditService::entry_url_for_viewer() 一致
+function mod_auditlist_entry_url() {
+	global $gid, $uid, $forumlist;
+	$gid = intval($gid);
+	if($gid == 1 || $gid == 2) return mod_auditlist_url();
+	if(in_array($gid, array(3, 4, 5))) {
+		if(!isset($forumlist)) $forumlist = forum_list_cache();
+		foreach((array)$forumlist as $_forum) {
+			if(!empty($_forum['moduids']) && in_string($uid, $_forum['moduids'])) return mod_auditlist_url();
+		}
+	}
+	return '';
+}
 
 // ----- 全局通用 -----
 function index_url($query = array())                      { return route_url('index', [], $query); }

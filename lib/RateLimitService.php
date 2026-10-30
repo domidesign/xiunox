@@ -1,259 +1,93 @@
 <?php
 
+/** Atomic sliding window. An unavailable counter rejects instead of silently allowing. */
 class RateLimitService {
     private string $cacheDir;
     private int $maxRequests;
     private int $maxRequestsAuthenticated;
     private int $windowSeconds;
-    /** @var \Redis|null Redis 连接实例，不可用时为 null */
     private $redis = null;
-    /** @var string Redis 键前缀（含 cachepre，避免与其他应用键冲突） */
-    private string $redisPrefix = 'bbs_ratelimit:';
+    private string $redisPrefix;
 
     public function __construct(int $maxRequests = 60, int $windowSeconds = 60, ?string $cacheDir = null, int $maxRequestsAuthenticated = 120) {
-        $this->maxRequests = $maxRequests;
-        $this->maxRequestsAuthenticated = $maxRequestsAuthenticated;
-        $this->windowSeconds = $windowSeconds;
-        $this->cacheDir = $cacheDir ?? sys_get_temp_dir() . '/xiuno_ratelimit';
-        if (!is_dir($this->cacheDir)) {
-            @mkdir($this->cacheDir, 0755, true);
-        }
-        $this->redis = $this->detectRedis();
-    }
-
-    /**
-     * 检测 Redis 是否可用
-     * 通过 Xiuno 全局 $_SERVER['cache'] 判断，若为 cache_redis 且连接成功则复用其 Redis 连接
-     */
-    private function detectRedis(): ?\Redis {
-        $cache = isset($_SERVER['cache']) ? $_SERVER['cache'] : null;
-        // class_exists 第 2 参 false 不触发自动加载，避免 cache_redis 类未加载时 instanceof 报错
-        if ($cache && class_exists('cache_redis', false) && $cache instanceof \cache_redis) {
-            // 懒连接：若未连接则触发连接
-            if (!$cache->isConnected()) {
-                $cache->connect();
+        $this->maxRequests = max(0, $maxRequests);
+        $this->maxRequestsAuthenticated = max(0, $maxRequestsAuthenticated);
+        $this->windowSeconds = max(1, $windowSeconds);
+        $site = substr(hash('sha256', realpath(APP_PATH) ?: APP_PATH), 0, 16);
+        $this->cacheDir = $cacheDir ?? sys_get_temp_dir() . '/xiunox_ratelimit_' . $site;
+        $this->redisPrefix = 'xiunox:' . $site . ':ratelimit:';
+        $cache = $_SERVER['cache'] ?? null;
+        try {
+            if ($cache && class_exists('cache_redis', false) && $cache instanceof cache_redis) {
+                if (!$cache->isConnected()) $cache->connect();
+                if ($cache->link instanceof Redis) $this->redis = $cache->link;
             }
-            if ($cache->link instanceof \Redis) {
-                // 复用 cachepre 作为前缀，避免与其他应用键冲突
-                $this->redisPrefix = $cache->cachepre . 'ratelimit:';
-                return $cache->link;
-            }
-        }
-        return null;
+        } catch (Throwable $e) { /* A stable file backend remains available for file deployments. */ }
     }
 
-    public function check(string $key): bool {
-        if ($this->redis) {
-            return $this->checkRedis($key, $this->maxRequests);
-        }
-        return $this->checkFile($key, $this->maxRequests);
-    }
-
-    public function checkWithAuth(string $key, bool $isAuthenticated): bool {
-        $limit = $isAuthenticated ? $this->maxRequestsAuthenticated : $this->maxRequests;
-        if ($this->redis) {
-            return $this->checkRedis($key, $limit);
-        }
-        return $this->checkFile($key, $limit);
-    }
-
-    public function getRemaining(string $key): int {
-        if ($this->redis) {
-            return $this->getRemainingRedis($key, $this->maxRequests);
-        }
-        return $this->getRemainingFile($key, $this->maxRequests);
-    }
-
-    public function getRemainingWithAuth(string $key, bool $isAuthenticated): int {
-        $limit = $isAuthenticated ? $this->maxRequestsAuthenticated : $this->maxRequests;
-        if ($this->redis) {
-            return $this->getRemainingRedis($key, $limit);
-        }
-        return $this->getRemainingFile($key, $limit);
-    }
-
-    public function getResetTime(string $key): int {
-        if ($this->redis) {
-            return $this->getResetTimeRedis($key);
-        }
-        return $this->getResetTimeFile($key);
-    }
-
-    public function getRetryAfter(string $key): int {
-        if ($this->redis) {
-            return $this->getRetryAfterRedis($key);
-        }
-        return $this->getRetryAfterFile($key);
-    }
+    public function check(string $key): bool { return $this->state($key, $this->maxRequests, true)['allowed']; }
+    public function checkWithAuth(string $key, bool $authenticated): bool { return $this->state($key, $authenticated ? $this->maxRequestsAuthenticated : $this->maxRequests, true)['allowed']; }
+    public function getRemaining(string $key): int { return $this->state($key, $this->maxRequests, false)['remaining']; }
+    public function getRemainingWithAuth(string $key, bool $authenticated): int { return $this->state($key, $authenticated ? $this->maxRequestsAuthenticated : $this->maxRequests, false)['remaining']; }
+    public function getResetTime(string $key): int { return $this->state($key, $this->maxRequests, false)['reset']; }
+    public function getRetryAfter(string $key): int { return max(1, $this->getResetTime($key) - time()); }
 
     public static function getClientKey(): string {
-        $uid = 0;
-        if (isset($_SESSION['uid'])) {
-            $uid = intval($_SESSION['uid']);
-        }
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-        return 'api:' . $ip . ':' . $uid;
+        // REMOTE_ADDR must be normalized by the trusted reverse-proxy configuration.
+        // Never trust arbitrary X-Forwarded-For or a cookie-controlled uid here.
+        return 'ip:' . ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
     }
 
-    // ===== Redis 驱动实现（Sorted Set 滑动窗口）=====
-
-    private function redisKey(string $key): string {
-        return $this->redisPrefix . md5($key);
-    }
-
-    private function checkRedis(string $key, int $limit): bool {
-        $redisKey = $this->redisKey($key);
+    private function state(string $key, int $limit, bool $consume): array {
         $now = time();
-        $windowStart = $now - $this->windowSeconds;
+        if ($limit <= 0) return array('allowed'=>true, 'remaining'=>PHP_INT_MAX, 'reset'=>$now + $this->windowSeconds);
         try {
-            // 移除窗口外的记录
-            $this->redis->zRemRangeByScore($redisKey, 0, $windowStart);
-            // 获取当前窗口内的请求数
-            $count = $this->redis->zCard($redisKey);
-            if ($count >= $limit) {
-                return false;
+            if ($this->redis) {
+                $script = <<<'LUA'
+local k, now, window, lim, consume = KEYS[1], tonumber(ARGV[1]), tonumber(ARGV[2]), tonumber(ARGV[3]), tonumber(ARGV[4])
+redis.call('ZREMRANGEBYSCORE', k, '-inf', now-window)
+local count = redis.call('ZCARD', k)
+local allowed = 0
+if count < lim then
+    allowed = 1
+    if consume == 1 then
+        redis.call('ZADD', k, now, ARGV[5])
+        count = count+1
+        redis.call('EXPIRE', k, window+1)
+    end
+end
+local oldest = redis.call('ZRANGE', k, 0, 0, 'WITHSCORES')
+local reset = now+window
+if #oldest > 0 then reset = tonumber(oldest[2])+window end
+return {allowed, math.max(0,lim-count), reset}
+LUA;
+                $value = $this->redis->eval($script, array($this->redisPrefix . hash('sha256', $key), $now, $this->windowSeconds, $limit, $consume ? 1 : 0, bin2hex(random_bytes(16))), 1);
+                if (!is_array($value) || count($value) !== 3) throw new RuntimeException('Invalid Redis limit state');
+                return array('allowed'=>(bool)$value[0], 'remaining'=>intval($value[1]), 'reset'=>intval($value[2]));
             }
-            // 添加当前请求（时间戳+唯一ID 作为 member，避免同秒请求覆盖）
-            $this->redis->zAdd($redisKey, $now, $now . ':' . uniqid('', true));
-            // 设置过期时间，避免冷键堆积
-            $this->redis->expire($redisKey, $this->windowSeconds);
-            return true;
-        } catch (\Throwable $e) {
-            // Redis 异常时降级到文件系统，避免限流失控
-            return $this->checkFile($key, $limit);
+            if (!is_dir($this->cacheDir) && (!function_exists('mkdir') || !mkdir($this->cacheDir, 0700, true))) throw new RuntimeException('Limit directory unavailable');
+            $file = $this->cacheDir . '/' . md5($key) . '.json';
+            if (is_link($this->cacheDir) || is_link($file)) throw new RuntimeException('Limit symlink rejected');
+            $handle = fopen($file, 'c+');
+            if (!$handle) throw new RuntimeException('Limit counter unavailable');
+            try {
+                if (!flock($handle, LOCK_EX)) throw new RuntimeException('Limit lock failed');
+                $raw = stream_get_contents($handle);
+                $data = $raw === '' ? array() : json_decode($raw, true);
+                if (!is_array($data)) throw new RuntimeException('Corrupt limit counter');
+                $data = array_values(array_filter($data, function ($stamp) use ($now) { return is_int($stamp) && $stamp > $now - $this->windowSeconds; }));
+                $allowed = count($data) < $limit;
+                if ($allowed && $consume) $data[] = $now;
+                if ($consume) {
+                    $json = json_encode($data);
+                    rewind($handle);
+                    if (!ftruncate($handle, 0) || fwrite($handle, $json) !== strlen($json) || !fflush($handle)) throw new RuntimeException('Limit write failed');
+                }
+                return array('allowed'=>$allowed, 'remaining'=>max(0, $limit-count($data)), 'reset'=>($data ? min($data) : $now) + $this->windowSeconds);
+            } finally { flock($handle, LOCK_UN); fclose($handle); }
+        } catch (Throwable $e) {
+            error_log('XIUNOX rate counter unavailable; request denied');
+            return array('allowed'=>false, 'remaining'=>0, 'reset'=>$now+$this->windowSeconds);
         }
-    }
-
-    private function getRemainingRedis(string $key, int $limit): int {
-        $redisKey = $this->redisKey($key);
-        $now = time();
-        $windowStart = $now - $this->windowSeconds;
-        try {
-            $this->redis->zRemRangeByScore($redisKey, 0, $windowStart);
-            $count = $this->redis->zCard($redisKey);
-            return max(0, $limit - $count);
-        } catch (\Throwable $e) {
-            return $this->getRemainingFile($key, $limit);
-        }
-    }
-
-    private function getResetTimeRedis(string $key): int {
-        $redisKey = $this->redisKey($key);
-        try {
-            // 获取窗口内最早的请求时间戳（分数最小的元素）
-            // zRange 第 4 参 true 返回 [member => score] 关联数组
-            $items = $this->redis->zRange($redisKey, 0, 0, true);
-            if (empty($items)) {
-                return time() + $this->windowSeconds;
-            }
-            $minScore = (int)reset($items);
-            return $minScore + $this->windowSeconds;
-        } catch (\Throwable $e) {
-            return $this->getResetTimeFile($key);
-        }
-    }
-
-    private function getRetryAfterRedis(string $key): int {
-        $redisKey = $this->redisKey($key);
-        $now = time();
-        try {
-            // 清理过期记录
-            $windowStart = $now - $this->windowSeconds;
-            $this->redis->zRemRangeByScore($redisKey, 0, $windowStart);
-            // 获取最早的请求时间戳
-            $items = $this->redis->zRange($redisKey, 0, 0, true);
-            if (empty($items)) {
-                return $this->windowSeconds;
-            }
-            $minScore = (int)reset($items);
-            return max(0, $minScore + $this->windowSeconds - $now);
-        } catch (\Throwable $e) {
-            return $this->getRetryAfterFile($key);
-        }
-    }
-
-    // ===== 文件系统驱动实现（原有逻辑，提取为 private 方法）=====
-
-    private function checkFile(string $key, int $limit): bool {
-        $file = $this->cacheDir . '/' . md5($key) . '.json';
-        $now = time();
-        $windowStart = $now - $this->windowSeconds;
-
-        $data = $this->readFile($file);
-
-        $data = array_filter($data, function($ts) use ($windowStart) {
-            return $ts > $windowStart;
-        });
-
-        if (count($data) >= $limit) {
-            return false;
-        }
-
-        $data[] = $now;
-        $this->writeFile($file, $data);
-
-        return true;
-    }
-
-    private function getRemainingFile(string $key, int $limit): int {
-        $file = $this->cacheDir . '/' . md5($key) . '.json';
-        $now = time();
-        $windowStart = $now - $this->windowSeconds;
-
-        $data = $this->readFile($file);
-        $data = array_filter($data, function($ts) use ($windowStart) {
-            return $ts > $windowStart;
-        });
-
-        return max(0, $limit - count($data));
-    }
-
-    private function getResetTimeFile(string $key): int {
-        $file = $this->cacheDir . '/' . md5($key) . '.json';
-        $data = $this->readFile($file);
-
-        if (empty($data)) {
-            return time() + $this->windowSeconds;
-        }
-
-        return min($data) + $this->windowSeconds;
-    }
-
-    private function getRetryAfterFile(string $key): int {
-        $file = $this->cacheDir . '/' . md5($key) . '.json';
-        $now = time();
-
-        $data = $this->readFile($file);
-
-        if (empty($data)) {
-            return $this->windowSeconds;
-        }
-
-        $windowStart = $now - $this->windowSeconds;
-        $data = array_filter($data, function($ts) use ($windowStart) {
-            return $ts > $windowStart;
-        });
-
-        if (empty($data)) {
-            return $this->windowSeconds;
-        }
-
-        return max(0, min($data) + $this->windowSeconds - $now);
-    }
-
-    private function readFile(string $file): array {
-        if (!file_exists($file)) {
-            return [];
-        }
-        $content = @file_get_contents($file);
-        if ($content === false) {
-            return [];
-        }
-        $data = json_decode($content, true);
-        return is_array($data) ? $data : [];
-    }
-
-    private function writeFile(string $file, array $data): void {
-        @file_put_contents($file, json_encode($data), LOCK_EX);
     }
 }

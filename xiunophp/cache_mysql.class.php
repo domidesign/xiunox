@@ -94,8 +94,14 @@ class cache_mysql {
                 if(!$this->db) return 0;
                 $fullPrefix = $this->cachepre . $prefix;
                 $table = $this->db->tablepre . $this->table;
-                // 用 LIKE 删除匹配前缀的所有键，addslashes 防止 SQL 注入
-                $sql = "DELETE FROM `{$table}` WHERE k LIKE '" . addslashes($fullPrefix) . "%'";
+                // 转义顺序必须 \ 在前：\ 与 ' 防注入，\_ \% 防 LIKE 通配符（_ 单字符 / % 任意串），
+                // 否则优化器只能用到第一个通配符前的常量段做范围扫描（近似全表扫描），还可能误删同长度键
+                $escaped = str_replace(
+                	array('\\', "'", '_', '%'),
+                	array('\\\\\\\\', '\\\'', '\\_', '\\%'),
+                	$fullPrefix
+                );
+                $sql = "DELETE FROM `{$table}` WHERE k LIKE '{$escaped}%'";
                 $n = db_exec($sql, $this->db);
                 return $n === FALSE ? 0 : intval($n);
         }

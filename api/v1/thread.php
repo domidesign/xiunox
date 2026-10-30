@@ -1,4 +1,5 @@
 <?php
+include_once APP_PATH . 'lib/ApiContentService.php';
 
 function filterFields(array $data, string $fieldsParam): array {
     if (empty($fieldsParam)) return $data;
@@ -63,8 +64,18 @@ if ($seg1 === 'hot') {
 
     // 非管理员增加审核过滤条件
     $auditWhere = $threadIsAdmin ? '' : ' AND audit_status = 1';
-    $sql = "SELECT tid, fid, uid, subject, views, posts, likes, create_date FROM " . $db->table('thread') . " WHERE create_date >= {$since} AND closed = 0{$auditWhere} ORDER BY views DESC, posts DESC LIMIT {$pagesize}";
+    $sql = "SELECT tid, fid, uid, subject, views, posts, likes, create_date, is_deleted, audit_status FROM " . $db->table('thread') . " WHERE create_date >= {$since} AND closed = 0{$auditWhere} ORDER BY views DESC, posts DESC LIMIT " . ($pagesize * 3);
     $list = db_sql_find($sql);
+
+    // 安全: 热门接口同样不能越过版块读权限（accesson/付费版块），过滤后截取请求的条数
+    if (!empty($list)) {
+        $list = array_values(array_filter($list, function ($row) use ($threadUid, $threadGid) {
+            return ApiContentService::canReadThread($row, $threadUid, $threadGid);
+        }));
+        $list = array_slice($list, 0, $pagesize);
+        foreach ($list as &$item) unset($item['is_deleted'], $item['audit_status']);
+        unset($item);
+    }
 
     // 补充版块名称和用户信息
     if (!empty($list)) {
@@ -142,7 +153,7 @@ if ($seg1 === 'hot') {
         switch ($method) {
             case 'GET':
                 $thread = $threadService->getThreadById($tid);
-                if (!$thread) {
+                if (!$thread || !ApiContentService::canReadThread($thread, $threadUid, $threadGid)) {
                     ApiResponse::notFound('Thread not found');
                 }
                 // 非管理员、非作者不可查看未审核通过的帖子
@@ -168,10 +179,35 @@ if ($seg1 === 'hot') {
                 // 封禁检查：禁言/禁止访问/锁定用户不能编辑主题（与 Web 编辑回帖前检查对齐）
                 api_check_ban_scene(intval($authUser['uid']), intval($authUser['gid']), 'post');
                 $update = [];
-                $subject = param('subject', '', FALSE);
-                if (!empty($subject)) $update['subject'] = $subject;
+                // 安全: 标题只允许纯文本，与 Web route/thread.php 相同必须 strip_tags，
+                // 模板层对 subject 是裸输出约定，API 存原始 HTML 会形成全站存储型 XSS
+                $subject = trim(strip_tags(param('subject', '', FALSE)));
+                if (!empty($subject) && $subject !== (string)$thread['subject']) {
+                    // 安全: 与 Web 编辑(route/post.php)对齐——长度 ≤80、过敏感词检查，防止经 API 改成敏感标题仍保持过审
+                    if (mb_strlen($subject, 'UTF-8') > 80) {
+                        ApiResponse::validationError('subject_max_length: 80');
+                    }
+                    if (!class_exists('SensitiveWordFilter')) {
+                        include_once APP_PATH . 'lib/security/SensitiveWordFilter.php';
+                    }
+                    $subject_check = SensitiveWordFilter::content_check($subject, SensitiveWordFilter::TYPE_SENSITIVE);
+                    if (!$subject_check['pass']) {
+                        ApiResponse::validationError('subject contains sensitive word: ' . implode('、', $subject_check['matched_keywords']));
+                    }
+                    $update['subject'] = $subject;
+                }
                 if (!empty($update)) {
                     $threadService->updateThread($tid, $update);
+                    // 与 Web 编辑一致：被驳回的帖子编辑后重新进入待审队列
+                    if (intval($thread['audit_status']) === 2) {
+                        if (!class_exists('AuditService')) {
+                            include_once APP_PATH . 'lib/security/AuditService.php';
+                        }
+                        $resubmit = AuditService::resubmit('thread', $tid, intval($authUser['uid']));
+                        if (empty($resubmit['ok'])) {
+                            ApiResponse::error(409, !empty($resubmit['message']) ? $resubmit['message'] : 'resubmit failed');
+                        }
+                    }
                 }
                 ApiResponse::success($threadService->getThreadById($tid));
                 break;
@@ -199,7 +235,8 @@ if ($seg1 === 'hot') {
                     case 'POST':
                         $authUser = $apiAuth->validateAccessToken(ApiAuthService::getBearerToken());
                         $thread = $threadService->getThreadById($tid);
-                        if (!$thread) {
+                        // 安全: 无版块读权限的帖子不可互动（点赞），与单条读取同一权限口径
+                        if (!$thread || !ApiContentService::canReadThread($thread, $threadUid, $threadGid)) {
                             ApiResponse::notFound('Thread not found');
                         }
                         $threadService->likeThread($tid, intval($authUser['uid']));
@@ -209,7 +246,7 @@ if ($seg1 === 'hot') {
                     case 'DELETE':
                         $authUser = $apiAuth->validateAccessToken(ApiAuthService::getBearerToken());
                         $thread = $threadService->getThreadById($tid);
-                        if (!$thread) {
+                        if (!$thread || !ApiContentService::canReadThread($thread, $threadUid, $threadGid)) {
                             ApiResponse::notFound('Thread not found');
                         }
                         $threadService->unlikeThread($tid, intval($authUser['uid']));
@@ -226,7 +263,8 @@ if ($seg1 === 'hot') {
                     case 'POST':
                         $authUser = $apiAuth->validateAccessToken(ApiAuthService::getBearerToken());
                         $thread = $threadService->getThreadById($tid);
-                        if (!$thread) {
+                        // 安全: 无版块读权限的帖子不可收藏，防止经收藏列表回流受限帖
+                        if (!$thread || !ApiContentService::canReadThread($thread, $threadUid, $threadGid)) {
                             ApiResponse::notFound('Thread not found');
                         }
                         $threadService->favoriteThread($tid, intval($authUser['uid']));
@@ -236,7 +274,7 @@ if ($seg1 === 'hot') {
                     case 'DELETE':
                         $authUser = $apiAuth->validateAccessToken(ApiAuthService::getBearerToken());
                         $thread = $threadService->getThreadById($tid);
-                        if (!$thread) {
+                        if (!$thread || !ApiContentService::canReadThread($thread, $threadUid, $threadGid)) {
                             ApiResponse::notFound('Thread not found');
                         }
                         $threadService->unfavoriteThread($tid, intval($authUser['uid']));
@@ -254,7 +292,8 @@ if ($seg1 === 'hot') {
                 }
                 $authUser = $apiAuth->validateAccessToken(ApiAuthService::getBearerToken());
                 $thread = $threadService->getThreadById($tid);
-                if (!$thread) {
+                // 安全: 举报目标同样要求可读（对受限版块帖子无需提供举报入口）
+                if (!$thread || !ApiContentService::canReadThread($thread, $threadUid, $threadGid)) {
                     ApiResponse::notFound('Thread not found');
                 }
                 $reason = param('reason', '');
@@ -296,6 +335,9 @@ if ($seg1 === 'hot') {
             if (!empty($idsParam)) {
                 $ids = is_string($idsParam) ? array_map('trim', explode(',', $idsParam)) : $idsParam;
                 $list = $threadService->getThreadsByIds($ids);
+                $list = array_filter($list, static function ($row) use ($threadUid, $threadGid) {
+                    return ApiContentService::canReadThread($row, $threadUid, $threadGid);
+                });
                 // 非管理员过滤未审核通过的帖子
                 if (!$threadIsAdmin && !empty($list)) {
                     $list = array_filter($list, function($t) use ($threadAuthUser) {
@@ -311,14 +353,20 @@ if ($seg1 === 'hot') {
                 ApiResponse::success($result);
             }
 
-            $page = intval($_GET['page'] ?? 1);
-            $pagesize = intval($_GET['pagesize'] ?? 20);
+            $page = max(1, intval($_GET['page'] ?? 1));
+            $pagesize = min(100, max(1, intval($_GET['pagesize'] ?? 20)));
 
-            $cond = [];
+            $cond = ['is_deleted' => 0];
+            if (!$threadIsAdmin) {
+                $allowedFids = array_keys(forum_list_access_filter($GLOBALS['forumlist'], $threadGid, 'allowread'));
+                if (empty($allowedFids)) ApiResponse::success(paginateResult([], $page, $pagesize, 0));
+                $cond['fid'] = array_map('intval', $allowedFids);
+            }
             ApiResponse::filterByAuditStatus($cond, $threadGid, $threadUid);
 
             $fid = intval($_GET['fid'] ?? 0);
             if ($fid > 0) {
+                if (!forum_access_user($fid, $threadGid, 'allowread')) ApiResponse::forbidden('No permission to access this forum');
                 $cond['fid'] = $fid;
             }
 
@@ -327,12 +375,8 @@ if ($seg1 === 'hot') {
                 $cond['uid'] = $uid;
             }
 
-            $keyword = $_GET['keyword'] ?? '';
-            $searchSql = '';
-            if (!empty($keyword)) {
-                $kw = $db->quote('%' . $keyword . '%');
-                $searchSql = "(subject LIKE '{$kw}' OR message LIKE '{$kw}')";
-            }
+            $keyword = trim((string)($_GET['keyword'] ?? ''));
+            if ($keyword !== '') $cond['subject'] = ['LIKE' => '%' . xn_like_escape($keyword) . '%'];
 
             $allowedOrderby = ['tid', 'create_date', 'last_date', 'views', 'posts'];
             $orderby = [];
@@ -347,14 +391,6 @@ if ($seg1 === 'hot') {
 
             $list = $threadService->getThreadList($cond, $orderby, $page, $pagesize);
             $total = $db->count('thread', $cond);
-
-            if (!empty($searchSql)) {
-                $auditSql = $threadIsAdmin ? '' : ' AND audit_status = 1';
-                $where = !empty($cond) ? ' AND ' . $searchSql . $auditSql : ' WHERE ' . $searchSql . $auditSql;
-                $list = $db->query("SELECT * FROM " . $db->table('thread') . $where . " ORDER BY tid DESC LIMIT " . (($page - 1) * $pagesize) . ",{$pagesize}")->fetchAll();
-                $totalRow = $db->query("SELECT COUNT(*) AS total FROM " . $db->table('thread') . $where)->fetchOne();
-                $total = $totalRow ? $totalRow['total'] : 0;
-            }
 
             $fields = $_GET['fields'] ?? '';
             if (!empty($fields)) {
@@ -372,11 +408,25 @@ if ($seg1 === 'hot') {
             // 封禁检查：禁言/禁止访问/锁定用户不能发帖（与 Web route/thread.php 对齐）
             api_check_ban_scene(intval($authUser['uid']), intval($authUser['gid']), 'post');
             $fid = param('fid', 0);
-            $subject = param('subject', '', FALSE);
+            // 安全: 与 Web route/thread.php 对齐，标题 strip_tags 后只存纯文本（见 PUT 分支同注释）
+            $subject = trim(strip_tags(param('subject', '', FALSE)));
             $message = param('message', '', false);
             $attach_keys = param('attach_keys', '');
             if (empty($fid) || empty($subject) || empty($message)) {
                 ApiResponse::validationError('fid, subject and message are required');
+            }
+            // 与 Web 创建对齐：标题长度上下限走后台安全配置（防超长被 char(128) 静默截断切断多字节）
+            if (!class_exists('SecurityConfigService')) {
+                include_once APP_PATH . 'lib/security/SecurityConfigService.php';
+            }
+            $_subject_min = intval(SecurityConfigService::get('security_subject_min_length', 2));
+            $_subject_max = intval(SecurityConfigService::get('security_subject_max_length', 128));
+            $_subject_len = mb_strlen($subject, 'UTF-8');
+            if ($_subject_min > 0 && $_subject_len < $_subject_min) {
+                ApiResponse::validationError("subject too short, min {$_subject_min}");
+            }
+            if ($_subject_max > 0 && $_subject_len > $_subject_max) {
+                ApiResponse::validationError("subject too long, max {$_subject_max}");
             }
             // 校验版块发帖权限（allowthread）
             if (!forum_access_user(intval($fid), intval($authUser['gid']), 'allowthread')) {

@@ -201,9 +201,9 @@ if($action == 'create') {
 		message(-1, lang('create_post_failed'));
 	}
 
-	// 新回帖进入待审队列，按后台审核页通知设置推送管理员
+	// 新回帖进入待审队列，按后台审核页通知设置推送（管理员+目标版块版主）
 	if($need_reply_audit) {
-		AuditService::notify_new_pending('post', $message);
+		AuditService::notify_new_pending('post', $message, intval($fid));
 	}
 
 	// 管理员回复待审评论时，自动通过被引用评论

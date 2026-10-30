@@ -7,6 +7,7 @@ if(!class_exists('AttachmentService')) {
     include APP_PATH.'service/AttachmentService.php';
 }
 
+include_once APP_PATH . 'lib/AttachmentDownloadService.php';
 $action = param(1);
 
 // hook attach_start.php
@@ -77,7 +78,7 @@ if(empty($action) || $action == 'create') {
 
         // 生成临时文件名
         $tmpname = bin2hex(random_bytes(16)).'.'.$ext;
-        $tmpfile = $conf['upload_path'].'tmp/'.$tmpname;
+        $tmpfile = PrivateAttachmentStorage::publicMedia(array('filename'=>$tmpname, 'isimage'=>$filetype === 'image', 'filetype'=>$filetype)) ? $conf['upload_path'].'tmp/'.$tmpname : PrivateAttachmentStorage::privatePath($tmpname, 'tmp');
         $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
 
         // 确保上传临时目录存在
@@ -187,7 +188,7 @@ if(empty($action) || $action == 'create') {
         }
 
         $tmpname = bin2hex(random_bytes(16)).'.'.$ext;
-        $tmpfile = $conf['upload_path'].'tmp/'.$tmpname;
+        $tmpfile = PrivateAttachmentStorage::publicMedia(array('filename'=>$tmpname, 'isimage'=>$filetype === 'image', 'filetype'=>$filetype)) ? $conf['upload_path'].'tmp/'.$tmpname : PrivateAttachmentStorage::privatePath($tmpname, 'tmp');
         $tmpurl = $conf['upload_url'].'tmp/'.$tmpname;
 
         // 确保上传临时目录存在
@@ -319,201 +320,19 @@ if(empty($action) || $action == 'create') {
     }
     message(0, lang('delete_successfully'));
 
-} elseif($action == 'read') {
-
-    // hook attach_read_start.php
-
-    // 图片签名URL访问：/attach-read-{aid}-{token}
-    $aid = param(2, 0);
-    $token = param(3, '');
-
-    $attach = attach_read($aid);
-    empty($attach) AND http_status(404) AND exit('Attach not found');
-
-    // 签名校验
-    $sign_key = array_value($conf, 'attach_sign_key', '');
-    $expected_token = md5($aid . $attach['filename'] . $sign_key);
-    if(!hash_equals($expected_token, (string)$token)) {
-        http_status(403);
-        exit('Invalid token');
+ } elseif (in_array($action, array('read', 'download', 'fetch'), true)) {
+    $aid = intval(param(2, 0));
+    $attach = $aid > 0 ? attach_read($aid) : null;
+    if (!$attach) {
+        http_response_code(404);
+        header('Cache-Control: private, no-store');
+        exit('Attachment not found');
     }
-
-    // 防盗链检查
-    if(!empty($conf['attach_referer_check'])) {
-        $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
-        if(!empty($referer)) {
-            $host = parse_url($referer, PHP_URL_HOST);
-            $site_host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
-            if($host !== $site_host) {
-                http_status(403);
-                exit('Hotlinking denied');
-            }
-        }
-    }
-
-    // 读取物理文件
-    $filepath = $conf['upload_path'].'attach/'.$attach['filename'];
-    if(!is_file($filepath)) {
-        http_status(404);
-        exit('File not found');
-    }
-
-    // 设置 MIME 类型
-    $ext = strtolower(pathinfo($attach['filename'], PATHINFO_EXTENSION));
-    $mime_types = array(
-        'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
-        'gif' => 'image/gif', 'webp' => 'image/webp', 'bmp' => 'image/bmp',
-        'mp4' => 'video/mp4', 'webm' => 'video/webm', 'ogg' => 'video/ogg',
-    );
-    $content_type = isset($mime_types[$ext]) ? $mime_types[$ext] : 'application/octet-stream';
-
-    // 缓存头
-    $timefmt = date('D, d M Y H:i:s', $attach['create_date']).' GMT';
-    header('Date: '.gmdate('D, d M Y H:i:s').' GMT');
-    header('Last-Modified: '.$timefmt);
-    header('Cache-Control: public, max-age=86400');
-    header('Content-Type: '.$content_type);
-    header('Content-Length: '.filesize($filepath));
-
-    // hook attach_read_output_before.php
-
-    // 云存储驱动：非 local 时触发 storage_serve hook，插件负责重定向到云端 URL 并 exit
-    // 插件未 exit 时降级走本地 readfile，保证系统始终可用
-    if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
-        // hook storage_serve.php
-    }
-
-    // 支持 Nginx X-Accel-Redirect
-    if(!empty($conf['attach_x_accelredirect'])) {
-        header('X-Accel-Redirect: '.$conf['upload_url'].'attach/'.$attach['filename']);
-    } else {
-        readfile($filepath);
-    }
-    exit;
-
-} elseif($action == 'download') {
-
-    // hook attach_download_start.php
-
-    // 判断权限
-    $aid = param(2, 0);
-    $attach = attach_read($aid);
-    empty($attach) AND message(-1, lang('attach_not_exists'));
-    $tid = $attach['tid'];
-    $thread = thread_read($tid);
-    empty($thread) AND message(-1, lang('thread_not_exists'));
-    $fid = $thread['fid'];
-    $allowdown = forum_access_user($fid, $gid, 'allowdown');
-    empty($allowdown) AND message(-1, lang('insufficient_privilege_to_download'));
-
-    $attachpath = $conf['upload_path'].'attach/'.$attach['filename'];
-    $attachurl = $conf['upload_url'].'attach/'.$attach['filename'];
-    !is_file($attachpath)AND message(-1, lang('attach_not_exists'));
-
-    $type = 'php';
-
-    // hook attach_output_before.php
-
-    // php 输出
-    if($type == 'php') {
-
-        attach_update($aid, array('downloads+'=>1));
-
-        // 下载日志记录
-        $log_dir = $conf['tmp_path'];
-        $log_file = $log_dir.'attach_download.log';
-        $log_uid = isset($uid) ? $uid : 0;
-        $log_ip = isset($longip) ? $longip : ip2long($_SERVER['REMOTE_ADDR']);
-        $log_line = date('Y-m-d H:i:s')."|aid={$aid}|uid={$log_uid}|ip={$log_ip}\n";
-        @file_put_contents($log_file, $log_line, FILE_APPEND);
-
-        $filesize = $attach['filesize'];
-        if(stripos($_SERVER["HTTP_USER_AGENT"], 'MSIE') !== FALSE || stripos($_SERVER["HTTP_USER_AGENT"], 'Edge') !== FALSE || stripos($_SERVER["HTTP_USER_AGENT"], 'Trident') !== FALSE) {
-            $attach['orgfilename'] = urlencode($attach['orgfilename']);
-            $attach['orgfilename'] = str_replace("+", "%20", $attach['orgfilename']);
-        }
-        $timefmt = date('D, d M Y H:i:s', $time).' GMT';
-        header('Date: '.$timefmt);
-        header('Last-Modified: '.$timefmt);
-        header('Expires: '.$timefmt);
-        header('Cache-control: max-age=86400');
-        header('Content-Transfer-Encoding: binary');
-        header("Pragma: public");
-        header('Content-Disposition: attachment; filename="'.$attach['orgfilename'].'"');
-        header('Content-Type: application/octet-stream');
-
-        // hook attach_download_readfile_before.php
-
-        // 云存储驱动：非 local 时触发 storage_serve hook，插件负责重定向到云端 URL 并 exit
-        if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
-            // hook storage_serve.php
-        }
-
-        readfile($attachpath);
-        exit;
-    } else {
-
-        // hook attach_download_location_before.php
-
-        // 附件 URL 可能指向 CDN 外链，显式放行
-        http_location($attachurl, TRUE);
-    }
-
-} elseif($action == 'fetch') {
-
-    // 方案A：签名 token + 浏览器原生下载，依靠 token+时效签名防盗链
-    // URL 格式：attach-fetch-{aid}-{token}-{expires}
-    // token 由服务端在 post_file_list_html 渲染时生成
-    // 不再强制 X-Requested-With 头，以便浏览器原生 <a download> 触发并显示进度条
-    $aid = param(2, 0);
-    $token = param(3, '');
-    $expires = param(4, 0);
-
-    $attach = attach_read($aid);
-    empty($attach) AND message(-1, lang('attach_not_exists'));
-
-    // 签名校验
-    $sign_key = array_value($conf, 'attach_sign_key', '');
-    $expected_token = md5($aid . $expires . $sign_key);
-    if(!hash_equals($expected_token, (string)$token)) {
-        http_status(403);
-        exit('Invalid token');
-    }
-
-    // 时效校验（默认 1 小时 = 3600 秒）
-    if($expires < $time) {
-        http_status(403);
-        exit('Token expired');
-    }
-
-    // 权限校验
-    $tid = $attach['tid'];
-    $thread = thread_read($tid);
-    empty($thread) AND message(-1, lang('thread_not_exists'));
-    $fid = $thread['fid'];
-    $allowdown = forum_access_user($fid, $gid, 'allowdown');
-    empty($allowdown) AND message(-1, lang('insufficient_privilege_to_download'));
-
-    $attachpath = $conf['upload_path'].'attach/'.$attach['filename'];
-    !is_file($attachpath) AND message(-1, lang('attach_not_exists'));
-
-    // 记录下载
-    attach_update($aid, array('downloads+'=>1));
-
-    // 云存储驱动：非 local 时触发 storage_serve hook，插件负责重定向到云端 URL 并 exit
-    if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
-        // hook storage_serve.php
-    }
-
-    // 输出文件流
-    header('Content-Type: application/octet-stream');
-    header('Content-Disposition: attachment; filename="'.$attach['orgfilename'].'"');
-    header('Content-Length: '.filesize($attachpath));
-    header('Cache-Control: no-store, no-cache, must-revalidate');
-    readfile($attachpath);
-    exit;
+    // 安全: 授权必须先于存储驱动接管（如 S3 302 重定向），否则直链绕过业务校验；
+    // serve() 内部会重复校验并追加限流，此处提前校验是为 hook 点兜底
+    AttachmentAccessService::assertAllowed($attach, intval($uid), intval($gid));
+    // hook storage_serve.php
+    AttachmentDownloadService::serve($attach, intval($uid), intval($gid), $action === 'read');
 }
 
 // hook attach_end.php
-
-?>

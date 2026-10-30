@@ -440,6 +440,28 @@ function notify_format(&$notify, $prefetched = array()) {
 			$notify['url'] = $_anchor_url;
 		}
 	}
+
+	// 审核待办通知（tid=0）：跳转链接不落库写死后台地址，渲染时按浏览者权限实时生成
+	// 版主/超版无后台权限，写死 admin_url('audit') 会被踢到登录页/个人中心（bugfix 2026-10-11）
+	// 作者收到的"内容审核中"通知带 tid（tid>0），走上面分支跳自己的帖子，不进本分支
+	// 覆盖范围收窄：仅限 icon 带 audit_* 子类型的核心记录（新），或存量记录中旧版写死的后台审核地址；
+	// 插件（xnx_verify 等）经 AdminNotifyService 发的 audit_pending 业务链接（plugin-setting-xxx 等）原样保留
+	if($notify['type'] === 'audit_pending' && intval($notify['tid']) <= 0) {
+		$_audit_sub = '';
+		if(!empty($notify['icon']) && strpos(strval($notify['icon']), 'audit_') === 0) {
+			$_audit_sub = substr(strval($notify['icon']), 6);
+		}
+		$_stored_url = isset($notify['url']) ? strval($notify['url']) : '';
+		$_is_legacy_core_audit = ($_audit_sub === '' && $_stored_url !== '' && preg_match('#/admin/\?audit\.htm#', $_stored_url));
+		if($_audit_sub !== '' || $_is_legacy_core_audit) {
+			if(!in_array($_audit_sub, array('thread', 'post', 'profile'), true)) $_audit_sub = '';
+			if(!class_exists('AuditService')) {
+				include_once APP_PATH.'lib/security/AuditService.php';
+			}
+			$notify['url'] = AuditService::entry_url_for_viewer($_audit_sub);
+		}
+	}
+
 	// 防御 javascript:/data:/vbscript: 等危险协议（XSS 防护）
 	if($notify['url'] !== '' && preg_match('/^\s*(javascript|data|vbscript):/i', $notify['url'])) {
 		$notify['url'] = '';

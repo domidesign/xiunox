@@ -245,6 +245,12 @@ foreach((isset($forumlist_show) && is_array($forumlist_show) ? $forumlist_show :
 					<li><a class="dropdown-item" href="<?php echo my_url();?>"><i class="ti ti-user"></i>
 							<?php echo lang('user_center');?>
 						</a></li>
+					<?php $_mod_audit_url = mod_auditlist_entry_url(); ?>
+					<?php if(!empty($_mod_audit_url)) { ?>
+					<li><a class="dropdown-item" href="<?php echo $_mod_audit_url;?>"><i class="ti ti-shield-check"></i>
+							<?php echo lang('mod_auditlist_title');?>
+						</a></li>
+					<?php } ?>
 					
 
 

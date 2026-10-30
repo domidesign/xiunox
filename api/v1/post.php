@@ -29,6 +29,9 @@ $postAuthUser = $postAuthToken ? $apiAuth->validateAccessToken($postAuthToken) :
 $postIsAdmin = $postAuthUser && in_array(intval($postAuthUser['gid']), [1, 2], true);
 $postGid = $postAuthUser ? intval($postAuthUser['gid']) : 0;
 $postUid = $postAuthUser ? intval($postAuthUser['uid']) : 0;
+include_once APP_PATH . 'lib/ApiContentService.php';
+$GLOBALS['uid'] = $postUid;
+$GLOBALS['gid'] = $postGid;
 
 $id = intval($segments[1] ?? 0);
 $isBatch = ($segments[1] ?? '') === 'batch';
@@ -67,20 +70,22 @@ switch ($method) {
             if (!$postIsAdmin && intval($post['audit_status']) !== 1 && intval($post['uid']) !== intval($postAuthUser['uid'] ?? 0)) {
                 ApiResponse::notFound('Post not found');
             }
+            $post = ApiContentService::post($post, $postUid, $postGid);
+            if (!$post) ApiResponse::notFound('Post not found');
             $fields = $_GET['fields'] ?? '';
             $result = filterFields($post, $fields);
             ApiResponse::success($result);
         } else {
             $tid = intval($_GET['tid'] ?? 0);
             $uid = intval($_GET['uid'] ?? 0);
-            $page = intval($_GET['page'] ?? 1);
-            $pagesize = intval($_GET['pagesize'] ?? 20);
+            $page = max(1, intval($_GET['page'] ?? 1));
+            $pagesize = min(100, max(1, intval($_GET['pagesize'] ?? 20)));
             $fields = $_GET['fields'] ?? '';
 
             if ($tid > 0) {
                 // 校验版块读权限（tid 查询返回特定版块的帖子）
                 $_thread = thread__read($tid);
-                if (empty($_thread)) {
+                if (empty($_thread) || !ApiContentService::canReadThread($_thread, $postUid, $postGid)) {
                     ApiResponse::notFound('Thread not found');
                 }
                 if (!forum_access_user(intval($_thread['fid']), $postGid, 'allowread')) {
@@ -107,15 +112,18 @@ switch ($method) {
                         $offset = ($page - 1) * $pagesize;
                         $uid_cond = $uid > 0 ? ' AND p.uid=' . intval($uid) : '';
                         // 联表查询，db_find 不支持 JOIN，保留 db_sql_find
-                        $sql = "SELECT p.* FROM " . $db->table('post') . " p INNER JOIN " . $db->table('thread') . " t ON p.tid=t.tid WHERE p.audit_status=1 AND t.fid IN ({$fid_in}){$uid_cond} ORDER BY p.pid DESC LIMIT {$offset},{$pagesize}";
+                        $sql = "SELECT p.* FROM " . $db->table('post') . " p INNER JOIN " . $db->table('thread') . " t ON p.tid=t.tid WHERE p.audit_status=1 AND p.is_deleted=0 AND t.audit_status=1 AND t.is_deleted=0 AND t.fid IN ({$fid_in}){$uid_cond} ORDER BY p.pid DESC LIMIT {$offset},{$pagesize}";
                         $list = db_sql_find($sql) ?: [];
-                        $count_sql = "SELECT COUNT(*) AS cnt FROM " . $db->table('post') . " p INNER JOIN " . $db->table('thread') . " t ON p.tid=t.tid WHERE p.audit_status=1 AND t.fid IN ({$fid_in}){$uid_cond}";
+                        $count_sql = "SELECT COUNT(*) AS cnt FROM " . $db->table('post') . " p INNER JOIN " . $db->table('thread') . " t ON p.tid=t.tid WHERE p.audit_status=1 AND p.is_deleted=0 AND t.audit_status=1 AND t.is_deleted=0 AND t.fid IN ({$fid_in}){$uid_cond}";
                         $count_row = db_sql_find_one($count_sql);
                         $total = $count_row ? intval($count_row['cnt']) : 0;
                     }
                 }
             }
 
+            $list = array_filter(array_map(static function ($post) use ($postUid, $postGid) {
+                return ApiContentService::post($post, $postUid, $postGid);
+            }, $list));
             if (!empty($fields)) {
                 $list = filterFields($list, $fields);
             }
@@ -132,7 +140,8 @@ switch ($method) {
                 ApiResponse::unauthorized();
             }
             $post = post__read($id);
-            if (!$post) {
+            // 安全: 无版块读权限的帖子不可点赞/取消点赞
+            if (!$post || !ApiContentService::canReadThread(post__read(intval($post['tid'])), intval($authUser['uid']), intval($authUser['gid']))) {
                 ApiResponse::notFound('Post not found');
             }
             $uid = intval($authUser['uid']);
@@ -281,7 +290,8 @@ switch ($method) {
                 ApiResponse::unauthorized();
             }
             $post = post__read($id);
-            if (!$post) {
+            // 安全: 无版块读权限不可取消点赞（404 不泄露受限版块帖子存在性）
+            if (!$post || !ApiContentService::canReadThread(post__read(intval($post['tid'])), intval($authUser['uid']), intval($authUser['gid']))) {
                 ApiResponse::notFound('Post not found');
             }
             $uid = intval($authUser['uid']);

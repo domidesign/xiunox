@@ -445,6 +445,93 @@ if(empty($action) || $action == 'list') {
 
 	message(0, lang('forum_delete_successfully'));
 	
+} elseif($action == 'recount') {
+
+	if($method != 'POST') message(-1, 'Method Error.');
+
+	CsrfService::check();
+
+	// hook admin_forum_recount_start.php
+
+	// 按计入口径（审核通过且未软删）实时重算各版块 threads，校准历史漂移；
+	// todaythreads 每日定时清零自愈，无需重建（cron.func.php）
+	$sql = "UPDATE {$db->tablepre}forum SET threads = (
+		SELECT COUNT(*) FROM {$db->tablepre}thread
+		WHERE {$db->tablepre}thread.fid = {$db->tablepre}forum.fid AND audit_status = 1 AND is_deleted = 0
+	)";
+	db_exec($sql);
+
+	// 同步全站统计（口径与建/删/审链路一致：审核通过且未软删；回帖只计非首帖）
+	$_recount_total = db_count('thread', array('audit_status'=>1, 'is_deleted'=>0));
+	runtime_set('threads', $_recount_total);
+	$_recount_posts = db_count('post', array('isfirst'=>0, 'audit_status'=>1, 'is_deleted'=>0));
+	runtime_set('posts', $_recount_posts);
+	if(function_exists('user_count_real')) {
+		runtime_set('users', user_count_real());
+	}
+
+	// 校准用户级冗余计数（user.threads / user.posts）：
+	// 排行榜（RankService）与用户主页直接消费这两个字段，历史 bug（批量删除二次扣减等）可致漂移且此前无重建入口
+	// 用户表为 UPDATE 主表、子查询查 thread/post，不同表，MySQL/MariaDB 均允许
+	db_exec("UPDATE {$db->tablepre}user u SET u.threads = (
+		SELECT COUNT(*) FROM {$db->tablepre}thread t WHERE t.uid = u.uid AND t.audit_status = 1 AND t.is_deleted = 0
+	)");
+	db_exec("UPDATE {$db->tablepre}user u SET u.posts = (
+		SELECT COUNT(*) FROM {$db->tablepre}post p WHERE p.uid = u.uid AND p.isfirst = 0 AND p.audit_status = 1 AND p.is_deleted = 0
+	)");
+
+	// 重建主题回帖数：列表页展示的回复数、thread_format 的 pages 分页、发帖楼层均取 thread.posts，
+	// 与 user.posts 共用同一批增减路径，历史漂移需一并校准
+	db_exec("UPDATE {$db->tablepre}thread t SET t.posts = (
+		SELECT COUNT(*) FROM {$db->tablepre}post p WHERE p.tid = t.tid AND p.isfirst = 0 AND p.audit_status = 1 AND p.is_deleted = 0
+	)");
+
+	// 首帖审核状态与主题对齐：历史版本主题通过时未同步 post.audit_status，
+	// 而帖子详情按 post.audit_status 过滤，会导致已通过主题的楼主正文对普通用户隐藏
+	db_exec("UPDATE {$db->tablepre}post p INNER JOIN {$db->tablepre}thread t ON t.firstpid = p.pid
+		SET p.audit_status = 1 WHERE t.audit_status = 1 AND t.is_deleted = 0 AND p.audit_status <> 1");
+
+	// 校准每帖点赞/收藏计数（对账行数）：此前硬删回帖不清 post_like、彻底删除用户不清点赞/收藏行，
+	// 均造成 thread.likes / thread.favorites 残留虚高（第三轮全量审计 2026-10-30）
+	// thread.likes 对账全部点赞行（软删回帖的点赞行与计数按设计保留，口径天然一致）
+	db_exec("UPDATE {$db->tablepre}thread t SET t.likes = (
+		SELECT COUNT(*) FROM {$db->tablepre}post_like pl WHERE pl.tid = t.tid
+	)");
+	db_exec("UPDATE {$db->tablepre}thread t SET t.favorites = (
+		SELECT COUNT(*) FROM {$db->tablepre}thread_favorite tf WHERE tf.tid = t.tid
+	)");
+	// 校准每楼点赞计数（与 thread.likes 同源的历史漂移：硬删回帖不清点赞行的遗留数据）
+	db_exec("UPDATE {$db->tablepre}post p SET p.likes = (
+		SELECT COUNT(*) FROM {$db->tablepre}post_like pl WHERE pl.pid = p.pid
+	)");
+
+	// 校准精华计数（对账"可见精华主题"：审核通过且未软删，与软删递减/恢复回补口径一致）
+	db_exec("UPDATE {$db->tablepre}user u SET u.digests = (
+		SELECT COUNT(*) FROM {$db->tablepre}thread t WHERE t.uid = u.uid AND t.digest > 0 AND t.audit_status = 1 AND t.is_deleted = 0
+	)");
+	db_exec("UPDATE {$db->tablepre}forum f SET f.digests = (
+		SELECT COUNT(*) FROM {$db->tablepre}thread t WHERE t.fid = f.fid AND t.digest > 0 AND t.audit_status = 1 AND t.is_deleted = 0
+	)");
+	runtime_set('digests', db_count('thread', array('digest'=>array('>'=>0), 'audit_status'=>1, 'is_deleted'=>0)));
+
+	// 失效 user 缓存（user_read_cache 对非 mysql 驱动持久缓存 "user-$uid"，裸 SQL 更新不会走 user_update 的缓存删除）
+	// cache_delete_prefix 仅 Redis 驱动生效；file 驱动的残留计数展示会在该用户下次 user_update 时自愈
+	if(!empty($_SERVER['cache']) && function_exists('cache_delete_prefix')) {
+		cache_delete_prefix('user-');
+	}
+
+	forum_list_cache_delete();
+	index_list_cache_delete();
+	// 活跃用户榜按 user.threads+user.posts 排序并缓存 5 分钟，重算后必须失效，否则仍需等待自然过期
+	if(function_exists('rank_cache_delete')) {
+		rank_cache_delete();
+	}
+
+	admin_log_create('forum_recount', 'forum', '', lang('admin_log_forum_recount'));
+
+	// hook admin_forum_recount_end.php
+
+	message(0, lang('forum_recount_successfully'));
 }
 
 function user_names_to_ids($names, $sep = ',') {

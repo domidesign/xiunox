@@ -104,7 +104,8 @@ $_robots_content = !empty($header['noindex']) ? 'noindex, follow' : 'index, foll
 <?php } ?>
 
 <?php if($_seo_jsonld_enabled && !empty($header['json_ld'])) { ?>
-<script type="application/ld+json"><?php echo json_encode($header['json_ld'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);?></script>
+<?php // 安全: JSON_HEX_TAG 防止数据里的 </script> 逃逸出 ld+json 上下文（JSON_UNESCAPED_SLASHES 会把 \/ 还原成 /） ?>
+<script type="application/ld+json"><?php echo json_encode($header['json_ld'], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);?></script>
 <?php } ?>
 
 	<!--{hook header_seo_end.htm}-->

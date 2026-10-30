@@ -15,7 +15,7 @@ if(!empty($toplist)) {
 					<span class="subject break-all leading-snug">
 					<?php echo thread_status_label_html('top', $_top_status_labels); ?>
 					<?php if(!empty($_thread['digest'])) { ?><?php echo thread_status_label_html('digest', $_top_status_labels); ?><?php } ?>
-					<a href="<?php echo url("thread-$_thread[tid]");?>" class="hover-text-primary transition-colors"><?php echo $_thread['subject'];?></a>
+					<a href="<?php echo url("thread-$_thread[tid]");?>" class="hover-text-primary transition-colors"><?php echo esc_html($_thread['subject']);?></a>
 					<?php if(isset($_thread['audit_status']) && $_thread['audit_status'] == 0) { ?><span class="badge bg-warning text-dark ms-1"><?php echo lang('pending_audit');?></span><?php } ?>
 					<?php if(isset($_thread['audit_status']) && $_thread['audit_status'] == 2) { ?><span class="badge bg-danger ms-1"><?php echo lang('rejected_audit');?></span><?php } ?>
 					<?php if(!empty($_thread['images'])) { ?><?php echo thread_status_label_html('image', $_top_status_labels); ?><?php } ?>

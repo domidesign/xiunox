@@ -297,7 +297,7 @@ if($action == 'doc') {
 	$capabilitiesJson = xn_build_app_capabilities($gid ?? 0);
 	$ipWhitelistJson = xn_build_app_ip_whitelist();
 
-	$app = $apiAuthService->createApp($name, $description, $scope, $uid, $capabilitiesJson, $ipWhitelistJson);
+	$app = $apiAuthService->createApp($name, $description, $scope, $uid, $capabilitiesJson, $ipWhitelistJson, max(0, intval($rate_limit)));
 	message(0, $app);
 
 } elseif($action == 'app_update') {

@@ -10,16 +10,21 @@ function runtime_init() {
 	$_need_rebuild = $runtime === NULL || $runtime === FALSE || !isset($runtime['users'])
 		|| (isset($runtime['posts']) && $runtime['posts'] < 0)
 		|| (isset($runtime['threads']) && $runtime['threads'] < 0)
-		|| (isset($runtime['users']) && $runtime['users'] < 0);
+		|| (isset($runtime['users']) && $runtime['users'] < 0)
+		|| (isset($runtime['digests']) && $runtime['digests'] < 0);
 	if($_need_rebuild) {
 		$runtime = array();
-		// 与后台仪表盘口径一致：传非空 cond 触发 COUNT(*) 精确统计，避免 InnoDB 空 cond 走 information_schema 估算值导致前后台不一致
-		$runtime['users'] = user_count(array('uid' => array('>' => 0)));
+		// 与后台仪表盘口径一致：user_count_real() 精确 COUNT(*) 且排除已注销（匿名化）用户，
+		// 避免缓存重建后 users 回弹（注销时 runtime users-1，裸 COUNT 不减）
+		$runtime['users'] = function_exists('user_count_real') ? user_count_real() : user_count(array('uid' => array('>' => 0)));
 		// 仅统计未软删且已审核通过的帖子，与 thread_create/soft_delete 的统计口径一致
 		$runtime['threads'] = thread_count(array('is_deleted'=>0, 'audit_status'=>1));
 		// 评论数 = 非首帖且未软删且已审核通过的 post 数，口径与 threads 完全一致，避免相减出现负数
 		// ponytail: bbs_post 字段名是 isfirst（无下划线），不是 is_first；用错会触发 1054 Unknown column 'is_first'
 		$runtime['posts'] = post_count(array('is_deleted'=>0, 'audit_status'=>1, 'isfirst'=>0));
+		// 精华数 = 审核通过且未软删的精华主题数，与 thread_digest 建删/软删/恢复链路的递增递减口径一致；
+		// 此前 runtime_init 不初始化该键，缓存重建后 runtime_set('digests+') 会从 0 起算造成低估
+		$runtime['digests'] = thread_count(array('digest'=>array('>'=>0), 'audit_status'=>1, 'is_deleted'=>0));
 		$runtime['todayusers'] = 0;
 		$runtime['todayposts'] = 0;
 		$runtime['todaythreads'] = 0;

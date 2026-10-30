@@ -388,6 +388,19 @@ switch ($method) {
             if (!is_email($email, $err)) {
                 ApiResponse::validationError($err ?: 'Email format invalid');
             }
+            // 安全: 改绑邮箱是账号接管的关键一步，与 /my/email 一致必须验证当前登录密码，
+            // 防止 token 泄露后静默改绑（无密码用户如纯 OAuth 绑定账号无密码可验，允许直接绑定）
+            $emailHasPassword = !empty($user['password']) || !empty($user['password_hash']);
+            if ($emailHasPassword && intval($authUser['uid']) === $uid) {
+                $emailPassword = param('password_current', '', FALSE);
+                if (!user_login_verify($emailPassword, $user)) {
+                    ApiResponse::validationError('old_password_incorrect');
+                }
+            }
+            $emailExists = db_find_one('user', array('email' => $email));
+            if (!empty($emailExists) && intval($emailExists['uid']) !== $uid) {
+                ApiResponse::validationError('Email already in use');
+            }
             $update['email'] = $email;
         }
         // ponytail: avatar 字段不在 PUT 中处理。avatar 语义是时间戳/预设索引/0，
@@ -397,26 +410,37 @@ switch ($method) {
         if (!empty($password)) {
             // 封禁检查：锁定(ban_type=3)用户不能改密（与 Web route/user.php 改密前检查对齐）
             api_check_ban_scene(intval($authUser['uid']), intval($authUser['gid']), 'password');
+            // 安全: 本人改密必须验证旧密码，防止 token 泄露后被直接接管；
+            // 管理员（gid=1）代用户重置密码无需旧密码（与后台重置语义一致）
+            $passwordHasOld = !empty($user['password']) || !empty($user['password_hash']);
+            if ($passwordHasOld && intval($authUser['uid']) === $uid) {
+                $passwordCurrent = param('password_current', '', FALSE);
+                if (!user_login_verify($passwordCurrent, $user)) {
+                    ApiResponse::validationError('old_password_incorrect');
+                }
+            }
             $salt = xn_rand(16);
             $update['password'] = md5($password . $salt);
             $update['salt'] = $salt;
             $update['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
             // ponytail: 改密必须 password_ver +1 撤销所有旧 token
-            // ⚠️ 此 API 跳过旧密码验证（鉴权仅靠 access token），未来应改为走 user_change_password
             if (db_check_column_exists('user', 'password_ver')) {
                 $update['password_ver'] = intval($user['password_ver']) + 1;
             }
         }
-        // 支持签名字段（兼容表单和 JSON 输入）
+        // 安全: 签名修改不再支持本接口。签名带配套风控链（敏感词/修改频次/allow_direct_profile 审核门/变更日志，
+        // 见 PUT /my/signature），在本接口直改会整体绕过，曾被用于免审改签名。
+        // 需要修改签名请走 PUT /api/v1/my/signature（校验链完整）。
         $jsonInput = json_decode(file_get_contents('php://input'), true) ?? [];
-        $signature = param('signature', '');
         if (isset($_POST['signature']) || isset($jsonInput['signature'])) {
-            $update['signature'] = $signature !== '' ? $signature : ($jsonInput['signature'] ?? '');
+            ApiResponse::validationError('signature must be changed via PUT /my/signature');
         }
 
         // ponytail: 昵称字段（完整复刻前台 route/my.php 的校验逻辑）
         // 包含：长度/保留词/唯一性/频率限制/审核机制/修改日志
-        $nickname = isset($jsonInput['nickname']) ? $jsonInput['nickname'] : param('nickname', '');
+        // ponytail: Web 端 param('nickname') 默认做 htmlspecialchars，模板层按"已转义"约定裸输出；
+        // JSON body 的原始值必须补同样的转义，否则昵称经 post_quote 固化进引用楼正文形成存储型 XSS
+        $nickname = isset($jsonInput['nickname']) ? htmlspecialchars((string)$jsonInput['nickname']) : param('nickname', '');
         $_nickname_audit = false; // 标记昵称是否走了审核路径
         if ($nickname !== '' && $nickname !== ($user['nickname'] ?? '')) {
             // 长度校验
@@ -463,6 +487,20 @@ switch ($method) {
                     'create_date' => $time,
                 ));
                 $_nickname_audit = true;
+                // 安全: 与 Web route/my.php 对齐——审核入队推送管理员 + 审核模式同样计次，防止无限刷审核队列
+                if (!class_exists('AuditService')) {
+                    include_once APP_PATH . 'lib/security/AuditService.php';
+                }
+                AuditService::notify_new_pending('profile', strval($user['username']));
+                if (db_check_table_exists('nickname_change_log')) {
+                    db_insert('nickname_change_log', array(
+                        'uid' => $uid,
+                        'old_nickname' => isset($user['nickname']) ? $user['nickname'] : '',
+                        'new_nickname' => $nickname,
+                        'change_time' => $time,
+                        'ip' => ip2long($ip),
+                    ));
+                }
             } else {
                 $update['nickname'] = $nickname;
             }
