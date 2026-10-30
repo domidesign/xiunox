@@ -1,7 +1,7 @@
 # 附件端点
 
 > **适用人群**：站长 / 开发者
-> **最后更新**：2026-08-02
+> **最后更新**：2026-10-29
 
 ## 概述
 
@@ -11,7 +11,7 @@
 
 ## GET /attach/{aid}
 
-获取指定附件的详情。
+获取本人上传附件的安全元数据，管理员（gid=1、2）可查询其他附件。此接口不发放下载权限，不返回真实存储路径或下载 URL。
 
 ### HTTP 方法
 
@@ -21,8 +21,8 @@
 
 | 项目 | 说明 |
 |------|------|
-| 认证 | 不需要认证 |
-| 级别 | Public |
+| 认证 | 需要认证（Bearer Token） |
+| 级别 | 附件所有者或管理员 |
 | Scope | public |
 
 ### 请求参数
@@ -35,7 +35,8 @@
 
 ```bash
 curl https://your-site.com/api/v1/attach/1 \
-  -H "X-App-Id: your_app_id"
+  -H "X-App-Id: your_app_id" \
+  -H "Authorization: Bearer your_access_token"
 ```
 
 ### 响应示例
@@ -46,11 +47,10 @@ curl https://your-site.com/api/v1/attach/1 \
   "msg": "ok",
   "data": {
     "aid": 1,
-    "filename": "image.jpg",
+    "orgfilename": "image.jpg",
     "filesize": 102400,
-    "url": "upload/attach/202605/image.jpg",
     "uid": 1,
-    "created_at": 1719900000
+    "create_date": 1719900000
   }
 }
 ```
@@ -59,7 +59,10 @@ curl https://your-site.com/api/v1/attach/1 \
 
 | code | 说明 |
 |------|------|
-| 404 | 附件不存在 |
+| 401 | 未登录或 Token 无效 |
+| 404 | 附件不存在或不属于当前用户 |
+
+响应使用字段白名单，禁止返回 `filename`、`path`、`url`、`thumb_url` 和存储驱动配置。旧客户端必须停止依赖这些字段；应用包只能从应用中心下载入口获取，仍需登录、用户组/勋章及购买校验。已有直链的封堵另见 [附件泄露处置](../../security/attach-disclosure-20261029.md)。
 
 ---
 

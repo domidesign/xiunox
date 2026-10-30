@@ -57,9 +57,14 @@ if(!function_exists('forum_frontend_url')) {
 	<!-- 卡片头部：标题 + 添加按钮 -->
 	<div class="card-header bg-transparent d-flex align-items-center justify-content-between">
 		<h5 class="card-title mb-0 fs-6"><?php echo lang('admin_forum_manage');?></h5>
-		<a href="<?php echo admin_forum_create_url();?>" class="btn btn-primary btn-sm rounded-pill">
-			<i class="ti ti-plus"></i> <?php echo lang('admin_add_forum')?>
-		</a>
+		<div class="d-flex gap-2">
+			<button type="button" class="btn btn-outline-secondary btn-sm rounded-pill" id="forumRecountBtn" title="<?php echo lang('admin_forum_recount_tip');?>">
+				<i class="ti ti-refresh"></i> <?php echo lang('admin_forum_recount')?>
+			</button>
+			<a href="<?php echo admin_forum_create_url();?>" class="btn btn-primary btn-sm rounded-pill">
+				<i class="ti ti-plus"></i> <?php echo lang('admin_add_forum')?>
+			</a>
+		</div>
 	</div>
 
 	<div class=" ">
@@ -323,6 +328,39 @@ if(!function_exists('forum_frontend_url')) {
 				}
 			})
 			.catch(function(err) {
+				showToast('<?php echo lang('admin_request_failed'); ?>', 'error');
+			});
+		});
+	}
+	// 重建版块计数：确认后 POST forum-recount，成功后刷新页面显示校准后的数字
+	var recountBtn = document.getElementById('forumRecountBtn');
+	if (recountBtn) {
+		recountBtn.addEventListener('click', function() {
+			if (!window.confirm('<?php echo lang('admin_forum_recount_confirm');?>')) return;
+			var url = xn.url('forum-recount');
+			var postdata = new FormData();
+			postdata.append('csrf_token', csrfToken);
+			recountBtn.disabled = true;
+
+			fetch(url, {
+				method: 'POST',
+				body: postdata,
+				headers: { 'X-Requested-With': 'XMLHttpRequest' }
+			})
+			.then(function(r) { return r.text(); })
+			.then(function(text) {
+				var res;
+				try { res = JSON.parse(text); } catch(e) { res = null; }
+				if (res && parseInt(res.code) == 0) {
+					showToast(res.message || '<?php echo lang('forum_recount_successfully'); ?>', 'success');
+					setTimeout(function() { window.location.reload(); }, 800);
+				} else {
+					recountBtn.disabled = false;
+					showToast((res && res.message) || '<?php echo lang('admin_request_failed'); ?>', 'error');
+				}
+			})
+			.catch(function(err) {
+				recountBtn.disabled = false;
 				showToast('<?php echo lang('admin_request_failed'); ?>', 'error');
 			});
 		});

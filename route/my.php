@@ -625,7 +625,8 @@ if(empty($action)) {
 
 			// hook my_avatar_post_save_before.php
 			// 需要审核时保存到临时文件，避免覆盖当前头像
-			$save_destfile = $need_profile_audit ? ($path.$uid.'_pending_'.$time.'.'.$avatar_ext) : $destfile;
+			// 安全: 文件名加随机段（读取侧 profile_audit_pending_files glob），防时间戳可枚举直链
+			$save_destfile = $need_profile_audit ? ($path.$uid.'_pending_'.$time.'_'.bin2hex(random_bytes(4)).'.'.$avatar_ext) : $destfile;
 			// 使用和帖子上传一样的方式：等比缩放到 256x256
 			$thumb_result = image_thumb($tmpfile, $save_destfile, 256, 256);
 			@unlink($tmpfile);
@@ -681,7 +682,9 @@ if(empty($action)) {
 		file_put_contents($tmpfile_b64, $data) OR message(-1, lang('write_to_file_failed'));
 
 		// 需要审核时保存到临时文件，避免覆盖当前头像
-		$save_destfile_b64 = $need_profile_audit ? ($path.$uid.'_pending_'.$time.'.jpg') : $destfile;
+		// 安全: 文件名加随机段（读取侧 profile_audit_pending_files glob），防时间戳可枚举直链
+		// ponytail: base64 分支没有 FormData 分支的 $destfile，直接发布目标必须是正式头像路径 {uid}.jpg
+		$save_destfile_b64 = $need_profile_audit ? ($path.$uid.'_pending_'.$time.'_'.bin2hex(random_bytes(4)).'.jpg') : ($path.$uid.'.jpg');
 		$thumb_result_b64 = image_thumb($tmpfile_b64, $save_destfile_b64, 256, 256);
 		@unlink($tmpfile_b64);
 		empty($thumb_result_b64['filesize']) AND message(-1, lang('image_process_failed'));
@@ -1033,16 +1036,19 @@ if(empty($action)) {
 		// 我的主题：直接查 thread 表，按审核状态过滤
 		$thread_cond = array('uid' => $uid);
 		if($gid == 0 || $gid > 2) {
-			$totalnum = thread_count(array('uid' => $uid, 'audit_status' => 1));
+			$totalnum = thread_count(array('uid' => $uid, 'audit_status' => 1, 'is_deleted' => 0));
 			$thread_cond['audit_status'] = 1;
 		} else {
-			$totalnum = $user['threads'];
+			// 列表对本人的待审/驳回主题同样可见，总数必须按同一口径实时统计（user.threads 只含审核通过）
+			$totalnum = thread_count(array('uid' => $uid, 'is_deleted' => 0));
 		}
 		$threadlist = thread_find($thread_cond, array('tid' => -1), $page, $pagesize);
 		thread_list_access_filter($threadlist, $gid);
 	} elseif($subtab == 'post') {
 		// 我的回复
-		$totalnum = $user['posts'];
+		// 与下方列表同口径（post_find 自动排除软删，作者本人可见待审/驳回），
+		// 不再引用可能漂移的 user.posts，避免分页总数与实际列表不一致
+		$totalnum = post_count(array('uid' => $uid, 'isfirst' => 0, 'is_deleted' => 0));
 		$is_user_post_list = TRUE;
 		if(function_exists('post_find_by_uid')) {
 			$postlist = post_find_by_uid($uid, $page, $pagesize);
@@ -1126,7 +1132,8 @@ if(empty($action)) {
 	$active_tab = 'post';
 	$page = param(2, 1);
 	$pagesize = 10;
-	$totalnum = $user['posts'];
+	// 与列表同口径的真实回帖数（作者本人可见待审/驳回），不依赖可能漂移的 user.posts
+	$totalnum = post_count(array('uid' => $uid, 'isfirst' => 0, 'is_deleted' => 0));
 	$pagination = pagination(route_url('my_post_page'), $totalnum, $page, $pagesize);
 
 	$is_user_post_list = TRUE; // 标记为回帖列表，用于截断内容
@@ -1328,6 +1335,25 @@ if(empty($action)) {
 		$unreadClass = empty($item['is_read']) ? ' notice-unread' : '';
 		$unreadDot = empty($item['is_read']) ? '<span class="badge bg-primary rounded-pill flex-shrink-0" style="font-size:0.5rem;padding:2px 5px;">' . lang('new') . '</span>' : '';
 		$href = !empty($item['url']) ? $item['url'] : my_notify_url();
+		// 审核待办通知（tid=0）：跳转链接按接收者权限实时生成，与 notify_format 同一套判断
+		// 仅覆盖核心审核记录（icon 带 audit_* 子类型或存量记录写死的 /admin/?audit.htm），
+		// 插件经 AdminNotifyService 发的 audit_pending 业务链接原样保留（bugfix 2026-10-11）
+		if($item['type'] == 'audit_pending' && intval($item['tid']) <= 0) {
+			$_audit_sub = '';
+			if(!empty($item['icon']) && strpos(strval($item['icon']), 'audit_') === 0) {
+				$_audit_sub = substr(strval($item['icon']), 6);
+			}
+			$_stored_url = !empty($item['url']) ? strval($item['url']) : '';
+			$_is_legacy_core_audit = ($_audit_sub === '' && $_stored_url !== '' && preg_match('#/admin/\?audit\.htm#', $_stored_url));
+			if($_audit_sub !== '' || $_is_legacy_core_audit) {
+				if(!in_array($_audit_sub, array('thread', 'post', 'profile'), true)) $_audit_sub = '';
+				if(!class_exists('AuditService')) {
+					include_once APP_PATH.'lib/security/AuditService.php';
+				}
+				$_audit_href = AuditService::entry_url_for_viewer($_audit_sub);
+				$href = $_audit_href !== '' ? $_audit_href : my_notify_url();
+			}
+		}
 		// v1.6.0: audit_pending 类型显示具体内容（应用名等），而非仅显示"待审核"标签
 		if($_is_audit) {
 			$_audit_content = isset($item['content']) ? trim($item['content']) : '';

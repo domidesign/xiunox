@@ -1,4 +1,5 @@
 <?php
+include_once APP_PATH . 'lib/PrivateAttachmentStorage.php';
 
 // hook model_attach_start.php
 
@@ -44,6 +45,7 @@ function attach__find($cond = array(), $orderby = array(), $page = 1, $pagesize 
 function attach_create($arr) {
 	// hook model_attach_create_start.php
 	$r = attach__create($arr);
+	if ($r && PrivateAttachmentStorage::needsProtection($arr)) PrivateAttachmentStorage::protect($arr);
 	// hook model_attach_create_end.php
 	return $r;
 }
@@ -67,7 +69,7 @@ function attach_delete($aid) {
 	// hook model_attach_delete_start.php
 	global $conf;
 	$attach = attach_read($aid);
-	$path = $conf['upload_path'].'attach/'.$attach['filename'];
+	$path = PrivateAttachmentStorage::path((string)$attach['filename']);
 
 	// 云存储驱动：非 local 时触发 storage_delete hook，插件删除云端文件
 	// 可用变量：$attach（附件完整信息含 filename）、$path（本地文件路径）
@@ -75,16 +77,41 @@ function attach_delete($aid) {
 		// hook storage_delete.php
 	}
 
-	file_exists($path) AND unlink($path);
+	PrivateAttachmentStorage::delete($attach);
 
 	// 删除缩略图
 	$thumb_path = attach_thumb_path($attach['filename']);
 	if($thumb_path) {
-		$full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
+		$full_thumb_path = PrivateAttachmentStorage::path((string)$thumb_path);
 		file_exists($full_thumb_path) AND unlink($full_thumb_path);
 	}
 
 	$r = attach__delete($aid);
+
+	// 重算该附件所在回帖/首帖的 images/videos/files 计数（与 attach_assoc_post 的写时重算口径一致）
+	// ponytail: 重算此前只在保存重关联时发生，前台"删除附件"（route/attach.php → attach_delete）后
+	// 楼层附件图标与列表页"图片"徽章残留旧值（第四轮全量审计 2026-10-30）
+	if($r !== FALSE && !empty($attach['pid'])) {
+		$_del_pid = intval($attach['pid']);
+		list($_attachlist, , ) = attach_find_by_pid($_del_pid);
+		$_images = 0; $_videos = 0; $_files = 0;
+		foreach($_attachlist as $_a) {
+			if(!empty($_a['isimage'])) {
+				$_images++;
+			} elseif(isset($_a['filetype']) && $_a['filetype'] == 'video') {
+				$_videos++;
+			} else {
+				$_files++;
+			}
+		}
+		$_post = post__read($_del_pid);
+		if(!empty($_post)) {
+			post__update($_del_pid, array('images'=>$_images, 'videos'=>$_videos, 'files'=>$_files));
+			if($_post['isfirst'] && intval($_post['tid']) > 0) {
+				thread__update(intval($_post['tid']), array('images'=>$_images, 'videos'=>$_videos, 'files'=>$_files));
+			}
+		}
+	}
 	// hook model_attach_delete_end.php
 	return $r;
 }
@@ -97,18 +124,18 @@ function attach_delete_by_pid($pid) {
 
 	// 删除物理文件和缩略图
 	foreach($attachlist as $attach) {
-		$path = $conf['upload_path'].'attach/'.$attach['filename'];
+		$path = PrivateAttachmentStorage::path((string)$attach['filename']);
 
 		// 云存储驱动：非 local 时触发 storage_delete hook，插件删除云端文件
 		if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
 			// hook storage_delete.php
 		}
 
-		file_exists($path) AND unlink($path);
+		PrivateAttachmentStorage::delete($attach);
 		// 删除缩略图
 		$thumb_path = attach_thumb_path($attach['filename']);
 		if($thumb_path) {
-			$full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
+			$full_thumb_path = PrivateAttachmentStorage::path((string)$thumb_path);
 			file_exists($full_thumb_path) AND unlink($full_thumb_path);
 		}
 	}
@@ -135,18 +162,18 @@ function attach_delete_by_uid($uid) {
 
 		// 删除物理文件和缩略图
 		foreach ($attachlist as $attach) {
-			$path = $conf['upload_path'].'attach/'.$attach['filename'];
+			$path = PrivateAttachmentStorage::path((string)$attach['filename']);
 
 			// 云存储驱动：非 local 时触发 storage_delete hook
 			if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
 				// hook storage_delete.php
 			}
 
-			file_exists($path) AND unlink($path);
+			PrivateAttachmentStorage::delete($attach);
 			// 删除缩略图
 			$thumb_path = attach_thumb_path($attach['filename']);
 			if($thumb_path) {
-				$full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
+				$full_thumb_path = PrivateAttachmentStorage::path((string)$thumb_path);
 				file_exists($full_thumb_path) AND unlink($full_thumb_path);
 			}
 		}
@@ -199,6 +226,10 @@ function attach_format(&$attach) {
 	global $conf;
 	if(empty($attach)) return;
 	// hook model_attach_format_start.php
+	if (PrivateAttachmentStorage::isPrivate($attach)) {
+		$attach['url'] = url('attach-read-' . intval($attach['aid']) . '-private');
+		return;
+	}
 	$attach['create_date_fmt'] = date('Y-n-j', $attach['create_date']);
 
 	// 根据文件名格式生成不同类型的URL
@@ -362,7 +393,8 @@ function attach_assoc_post($pid, $pageToken = '') {
 			$path = $attach_path;
 			$url = $attach_url;
 			
-			$destfile = $path.'/'.$filename;
+			$destfile = PrivateAttachmentStorage::destination($day.'/'.$filename, array('tid'=>$tid, 'pid'=>$pid, 'filetype'=>$file['filetype'], 'isimage'=>$file['isimage']));
+			$path = dirname($destfile);
 			$desturl = $url.'/'.$filename;
 			$r = xn_copy($file['path'], $destfile);
 		!$r AND xn_log("xn_copy({$file['path']}, $destfile) failed, pid:$pid, tid:$tid", 'php_error');
@@ -377,7 +409,7 @@ function attach_assoc_post($pid, $pageToken = '') {
 
 		// 云存储驱动：非 local 时触发 storage_save hook，插件将文件上传到云端
 		// 可用变量：$destfile（本地目标路径）、$filename（相对文件名如 202606/xxx.jpg）、$file（原始文件信息）
-		if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
+		if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local' && !is_file(PrivateAttachmentStorage::privatePath($day.'/'.$filename))) {
 			// hook storage_save.php
 		}
 
@@ -420,6 +452,7 @@ function attach_assoc_post($pid, $pageToken = '') {
 			
 			// 插入后，进行关联
 			$aid = attach_create($arr);
+			if ($aid && PrivateAttachmentStorage::isPrivate($arr)) $desturl = url('attach-read-' . intval($aid) . '-private');
 			$post['message'] = str_replace($file['url'], $desturl, $post['message']);
 			$post['message_fmt'] = str_replace($file['url'], $desturl, $post['message_fmt']);
 			
@@ -461,7 +494,8 @@ function attach_assoc_post($pid, $pageToken = '') {
 		foreach($found_files as $filename) {
 			$tmp_file_path = $tmp_path_prefix.$filename;
 			$tmp_file_url = $tmp_url_prefix.$filename;
-			$dest_file_path = $attach_path.'/'.$filename;
+			$scanFiletype = attach_type($filename, include APP_PATH.'conf/attach.conf.php');
+			$dest_file_path = PrivateAttachmentStorage::destination($day.'/'.$filename, array('tid'=>$tid, 'pid'=>$pid, 'filetype'=>$scanFiletype, 'isimage'=>$scanFiletype === 'image'));
 			$dest_file_url = $attach_url.'/'.$filename;
 
 			// 检查临时文件是否存在（可能已被方案1移走）
@@ -476,7 +510,7 @@ function attach_assoc_post($pid, $pageToken = '') {
 
 			// 云存储驱动：非 local 时触发 storage_save hook（与方案1一致，兜底扫描路径同样需要上传云端）
 			$destfile = $dest_file_path;
-			if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local') {
+			if(!empty($conf['upload_driver']) && $conf['upload_driver'] != 'local' && !is_file(PrivateAttachmentStorage::privatePath($day.'/'.$filename))) {
 				// hook storage_save.php
 			}
 
@@ -524,7 +558,12 @@ function attach_assoc_post($pid, $pageToken = '') {
 					'downloads'=>0,
 					'isimage'=>$isimage
 				);
-				attach_create($arr);
+				$scanAid = attach_create($arr);
+				if ($scanAid && PrivateAttachmentStorage::isPrivate($arr)) {
+					$privateUrl = url('attach-read-' . intval($scanAid) . '-private');
+					$post['message'] = str_replace($dest_file_url, $privateUrl, $post['message']);
+					$post['message_fmt'] = str_replace($dest_file_url, $privateUrl, $post['message_fmt']);
+				}
 			}
 		}
 	}
@@ -544,6 +583,10 @@ function attach_assoc_post($pid, $pageToken = '') {
 		sess_save();
 	}
 	
+	foreach (db_find('attach', array('pid'=>$pid), array(), 1, 1000) ?: array() as $_privateAttach) {
+		$post['message'] = PrivateAttachmentStorage::rewrite($post['message'], $_privateAttach);
+		$post['message_fmt'] = PrivateAttachmentStorage::rewrite($post['message_fmt'], $_privateAttach);
+	}
 	// 更新帖子内容（URL 替换后必须保存）
 	post__update($pid, array('message'=>$post['message'], 'message_fmt'=>$post['message_fmt']));
 	
@@ -559,7 +602,7 @@ function attach_assoc_post($pid, $pageToken = '') {
 		$is_image_or_video = !empty($attach['isimage']) || (isset($attach['filetype']) && $attach['filetype'] == 'video');
 		if(!$is_image_or_video) continue;
 
-		$url = $conf['upload_url'].'attach/'.$attach['filename'];
+		$url = PrivateAttachmentStorage::isPrivate($attach) ? url('attach-read-' . intval($attach['aid']) . '-private') : $conf['upload_url'].'attach/'.$attach['filename'];
 		// 检查 URL 是否在 message 中，不在则说明用户已从编辑器删除
 		if(strpos($post['message_fmt'], $url) === FALSE && strpos($post['message'], $url) === FALSE) {
 			$orphan_aids[] = $attach['aid'];
@@ -571,11 +614,11 @@ function attach_assoc_post($pid, $pageToken = '') {
 	if(!empty($orphan_aids)) {
 		// 删除物理文件和缩略图（保留 attach_delete 的 unlink 逻辑）
 		foreach($orphan_attaches as $attach) {
-			$path = $conf['upload_path'].'attach/'.$attach['filename'];
-			file_exists($path) AND unlink($path);
+			$path = PrivateAttachmentStorage::path((string)$attach['filename']);
+			PrivateAttachmentStorage::delete($attach);
 			$thumb_path = attach_thumb_path($attach['filename']);
 			if($thumb_path) {
-				$full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
+				$full_thumb_path = PrivateAttachmentStorage::path((string)$thumb_path);
 				file_exists($full_thumb_path) AND unlink($full_thumb_path);
 			}
 		}
@@ -690,7 +733,7 @@ function attach_admin_build_where($filter = array(), &$joins = '', &$params = ar
     // 关键词搜索
     if(!empty($filter['keyword'])) {
         $where .= ($where ? ' AND ' : '') . "a.orgfilename LIKE ?";
-        $params[] = '%' . $filter['keyword'] . '%';
+        $params[] = '%' . xn_like_escape($filter['keyword']) . '%';
     }
 
     return $where;
@@ -899,11 +942,11 @@ function attach_admin_delete_orphans() {
     $deleted_filenames = array();
     foreach($attachlist as $attach) {
         // 删除物理文件和缩略图
-        $path = $conf['upload_path'].'attach/'.$attach['filename'];
-        file_exists($path) AND unlink($path);
+        $path = PrivateAttachmentStorage::path((string)$attach['filename']);
+        PrivateAttachmentStorage::delete($attach);
         $thumb_path = attach_thumb_path($attach['filename']);
         if($thumb_path) {
-            $full_thumb_path = $conf['upload_path'].'attach/'.$thumb_path;
+            $full_thumb_path = PrivateAttachmentStorage::path((string)$thumb_path);
             file_exists($full_thumb_path) AND unlink($full_thumb_path);
         }
         $deleted_filenames[] = $attach['orgfilename'] . '(aid:' . $attach['aid'] . ')';

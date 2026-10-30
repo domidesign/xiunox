@@ -25,7 +25,7 @@ function array_addslashes(&$var) {
 			array_addslashes($v);
 		}
 	} else {
-		$var = addslashes($var);
+		$var = addslashes((string)$var); // (string) 强转：PHP 8.1+ 传 null 已弃用，null 等价空串
 	}
 	return $var;
 }
@@ -36,7 +36,7 @@ function array_stripslashes(&$var) {
 			array_stripslashes($v);
 		}
 	} else {
-		$var = stripslashes($var);
+		$var = stripslashes((string)$var); // (string) 强转：PHP 8.1+ 传 null 已弃用，null 等价空串
 	}
 	return $var;
 }
@@ -47,7 +47,7 @@ function array_htmlspecialchars(&$var) {
 			array_htmlspecialchars($v);
 		}
 	} else {
-		$var = str_replace(array('&', '"', '<', '>'), array('&amp;', '&quot;', '&lt;', '&gt;'), $var);
+		$var = str_replace(array('&', '"', '<', '>'), array('&amp;', '&quot;', '&lt;', '&gt;'), (string)$var); // (string) 强转：PHP 8.1+ 传 null 已弃用，null 等价空串
 	}
 	return $var;
 }
@@ -58,7 +58,7 @@ function array_trim(&$var) {
 			array_trim($v);
 		}
 	} else {
-		$var = trim($var);
+		$var = trim((string)$var); // (string) 强转：PHP 8.1+ 传 null 已弃用，null 等价空串
 	}
 	return $var;
 }

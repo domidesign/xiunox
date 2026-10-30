@@ -127,11 +127,11 @@ function _notice_action_text($type, $notify) {
 					<span class="text-body-secondary ms-1">「<?php echo esc_html($_notice['quote_content']);?>」</span>
 					<?php if(!empty($_notice['thread_subject'])) { ?>
 					<span class="text-body-secondary ms-1"><?php echo lang('notify_from_thread');?></span>
-					<a href="<?php echo !empty($_notice['url']) ? $_notice['url'] : '#';?>" class="text-decoration-none ms-1 notice-card-thread-link" data-nid="<?php echo $_notice['nid'];?>">「<?php echo esc_html(mb_strlen($_notice['thread_subject']) > 30 ? mb_substr($_notice['thread_subject'], 0, 30).'...' : $_notice['thread_subject']);?>」</a>
+					<a href="<?php echo !empty($_notice['url']) ? esc_attr($_notice['url']) : '#';?>" class="text-decoration-none ms-1 notice-card-thread-link" data-nid="<?php echo $_notice['nid'];?>">「<?php echo esc_html(mb_strlen($_notice['thread_subject']) > 30 ? mb_substr($_notice['thread_subject'], 0, 30).'...' : $_notice['thread_subject']);?>」</a>
 					<?php } ?>
 					<?php } elseif(!empty($_notice['thread_subject']) && $_notice['type'] !== 'follow') { ?>
 					<!-- 帖子/点赞/收藏/评论/提及：显示帖子标题链接 -->
-					<a href="<?php echo !empty($_notice['url']) ? $_notice['url'] : '#';?>" class="text-decoration-none ms-1 notice-card-thread-link" data-nid="<?php echo $_notice['nid'];?>">「<?php echo esc_html(mb_strlen($_notice['thread_subject']) > 30 ? mb_substr($_notice['thread_subject'], 0, 30).'...' : $_notice['thread_subject']);?>」</a>
+					<a href="<?php echo !empty($_notice['url']) ? esc_attr($_notice['url']) : '#';?>" class="text-decoration-none ms-1 notice-card-thread-link" data-nid="<?php echo $_notice['nid'];?>">「<?php echo esc_html(mb_strlen($_notice['thread_subject']) > 30 ? mb_substr($_notice['thread_subject'], 0, 30).'...' : $_notice['thread_subject']);?>」</a>
 					<?php } ?>
 					<!-- 来源标识（thread 类） -->
 					<?php if($_notice['type'] === 'thread') { ?>

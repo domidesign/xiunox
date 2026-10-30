@@ -35,15 +35,18 @@ if(empty($action)) {
 	$_user_desc = trim(preg_replace('/\s+/', ' ', strip_tags($_user['signature'] ?? '')));
 	$header['description'] = $_user_desc !== '' ? mb_substr($_user['display_name'] . ' - ' . $_user_desc, 0, 80, 'UTF-8') : ($_user['display_name'] . ' - ' . $conf['sitename']);
 	// SEO: ProfilePage schema（含 name/url/description，便于 AI 关联用户主页）
+	// SEO: ProfilePage schema（含 name/url/description，便于 AI 关联用户主页）
+	// 安全: name 进 <script> 上下文，strip_tags + header.inc.htm 的 JSON_HEX_TAG 兜底
+	$_jsonld_name = strip_tags((string)($_user['display_name'] ?? $_user['username']));
 	$header['json_ld'] = array(
 		'@context' => 'https://schema.org',
 		'@type' => 'ProfilePage',
-		'name' => $_user['display_name'] ?? $_user['username'],
+		'name' => $_jsonld_name,
 		'url' => $_user_url,
 		'description' => $header['description'],
 		'mainEntity' => array(
 			'@type' => 'Person',
-			'name' => $_user['display_name'] ?? $_user['username'],
+			'name' => $_jsonld_name,
 			'url' => $_user_url,
 		),
 	);
@@ -54,7 +57,7 @@ if(empty($action)) {
 	// 只加载帖子 tab，其他 tab 由 htmx 按需请求
 	// 直接查 thread 表（与 user-thread 页一致），避免 mythread 表不同步
 	// 版块权限过滤必须在 SQL 层完成，否则 thread_list_access_filter 在分页后删除无权限版块帖子，会导致每页条数不一致
-	$thread_cond = array('uid' => $_uid);
+	$thread_cond = array('uid' => $_uid, 'is_deleted' => 0);
 	$threadlist = NULL; // 标记是否已查询，避免无可见版块时仍执行 thread_find
 	if($gid == 0 || ($gid > 2 && $uid != $_uid)) {
 		$forumlist_tmp = forum_list_cache();
@@ -69,19 +72,20 @@ if(empty($action)) {
 			$totalnum = thread_count($thread_cond);
 		}
 	} else {
-		$totalnum = $_user['threads'];
+		// 本人/管理员可见待审、驳回主题，总数按列表同口径实时统计（user.threads 只含审核通过）
+		$totalnum = thread_count(array('uid' => $_uid, 'is_deleted' => 0));
 	}
 	if($threadlist === NULL) {
 		$threadlist = thread_find($thread_cond, array('tid' => -1), $page, $pagesize);
 	}
 	thread_list_access_filter($threadlist, $gid);
-	// 加载版块列表，仅供管理工具栏（移动帖子）使用，普通用户（gid>=5）无需加载
+	// 加载版块列表，仅供管理工具栏（移动帖子）使用，普通用户（gid>=6）无需加载
 	$forumlist = array();
-	if($gid > 0 && $gid < 5) {
+	if($gid > 0 && $gid < 6) {
 		$forumlist = forum_list_cache();
 	}
 	// 管理员组强制显示勾选框
-	if($gid > 0 && $gid < 5) {
+	if($gid > 0 && $gid < 6) {
 		$force_show_checkbox = TRUE;
 	}
 	$pagination = pagination(url("user-$_uid-{page}"), $totalnum, $page, $pagesize);
@@ -335,7 +339,7 @@ if(empty($action)) {
         $pagesize = 10;
         // 非管理员查看他人帖子时，只显示审核通过且版块可见的帖子
         // 版块权限过滤必须在 SQL 层完成，否则 thread_list_access_filter 在分页后删除无权限版块帖子，会导致每页条数不一致
-        $thread_cond = array('uid' => $_uid);
+        $thread_cond = array('uid' => $_uid, 'is_deleted' => 0);
         $threadlist = NULL; // 标记是否已查询，避免无可见版块时仍执行 thread_find
         if($gid == 0 || ($gid > 2 && $uid != $_uid)) {
             if(!isset($forumlist)) $forumlist = forum_list_cache();
@@ -350,7 +354,8 @@ if(empty($action)) {
                 $totalnum = thread_count($thread_cond);
             }
         } else {
-            $totalnum = $_user['threads'];
+            // 本人/管理员可见待审、驳回主题，总数按列表同口径实时统计
+            $totalnum = thread_count(array('uid' => $_uid, 'is_deleted' => 0));
         }
         $pagination = pagination(route_url('user_thread_page', array('uid'=>$_uid)), $totalnum, $page, $pagesize);
         // 直接用 thread_find 查询（含 audit_status + 版块权限过滤），避免 mythread 表无法过滤待审帖子
@@ -1277,7 +1282,7 @@ if(empty($action)) {
     empty($keyword) AND message(-1, lang('data_is_empty'));
     mb_strlen($keyword) < 1 AND message(-1, lang('user_search_keyword_too_short'));
 
-    $userlist = db_find('user', array('username'=>array('LIKE'=>$keyword.'%')), array('uid'=>-1), 1, 10, 'uid');
+    $userlist = db_find('user', array('username'=>array('LIKE'=>xn_like_escape($keyword).'%')), array('uid'=>-1), 1, 10, 'uid');
     $users = array();
     if($userlist) {
         foreach($userlist as $u) {

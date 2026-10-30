@@ -368,8 +368,9 @@ class ApiAuthService {
      * @return bool true=通过, false=超限
      */
     public function checkAppPublicRateLimit(string $appid): bool {
-        // 客户端模式限流：每分钟30次（比服务端的120次更严格）
-        $publicLimit = 30;
+        $app = $this->validateAppPublic($appid);
+        if (!$app) return false;
+        $publicLimit = max(0, intval($app['rate_limit'] ?? 120));
         if (!class_exists('RateLimitService')) {
             include APP_PATH . 'lib/RateLimitService.php';
         }
@@ -389,7 +390,7 @@ class ApiAuthService {
      * @param string $ipWhitelist IP 白名单 JSON 数组字符串
      * @return array 创建结果
      */
-    public function createApp(string $name, string $description = '', string $scope = 'readonly', int $uid = 0, string $capabilities = '', string $ipWhitelist = ''): array {
+    public function createApp(string $name, string $description = '', string $scope = 'readonly', int $uid = 0, string $capabilities = '', string $ipWhitelist = '', int $rateLimit = 120): array {
         $appid = bin2hex(random_bytes(8));
         $secret = bin2hex(random_bytes(16));
         $secretHash = password_hash($secret, PASSWORD_DEFAULT);
@@ -403,7 +404,7 @@ class ApiAuthService {
             'scope' => in_array($scope, ['readonly', 'readwrite', 'full'], true) ? $scope : 'readonly',
             'is_enabled' => 1,
             'uid' => $uid,
-            'rate_limit' => 120,
+            'rate_limit' => max(0, $rateLimit),
             'capabilities' => $capabilities,
             'ip_whitelist' => $ipWhitelist,
             'created_at' => $now,
@@ -545,7 +546,10 @@ class ApiAuthService {
 
         // 检查 allowed_resources 白名单（空数组=全部允许）
         $allowed = $capabilities['allowed_resources'] ?? [];
-        if (empty($allowed)) return true;
+        if (empty($allowed)) {
+            // Legacy scope still bounds built-in resources; unknown/plugin routes require explicit registration.
+            return in_array($resource, ['auth','user','thread','post','forum','notify','search','site','rank','credits','captcha','mod','admin','my','attach','openapi.json'], true) || (class_exists('PluginApiRegistry', false) && PluginApiRegistry::resolve($resource));
+        }
         return in_array($resource, $allowed, true);
     }
 

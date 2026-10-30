@@ -522,9 +522,9 @@ if($action == 'create') {
 		$pid === FALSE AND message(-1, lang('create_post_failed'));
 		$tid === FALSE AND message(-1, lang('create_thread_failed'));
 
-		// 新主题进入待审队列，按后台审核页通知设置推送管理员
+		// 新主题进入待审队列，按后台审核页通知设置推送（管理员+目标版块版主）
 		if($need_audit) {
-			AuditService::notify_new_pending('thread', $subject);
+			AuditService::notify_new_pending('thread', $subject, intval($fid));
 		}
 
 		// 仅审核通过的帖子才通知关注版块的用户和@提及（待审帖子审核通过后在 AuditService::approve 中补发）
@@ -705,8 +705,10 @@ if($action == 'create') {
 
 	// 待审/驳回帖子访问控制：非管理员(gid!=1,2)不能查看他人待审帖子，驳回帖子仅作者可见
 	if(($gid == 0 || $gid > 2) && isset($thread['audit_status']) && $thread['audit_status'] != 1) {
+		// 版主可查看管辖版块的待审/驳回帖子（审核通知"查看详情"落前台审核队列后需进帖子页看全文）
+		$_audit_viewer_mod = in_array($gid, array(3, 4, 5)) && forum_access_mod(intval($thread['fid']), $gid, 'allowtop');
 		// 驳回帖子(audit_status=2)仅作者可见；待审帖子(audit_status=0)仅作者可见
-		if($thread['uid'] != $uid) {
+		if($thread['uid'] != $uid && !$_audit_viewer_mod) {
 			error_page(404, lang('thread_not_exists'));
 		}
 	}
@@ -784,10 +786,12 @@ if($action == 'create') {
 
 	// 待审/驳回回帖过滤：非管理员(gid!=1,2)不可见 audit_status!=1 的他人回帖，作者自己可见待审和驳回回帖
 	if(($gid == 0 || $gid > 2) && !empty($postlist)) {
+		// 版主可查看管辖版块的待审/驳回回帖（与帖子可见性放开配套）
+		$_audit_viewer_mod = in_array($gid, array(3, 4, 5)) && forum_access_mod($fid, $gid, 'allowtop');
 		foreach($postlist as $_pid => $_post) {
 			if(isset($_post['audit_status']) && $_post['audit_status'] != 1) {
-				// 待审/驳回回帖仅作者可见
-				if($_post['uid'] != $uid) {
+				// 待审/驳回回帖仅作者可见（版主除外）
+				if($_post['uid'] != $uid && !$_audit_viewer_mod) {
 					unset($postlist[$_pid]);
 				}
 			}
@@ -862,10 +866,11 @@ if($action == 'create') {
 		});
 
 		if(!empty($_all_replies)) {
-			// 待审过滤二级评论
+			// 待审过滤二级评论（版主可查看管辖版块的待审/驳回回帖，与一级回帖过滤配套）
 			if($gid == 0 || $gid > 2) {
+				$_audit_viewer_mod = in_array($gid, array(3, 4, 5)) && forum_access_mod($fid, $gid, 'allowtop');
 				foreach($_all_replies as $_rid => $_r) {
-					if(isset($_r['audit_status']) && $_r['audit_status'] != 1 && $_r['uid'] != $uid) {
+					if(isset($_r['audit_status']) && $_r['audit_status'] != 1 && $_r['uid'] != $uid && !$_audit_viewer_mod) {
 						unset($_all_replies[$_rid]);
 					}
 				}
@@ -1004,7 +1009,10 @@ $header['keywords'] = '';
 // SEO: description 优先用正文前 120 字摘要，正文为空时回退到标题
 // ponytail: strip_tags 后需 html_entity_decode 解码 &nbsp;/&amp; 等，否则 SERP 显示实体字面量
 // ponytail: 移除 BBCode 标签块（如 [hidden]...[/hidden]），strip_tags 不处理方括号标签
-$_seo_desc = isset($first['message']) ? strip_tags($first['message']) : '';
+// 安全: $first['message'] 为存储态原文，含 xnx_hidden 块，SEO 输出前必须按查看者权限过滤
+include_once APP_PATH.'lib/ApiContentService.php';
+$_seo_src = isset($first['message']) ? ApiContentService::hidden((string)$first['message'], intval($first['pid']), intval($uid), intval($gid)) : '';
+$_seo_desc = strip_tags($_seo_src);
 // ponytail: 守卫 null，PHP 8.1+ 弃用传 null 给 preg_replace subject 参数
 $_seo_desc = $_seo_desc ?? '';
 $_seo_desc = preg_replace('/\[([a-z][a-z0-9_]*)(?:\s+[^\]]*)?\].*?\[\/\1\]/si', '', $_seo_desc);
@@ -1016,9 +1024,9 @@ $header['description'] = $_seo_desc !== '' ? mb_substr($_seo_desc, 0, 120, 'UTF-
 // ponytail: canonical 用 thread_url($tid) 不含 page，分页页面权重集中到第一页
 $header['canonical'] = $thread_url;
 $header['og_type'] = 'article';
-// SEO: og:image 取正文第一张图片
+// SEO: og:image 取正文第一张图片（从过滤后的正文取，隐藏块内图片不外泄）
 $header['og_image'] = '';
-if(!empty($first['message']) && preg_match('/<img[^>]+src=["\']([^"\']+)["\']/i', $first['message'], $_m)) {
+if($_seo_src !== '' && preg_match('/<img[^>]+src=["\']([^"\']+)["\']/i', $_seo_src, $_m)) {
 	$_img = $_m[1];
 	if(strpos($_img, 'http') !== 0 && strpos($_img, '//') !== 0) {
 		$_img = absolute_url($_img);
@@ -1050,7 +1058,7 @@ if(isset($_main_count) && $pagesize > 0) {
 	// SEO: 作者 Person（含 url，便于 AI 关联作者主页）
 	$_author_jsonld = array(
 		'@type' => 'Person',
-		'name' => $author['display_name'] ?? $author['username'] ?? '',
+		'name' => strip_tags((string)($author['display_name'] ?? $author['username'] ?? '')),
 		'url' => absolute_url(user_url($thread['uid'])),
 	);
 
@@ -1086,7 +1094,7 @@ if(isset($_main_count) && $pagesize > 0) {
 		}
 		$_qa_main = array(
 			'@type' => 'Question',
-			'name' => $thread['subject'],
+			'name' => strip_tags((string)$thread['subject']),
 			'text' => $header['description'],
 			'dateCreated' => date('c', $thread['create_date']),
 			'author' => $_author_jsonld,
@@ -1110,10 +1118,11 @@ if(isset($_main_count) && $pagesize > 0) {
 		}
 	} else {
 		// DiscussionForumPosting：讨论型
+		// 安全: headline 进 <script> 上下文，strip_tags 后再经 header.inc.htm 的 JSON_HEX_TAG 兜底，防 </script> 逃逸
 		$header['json_ld'] = array(
 			'@context' => 'https://schema.org',
 			'@type' => 'DiscussionForumPosting',
-			'headline' => $thread['subject'],
+			'headline' => strip_tags((string)$thread['subject']),
 			'url' => $thread_url,
 			'datePublished' => date('c', $thread['create_date']),
 			'dateModified' => date('c', $thread['last_date']),

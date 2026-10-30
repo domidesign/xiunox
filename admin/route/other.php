@@ -103,6 +103,10 @@ elseif($action == 'cache_setting') {
 		$config = array();
 		$config['enable'] = param('enable') ? 1 : 0;
 		$config['type'] = param('type');
+		// 驱动类型白名单：垃圾类型写入 kv 后每请求触发降级重建，且曾可能被固化
+		if(!in_array($config['type'], array('file', 'redis', 'memcached', 'mysql', 'pdo_mysql'), true)) {
+			message(-1, lang('admin_cache_type_invalid'));
+		}
 		$config['default_ttl'] = max(60, intval(param('default_ttl', 3600)));
 
 		// 缓存前缀：只允许字母、数字、下划线、短横线，1-32 字符

@@ -55,6 +55,7 @@
 | PHP hook 以 `<?php exit;` 开头 | 编译器剥掉，防直接访问（`.htm` hook 只用 `<?php`，不能 `exit`） |
 | 后台页不用 htmx | `admin/` 模板只用原生 JS + Bootstrap |
 | 取用户信息用于显示用核心函数 | `user_find_by_uids('1,2,3')`/`user_read($uid)`/`user_read_cache($uid)`（自动 `user_format()` 生成 `display_name`）；模板取 `$user['display_name']` |
+| **积分类型名称动态读取，禁止插件自定义 lang 键写死** | 与核心同一解析链：`!empty($conf['credits_name']) ? $conf['credits_name'] : lang('credits_label')`（golds/rmbs 同理，`golds_name`/`golds_label`、`rmbs_name`/`rmb_label`）。下拉框遍历 `$conf['credits_types']` 而非硬编码 option（案例：xnx_hidden v1.1.5，7 处「积分/金币」二选一硬编码整批失准）。JS 端用核心 footer 注入的 `window.credits_labels` |
 | htmx 事件名用 4.x 冒号格式 | `htmx:config:request`/`htmx:after:swap` 等，禁止 `htmx:configRequest`/`htmx:afterSettle`（2.x 旧名静默失效） |
 | Admin 路径检测用 `$_SERVER['SCRIPT_NAME']` | 禁止用 `REQUEST_URI`/`PHP_SELF`（被伪静态 URL 误导） |
 | 从前台生成 admin URL 用 `admin_url()` | `url()`/`admin_plugin_setting_url()` 前台调用不带 `admin/` 前缀 |

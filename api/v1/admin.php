@@ -294,17 +294,19 @@ if ($seg1 === 'security') {
 
         $whereParts = [];
         $params = [];
+        // ponytail: 驱动层 prepare 用位置绑定（bindValue(1..n)），必须用 ? 占位符；
+        // 命名占位符在 PHP 8.0 下会 HY093 静默失败（ERRMODE=SILENT 无任何报错，筛选恒空）
         foreach ($cond as $key => $val) {
-            $whereParts[] = "{$key} = :{$key}";
-            $params[":{$key}"] = $val;
+            $whereParts[] = "{$key} = ?";
+            $params[] = $val;
         }
         if ($dateStart > 0) {
-            $whereParts[] = "create_date >= :date_start";
-            $params[':date_start'] = $dateStart;
+            $whereParts[] = "create_date >= ?";
+            $params[] = $dateStart;
         }
         if ($dateEnd > 0) {
-            $whereParts[] = "create_date <= :date_end";
-            $params[':date_end'] = $dateEnd;
+            $whereParts[] = "create_date <= ?";
+            $params[] = $dateEnd;
         }
 
         $where = empty($whereParts) ? '' : ' WHERE ' . implode(' AND ', $whereParts);
@@ -312,9 +314,10 @@ if ($seg1 === 'security') {
         $offset = ($page - 1) * $pagesize;
 
         // ponytail: 表不存在或 SQL 错误时降级为空列表，避免 500 影响测试
+        // ponytail: db_pdo_mysql::query 只收 1 参（第 2 参被静默丢弃致占位符永不绑定），筛选查询必须走 prepared 系列
         try {
-            $list = $db->query("SELECT * FROM {$table}{$where} ORDER BY logid DESC LIMIT {$offset}, {$pagesize}", $params)->fetchAll();
-            $totalRow = $db->query("SELECT COUNT(*) AS total FROM {$table}{$where}", $params)->fetchOne();
+            $list = db_sql_find_prepared("SELECT * FROM {$table}{$where} ORDER BY logid DESC LIMIT {$offset}, {$pagesize}", $params);
+            $totalRow = db_sql_find_one_prepared("SELECT COUNT(*) AS total FROM {$table}{$where}", $params);
             $total = $totalRow ? intval($totalRow['total']) : 0;
         } catch (\Throwable $e) {
             $list = [];
@@ -346,17 +349,19 @@ if ($seg1 === 'security') {
 
         $whereParts = [];
         $params = [];
+        // ponytail: 驱动层 prepare 用位置绑定（bindValue(1..n)），必须用 ? 占位符；
+        // 命名占位符在 PHP 8.0 下会 HY093 静默失败（ERRMODE=SILENT 无任何报错，筛选恒空）
         foreach ($cond as $key => $val) {
-            $whereParts[] = "{$key} = :{$key}";
-            $params[":{$key}"] = $val;
+            $whereParts[] = "{$key} = ?";
+            $params[] = $val;
         }
         if ($dateStart > 0) {
-            $whereParts[] = "create_date >= :date_start";
-            $params[':date_start'] = $dateStart;
+            $whereParts[] = "create_date >= ?";
+            $params[] = $dateStart;
         }
         if ($dateEnd > 0) {
-            $whereParts[] = "create_date <= :date_end";
-            $params[':date_end'] = $dateEnd;
+            $whereParts[] = "create_date <= ?";
+            $params[] = $dateEnd;
         }
 
         $where = empty($whereParts) ? '' : ' WHERE ' . implode(' AND ', $whereParts);
@@ -364,9 +369,10 @@ if ($seg1 === 'security') {
         $offset = ($page - 1) * $pagesize;
 
         // ponytail: 表不存在或 SQL 错误时降级为空列表，避免 500 影响测试
+        // ponytail: db_pdo_mysql::query 只收 1 参（第 2 参被静默丢弃致占位符永不绑定），筛选查询必须走 prepared 系列
         try {
-            $list = $db->query("SELECT * FROM {$table}{$where} ORDER BY logid DESC LIMIT {$offset}, {$pagesize}", $params)->fetchAll();
-            $totalRow = $db->query("SELECT COUNT(*) AS total FROM {$table}{$where}", $params)->fetchOne();
+            $list = db_sql_find_prepared("SELECT * FROM {$table}{$where} ORDER BY logid DESC LIMIT {$offset}, {$pagesize}", $params);
+            $totalRow = db_sql_find_one_prepared("SELECT COUNT(*) AS total FROM {$table}{$where}", $params);
             $total = $totalRow ? intval($totalRow['total']) : 0;
         } catch (\Throwable $e) {
             $list = [];

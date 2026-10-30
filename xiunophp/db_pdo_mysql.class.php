@@ -299,6 +299,8 @@ class db_pdo_mysql implements DatabaseInterface {
 	}
 
 	public function maxid(string $table, string $field, array $cond = []): int {
+		// 安全: MAX() 内字段名不可参数化，仅放行标识符（含表.字段），非法值直接拒绝
+		if(!preg_match('#^[a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)?$#', (string)$field)) return 0;
 		list($sqladd, $condParams) = db_cond_to_sqladd($cond);
 		$sql = "SELECT MAX($field) AS maxid FROM `$table` $sqladd";
 		$arr = $this->prepare_one($sql, $condParams);

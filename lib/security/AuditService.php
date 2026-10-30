@@ -97,7 +97,8 @@ class AuditService {
      */
     public static function get_pending_list(string $type = 'thread', int $page = 1, int $pagesize = 20): array {
         // 包含待审(0)和已忽略(3)：已忽略的仍留在列表供后续通过/拒绝，但不计入未审核数量
-        $cond = ['audit_status' => [self::STATUS_PENDING, self::STATUS_IGNORED]];
+        // 已软删内容归回收站管理，不进审核队列（防止对回收站内容审批通过导致计数虚加）
+        $cond = ['audit_status' => [self::STATUS_PENDING, self::STATUS_IGNORED], 'is_deleted' => 0];
 
         if ($type === 'thread') {
             $list = db_find('thread', $cond, ['tid' => -1], $page, $pagesize);
@@ -127,12 +128,33 @@ class AuditService {
                 $users = self::batch_read_users($uids);
                 $threads = empty($tids) ? array() : db_find('thread', array('tid' => $tids), array(), 1, count($tids), 'tid');
 
+                // 被回帖内容（楼中楼 quotepid>0）：批量取原评论/首帖内容与作者名，供"区分回帖与被回帖"引用展示
+                $quotepids = array();
+                foreach ($list as $item) {
+                    if (intval($item['quotepid']) > 0) $quotepids[intval($item['quotepid'])] = true;
+                }
+                $quoted_map = array();
+                if (!empty($quotepids)) {
+                    $quoted_rows = db_find('post', ['pid' => array_keys($quotepids), 'is_deleted' => 0], [], 1, count($quotepids), 'pid');
+                    $quoted_users = self::batch_read_users(array_unique(array_column($quoted_rows, 'uid')));
+                    foreach ($quoted_rows as $q) {
+                        $qu = $quoted_users[intval($q['uid'])] ?? array();
+                        $quoted_map[intval($q['pid'])] = array(
+                            'name' => !empty($qu['display_name']) ? $qu['display_name'] : ($qu['username'] ?? ''),
+                            'summary' => mb_substr(strip_tags($q['message']), 0, 60),
+                        );
+                    }
+                }
+
                 foreach ($list as &$item) {
                     $user = $users[$item['uid']] ?? array();
                     $item['username'] = $user['username'] ?? '';
                     $item['avatar_url'] = $user['avatar_url'] ?? '';
                     $thread = $threads[$item['tid']] ?? array();
                     $item['subject'] = $thread['subject'] ?? '';
+                    $qp = intval($item['quotepid']);
+                    $item['quote_name'] = ($qp > 0 && isset($quoted_map[$qp])) ? $quoted_map[$qp]['name'] : '';
+                    $item['quote_summary'] = ($qp > 0 && isset($quoted_map[$qp])) ? $quoted_map[$qp]['summary'] : '';
                 }
                 unset($item);
             }
@@ -180,7 +202,7 @@ class AuditService {
      * 获取待审数量
      */
     public static function get_pending_count(string $type = 'thread'): int {
-        $cond = ['audit_status' => self::STATUS_PENDING];
+        $cond = ['audit_status' => self::STATUS_PENDING, 'is_deleted' => 0];
         if ($type === 'post') {
             $cond['isfirst'] = 0;
         }
@@ -188,6 +210,56 @@ class AuditService {
     }
 
     // ================= 待审内容通知（后台审核页"通知设置"，配置存 plugin_notify_config 的 core_audit 键） =================
+
+    /**
+     * 审核通知"查看详情"统一入口：按当前浏览者权限实时生成跳转链接
+     *
+     * 通知入库不再写死 admin_url('audit')（版主/超版无后台权限，点击被踢到登录页/个人中心），
+     * 渲染时（notify_format / 铃铛下拉）调用本函数按权限生成：
+     *   - 管理员(1)/超版(2)：前台审核队列（单条审批，批量审批仍走后台）
+     *   - 版主(3/4)/实习版主(5)：需有管辖版块（forum.moduids），同样落前台审核队列
+     *   - 无审核权限：返回 ''（前端"查看详情"按钮不渲染，显隐走同一套判断）
+     *
+     * @param string $sub_type thread|post|profile|''；profile（资料审核）无前台页面，仅管理员给后台链接
+     * @return string
+     */
+    public static function entry_url_for_viewer(string $sub_type = ''): string {
+        global $gid, $uid, $forumlist;
+        $gid = intval($gid);
+        if ($sub_type === 'profile') {
+            return $gid === 1 ? admin_url('audit') : '';
+        }
+        if (in_array($gid, array(1, 2))) return mod_auditlist_url();
+        if (in_array($gid, array(3, 4, 5))) {
+            if (!isset($forumlist)) $forumlist = forum_list_cache();
+            foreach ((array)$forumlist as $forum) {
+                if (!empty($forum['moduids']) && in_string($uid, $forum['moduids'])) {
+                    return mod_auditlist_url();
+                }
+            }
+        }
+        return '';
+    }
+
+    /**
+     * 读取版块的版主 uid 列表（forum.moduids 逗号分隔，过滤无效/封禁用户）
+     * @return array uid 数组
+     */
+    public static function forum_mod_uids(int $fid): array {
+        if ($fid <= 0) return array();
+        $forum = forum_read($fid);
+        if (empty($forum) || empty($forum['moduids'])) return array();
+        $uids = array();
+        foreach (explode(',', strval($forum['moduids'])) as $_uid) {
+            $_uid = intval(trim($_uid));
+            if ($_uid <= 0) continue;
+            $uids[$_uid] = $_uid;
+        }
+        if (empty($uids)) return array();
+        // 过滤封禁用户（ban_type=0 为正常）
+        $rows = db_find('user', array('uid' => array_values($uids), 'ban_type' => 0), array(), 1, count($uids), 'uid');
+        return !empty($rows) ? array_map('intval', array_keys($rows)) : array();
+    }
 
     /**
      * 读取审核通知配置（带默认值兜底：未配置=三类型三通道全开）
@@ -207,12 +279,19 @@ class AuditService {
     }
 
     /**
-     * 新内容进入待审队列时按后台通知设置推送管理员（三通道统一走 plugin_notify_fire 门面）
-     * 邮箱解析链复用统一门面：core_audit 的 email_to > 全局默认邮箱 > 管理员账号邮箱
+     * 新内容进入待审队列时按后台通知设置推送有审核权的人（三通道统一走 plugin_notify_fire 门面）
+     *
+     * 接收者：
+     *   - thread/post：管理员(gid 1/2) + 目标版块版主（forum.moduids，封禁者排除）→ 版主可在前台审核队列处理
+     *   - profile：仅管理员(gid 1/2)，资料审核只有后台入口
+     * 跳转链接不落库写死后台地址：icon 存子类型（audit_thread/audit_post/audit_profile），
+     * 渲染时 notify_format 调 entry_url_for_viewer() 按接收者权限实时生成
+     *
      * @param string $type thread|post|profile
      * @param string $summary 内容摘要（主题标题/回帖摘要/变更用户名）
+     * @param int $fid 目标版块 ID（thread/post 用于定位版主；profile 传 0）
      */
-    public static function notify_new_pending(string $type, string $summary = ''): void {
+    public static function notify_new_pending(string $type, string $summary = '', int $fid = 0): void {
         if (!in_array($type, array('thread', 'post', 'profile'), true)) return;
         if (!function_exists('plugin_notify_fire')) return;
 
@@ -227,17 +306,40 @@ class AuditService {
         $count = $type === 'profile' ? self::get_pending_profile_count() : self::get_pending_count($type);
         if ($count <= 0) return;
 
-        plugin_notify_fire('core_audit', 'new_pending_'.$type, array(
+        // 站内通知接收者：管理员(gid 1/2)（+ thread/post 场景的目标版块版主）
+        $uids = array();
+        $admin_gid = $type === 'profile' ? array(1) : array(1, 2);
+        $_admin_rows = db_find('user', array('gid' => $admin_gid, 'ban_type' => 0), array('uid' => 1), 1, 100, 'uid');
+        if (!empty($_admin_rows)) {
+            foreach ($_admin_rows as $_uid => $_row) $uids[intval($_uid)] = intval($_uid);
+        }
+        if ($type !== 'profile') {
+            foreach (self::forum_mod_uids($fid) as $_muid) $uids[$_muid] = $_muid;
+        }
+
+        $payload = array(
             'title' => lang('audit_notify_pending_subject', array('type' => lang('audit_notify_type_'.$type))),
             'content' => lang('audit_notify_pending_body', array(
                 'type' => lang('audit_notify_type_'.$type),
                 'summary' => mb_substr($summary, 0, 60),
                 'count' => $count,
             )),
-            'url' => admin_url('audit'),
+            // icon 存子类型，渲染时按接收者权限实时生成跳转链接（版主/超版无后台权限，不写死 admin 地址）
+            'icon' => 'audit_'.$type,
             'channels' => $channels,
             'throttle' => 300, // 同类型 5 分钟内只推一次，防止刷屏
-        ));
+        );
+        if ($type === 'profile') {
+            // 资料审核无前台入口：链接固定后台审核页（仅 gid 1 可进）
+            $payload['url'] = admin_url('audit');
+        } else {
+            // 站内通知渲染时会按接收者权限覆盖本链接（notify_format）；此处供邮件通道使用（管理员/超版/版主均可进前台队列）
+            $payload['url'] = mod_auditlist_url();
+        }
+        // 显式指定接收者（含版主）；为空时不传，回退 AdminNotifyService 默认查询
+        if (!empty($uids)) $payload['uids'] = array_values($uids);
+
+        plugin_notify_fire('core_audit', 'new_pending_'.$type, $payload);
     }
 
     /**
@@ -248,8 +350,22 @@ class AuditService {
             $thread = thread__read($target_id);
             if (empty($thread)) return false;
 
+            // 状态守卫：仅待审/已忽略可被通过（与 batch_approve 的跳过逻辑一致）。
+            // 缺失此守卫时，重复通过（双击/请求重放/并发）会重复 +1 runtime/forum/user 计数，
+            // 而 COUNT(*) 实时统计不变，造成前台统计虚高。
+            $_audit_status = intval($thread['audit_status']);
+            if ($_audit_status !== self::STATUS_PENDING && $_audit_status !== self::STATUS_IGNORED) return false;
+            // 已软删内容归回收站管理，不再审批计数（队列 get_pending_list 已过滤 is_deleted）
+            if (!empty($thread['is_deleted'])) return false;
+
             $r = db_update('thread', ['tid' => $target_id], ['audit_status' => self::STATUS_APPROVED]);
             if ($r === false) return false;
+
+            // 首帖 audit_status 必须与主题同步：帖子详情页按 post.audit_status 过滤，不同步会导致
+            // 主题通过后楼主正文仍对普通用户隐藏（route/post.php 重新提交时已做同样同步）
+            if (!empty($thread['firstpid'])) {
+                db_update('post', ['pid' => intval($thread['firstpid'])], ['audit_status' => self::STATUS_APPROVED]);
+            }
 
             // 审核通过时补加帖子统计计数（创建时因待审未计入）
             $thread_uid = intval($thread['uid']);
@@ -358,6 +474,16 @@ class AuditService {
         } else {
             $post = post__read($target_id);
             if (empty($post)) return false;
+
+            // 状态守卫：同 thread 分支，防重复通过导致计数重复 +1
+            $_audit_status = intval($post['audit_status']);
+            if ($_audit_status !== self::STATUS_PENDING && $_audit_status !== self::STATUS_IGNORED) return false;
+            if (!empty($post['is_deleted'])) return false;
+            // 首帖不是回帖：按回帖通过会给 thread.posts/user.posts/runtime.posts 各 +1，形成永久虚高
+            if (!empty($post['isfirst'])) return false;
+            // 主题已软删/不存在时不补计（回收站内容不参与统计，硬删时也不会递减）
+            $thread = thread__read(intval($post['tid']));
+            if (empty($thread) || !empty($thread['is_deleted'])) return false;
 
             $r = db_update('post', ['pid' => $target_id], ['audit_status' => self::STATUS_APPROVED]);
             if ($r === false) return false;
@@ -495,7 +621,12 @@ class AuditService {
         if ($target_type === 'thread') {
             $thread = thread__read($target_id);
             if (empty($thread)) return false;
-            
+
+            // 状态守卫：仅待审/已忽略可被驳回。已通过的内容若要下架应走软删（回收站），
+            // 否则计数在通过时已 +1，驳回后内容不可见但计数残留，前台统计虚高
+            $_audit_status = intval($thread['audit_status']);
+            if ($_audit_status !== self::STATUS_PENDING && $_audit_status !== self::STATUS_IGNORED) return false;
+
             $r = db_update('thread', ['tid' => $target_id], [
                 'audit_status' => self::STATUS_REJECTED,
                 'reject_reason' => $reason,
@@ -510,7 +641,11 @@ class AuditService {
         } else {
             $post = post__read($target_id);
             if (empty($post)) return false;
-            
+
+            // 状态守卫：同 thread 分支
+            $_audit_status = intval($post['audit_status']);
+            if ($_audit_status !== self::STATUS_PENDING && $_audit_status !== self::STATUS_IGNORED) return false;
+
             $r = db_update('post', ['pid' => $target_id], [
                 'audit_status' => self::STATUS_REJECTED,
                 'reject_reason' => $reason,
@@ -656,14 +791,9 @@ class AuditService {
 
         // 头像忽略时删除临时待审头像文件（与 reject_profile 行为一致）
         if ($audit['field_name'] === 'avatar') {
-            global $conf;
-            $avatar_dir = substr(sprintf("%09d", $audit['uid']), 0, 3).'/';
-            $avatar_path = $conf['upload_path'].'avatar/'.$avatar_dir;
-            foreach (array('jpg', 'png') as $_ext) {
-                $pending_file = $avatar_path.$audit['uid'].'_pending_'.$audit['new_value'].'.'.$_ext;
-                if (is_file($pending_file)) {
-                    @unlink($pending_file);
-                }
+            // ponytail: 文件名含随机段，统一走 profile_audit_pending_files glob（兼容旧格式）
+            foreach (profile_audit_pending_files($audit['uid'], $audit['new_value']) as $pending_file) {
+                @unlink($pending_file);
             }
         }
 
@@ -761,8 +891,8 @@ class AuditService {
             $_summary = trim(strip_tags(strval($post['message'] ?? '')));
         }
 
-        // 重新进入待审队列，按后台通知设置推送管理员
-        self::notify_new_pending($target_type, isset($_summary) ? $_summary : '');
+        // 重新进入待审队列，按后台通知设置推送（含目标版块版主）
+        self::notify_new_pending($target_type, isset($_summary) ? $_summary : '', isset($_fid) ? intval($_fid) : 0);
 
         return ['ok'=>true, 'message'=>lang('resubmit_success')];
     }
@@ -814,9 +944,14 @@ class AuditService {
 
             $valid_tids = array();
             $notify_records = array();
+            $first_pids = array();
             foreach($threads as $tid=>$thread) {
                 if(intval($thread['audit_status']) === self::STATUS_APPROVED) continue;
+                // 已软删主题归回收站管理：通过会给 user/forum/runtime.threads 各 +1，
+                // 而硬删时按"已软删跳过递减"，该 +1 将永久残留（队列 get_pending_list 已过滤 is_deleted）
+                if(!empty($thread['is_deleted'])) continue;
                 $valid_tids[] = intval($tid);
+                if(!empty($thread['firstpid'])) $first_pids[] = intval($thread['firstpid']);
 
                 // 作者审核通过通知
                 $subject_short = mb_substr($thread['subject'], 0, 30);
@@ -837,6 +972,11 @@ class AuditService {
             // 2. 批量更新 thread.audit_status（一次 UPDATE）
             $r = db_update('thread', array('tid'=>$valid_tids), array('audit_status'=>self::STATUS_APPROVED));
             if($r === false) return 0;
+
+            // 首帖审核状态与主题同步（对齐单条 approve，否则楼主正文仍对普通用户隐藏）
+            if(!empty($first_pids)) {
+                db_update('post', array('pid'=>$first_pids), array('audit_status'=>self::STATUS_APPROVED));
+            }
 
             // 3. 批量发送作者通知（一次 SQL，复用 notify_create_batch）
             if(!empty($notify_records)) {
@@ -893,23 +1033,32 @@ class AuditService {
             $valid_pids = array();
             $notify_records = array();
             $post_threads = array();  // pid => thread
+            $_tmp_tids = array();
             foreach($posts as $pid=>$post) {
                 if(intval($post['audit_status']) === self::STATUS_APPROVED) continue;
+                // 首帖不是回帖；已软删回帖归回收站管理（队列已过滤，此处防御页面渲染后被并发软删）
+                if(!empty($post['isfirst'])) continue;
+                if(!empty($post['is_deleted'])) continue;
                 $valid_pids[] = intval($pid);
 
                 // 关联主题（批量查询避免 N+1）
-                $tid = intval($post['tid']);
-                if(!isset($post_threads[$pid])) $post_threads[$pid] = null;
-                $_tmp_tids[$tid] = true;
+                $_tmp_tids[intval($post['tid'])] = true;
             }
 
+            if(empty($valid_pids)) return 0;
+
             // 批量查询关联主题
-            $tmp_tids = empty($_tmp_tids) ? array() : array_keys($_tmp_tids);
+            $tmp_tids = array_keys($_tmp_tids);
             $tmp_threads = empty($tmp_tids) ? array() : db_find('thread', array('tid'=>$tmp_tids), array(), 1, count($tmp_tids), 'tid');
-            foreach($posts as $pid=>$post) {
-                $tid = intval($post['tid']);
-                $post_threads[$pid] = isset($tmp_threads[$tid]) ? $tmp_threads[$tid] : null;
-                $thread = $post_threads[$pid];
+            // 主题已软删/不存在时不再通过：补计后硬删不会递减，会形成永久虚高
+            foreach($valid_pids as $_i => $pid) {
+                $post = $posts[$pid];
+                $thread = isset($tmp_threads[intval($post['tid'])]) ? $tmp_threads[intval($post['tid'])] : null;
+                if(empty($thread) || !empty($thread['is_deleted'])) {
+                    unset($valid_pids[$_i]);
+                    continue;
+                }
+                $post_threads[$pid] = $thread;
                 $subject_short = $thread ? mb_substr($thread['subject'], 0, 30) : '';
                 $notify_records[] = array(
                     'uid' => intval($post['uid']),
@@ -922,6 +1071,7 @@ class AuditService {
                     'is_read' => 0,
                 );
             }
+            $valid_pids = array_values($valid_pids);
 
             if(empty($valid_pids)) return 0;
 
@@ -1019,7 +1169,9 @@ class AuditService {
             $notify_records = array();
             $affected_fids = array();
             foreach($threads as $tid=>$thread) {
-                if(intval($thread['audit_status']) === self::STATUS_REJECTED) continue;
+                // 仅待审/已忽略可被驳回（与单条 reject 守卫一致）：已通过内容下架走软删，防止计数残留
+                $_audit_status = intval($thread['audit_status']);
+                if ($_audit_status !== self::STATUS_PENDING && $_audit_status !== self::STATUS_IGNORED) continue;
                 $valid_tids[] = intval($tid);
 
                 $subject_short = mb_substr($thread['subject'], 0, 30);
@@ -1081,7 +1233,9 @@ class AuditService {
             $notify_records = array();
             $_tmp_tids = array();
             foreach($posts as $pid=>$post) {
-                if(intval($post['audit_status']) === self::STATUS_REJECTED) continue;
+                // 仅待审/已忽略可被驳回（与单条 reject 守卫一致）
+                $_audit_status = intval($post['audit_status']);
+                if ($_audit_status !== self::STATUS_PENDING && $_audit_status !== self::STATUS_IGNORED) continue;
                 $valid_pids[] = intval($pid);
                 $_tmp_tids[intval($post['tid'])] = true;
             }
@@ -1307,15 +1461,9 @@ class AuditService {
             global $conf;
             $avatar_dir = substr(sprintf("%09d", $uid), 0, 3).'/';
             $avatar_path = $conf['upload_path'].'avatar/'.$avatar_dir;
-            // 查找待审头像文件（兼容 jpg/png 两种格式）
-            $pending_file = '';
-            foreach(array('jpg', 'png') as $_ext) {
-                $_pf = $avatar_path.$uid.'_pending_'.$new_value.'.'.$_ext;
-                if(is_file($_pf)) {
-                    $pending_file = $_pf;
-                    break;
-                }
-            }
+            // 查找待审头像文件（文件名含随机段，走 glob；兼容 jpg/png 与旧格式）
+            $pending_files = profile_audit_pending_files($uid, $new_value);
+            $pending_file = !empty($pending_files) ? $pending_files[0] : '';
             $final_file = $avatar_path.$uid.'.jpg';
             if($pending_file) {
                 // 清理旧格式的正式头像文件
@@ -1371,15 +1519,9 @@ class AuditService {
 
         // 头像审核驳回时删除临时头像文件
         if ($audit['field_name'] === 'avatar') {
-            global $conf;
-            $avatar_dir = substr(sprintf("%09d", $audit['uid']), 0, 3).'/';
-            $avatar_path = $conf['upload_path'].'avatar/'.$avatar_dir;
-            // 兼容 jpg/png 两种格式的待审文件
-            foreach(array('jpg', 'png') as $_ext) {
-                $pending_file = $avatar_path.$audit['uid'].'_pending_'.$audit['new_value'].'.'.$_ext;
-                if(is_file($pending_file)) {
-                    @unlink($pending_file);
-                }
+            // ponytail: 文件名含随机段，统一走 profile_audit_pending_files glob（兼容旧格式）
+            foreach (profile_audit_pending_files($audit['uid'], $audit['new_value']) as $pending_file) {
+                @unlink($pending_file);
             }
         }
 

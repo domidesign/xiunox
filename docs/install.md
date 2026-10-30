@@ -153,14 +153,16 @@ chmod -R 0777 upload/ plugin/ tmp/ log/ conf/
 | `file_get_contents` / `file_put_contents` | 文件读写基础函数 | 站点完全不可用 |
 | `copy` / `rename` | 文件复制与移动 | 在线升级覆盖文件失败、插件上传失败 |
 | `set_time_limit` | 延长脚本执行时间（AI 流式响应、在线升级下载） | AI 对话超时崩溃、在线升级下载步骤 502 |
-| `putenv` | 部分扩展（如 Sendmail 邮件）需要读取环境变量 | 邮件发送失败 |
 | `ob_start` / `ob_end_flush` / `flush` | 输出缓冲控制（AI SSE 流式响应必需） | AI 流式响应不工作 |
 | `setlocale` | 本地化字符处理、排序 | 多语言字符显示异常 |
 
 #### 可选函数（禁用后部分功能不可用，但已加守卫不会崩溃）
 
+> **`putenv` 特别说明**：经实测 XiunoX 核心（含后台 SMTP 邮件发送）在不启用 `putenv` 时也能正常工作，因此它**不是必需项**。但部分组件会靠它注入环境变量（如代理、时区、Sendmail/邮件相关配置），故标注为**「可选 / 建议开启」**：默认保持禁用不影响核心功能，若后续第三方扩展出现邮件、代理或时区异常，再回来移除禁用便于排查。
+
 | 函数 | 用途 | 禁用后果 |
 |------|------|----------|
+| `putenv`（可选 / 建议开启） | 部分组件注入环境变量（代理、时区、Sendmail 邮件相关配置） | 核心功能不受影响；仅个别依赖环境变量的扩展可能异常 |
 | `shell_exec` / `exec` / `system` | `AttachmentService` 调用 `ffprobe` 探测视频元数据（宽高、时长） | 视频缩略图不显示，发帖不受影响 |
 | `passthru` / `popen` / `proc_open` | 命令执行类（项目仅用于视频元数据探测，已加 `function_exists` 守卫） | 同上 |
 | `opcache_reset` | 清理 OPcache 字节码（升级、插件启用后必需） | 升级后新代码不生效，需手动重启 PHP-FPM |
@@ -168,7 +170,9 @@ chmod -R 0777 upload/ plugin/ tmp/ log/ conf/
 
 #### 建议的 `disable_functions` 配置
 
-宝塔等面板的「禁用函数」页面通常会列出默认禁用项，**请逐一移除以下函数**：`chmod`、`mkdir`、`rmdir`、`touch`、`unlink`、`set_time_limit`、`putenv`、`copy`、`rename`。
+宝塔等面板的「禁用函数」页面通常会列出默认禁用项，**请逐一移除以下必需函数**（不移除会导致核心功能 502）：`chmod`、`mkdir`、`rmdir`、`touch`、`unlink`、`set_time_limit`、`copy`、`rename`。
+
+以下函数为**可选 / 建议开启**，不移除也不影响核心功能，仅当依赖它的扩展出问题时再移除：`putenv`（代理、时区、Sendmail 邮件相关，多数环境可保持禁用）。
 
 保留以下安全相关禁用项即可（XiunoX 不使用）：
 
@@ -190,13 +194,44 @@ sudo systemctl restart php8.5-fpm
 # 软件商店 → PHP 8.5 → 重启
 ```
 
-验证必需函数是否可用：
+验证**必需函数**是否可用（`putenv` 为可选项，已从必需清单移出）：
 
 ```bash
-php -r "foreach(['chmod','mkdir','touch','unlink','set_time_limit','putenv'] as \$f){echo \$f.': '.(function_exists(\$f)?'OK':'DISABLED').PHP_EOL;}"
+php -r "foreach(['chmod','mkdir','rmdir','touch','unlink','set_time_limit','copy','rename'] as \$f){echo \$f.': '.(function_exists(\$f)?'OK':'DISABLED').PHP_EOL;}"
 ```
 
 预期输出全部为 `OK`，若有 `DISABLED` 则需继续在面板中移除该函数。
+
+> **⚠️ 重要：命令行 ≠ Web 环境（宝塔等面板尤其注意）**
+> `php -r` 走的是 **CLI** 这一 SAPI，读取的往往是 `php.ini`（CLI）配置；而论坛页面跑在 **PHP-FPM**（或 Apache mod_php）这一 SAPI 下，二者的 `php.ini` 路径、`disable_functions`、`open_basedir` 可能**完全不同**。因此上面的命令只能验证 CLI 端，**不能代表 Web 端**。宝塔面板中「PHP 配置」与「PHP-FPM 配置」也是两处独立设置，务必确认修改的是 Web/FPM 那一处。
+
+更稳妥的做法是放一个 **Web 探针页**，直接在浏览器里查看 FPM SAPI 的真实状态，再与 CLI 输出对照，一眼就能看出差异：
+
+```php
+<?php
+// check_env.php — 临时放到站点根目录，浏览器访问 http://域名/check_env.php 查看，验证后请删除
+header('Content-Type: text/plain; charset=utf-8');
+echo 'SAPI: ' . php_sapi_name() . PHP_EOL;
+echo 'php.ini (扫描): ' . (php_ini_scanned_files() ?: 'N/A') . PHP_EOL;
+echo 'Loaded ini: ' . (php_ini_loaded_file() ?: 'N/A') . PHP_EOL;
+echo 'open_basedir: ' . (ini_get('open_basedir') ?: '(未设置)') . PHP_EOL;
+echo 'disable_functions: ' . ini_get('disable_functions') . PHP_EOL . PHP_EOL;
+
+$required = ['chmod','mkdir','rmdir','touch','unlink','set_time_limit','copy','rename'];
+$optional = ['putenv','opcache_reset','shell_exec'];
+echo "== 必需函数（必须全部 OK）==" . PHP_EOL;
+foreach ($required as $f) {
+    echo str_pad($f, 18) . (function_exists($f) ? 'OK' : 'DISABLED') . PHP_EOL;
+}
+echo PHP_EOL . "== 可选函数（DISABLED 不影响核心）==" . PHP_EOL;
+foreach ($optional as $f) {
+    echo str_pad($f, 18) . (function_exists($f) ? 'OK' : 'DISABLED') . PHP_EOL;
+}
+```
+
+对照要点：CLI 输出与浏览器探针输出若不一致（例如 CLI 显示 `OK` 而 Web 显示 `DISABLED`），说明面板只改了 CLI 那一处，需要针对 Web/FPM SAPI 单独移除禁用函数。
+
+> **安全提示**：探针页会暴露 PHP 配置信息，验证完成后请立即删除 `check_env.php`，切勿长期留在生产站点。
 
 #### 常见踩坑
 

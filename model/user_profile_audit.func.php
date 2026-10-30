@@ -61,6 +61,30 @@ function user_profile_audit_count($cond = array()) {
     return $n;
 }
 
+// 安全: 待审头像文件名含随机段（{uid}_pending_{time}_{rand8}.{ext}），防止时间戳可枚举直链；
+// 读写统一走本函数（glob 兼容无随机段的旧格式文件）
+function profile_audit_pending_files($uid, $new_value) {
+    global $conf;
+    $uid = intval($uid);
+    $new_value = intval($new_value);
+    $avatar_dir = substr(sprintf("%09d", $uid), 0, 3).'/';
+    $path = $conf['upload_path'].'avatar/'.$avatar_dir;
+    $found = array();
+    foreach (array('jpg', 'png') as $_ext) {
+        foreach (glob($path.$uid.'_pending_'.$new_value.'_*.'.$_ext) ?: array() as $_f) $found[] = $_f;
+        // 兼容旧格式（无随机段）
+        $legacy = $path.$uid.'_pending_'.$new_value.'.'.$_ext;
+        if (is_file($legacy)) $found[] = $legacy;
+    }
+    return $found;
+}
+
+function profile_audit_pending_url($uid, $file) {
+    global $conf;
+    $avatar_dir = substr(sprintf("%09d", intval($uid)), 0, 3).'/';
+    return $conf['upload_url'].'avatar/'.$avatar_dir.basename($file);
+}
+
 // 获取用户待审资料
 function user_profile_audit_find_by_uid($uid, $audit_status = 0) {
     $cond = array('uid'=>$uid, 'audit_status'=>$audit_status);
@@ -79,18 +103,10 @@ function user_profile_audit_find_pending($page = 1, $pagesize = 20) {
             $user = user_read_cache($item['uid']);
             $item['username'] = isset($user['display_name']) ? $user['display_name'] : ($user['username'] ?? '');
             $item['avatar_url'] = $user['avatar_url'] ?? '';
-            // 头像审核：生成新头像URL（临时文件，兼容 jpg/png）
+            // 头像审核：生成新头像URL（临时文件，兼容 jpg/png 与新旧两种文件名格式）
             if($item['field_name'] === 'avatar' && !empty($item['new_value'])) {
-                $avatar_dir = substr(sprintf("%09d", $item['uid']), 0, 3).'/';
-                $pending_base = $conf['upload_path'].'avatar/'.$avatar_dir.$item['uid'].'_pending_'.$item['new_value'];
-                $pending_url_base = $conf['upload_url'].'avatar/'.$avatar_dir.$item['uid'].'_pending_'.$item['new_value'];
-                if(is_file($pending_base.'.jpg')) {
-                    $item['new_avatar_url'] = $pending_url_base.'.jpg';
-                } elseif(is_file($pending_base.'.png')) {
-                    $item['new_avatar_url'] = $pending_url_base.'.png';
-                } else {
-                    $item['new_avatar_url'] = '';
-                }
+                $pending_files = profile_audit_pending_files($item['uid'], $item['new_value']);
+                $item['new_avatar_url'] = !empty($pending_files) ? profile_audit_pending_url($item['uid'], $pending_files[0]) : '';
             }
         }
         unset($item);

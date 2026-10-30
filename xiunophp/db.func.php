@@ -364,6 +364,16 @@ array('username'=>array('LIKE' => 'jack'))
 */
 
 /**
+ * LIKE 通配符转义（\ _ %），拼接 LIKE 模式的动态值必须先经过本函数
+ * \ 放首位，防止为 _ % 新增的 \ 被二次转义。引号安全由参数绑定 / quote() 负责，
+ * 本函数只处理 LIKE 语义层：不转义则 _ 被当单字符通配符、% 被当任意串，
+ * 既扩大匹配范围，前缀匹配场景还会让优化器只能用第一个通配符前的常量段做范围扫描。
+ */
+function xn_like_escape($s) {
+	return str_replace(array('\\', '%', '_'), array('\\\\', '\\%', '\\_'), (string)$s);
+}
+
+/**
  * 将条件数组转换为 SQL WHERE 子句（占位符 ? + 参数数组）
  * @param array $cond 条件数组
  * @return array 返回 array($sql, $params)，$sql 含 ? 占位符，$params 为绑定参数
@@ -426,9 +436,12 @@ function db_orderby_to_sqladd($orderby) {
 		$s .= ' ORDER BY ';
 		$comma = '';
 		foreach($orderby as $k=>$v) {
+			// 安全: orderby 键名不可参数化，仅放行标识符/表.字段 形式，非法键跳过（防后续调用方误传用户输入）
+			if(!is_string($k) || !preg_match('#^[a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)?$#', $k)) continue;
 			$s .= $comma."`$k` ".($v == 1 ? ' ASC ' : ' DESC ');
 			$comma = ',';
 		}
+		if($comma === '') $s = '';
 	}
 	return $s;
 }

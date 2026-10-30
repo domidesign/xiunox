@@ -1,0 +1,175 @@
+<?php include _include(APP_PATH.'view/htm/header.inc.htm');?>
+
+<?php ob_start();?>
+
+<div class="x-card card">
+	<div class="card-body">
+		<div class="d-flex justify-content-between align-items-center mb-3">
+			<h5 class="fw-bold mb-0"><i class="ti ti-shield-check text-info me-1"></i><?php echo lang('mod_auditlist_title');?></h5>
+			<?php if($gid == 1) { ?>
+			<a href="<?php echo admin_url('audit');?>" class="btn btn-sm btn-outline-secondary" hx-boost="false"><i class="ti ti-external-link me-1"></i><?php echo lang('audit_queue_backend');?></a>
+			<?php } ?>
+		</div>
+
+		<ul class="nav nav-tabs flex-nowrap mb-3" style="gap:0.25rem">
+			<li class="nav-item">
+				<a class="nav-link rounded-pill px-3 <?php echo $_audit_tab == 'thread' ? 'active' : '';?>" href="<?php echo mod_auditlist_url();?>">
+					<?php echo lang('audit_queue_thread_tab');?>(<?php echo intval($thread_total);?>)
+				</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link rounded-pill px-3 <?php echo $_audit_tab == 'post' ? 'active' : '';?>" href="<?php echo mod_auditlist_url(array('tab' => 'post'));?>">
+					<?php echo lang('audit_queue_post_tab');?>(<?php echo intval($post_total);?>)
+				</a>
+			</li>
+		</ul>
+
+<?php if($_audit_tab == 'thread') { ?>
+		<div id="audit-list">
+		<?php if(!empty($audit_threadlist)) { foreach($audit_threadlist as $_t) {
+			$_t_uid = intval($_t['uid']);
+			$_t_user = isset($_audit_users[$_t_uid]) ? $_audit_users[$_t_uid] : array();
+			$_t_name = !empty($_t_user['display_name']) ? $_t_user['display_name'] : (isset($_t_user['username']) ? $_t_user['username'] : lang('user_not_exists'));
+			$_t_forum = isset($forumlist[$_t['fid']]) ? $forumlist[$_t['fid']]['name'] : '';
+		?>
+		<div class="d-flex align-items-start gap-2 py-2" data-tid="<?php echo intval($_t['tid']);?>">
+			<div class="flex-fill" style="min-width:0">
+				<a href="<?php echo frontend_thread_url($_t['tid']);?>" class="fw-medium text-decoration-none d-block text-truncate"><?php echo esc_html($_t['subject']);?></a>
+				<div class="small text-body-secondary">
+					<?php echo esc_html($_t_name);?>
+					<?php if($_t_forum) { ?><span class="mx-1">·</span><?php echo esc_html($_t_forum); } ?>
+					<span class="mx-1">·</span><?php echo humandate($_t['create_date']);?>
+				</div>
+			</div>
+			<div class="d-flex gap-1 flex-shrink-0">
+				<button type="button" class="btn btn-sm btn-outline-success audit-act-btn" data-status="1" title="<?php echo lang('audit_approve');?>"><i class="ti ti-check"></i></button>
+				<button type="button" class="btn btn-sm btn-outline-danger audit-act-btn" data-status="2" title="<?php echo lang('audit_reject');?>"><i class="ti ti-x"></i></button>
+				<button type="button" class="btn btn-sm btn-outline-secondary audit-act-btn" data-status="3" title="<?php echo lang('audit_ignore');?>"><i class="ti ti-eye-off"></i></button>
+			</div>
+		</div>
+		<?php } } else { ?>
+		<div class="text-center text-body-secondary py-5">
+			<i class="ti ti-inbox fs-1 d-block mb-2 opacity-50"></i>
+			<?php echo lang('audit_queue_empty');?>
+		</div>
+		<?php } ?>
+		</div>
+		<?php if(!empty($thread_pagination)) { ?>
+		<nav><ul class="pagination pagination-boxed justify-content-end flex-wrap mt-3"><?php echo $thread_pagination;?></ul></nav>
+		<?php } ?>
+<?php } else { ?>
+		<div id="audit-list">
+		<?php if(!empty($audit_postlist)) { foreach($audit_postlist as $_p) {
+			$_p_uid = intval($_p['uid']);
+			$_p_user = isset($_audit_users[$_p_uid]) ? $_audit_users[$_p_uid] : array();
+			$_p_name = !empty($_p_user['display_name']) ? $_p_user['display_name'] : (isset($_p_user['username']) ? $_p_user['username'] : lang('user_not_exists'));
+			$_p_thread = isset($_audit_threads[$_p['tid']]) ? $_audit_threads[$_p['tid']] : array();
+			// 安全: 待审正文含 xnx_hidden 块，摘要前必须过滤（版主非 gid1/2 时无 admin_bypass）
+			if(!class_exists('ApiContentService')) include_once APP_PATH.'lib/ApiContentService.php';
+			$_p_summary = mb_substr(strip_tags(ApiContentService::hidden((string)$_p['message'], intval($_p['pid']), intval($uid), intval($gid))), 0, 100);
+			// 被回帖内容（楼中楼 quotepid>0 时为原评论/首帖，一级回帖为空）
+			$_p_quotepid = intval($_p['quotepid']);
+			$_p_quoted = ($_p_quotepid > 0 && isset($_audit_quoted[$_p_quotepid])) ? $_audit_quoted[$_p_quotepid] : null;
+		?>
+		<div class="d-flex align-items-start gap-2 py-2" data-pid="<?php echo intval($_p['pid']);?>">
+			<div class="flex-fill" style="min-width:0">
+				<div class="small text-body-secondary">
+					<i class="ti ti-message-circle me-1"></i><?php echo esc_html($_p_name);?>
+					<span class="mx-1">·</span><?php echo humandate($_p['create_date']);?>
+				</div>
+				<!-- 待审回帖正文（视觉主体：正常字号，与灰色元信息区分层级） -->
+				<div class="mt-1" style="word-break:break-word;"><?php echo esc_html($_p_summary);?></div>
+				<!-- 被回帖内容（引用块，仅楼中楼显示） -->
+				<?php if($_p_quoted) { ?>
+				<div class="small bg-primary bg-opacity-10 rounded px-2 py-1 mt-1 text-body-secondary" style="font-size:0.8rem;word-break:break-word;">
+					<?php if($_p_quoted['name'] !== '') { ?><span class="fw-medium text-body"><?php echo esc_html($_p_quoted['name']);?>：</span><?php } ?>
+					<i class="ti ti-corner-down-right me-1"></i><?php echo esc_html($_p_quoted['summary']);?>
+				</div>
+				<?php } ?>
+				<?php if(!empty($_p_thread['subject'])) { ?>
+				<a href="<?php echo frontend_thread_url($_p['tid']);?>" class="small text-body-secondary text-decoration-none d-block text-truncate mt-1">
+					<i class="ti ti-file me-1"></i>「<?php echo esc_html(mb_strlen($_p_thread['subject']) > 30 ? mb_substr($_p_thread['subject'], 0, 30).'...' : $_p_thread['subject']);?>」
+				</a>
+				<?php } ?>
+			</div>
+			<div class="d-flex gap-1 flex-shrink-0">
+				<button type="button" class="btn btn-sm btn-outline-success audit-act-btn" data-status="1" title="<?php echo lang('audit_approve');?>"><i class="ti ti-check"></i></button>
+				<button type="button" class="btn btn-sm btn-outline-danger audit-act-btn" data-status="2" title="<?php echo lang('audit_reject');?>"><i class="ti ti-x"></i></button>
+				<button type="button" class="btn btn-sm btn-outline-secondary audit-act-btn" data-status="3" title="<?php echo lang('audit_ignore');?>"><i class="ti ti-eye-off"></i></button>
+			</div>
+		</div>
+		<?php } } else { ?>
+		<div class="text-center text-body-secondary py-5">
+			<i class="ti ti-inbox fs-1 d-block mb-2 opacity-50"></i>
+			<?php echo lang('audit_queue_empty');?>
+		</div>
+		<?php } ?>
+		</div>
+<?php } ?>
+
+	</div>
+</div>
+
+<?php $main_content = ob_get_clean(); include _include(APP_PATH.'view/htm/layout_three_column.inc.htm');?>
+
+<?php include _include(APP_PATH.'view/htm/footer.inc.htm');?>
+
+<script>
+(function() {
+	var csrfToken = '';
+	var meta = document.querySelector('meta[name="csrf-token"]');
+	if(meta) csrfToken = meta.getAttribute('content');
+	var auditUrl = <?php echo json_encode(mod_audit_url());?>;
+	var auditPostUrl = <?php echo json_encode(mod_audit_post_url());?>;
+
+	function postForm(url, data) {
+		return fetch(url, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+			body: data
+		}).then(function(r) {
+			return r.text().then(function(txt) {
+				var json;
+				try { json = JSON.parse(txt); } catch(e) { throw new Error('Non-JSON: ' + txt.substring(0, 120)); }
+				if(parseInt(json.code) !== 0) throw new Error(json.message || 'error');
+				return json;
+			});
+		});
+	}
+
+	function auditDone() {
+		window.location.reload();
+	}
+
+	function auditFail(e) {
+		if(typeof showToast === 'function') showToast(e.message || '<?php echo lang('operation_failed');?>', 'danger');
+	}
+
+	function setBtnsDisabled(list, disabled) {
+		list.querySelectorAll('.audit-act-btn').forEach(function(b) { b.disabled = disabled; });
+	}
+
+	// 单条操作：主题走 mod-audit（tidarr），回帖走 mod-audit_post（pid）
+	document.addEventListener('click', function(e) {
+		var btn = e.target.closest('.audit-act-btn');
+		if(!btn) return;
+		var row = btn.closest('[data-tid], [data-pid]');
+		if(!row) return;
+		var status = btn.getAttribute('data-status');
+		var data;
+		var url;
+		if(row.getAttribute('data-tid')) {
+			url = auditUrl;
+			data = 'tidarr[]=' + row.getAttribute('data-tid') + '&audit_status=' + status;
+		} else {
+			url = auditPostUrl;
+			data = 'pid=' + row.getAttribute('data-pid') + '&audit_status=' + status;
+		}
+		setBtnsDisabled(row, true);
+		postForm(url, data + '&csrf_token=' + encodeURIComponent(csrfToken)).then(auditDone).catch(function(e) {
+			setBtnsDisabled(row, false);
+			auditFail(e);
+		});
+	});
+})();
+</script>

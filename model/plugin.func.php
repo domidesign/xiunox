@@ -752,38 +752,38 @@ function plugin_compile_srcfile_callback($m) {
 			// 逐一枚举豁免太脆弱，改为不做语法预检，语法错误的 hook 由 B 部分（autoDisableCrashedPlugin 崩溃计数）兜底
 			// 保留 plugin-compile 注释注入，用于 fatal error 归因
 			// 拼接前加 plugin-compile 注释，用于 fatal error 时从 tmp 文件行号反推插件目录（见 ErrorHandler::handleShutdown）
-			// 仅 PHP hook 加注释；.htm hook 不加避免污染 HTML 输出
+			// PHP hook 加裸注释；.htm hook 用 PHP 开闭标签包装的行注释——零 HTML 输出，且让
+			// autoDisableCrashedPlugin 的 #//\s*plugin-compile:# 回扫正则在纯 .htm hook 的
+			// view 模板（如 view_htm_post_list.inc.htm）里也能归因到插件。
+			// 实案 2026-10-26：view 模板重复拼接致 static 重复声明 fatal，因 .htm hook 无
+			// 归因注释，归因返回 null，3 次阈值自动禁用链路对这类崩溃完全失效。
+			$plugin_dir = basename(dirname(dirname($path)));
 			if($fileext == 'php') {
-				// 从 path 反推插件 dir：plugin/{dir}/hook/{hookname}
-				$plugin_dir = basename(dirname(dirname($path)));
 				$s .= "\n// plugin-compile: $plugin_dir  $path\n";
+			} else {
+				// 行注释内的闭标签会正常终止 PHP 块并吞掉注释本身，输出为空字符串
+				$s .= "<?php // plugin-compile: $plugin_dir  $path ?>\n";
 			}
-			// 加固：剥离 hook 内容中可能被误匹配为占位符的 // hook xxx 注释
+			// 加固：剥离 hook 内容中可能被误匹配为占位符的注释标记
 			// ponytail: _include() 第二趟 plugin_compile_hooks 会重新扫描整个字符串，
 			// 若 hook 内容含 "// hook xxx"（hook 后空白+标识符）模式（如第三方插件
-			// 注释里的占位符警告文字，例如 xnx_login_alert 三个 hook 文件中的
-			// "禁止写 // hook xxx 格式" 警告，或 xnx_gift 1.1.3 之前的 hook 文件
-			// 含 "// hook post_list_inc_userinfo_actions_after.htm" 注释，hook 名与
-			// 宿主占位符相同），会被当作占位符再次拼接 hook 内容，每趟循环让 hook
+			// 注释里的占位符警告文字），会被当作占位符再次拼接 hook 内容，每趟循环让 hook
 			// 内容数量线性增长（10 趟后 10 份，第二趟再 10 份共 20 份），导致同一
 			// 作用域 static 变量重复声明，触发 PHP 8
 			// "Duplicate declaration of static variable" fatal error
-			// （如 post_list.inc.htm 编译后 $xnx_reward_badge_data 与
-			// $_xnx_gift_reward_config 重复声明）。
+			// （实案 2026-10-26：线上 tmp/view_htm_post_list.inc.htm 的
+			// $xnx_reward_post_data 重复声明，帖子页全 500）。
 			// 规范要求 hook 注释用 "// hook: xxx"（冒号分隔）格式 + 禁止写
 			// "<!--{hook xxx}-->" 字符串，此处对两类违规注释强制改写为安全形式
 			// 实现兜底防御，无论第三方插件是否遵守规范都能根治重复拼接。
-			// 仅在含相关子串时触发正则，避免无谓开销。
-			if(strpos($t, '<!--{hook') !== false) {
-				// 把 hook 内容中的 <!--{hook xxx}--> 字符串改写为 [hook: xxx] 文字
-				// 描述，破坏 strpos 检测和后续正则匹配（避免被当作占位符再次处理）
-				$t = preg_replace('#<!--\{hook\s+([^}]*?)\}-->#is', '[hook: \\1]', $t);
-			}
-			if(strpos($t, '// hook') !== false) {
-				// 把 hook 内容中的 // hook xxx（hook 后空白+标识符）改写为
-				// // hook:xxx（hook 后冒号），破坏正则匹配但保留注释可读性
-				$t = preg_replace('#//\s*hook\s+([\w\.\-]+)#is', '// hook:\\1', $t);
-			}
+			// ponytail: 必须无条件执行改写，禁止用 strpos 守卫——旧守卫查 '// hook'（小写、
+			// 单空格）与编译正则 #//\s*hook\s+([\w.\-]+)#is（不区分大小写、// 后任意空白）
+			// 不等价：'//HOOK x'、'//hook x'、'//  hook x'、'//<TAB>hook x' 等变体
+			// 逃逸守卫却仍被编译正则匹配 → 依然线性拼接。PCRE 有首字符快速失败优化，
+			// 无匹配子串时开销可忽略。
+			$t = preg_replace('#<!--\{hook\s+([^}]*?)\}-->#is', '[hook: \\1]', $t);
+			// 改写为 '// hook:NAME'（冒号紧贴），编译正则 \s+ 在冒号处失配，永不再展开
+			$t = preg_replace('#//\s*hook\s+([\w\.\-]+)#is', '// hook:\\1', $t);
 			$s .= $t;
 		}
 	}

@@ -150,6 +150,7 @@ function forum_access_user($fid, $gid, $access) {
 }
 
 // 板块斑竹权限判断: allowtop, allowmove, allowupdate, allowdelete, allowbanuser, allowviewip, allowdeleteuser
+// gid 3/4 = 版主组，gid 5 = 实习版主组（能否操作完全由组权限位决定，gid5 默认无 allowdelete/allowbanuser/allowviewip）
 function forum_access_mod($fid, $gid, $access) {
 	// hook model_forum_access_mod_start.php
 	global $uid, $conf, $grouplist, $forumlist;
@@ -161,7 +162,7 @@ function forum_access_mod($fid, $gid, $access) {
 
 	if($gid == 1 || $gid == 2) return TRUE; // 管理员有所有权限
 	$r = FALSE;
-	if($gid == 3 || $gid == 4) {
+	if($gid == 3 || $gid == 4 || $gid == 5) {
 		// ponytail: 兜底 $grouplist/$forumlist 缺失键，避免 PHP 8.x Undefined array key 警告
 		if(isset($grouplist[$gid]) && isset($forumlist[$fid])) {
 			$group = $grouplist[$gid];
@@ -179,7 +180,7 @@ function forum_is_mod($fid, $gid, $uid) {
 	// hook forum_is_mod_start.php
 	global $conf, $grouplist, $forumlist;
 	if($gid == 1 || $gid == 2) return TRUE; // 管理员有所有权限
-	if($gid == 3 || $gid == 4) {
+	if($gid == 3 || $gid == 4 || $gid == 5) {
 		if($fid == 0) return TRUE; // 此处不严谨！
 		// ponytail: 兜底 $grouplist/$forumlist 缺失键，避免 PHP 8.x Undefined array key 警告
 		if(!isset($forumlist[$fid])) return FALSE;

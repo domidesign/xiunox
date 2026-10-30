@@ -288,6 +288,8 @@ function plugin_notify_fire($plugin, $event, $payload = array()) {
 		if(!empty($uids)) $options['admin_uids'] = array_values($uids);
 	}
 	if(!empty($admin_emails)) $options['admin_emails'] = array_values($admin_emails);
+	// icon 子类型透传（如 core_audit 的 audit_thread/audit_post/audit_profile，存 notify.icon 供渲染层区分子类型）
+	if(!empty($payload['icon'])) $options['icon'] = strval($payload['icon']);
 
 	$subject = $title !== '' ? $title : $content;
 	try {

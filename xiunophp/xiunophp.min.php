@@ -1052,7 +1052,14 @@ class cache_mysql {
                 if(!$this->db) return 0;
                 $fullPrefix = $this->cachepre . $prefix;
                 $table = $this->db->tablepre . $this->table;
-                $sql = "DELETE FROM `{$table}` WHERE k LIKE '" . addslashes($fullPrefix) . "%'";
+                // 转义顺序必须 \ 在前：\ 与 ' 防注入，\_ \% 防 LIKE 通配符（_ 单字符 / % 任意串），
+                // 否则优化器只能用到第一个通配符前的常量段做范围扫描（近似全表扫描），还可能误删同长度键
+                $escaped = str_replace(
+                	array('\\', "'", '_', '%'),
+                	array('\\\\\\\\', '\\\'', '\\_', '\\%'),
+                	$fullPrefix
+                );
+                $sql = "DELETE FROM `{$table}` WHERE k LIKE '{$escaped}%'";
                 $n = db_exec($sql, $this->db);
                 return $n === FALSE ? 0 : intval($n);
         }
@@ -1488,6 +1495,16 @@ function db_errstr_safe($errno, $errstr) {
 	return $errstr;
 }
 
+/**
+ * LIKE 通配符转义（\ _ %），拼接 LIKE 模式的动态值必须先经过本函数
+ * \ 放首位，防止为 _ % 新增的 \ 被二次转义。引号安全由参数绑定 / quote() 负责，
+ * 本函数只处理 LIKE 语义层：不转义则 _ 被当单字符通配符、% 被当任意串，
+ * 既扩大匹配范围，前缀匹配场景还会让优化器只能用第一个通配符前的常量段做范围扫描。
+ */
+function xn_like_escape($s) {
+	return str_replace(array('\\', '%', '_'), array('\\\\', '\\%', '\\_'), (string)$s);
+}
+
 function db_cond_to_sqladd($cond) {
 	$s = '';
 	$params = array();
@@ -1548,9 +1565,12 @@ function db_orderby_to_sqladd($orderby) {
 		$s .= ' ORDER BY ';
 		$comma = '';
 		foreach($orderby as $k=>$v) {
+			// 安全: orderby 键名不可参数化，仅放行标识符/表.字段 形式，非法键跳过（防后续调用方误传用户输入）
+			if(!is_string($k) || !preg_match('#^[a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)?$#', $k)) continue;
 			$s .= $comma."`$k` ".($v == 1 ? ' ASC ' : ' DESC ');
 			$comma = ',';
 		}
+		if($comma === '') $s = '';
 	}
 	return $s;
 }
@@ -1939,7 +1959,7 @@ function array_addslashes(&$var) {
 			array_addslashes($v);
 		}
 	} else {
-		$var = addslashes($var);
+		$var = addslashes((string)$var); // (string) 强转：PHP 8.1+ 传 null 已弃用
 	}
 	return $var;
 }
@@ -1950,7 +1970,7 @@ function array_stripslashes(&$var) {
 			array_stripslashes($v);
 		}
 	} else {
-		$var = stripslashes($var);
+		$var = stripslashes((string)$var); // (string) 强转：PHP 8.1+ 传 null 已弃用
 	}
 	return $var;
 }
@@ -1961,7 +1981,7 @@ function array_htmlspecialchars(&$var) {
 			array_htmlspecialchars($v);
 		}
 	} else {
-		$var = str_replace(array('&', '"', '<', '>'), array('&amp;', '&quot;', '&lt;', '&gt;'), $var);
+		$var = str_replace(array('&', '"', '<', '>'), array('&amp;', '&quot;', '&lt;', '&gt;'), (string)$var); // (string) 强转：PHP 8.1+ 传 null 已弃用
 	}
 	return $var;
 }
@@ -1972,7 +1992,7 @@ function array_trim(&$var) {
 			array_trim($v);
 		}
 	} else {
-		$var = trim($var);
+		$var = trim((string)$var); // (string) 强转：PHP 8.1+ 传 null 已弃用
 	}
 	return $var;
 }

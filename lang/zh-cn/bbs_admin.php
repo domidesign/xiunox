@@ -260,6 +260,11 @@ return array(
 	'forum_delete_thread_before_delete_forum'=>'请先通过批量帖子管理删除版块帖子。',
 	'forum_please_delete_sub_forum'=>'请删除子版块。',
 	'forum_delete_successfully'=>'删除成功。',
+	'forum_recount_successfully'=>'版块计数重建完成，已按实际帖子数校准。',
+	'admin_forum_recount'=>'重建计数',
+	'admin_forum_recount_tip'=>'按审核通过且未删除的帖子实时重算各版块帖子数',
+	'admin_forum_recount_confirm'=>'确定要重建版块帖子计数吗？将以数据库实际统计为准重新校准各版块计数。',
+	'admin_log_forum_recount'=>'重建版块帖子计数',
 	
 	// 主题
 	'thread_queue_not_exists'=>'队列不存在',
@@ -1691,6 +1696,7 @@ return array(
 	'admin_cache_prefix'=>'缓存前缀',
 	'admin_cache_prefix_tip'=>'用于和其他系统共享 Redis/Memcached 时区分键名空间。只允许字母、数字、下划线、短横线。修改后旧缓存会自动清除。',
 	'admin_cache_prefix_invalid'=>'缓存前缀格式无效，只允许 1-32 位字母、数字、下划线、短横线',
+	'admin_cache_type_invalid'=>'缓存驱动类型无效，仅支持 file/redis/memcached/mysql',
 	'admin_cache_ttl_config'=>'核心缓存 TTL 自定义',
 	'admin_cache_ttl_config_tip'=>'为不同类型的核心缓存设置独立的过期时间。留空表示使用系统默认值。支持通配符 * 匹配动态键。',
 	'admin_cache_custom_ttl'=>'自定义 TTL',
@@ -2047,6 +2053,7 @@ return array(
 	'admin_db_upgrade_btn'=>'升级数据库',
 	'admin_db_upgrade_desc'=>'执行数据库结构升级，同步代码与数据库版本',
 	'admin_db_upgrade_notice'=>'<strong>何时使用此功能？</strong><ul class="mb-0 mt-1"><li>从 Xiuno BBS 4.0 升级到 XIUNOX 时</li><li>跨版本升级后，数据库结构未同步更新时</li><li>重新安装当前版本，修复/重建数据库结构时</li><li>后台功能异常，提示字段不存在或表结构缺失时</li><li>系统提示需要执行数据库升级时</li></ul><div class="mt-1 text-warning">⚠️ 执行前请先备份数据库，升级过程中请勿关闭页面。</div>',
+	'admin_online_upgrade_release_notes'=>'版本说明',
 	'admin_online_upgrade_check'=>'检查更新',
 	'admin_online_upgrade_checking'=>'正在检查...',
 	'admin_online_upgrade_latest'=>'当前已是最新版本',

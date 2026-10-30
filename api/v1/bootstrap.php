@@ -79,6 +79,18 @@ if (empty($_SERVER['lang'])) {
 $uri = $_SERVER['REQUEST_URI'];
 $method = $_SERVER['REQUEST_METHOD'];
 $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+include_once APP_PATH . 'lib/SecurityAuditService.php';
+SecurityAuditService::begin();
+header('Cache-Control: private, no-store, no-cache, must-revalidate');
+header('Pragma: no-cache');
+// Repeated object enumeration/authentication failures enter a bounded cooldown.
+$abuseLimit = new RateLimitService(60, 300);
+$abuseKey = 'security_rejections:' . RateLimitService::getClientKey();
+if ($abuseLimit->getRemaining($abuseKey) <= 0 && $method !== 'OPTIONS') {
+    header('Retry-After: ' . $abuseLimit->getRetryAfter($abuseKey));
+    ApiResponse::error(429, 'Too many rejected requests');
+}
+
 
 /**
  * CORS 响应头处理
@@ -205,18 +217,19 @@ if ($resourceName && !$apiAuth->checkAppResourceAccess($apiApp, $resourceName)) 
 // === 中间件层 5：限流 ===
 // 应用级速率限制（客户端模式无 secret，使用更严格的默认限制）
 // skip_rate_limit 能力的服务端应用跳过应用级限流
-if ($apiAppServerAuth && !$apiAuth->checkAppCapability($apiApp, 'skip_rate_limit')) {
-    $appRateLimitOk = $apiAuth->checkAppRateLimit($apiApp);
-} elseif (!$apiAppServerAuth) {
-    $appRateLimitOk = $apiAuth->checkAppPublicRateLimit($appId);
-} else {
-    $appRateLimitOk = true; // skip_rate_limit=true 的服务端应用跳过限流
-}
-if (!$appRateLimitOk) {
-    http_response_code(429);
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['code' => 429, 'msg' => 'App rate limit exceeded', 'data' => null], JSON_UNESCAPED_UNICODE);
-    exit;
+$appLimitValue = max(0, intval($apiApp['rate_limit'] ?? 120));
+$appLimitKey = 'app_' . $appId;
+$appRateLimiter = new RateLimitService($appLimitValue, 60);
+$appLimitSkipped = $apiAppServerAuth && $apiAuth->checkAppCapability($apiApp, 'skip_rate_limit');
+if (!$appLimitSkipped) {
+    $appRateLimitOk = $appRateLimiter->check($appLimitKey);
+    header('X-RateLimit-Limit: ' . $appLimitValue);
+    header('X-RateLimit-Remaining: ' . $appRateLimiter->getRemaining($appLimitKey));
+    header('X-RateLimit-Reset: ' . $appRateLimiter->getResetTime($appLimitKey));
+    if (!$appRateLimitOk) {
+        header('Retry-After: ' . $appRateLimiter->getRetryAfter($appLimitKey));
+        ApiResponse::error(429, 'App rate limit exceeded');
+    }
 }
 
 global $apiApp, $apiAppServerAuth;
@@ -285,11 +298,19 @@ if ($rateLimitEnabled) {
         header('X-RateLimit-Reset: ' . $rateLimit->getResetTime($rateKey));
         if (!$rateLimit->check($rateKey)) {
             http_response_code(429);
-            header('Retry-After: ' . $rateLimit->getResetTime($rateKey));
+            header('Retry-After: ' . $rateLimit->getRetryAfter($rateKey));
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode(['code' => 429, 'msg' => 'Too Many Requests', 'data' => null], JSON_UNESCAPED_UNICODE);
             exit;
         }
+    }
+}
+
+if ($uid > 0 && $rateLimitEnabled) {
+    $userLimiter = new RateLimitService(120, max(1, intval($conf['api_rate_limit_window'] ?? 60)));
+    if (!$userLimiter->check('api_user:' . $uid)) {
+        header('Retry-After: ' . $userLimiter->getRetryAfter('api_user:' . $uid));
+        ApiResponse::error(429, 'User rate limit exceeded');
     }
 }
 
@@ -447,8 +468,8 @@ function api_attach_assoc_post($pid, $tid, $attach_keys, &$message) {
     $files = 0;
 
     foreach($keys as $key) {
-        // 读取元数据文件
-        $meta_file = $conf['upload_path'].'tmp/'.$key.'.meta.json';
+        if (!is_string($key) || !preg_match('/^[0-9]+_[a-f0-9]{32}\.[a-z0-9_]+$/D', $key)) continue;
+        $meta_file = PrivateAttachmentStorage::path($key.'.meta.json', 'tmp');
         if(!is_file($meta_file)) continue;
 
         $meta_json = file_get_contents($meta_file);
@@ -458,8 +479,9 @@ function api_attach_assoc_post($pid, $tid, $attach_keys, &$message) {
             continue;
         }
 
+        if (intval($file['uid'] ?? 0) !== intval($uid)) continue;
         // 检查临时文件是否存在
-        $tmpfile = $conf['upload_path'].'tmp/'.$key;
+        $tmpfile = PrivateAttachmentStorage::path($key, 'tmp');
         if(!is_file($tmpfile)) {
             @unlink($meta_file);
             continue;
@@ -472,7 +494,8 @@ function api_attach_assoc_post($pid, $tid, $attach_keys, &$message) {
         $url = $conf['upload_url'].'attach/'.$day;
         !is_dir($path) AND mkdir($path, 0777, TRUE);
 
-        $destfile = $path.'/'.$filename;
+        $destfile = PrivateAttachmentStorage::destination($day.'/'.$filename, array('tid'=>$tid, 'pid'=>$pid, 'filetype'=>$file['filetype'], 'isimage'=>$file['isimage']));
+        $path = dirname($destfile);
         $desturl = $url.'/'.$filename;
         $r = xn_copy($tmpfile, $destfile);
         !$r AND xn_log("api_attach_assoc: xn_copy($tmpfile, $destfile) failed, pid:$pid, tid:$tid", 'php_error');
@@ -527,7 +550,8 @@ function api_attach_assoc_post($pid, $tid, $attach_keys, &$message) {
             'downloads'   => 0,
             'isimage'     => intval($file['isimage']),
         );
-        attach_create($arr);
+        $newAid = attach_create($arr);
+        if ($newAid && PrivateAttachmentStorage::isPrivate($arr)) $desturl = url('attach-read-' . intval($newAid) . '-private');
 
         // 替换 message 和 message_fmt 中的临时 URL 为正式 URL
         $message = str_replace($file['url'], $desturl, $message);
@@ -563,6 +587,12 @@ function api_attach_assoc_post($pid, $tid, $attach_keys, &$message) {
         thread__update($tid, array('images' => $images, 'videos' => $videos, 'files' => $files));
     }
 
+    foreach (db_find('attach', array('pid'=>$pid), array(), 1, 1000) ?: array() as $_privateAttach) {
+        $message = PrivateAttachmentStorage::rewrite($message, $_privateAttach);
+        $message_fmt = PrivateAttachmentStorage::rewrite($message_fmt, $_privateAttach);
+    }
+    post__update($pid, array('message'=>$message, 'message_fmt'=>$message_fmt));
+
     // ponytail: 孤儿附件清理（与核心 attach_assoc_post 一致）
     // 删除 message 中未引用的图片/视频附件（API 客户端传了 attach_keys 但 message 未引用的场景）
     list($attachlist, , ) = attach_find_by_pid($pid);
@@ -572,7 +602,7 @@ function api_attach_assoc_post($pid, $tid, $attach_keys, &$message) {
         foreach($attachlist as $attach) {
             $is_image_or_video = !empty($attach['isimage']) || (isset($attach['filetype']) && $attach['filetype'] == 'video');
             if(!$is_image_or_video) continue;
-            $attach_url = $conf['upload_url'].'attach/'.$attach['filename'];
+            $attach_url = PrivateAttachmentStorage::isPrivate($attach) ? url('attach-read-' . intval($attach['aid']) . '-private') : $conf['upload_url'].'attach/'.$attach['filename'];
             if(strpos($message_fmt, $attach_url) === FALSE && strpos($message, $attach_url) === FALSE) {
                 $orphan_aids[] = $attach['aid'];
                 $orphan_attaches[] = $attach;
@@ -580,8 +610,7 @@ function api_attach_assoc_post($pid, $tid, $attach_keys, &$message) {
         }
         if(!empty($orphan_aids)) {
             foreach($orphan_attaches as $attach) {
-                $_path = $conf['upload_path'].'attach/'.$attach['filename'];
-                is_file($_path) AND @unlink($_path);
+                PrivateAttachmentStorage::delete($attach);
                 $_thumb = attach_thumb_path($attach['filename']);
                 if($_thumb) {
                     $_tp = $conf['upload_path'].'attach/'.$_thumb;

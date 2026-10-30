@@ -187,10 +187,13 @@ if($action == 'login') {
 	
 	$stat = array();
 	// 后台仪表盘需精确统计：传非空 cond 触发 COUNT(*) 分支，避免 InnoDB 空 cond 走 information_schema 估算值
-	// thread/post 排除已软删除，user/attach 传主键>0（无软删除字段）
-	$stat['threads'] = thread_count(array('is_deleted' => 0));
-	$stat['posts'] = post_count(array('is_deleted' => 0));
-	$stat['users'] = user_count(array('uid' => array('>' => 0)));
+	// 口径与前台 runtime 严格一致：审核通过(audit_status=1)且未软删(is_deleted=0)；
+	// 回帖总数只计非首帖(isfirst=0)，否则"回帖总数"会把每篇主题的首帖都算进去，恒大于前台评论数。
+	// 待审/驳回量在下方 security_stat 单独展示，不混入总数卡
+	$stat['threads'] = thread_count(array('is_deleted' => 0, 'audit_status' => 1));
+	$stat['posts'] = post_count(array('is_deleted' => 0, 'audit_status' => 1, 'isfirst' => 0));
+	// 排除已注销（匿名化）用户，与前台 runtime users 同口径（注销时 runtime users-1 但 user 行保留）
+	$stat['users'] = function_exists('user_count_real') ? user_count_real() : user_count(array('uid' => array('>' => 0)));
 	$stat['attachs'] = attach_count(array('aid' => array('>' => 0)));
 	$stat['disk_free_space'] = function_exists('disk_free_space') ? humansize(disk_free_space(APP_PATH)) : lang('unknown');
 	
@@ -218,10 +221,10 @@ if($action == 'login') {
 	$today_start = strtotime('today');
 	$security_stat['login_failures_today'] = db_count('user_login_log', array('success'=>0, 'time'=>array('>'=>$today_start)));
 
-	// 今日数据统计
+	// 今日数据统计（口径与上方总量卡一致：审核通过且未软删，回帖只计非首帖）
 	$today_stat = array();
-	$today_stat['threads'] = db_count('thread', array('create_date'=>array('>'=>$today_start)));
-	$today_stat['posts'] = db_count('post', array('create_date'=>array('>'=>$today_start), 'isfirst'=>0));
+	$today_stat['threads'] = db_count('thread', array('create_date'=>array('>'=>$today_start), 'audit_status'=>1, 'is_deleted'=>0));
+	$today_stat['posts'] = db_count('post', array('create_date'=>array('>'=>$today_start), 'isfirst'=>0, 'audit_status'=>1, 'is_deleted'=>0));
 	$today_stat['users'] = db_count('user', array('create_date'=>array('>'=>$today_start)));
 	$today_stat['attachs'] = db_count('attach', array('create_date'=>array('>'=>$today_start)));
 
@@ -243,8 +246,8 @@ if($action == 'login') {
 	// 30 天起始时间（今天 0 点往前推 29 天）
 	$chart_start = $today_start - ($chart_days - 1) * 86400;
 
-	// 批量查询 thread
-	$sql = "SELECT FLOOR((create_date - {$chart_start}) / 86400) AS day_idx, COUNT(*) AS c FROM {$db->tablepre}thread WHERE create_date >= {$chart_start} GROUP BY day_idx";
+	// 批量查询 thread（口径与总量卡一致：审核通过且未软删）
+	$sql = "SELECT FLOOR((create_date - {$chart_start}) / 86400) AS day_idx, COUNT(*) AS c FROM {$db->tablepre}thread WHERE create_date >= {$chart_start} AND audit_status = 1 AND is_deleted = 0 GROUP BY day_idx";
 	$result = db_sql_find($sql);
 	if($result) {
 		foreach($result as $row) {
@@ -255,8 +258,8 @@ if($action == 'login') {
 		}
 	}
 
-	// 批量查询 post（isfirst=0）
-	$sql = "SELECT FLOOR((create_date - {$chart_start}) / 86400) AS day_idx, COUNT(*) AS c FROM {$db->tablepre}post WHERE create_date >= {$chart_start} AND isfirst=0 GROUP BY day_idx";
+	// 批量查询 post（口径与总量卡一致：非首帖、审核通过且未软删）
+	$sql = "SELECT FLOOR((create_date - {$chart_start}) / 86400) AS day_idx, COUNT(*) AS c FROM {$db->tablepre}post WHERE create_date >= {$chart_start} AND isfirst=0 AND audit_status = 1 AND is_deleted = 0 GROUP BY day_idx";
 	$result = db_sql_find($sql);
 	if($result) {
 		foreach($result as $row) {

@@ -53,6 +53,8 @@ if($action == 'top') {
 			}
 		}
 		// 批量更新置顶状态
+		// 零命中（选中帖均不在管辖版块/无权限）时如实返回失败，避免误导操作者
+		empty($top_tids) AND message(-1, lang('mod_no_accessible_thread'));
 		!empty($top_tids) AND thread_top_change_batch($top_tids, $threadlist, $top);
 		// 批量插入版主日志，消除 N+1 INSERT
 		!empty($modlog_records) AND modlog_create_batch($modlog_records);
@@ -116,6 +118,7 @@ if($action == 'top') {
 			}
 		}
 		// 批量更新关闭状态
+		empty($close_tids) AND message(-1, lang('mod_no_accessible_thread'));
 		if(!empty($close_tids)) {
 			db_update('thread', array('tid'=>$close_tids), array('closed'=>$close));
 			// db_update 绕过模型层，手动清理受影响版块的帖子列表缓存（避免 60s 短缓存不刷新）
@@ -175,6 +178,7 @@ if($action == 'top') {
 			}
 		}
 		// 软删除配置检查
+		empty($delete_tids) AND message(-1, lang('mod_no_accessible_thread'));
 		include_once APP_PATH . 'lib/security/SecurityConfigService.php';
 		$sec_soft_delete = SecurityConfigService::get('security_soft_delete', 1);
 		if($sec_soft_delete) {
@@ -210,6 +214,8 @@ if($action == 'top') {
 		$forumarr = array();
 		foreach(forum_list_cache() as $_f) {
 			if(!empty($_f['type'])) continue; // 过滤分区，分区不能存放帖子
+			// 安全: 下拉只列出本版主有权移入的版块（无管辖权的目标版块服务端也会拒绝）
+			if(!forum_access_mod($_f['fid'], $gid, 'allowmove')) continue;
 			$forumarr[$_f['fid']] = $_f['name'];
 		}
 		include _include(APP_PATH.'view/htm/mod_move.htm');
@@ -224,6 +230,8 @@ if($action == 'top') {
 			
 		$newfid = param('newfid', 0);
 		!forum_read($newfid) AND message(1, lang('forum_not_exists'));
+		// 安全: 目标版块同样要求版主管辖权限，防止移入无权管理的版块（含 accesson 版块）
+		forum_access_mod($newfid, $gid, 'allowmove') OR message(-1, lang('insufficient_privilege'));
 		
 		// hook mod_move_start.php
 
@@ -248,30 +256,19 @@ if($action == 'top') {
 				// hook mod_move_log_create_before.php
 			}
 		}
-		// 批量更新版块
-		if(!empty($move_tids)) {
-			db_update('thread', array('tid'=>$move_tids), array('fid'=>$newfid));
+		// 零命中（选中帖均不在管辖版块/无权限）时如实返回失败，避免误导操作者
+		empty($move_tids) AND message(-1, lang('mod_no_accessible_thread'));
+		// 批量移动：逐条走模型层 thread_update，同步 forum.threads 计数与 thread_top.fid（待审帖不计数，口径与建帖/删帖一致）
+		foreach($move_tids as $_move_tid) {
+			thread_update($_move_tid, array('fid'=>$newfid));
 		}
 		// 批量插入版主日志，消除 N+1 INSERT
 		!empty($modlog_records) AND modlog_create_batch($modlog_records);
 
-		// 清理下缓存
+		// 清理下缓存（新旧版块帖子列表/置顶/首页/排行榜缓存已由 thread_update 内部清理）
 		forum_list_cache_delete();
-		// db_update 绕过模型层，需手动清理原版块/目标版块帖子列表缓存，置顶帖 fid 信息可能错乱
-		$_move_old_fid_set = array();
-		foreach($threadlist as $_thread) {
-			$_move_old_fid_set[intval($_thread['fid'])] = 1;
-		}
-		unset($_move_old_fid_set[intval($newfid)]);
-		foreach(array_keys($_move_old_fid_set) as $_fid) {
-			thread_forum_list_cache_delete($_fid);
-		}
-		thread_forum_list_cache_delete($newfid);
-	thread_top_cache_delete();
-	// 清除首页聚合列表缓存（首页含多版块，移动后需刷新）
-	index_list_cache_delete();
 
-	// hook mod_move_end.php
+		// hook mod_move_end.php
 		
 		header('Content-Type: application/json; charset=utf-8');
 		echo json_encode(array('code' => 0, 'message' => lang('move_completely'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
@@ -395,6 +392,7 @@ if($action == 'top') {
 			}
 		}
 		// 批量更新精华状态
+		empty($digest_tids) AND message(-1, lang('mod_no_accessible_thread'));
 		!empty($digest_tids) AND thread_digest_change_batch($digest_tids, $threadlist, $digest);
 		// 批量插入版主日志，消除 N+1 INSERT
 		!empty($modlog_records) AND modlog_create_batch($modlog_records);
@@ -470,13 +468,17 @@ if($action == 'top') {
 			} elseif($audit_status == 2) {
 				// 批量审核驳回
 				$updated = AuditService::batch_reject('thread', $_audit_valid_tids, $uid);
+			} elseif($audit_status == 3) {
+				// 批量忽略：内容保持不可见、作者无感知，记录保留供后续处理（前台审核队列用）
+				$updated = AuditService::batch_ignore('thread', $_audit_valid_tids, $uid);
 			}
 		}
 
 		// hook mod_audit_end.php
 
 		if($updated > 0) {
-			$msg = $audit_status == 1 ? lang('audit_approve') : lang('audit_reject');
+			$_audit_msgs = array(1 => lang('audit_approve'), 2 => lang('audit_reject'), 3 => lang('audit_ignore'));
+			$msg = isset($_audit_msgs[$audit_status]) ? $_audit_msgs[$audit_status] : lang('audit_approve');
 			header('Content-Type: application/json; charset=utf-8');
 			echo json_encode(array('code' => 0, 'message' => $msg . lang('success_label'), 'redirect_url' => index_url()), JSON_UNESCAPED_UNICODE);
 		} else {
@@ -527,12 +529,16 @@ if($action == 'top') {
 
 	if($audit_status == 1) {
 		$r = AuditService::approve('post', $pid, $uid);
+	} elseif($audit_status == 3) {
+		// 忽略：内容保持不可见、作者无感知（前台审核队列用）
+		$r = AuditService::ignore('post', $pid, $uid);
 	} else {
 		$r = AuditService::reject('post', $pid, $uid, $reason);
 	}
 
 	if($r) {
-		$msg = $audit_status == 1 ? lang('audit_approve') : lang('audit_reject');
+		$_audit_msgs = array(1 => lang('audit_approve'), 2 => lang('audit_reject'), 3 => lang('audit_ignore'));
+		$msg = isset($_audit_msgs[$audit_status]) ? $_audit_msgs[$audit_status] : lang('audit_approve');
 		header('Content-Type: application/json; charset=utf-8');
 		echo json_encode(array('code' => 0, 'message' => $msg . lang('success_label')), JSON_UNESCAPED_UNICODE);
 	} else {
@@ -540,6 +546,90 @@ if($action == 'top') {
 		echo json_encode(array('code' => -1, 'message' => lang('operation_failed')), JSON_UNESCAPED_UNICODE);
 	}
 	exit;
+
+} elseif($action == 'auditlist') {
+
+	// 前台审核队列：管理员/超版审全站待审内容，版主仅审管辖版块
+	// 审核通知"查看详情"按权限落到本页（entry_url_for_viewer），替代写死的后台 admin/?audit.htm
+	// 单条/批量操作复用 mod-audit（主题）与 mod-audit_post（回帖）端点，服务端逐条重新校验 forum_access_mod
+	// hook mod_auditlist_start.php
+
+	$_audit_fids = array();
+	if(in_array($gid, array(1, 2))) {
+		foreach((array)$forumlist as $_f) {
+			!empty($_f['fid']) AND $_audit_fids[intval($_f['fid'])] = intval($_f['fid']);
+		}
+	} else {
+		foreach((array)$forumlist as $_f) {
+			if(!empty($_f['moduids']) && in_string($uid, $_f['moduids'])) $_audit_fids[intval($_f['fid'])] = intval($_f['fid']);
+		}
+	}
+	empty($_audit_fids) AND message(-1, lang('insufficient_privilege'));
+
+	$page = max(1, intval(param(2, 1)));
+	$pagesize = 20;
+	$_audit_tab = param('tab', 'thread');
+	!in_array($_audit_tab, array('thread', 'post')) AND $_audit_tab = 'thread';
+
+	// 待审主题（仅管辖版块；忽略状态(3)不进前台队列，与"作者无感知"语义一致，后台审核页仍可处理）
+	// db_find 为原始层不自动过滤软删除，显式排除 is_deleted=1 的回收站帖子
+	$_thread_cond = array('fid' => array_values($_audit_fids), 'audit_status' => 0, 'is_deleted' => 0);
+	$thread_total = db_count('thread', $_thread_cond);
+	$audit_threadlist = $thread_total > 0 ? db_find('thread', $_thread_cond, array('tid' => -1), $page, $pagesize, 'tid') : array();
+
+	// 待审回帖：post 表无 fid，反查——取全站最近待审回帖（上限 500，待审量通常很小），
+	// 批量读主题映射 fid 后按管辖版块过滤（PHP 内过滤，无精确分页；原实现只从"待审主题"的 tids
+	// 出发查回帖，漏掉已通过主题下的待审回帖，导致前台回帖 tab 恒空而后台正常）
+	$_post_cond = array('isfirst' => 0, 'audit_status' => 0, 'is_deleted' => 0);
+	$_post_rows = db_count('post', $_post_cond) > 0 ? db_find('post', $_post_cond, array('pid' => -1), 1, 500, 'pid') : array();
+	$audit_postlist = array();
+	$_audit_threads = array();
+	if(!empty($_post_rows)) {
+		$_post_tids = array();
+		foreach($_post_rows as $_p) $_post_tids[intval($_p['tid'])] = true;
+		$_audit_threads = db_find('thread', array('tid' => array_keys($_post_tids)), array(), 1, count($_post_tids), 'tid');
+		foreach($_post_rows as $_p) {
+			$_p_fid = isset($_audit_threads[$_p['tid']]) ? intval($_audit_threads[$_p['tid']]['fid']) : 0;
+			// 主题不存在/已删除/不在管辖版块内 → 不展示（数据不出服务端，无越权泄露面）
+			if($_p_fid > 0 && isset($_audit_fids[$_p_fid])) $audit_postlist[intval($_p['pid'])] = $_p;
+		}
+	}
+	$post_total = count($audit_postlist);
+
+	// 被回帖内容（quotepid>0 的楼中楼）：批量取原评论/首帖内容与作者名，模板中以引用块区分展示
+	$_audit_quoted = array();
+	$_audit_quotepids = array();
+	foreach($audit_postlist as $_p) {
+		intval($_p['quotepid']) > 0 AND $_audit_quotepids[intval($_p['quotepid'])] = true;
+	}
+	if(!empty($_audit_quotepids)) {
+		$_quoted_rows = db_find('post', array('pid' => array_keys($_audit_quotepids), 'is_deleted' => 0), array(), 1, count($_audit_quotepids), 'pid');
+		$_quoted_uids = array();
+		foreach($_quoted_rows as $_q) $_quoted_uids[intval($_q['uid'])] = intval($_q['uid']);
+		$_quoted_names = empty($_quoted_uids) ? array() : user_find_by_uids(implode(',', array_keys($_quoted_uids)));
+		foreach($_quoted_rows as $_q) {
+			$_q_uid = intval($_q['uid']);
+			$_audit_quoted[intval($_q['pid'])] = array(
+				'name' => isset($_quoted_names[$_q_uid]) ? (!empty($_quoted_names[$_q_uid]['display_name']) ? $_quoted_names[$_q_uid]['display_name'] : $_quoted_names[$_q_uid]['username']) : '',
+				'summary' => mb_substr(strip_tags($_q['message']), 0, 80),
+			);
+		}
+	}
+
+	// 批量格式化：作者（display_name）+ 所属主题/版块名，消除 N+1 查询
+	$_audit_uids = array();
+	foreach($audit_threadlist as $_t) $_audit_uids[intval($_t['uid'])] = intval($_t['uid']);
+	foreach($audit_postlist as $_p) $_audit_uids[intval($_p['uid'])] = intval($_p['uid']);
+	$_audit_users = empty($_audit_uids) ? array() : user_find_by_uids(implode(',', array_keys($_audit_uids)));
+
+	foreach($audit_threadlist as $_t) { if(!isset($_audit_threads[$_t['tid']])) $_audit_threads[intval($_t['tid'])] = $_t; }
+
+	$thread_pagination = pagination(route_url('mod_auditlist_page'), $thread_total, $page, $pagesize);
+
+	$header['title'] = lang('mod_auditlist_title');
+	$header['mobile_title'] = lang('mod_auditlist_title');
+
+	include _include(APP_PATH.'view/htm/mod_auditlist.htm');
 
 } elseif($action == 'top_post') {
 

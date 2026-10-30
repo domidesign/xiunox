@@ -1,4 +1,4 @@
-<?php if(isset($thread['audit_status']) && $thread['audit_status'] != 1 && (!empty($uid) && ($uid == $thread['uid'] || $gid > 0 && $gid < 5))): ?>
+<?php if(isset($thread['audit_status']) && $thread['audit_status'] != 1 && (!empty($uid) && ($uid == $thread['uid'] || $gid > 0 && $gid < 6))): ?>
 <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
     <i class="ti ti-clock-hour-4 me-2 fs-5"></i>
     <div>
@@ -202,7 +202,7 @@ $_ban_is_admin = in_array($gid, array(1, 2));
     <!--{hook thread_plugin_before.htm}-->
     <div class="d-flex align-items-center gap-3 flex-wrap m-2">
         <!--{hook thread_plugin_body.htm}-->
-        <?php if($gid > 0 && $gid < 5) { ?>
+        <?php if($gid > 0 && $gid < 6 && forum_access_mod($thread['fid'], $gid, 'allowtop')) { ?>
         <span class="ms-auto">
             <input type="hidden" name="modtid" value="<?php echo $thread['tid']; ?>" />
             <button class="btn btn-sm btn-outline-danger py-0 px-2 thread-mod-btn"

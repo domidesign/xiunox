@@ -81,6 +81,9 @@ class CacheService
         // 修复降级绕过开关的 bug：降级只影响"用哪个驱动"，不影响"是否启用缓存"
         $newEnable = !empty($cacheConfig['enable']);
         if (!$newEnable) {
+            // 驱动即将停用：先清旧实例残留的 setting 缓存并重置内存态，
+            // 否则写路径停用后，旧实例里的陈旧 setting 副本仍会被早期读取命中
+            self::purgeOldDriverSetting($_SERVER['cache']);
             $_SERVER['cache'] = NULL;
             // 清除降级标记，避免后续逻辑误判
             unset($_SERVER['cache_degraded_from']);
@@ -151,6 +154,7 @@ class CacheService
         }
 
         // 需要重建：驱动类型或启用状态发生变化
+        $oldCache = $_SERVER['cache'];
         $cacheConfig = self::mergeConfig($cacheConfig);
 
         if ($newEnable) {
@@ -161,8 +165,40 @@ class CacheService
             $cache = NULL;
         }
 
+        // 驱动实例被替换时，旧实例中的 setting 缓存成为永久陈旧数据：
+        // 后续写入全部走新驱动，而下一请求 earlyInit 仍用旧驱动起步，早期读取会
+        // 永远命中旧副本（表现为后台设置开关保存后弹回旧值、前台显隐不生效）。
+        // 因此切换时必须：1) 删除旧实例中的 setting 键；2) 重置 kv 内存缓存，
+        // 让本请求后续读取改走新驱动，miss 时回源 bbs_kv 表拿到最新值。
+        if ($oldCache !== NULL && $oldCache !== $cache) {
+            self::purgeOldDriverSetting($oldCache);
+        }
         $_SERVER['cache'] = $cache;
         return $cache;
+    }
+
+    /**
+     * 删除指定（旧）驱动实例中的 setting 缓存键，并重置 kv 内存缓存
+     * 驱动切换后旧实例不再接收写入，其中的 setting 副本会永久陈旧；
+     * earlyInit 每个请求都用配置驱动起步，若不清理会一直读到旧值
+     * @param object|null $oldCache 旧缓存驱动实例
+     */
+    private static function purgeOldDriverSetting($oldCache)
+    {
+        if ($oldCache === NULL) return;
+        try {
+            // 用 cache_delete 包装（自动拼 cachepre），显式指定旧实例；
+            // 自定义驱动可能未实现 delete，method_exists 兜底
+            if (function_exists('cache_delete') && method_exists($oldCache, 'delete')) {
+                cache_delete('setting', $oldCache);
+            }
+        } catch (\Throwable $e) {
+            // 清理失败不影响业务：miss 时会回源 bbs_kv 表
+        }
+        // 重置 setting 的请求级内存缓存，强制后续 setting_get 重新走缓存/DB 读取
+        if (isset($GLOBALS['g_setting'])) {
+            $GLOBALS['g_setting'] = FALSE;
+        }
     }
 
     /**
@@ -283,7 +319,128 @@ class CacheService
         if (isset($config['file']['cache_dir'])) {
             $config['file']['cache_dir'] = '';
         }
-        return setting_set('cache_config', $config);
+        $r = setting_set('cache_config', $config);
+        // 同步写回 conf/conf.php 的 cache 段：消除本机启动驱动与运行时驱动的
+        // 分裂（否则每请求 earlyInit(conf 驱动) → init() 重建(后台驱动)，
+        // 白耗一次驱动重建，且曾是读写分裂导致设置开关弹回旧值 bug 的温床）
+        self::syncConfCacheSection($config);
+        return $r;
+    }
+
+    /**
+     * 将缓存配置同步写回 conf/conf.php 的 cache 段（best-effort）
+     * kv 中的 cache_config 仍是运行时权威（多节点经 DB 传播到各机器）；
+     * 本同步只让下一请求 earlyInit 直接创建正确驱动，conf 写失败不影响保存
+     * @param array $cacheConfig 缓存配置
+     * @return bool 是否写入成功
+     */
+    private static function syncConfCacheSection($cacheConfig)
+    {
+        // type 白名单：伪造/误传的驱动类型不允许固化进 conf.php
+        $type = isset($cacheConfig['type']) ? $cacheConfig['type'] : 'mysql';
+        if (!in_array($type, array('file', 'redis', 'memcached', 'mysql', 'pdo_mysql'), true)) {
+            if (function_exists('xn_log')) {
+                xn_log('CacheService: 未知缓存驱动类型 ' . $type . '，conf.php cache 段未同步', 'cache_error');
+            }
+            return FALSE;
+        }
+
+        $confFile = APP_PATH . 'conf/conf.php';
+        if (!is_writable($confFile)) {
+            if (function_exists('xn_log')) {
+                xn_log('CacheService: conf.php 不可写，cache 段未同步（运行时仍以 kv cache_config 为准）', 'cache_error');
+            }
+            return FALSE;
+        }
+        try {
+            // conf.php 在本请求启动时已成功 include 过，此处重读仅防并发替换的极端情况
+            $conf = include $confFile;
+        } catch (\Throwable $e) {
+            if (function_exists('xn_log')) {
+                xn_log('CacheService: conf.php 读取异常，cache 段未同步：' . $e->getMessage(), 'cache_error');
+            }
+            return FALSE;
+        }
+        if (!is_array($conf)) {
+            if (function_exists('xn_log')) {
+                xn_log('CacheService: conf.php 格式异常，cache 段未同步', 'cache_error');
+            }
+            return FALSE;
+        }
+
+        $cachepre = 'bbs_';
+        foreach (array('file', 'redis', 'memcached', 'mysql') as $driver) {
+            if (!empty($cacheConfig[$driver]['cachepre'])) {
+                $cachepre = $cacheConfig[$driver]['cachepre'];
+                break;
+            }
+        }
+
+        $conf['cache'] = array(
+            'enable' => !empty($cacheConfig['enable']) ? 1 : 0,
+            'type' => $type,
+            'default_ttl' => isset($cacheConfig['default_ttl']) ? intval($cacheConfig['default_ttl']) : 3600,
+            'file' => array(
+                'cache_dir' => '',
+                'cachepre' => isset($cacheConfig['file']['cachepre']) ? $cacheConfig['file']['cachepre'] : $cachepre,
+            ),
+            'redis' => array(
+                'host' => isset($cacheConfig['redis']['host']) ? $cacheConfig['redis']['host'] : '127.0.0.1',
+                'port' => isset($cacheConfig['redis']['port']) ? intval($cacheConfig['redis']['port']) : 6379,
+                'password' => isset($cacheConfig['redis']['password']) ? (string)$cacheConfig['redis']['password'] : '',
+                'database' => isset($cacheConfig['redis']['database']) ? intval($cacheConfig['redis']['database']) : 0,
+                'cachepre' => isset($cacheConfig['redis']['cachepre']) ? $cacheConfig['redis']['cachepre'] : $cachepre,
+            ),
+            'memcached' => array(
+                'host' => isset($cacheConfig['memcached']['host']) ? $cacheConfig['memcached']['host'] : '127.0.0.1',
+                'port' => isset($cacheConfig['memcached']['port']) ? intval($cacheConfig['memcached']['port']) : 11211,
+                'cachepre' => isset($cacheConfig['memcached']['cachepre']) ? $cacheConfig['memcached']['cachepre'] : $cachepre,
+            ),
+            'mysql' => array(
+                'cachepre' => isset($cacheConfig['mysql']['cachepre']) ? $cacheConfig['mysql']['cachepre'] : $cachepre,
+            ),
+        );
+
+        // 原子写 + 回读校验：conf.php 是全站启动依赖，写坏 = 全站白屏。
+        // 先写临时文件，include 验证能还原出等价数组后再 rename 落盘。
+        $content = "<?php\nreturn " . var_export($conf, true) . ";\n";
+        $tmpFile = $confFile . '.tmp.' . getmypid();
+        if (@file_put_contents($tmpFile, $content, LOCK_EX) === FALSE) {
+            @unlink($tmpFile);
+            if (function_exists('xn_log')) {
+                xn_log('CacheService: conf.php cache 段写入临时文件失败，运行时仍以 kv cache_config 为准', 'cache_error');
+            }
+            return FALSE;
+        }
+        try {
+            $obLevel = ob_get_level();
+            ob_start();
+            $check = include $tmpFile;
+            $ok = is_array($check) && isset($check['cache']['type']) && $check['cache'] == $conf['cache'];
+            while (ob_get_level() > $obLevel) ob_end_clean();
+            if (!$ok) {
+                throw new \RuntimeException('回读内容与预期不一致');
+            }
+        } catch (\Throwable $e) {
+            while (isset($obLevel) && ob_get_level() > $obLevel) ob_end_clean();
+            @unlink($tmpFile);
+            if (function_exists('xn_log')) {
+                xn_log('CacheService: conf.php 生成内容校验失败（' . $e->getMessage() . '），放弃写入，运行时仍以 kv cache_config 为准', 'cache_error');
+            }
+            return FALSE;
+        }
+        if (!@rename($tmpFile, $confFile)) {
+            @unlink($tmpFile);
+            if (function_exists('xn_log')) {
+                xn_log('CacheService: conf.php cache 段落盘失败，运行时仍以 kv cache_config 为准', 'cache_error');
+            }
+            return FALSE;
+        }
+
+        // 同步运行时副本，保持当前请求后续逻辑一致
+        if (isset($GLOBALS['conf'])) $GLOBALS['conf']['cache'] = $conf['cache'];
+        if (isset($_SERVER['conf'])) $_SERVER['conf']['cache'] = $conf['cache'];
+        return TRUE;
     }
 
     /**

@@ -35,6 +35,8 @@ class ApiResponse {
     }
 
     private static function output(int $code, string $msg, $data, array $errors = []): void {
+        header('Cache-Control: private, no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
         http_response_code($code === 0 ? 200 : $code);
         header('Content-Type: application/json; charset=utf-8');
         header('X-API-Version: 1.0');
@@ -52,6 +54,8 @@ class ApiResponse {
             $response = hook('api_response_before_send', $response);
         }
 
+        if (!class_exists('ApiContentService', false)) include_once APP_PATH . 'lib/ApiContentService.php';
+        $response['data'] = ApiContentService::response($response['data'], intval($GLOBALS['uid'] ?? 0), intval($GLOBALS['gid'] ?? 0));
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
         exit;
     }

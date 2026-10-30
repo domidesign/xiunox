@@ -78,6 +78,9 @@ function url($url, $extra = array()) {
 	} elseif(!$is_admin && $r !== '' && strpos($r, 'http') !== 0 && strpos($r, '//') !== 0) {
 		// 带路径组件的前台 URL（如 ../user-login）：拼接 base_path 前缀
 		$r = $_base_path . '/' . ltrim($r, '/');
+		// '../' 前缀是 route_table 里 frontend_* 路由为 admin 上下文跳出 /admin/ 设计的；
+		// 前台本身在站点根层级，剥离多余的 /../ 避免 href 输出 '/../thread-x.htm'（浏览器虽能规范化，但不干净且部分客户端不兼容）
+		$r = preg_replace('#/\.\./#', '/', $r, 1);
 	}
 
 	return $r;

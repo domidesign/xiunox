@@ -889,6 +889,20 @@ class UpgradeService {
             $results[] = ['name' => 'user_login_log.idx_ip_success_time', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
         }
 
+        // attach 表：删帖按 tid 反查附件（xnx_attach_access::deletePermissionByTid、附件级联清理依赖）
+        // ponytail: 存量站点 bbs_attach 只有 KEY pid / KEY uid，缺 tid 索引，
+        //           WHERE tid=? 会全表扫描；单帖删除链路里被 attach_access hook 触发放大为秒级卡顿。
+        //           与 install.sql 中 `KEY tid (tid)` 保持同步，索引名统一用 idx_tid 避免与旧版可能存在的
+        //           默认名 `tid` 冲突（MySQL 未指定索引名时会用列名，历史站点可能已有 tid）。
+        if ($this->dbTableExists('attach', $tablepre)
+            && !$this->dbIndexExists('attach', 'idx_tid', $tablepre)
+            && !$this->dbIndexExists('attach', 'tid', $tablepre)) {
+            $r = $this->execSql("ALTER TABLE `{$tablepre}attach` ADD INDEX `idx_tid` (`tid`)");
+            $results[] = ['name' => 'attach.idx_tid', 'ok' => $r['ok'], 'message' => $r['ok'] ? lang(self::MSG_DONE) : $r['message']];
+        } else {
+            $results[] = ['name' => 'attach.idx_tid', 'ok' => true, 'message' => lang(self::MSG_SKIPPED)];
+        }
+
         $allOk = !in_array(false, array_column($results, 'ok'), true);
         $doneCount = count(array_filter($results, function($r) { return $r['ok'] && $r['message'] === lang(self::MSG_DONE); }));
         return [

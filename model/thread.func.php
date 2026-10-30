@@ -277,9 +277,18 @@ function thread_update($tid, $arr) {
 	
 	// 更改 fid, 移动主题，相关资源也需要更新
 	if(isset($arr['fid']) && $arr['fid'] != $thread['fid']) {
-		forum__update($arr['fid'], array('threads+'=>1));
-		forum_dec($thread['fid'], 'threads', 1);
+		// 仅已计入版块计数的帖子（审核通过且未软删）移动时同步增减；待审/软删帖创建时未计入，移动不得增减
+		if(intval($thread['audit_status']) == 1 && empty($thread['is_deleted'])) {
+			forum__update($arr['fid'], array('threads+'=>1));
+			forum_dec($thread['fid'], 'threads', 1);
+		}
 		thread_top_update_by_tid($tid, $arr['fid']);
+		// 精华表 fid 快照同步：thread_digest.fid 在建精华时写入，不随移动更新，
+		// 之后硬删精华帖会按旧 fid 递减错误版块的 digests（第三轮全量审计 2026-10-30）
+		$_mv_digest_row = thread_digest_read($tid);
+		if(!empty($_mv_digest_row) && intval($_mv_digest_row['fid']) != intval($arr['fid'])) {
+			thread_digest_update($tid, array('fid'=>$arr['fid']));
+		}
 		// 清除新旧版块的帖子列表缓存
 		thread_forum_list_cache_delete($arr['fid']);
 		thread_forum_list_cache_delete($thread['fid']);
@@ -293,6 +302,10 @@ function thread_update($tid, $arr) {
 	if(!$arr) return TRUE;
 	
 	$r = thread__update($tid, $arr);
+	if ($r !== false && (isset($arr['fid']) || isset($arr['audit_status']) || isset($arr['is_deleted']))) {
+		include_once APP_PATH . 'lib/PrivateAttachmentStorage.php';
+		PrivateAttachmentStorage::protectThread(intval($tid));
+	}
 	
 	// hook model_thread_update_end.php
 	return $r;
@@ -350,6 +363,29 @@ function thread_delete($tid) {
 	// 删除我的主题
 	$uid AND mythread_delete($uid, $tid);
 	thread_favorite_delete_by_tid($tid);
+	// 清理点赞行（thread 行同删，thread.likes 随行消失，仅清孤儿数据）
+	post_like_delete_by_tid($tid);
+
+	// 清理置顶表：老实现漏删，回收站硬删后 bbs_thread_top 里的 tid 变成孤儿，
+	// 前台 thread_top_find() 拿到孤儿 tid 后 thread_find_by_tids 会跳过（表已删）——
+	// 视觉上置顶条数没错，但表数据脏、占用索引空间；顺手调用缓存失效避免"取消置顶"命中旧缓存
+	if(intval($thread['top']) > 0) {
+		thread_top_delete($tid);
+		thread_top_cache_delete();
+	}
+
+	// 清理精华表：thread_digest 表按 tid 存精华级别，历史遗留行会永久占位并让
+	// user.digests / forum.digests / runtime.digests 与实际数据脱节（建精华时已加过统计）
+	// 已软删主题的精华统计已在软删时递减，此处仅删行，防止软删→硬删二次扣减
+	$digest_row = thread_digest_read($tid);
+	$is_deleted = isset($thread['is_deleted']) ? intval($thread['is_deleted']) : 0;
+	if(!empty($digest_row)) {
+		if($is_deleted == 0) {
+			thread_digest_delete($tid, $uid, $fid);
+		} else {
+			db_delete('thread_digest', array('tid'=>$tid));
+		}
+	}
 
 	// 清除相关缓存
 	forum_list_cache_delete();
@@ -403,6 +439,51 @@ function thread_delete_batch($tids) {
 
 	// 4. 批量删除 thread_favorite（合并 thread_favorite_delete_by_tid 逻辑）
 	thread_favorite_delete_by_tids_batch($valid_tids);
+
+	// 4.0 批量清理点赞行（thread 行将由步骤 6 一并删除，仅清孤儿数据）
+	db_delete('post_like', array('tid'=>$valid_tids));
+
+	// 4.1 批量清理置顶表：只删 top>0 的 tid，走 KEY(tid) 主键一次 IN DELETE
+	$top_tids = array();
+	foreach($threadlist as $thread) {
+		if(intval($thread['top']) > 0) $top_tids[] = intval($thread['tid']);
+	}
+	if(!empty($top_tids)) {
+		db_delete('thread_top', array('tid'=>$top_tids));
+		thread_top_cache_delete();
+	}
+
+	// 4.2 批量清理精华表：先查有 digest 行的 tid，删除后按 uid/fid 聚合递减统计
+	// 已软删主题的精华统计已在软删时递减，此处仅删行，防止软删→硬删二次扣减（与单条 thread_delete 守卫一致）
+	$digest_rows = db_find('thread_digest', array('tid'=>$valid_tids), array(), 1, count($valid_tids), 'tid');
+	if(!empty($digest_rows)) {
+		$digest_del_tids = array();
+		$digest_user_dec = array();
+		$digest_forum_dec = array();
+		$digest_total = 0;
+		foreach($digest_rows as $d) {
+			$digest_del_tids[] = intval($d['tid']);
+			$_digest_tid = intval($d['tid']);
+			$_digest_thread = isset($threadlist[$_digest_tid]) ? $threadlist[$_digest_tid] : array();
+			if(!empty($_digest_thread['is_deleted'])) continue;
+			$_uid = intval($d['uid']);
+			$_fid = intval($d['fid']);
+			if($_uid > 0) {
+				if(!isset($digest_user_dec[$_uid])) $digest_user_dec[$_uid] = 0;
+				$digest_user_dec[$_uid]++;
+			}
+			if($_fid > 0) {
+				if(!isset($digest_forum_dec[$_fid])) $digest_forum_dec[$_fid] = 0;
+				$digest_forum_dec[$_fid]++;
+			}
+			$digest_total++;
+		}
+		if(!empty($digest_del_tids)) db_delete('thread_digest', array('tid'=>$digest_del_tids));
+		foreach($digest_user_dec as $_uid => $_dec) user_dec($_uid, 'digests', $_dec);
+		foreach($digest_forum_dec as $_fid => $_dec) forum_dec($_fid, 'digests', $_dec);
+		$digest_total > 0 AND runtime_set('digests-', $digest_total);
+		unset($digest_rows, $digest_del_tids, $digest_user_dec, $digest_forum_dec, $digest_total);
+	}
 
 	// 5. 清除相关缓存
 	forum_list_cache_delete();
@@ -475,6 +556,11 @@ function thread_soft_delete($tid, $deleted_by) {
 	// 标记主题为已删除
 	thread__update($tid, array('is_deleted'=>1, 'deleted_date'=>$time, 'deleted_by'=>intval($deleted_by)));
 
+	// 统计该主题下当前仍计入统计的回帖（审核通过的非首帖）
+	// ponytail: 必须在标记 is_deleted 之前查询——post__find 自动附加 is_deleted=0，
+	// 若先标记再查恒为空，导致整帖软删时 runtime.posts / user.posts 漏减（恢复时又全额补加，造成净虚增）
+	$postlist = post__find(array('tid'=>$tid), array(), 1, 1000000);
+
 	// 标记该主题下所有回帖为已删除
 	db_update('post', array('tid'=>$tid), array('is_deleted'=>1, 'deleted_date'=>$time, 'deleted_by'=>intval($deleted_by)));
 
@@ -489,8 +575,16 @@ function thread_soft_delete($tid, $deleted_by) {
 		runtime_set('threads-', 1);
 	}
 
-	// 统计该主题下审核通过的非首帖数量，减计 posts
-	$postlist = post__find(array('tid'=>$tid), array(), 1, 1000000);
+	// 精华计数同步：软删的精华主题对前台不可见，与 threads 同口径递减
+	// digest 行保留（恢复时补回）；硬删路径带 is_deleted 守卫不会二次扣减
+	$_sd_digest_row = thread_digest_read($tid);
+	if(!empty($_sd_digest_row)) {
+		user_dec($uid, 'digests', 1);
+		forum_dec($fid, 'digests', 1);
+		runtime_set('digests-', 1);
+	}
+
+	// 减计 posts（$postlist 已在标记前查好，天然只含未软删回帖，之前被单独软删的不会二次扣减）
 	$non_first_count = 0;
 	$user_post_count = array();
 	if($postlist) {
@@ -540,22 +634,36 @@ function thread_soft_delete_batch($tids, $deleted_by) {
 
 	$valid_tids = arrlist_values($threadlist, 'tid');
 
+	// 幂等保护：仅处理入库时未软删的主题。重复软删会覆盖首次删除人/时间（破坏审计线索），
+	// 并对 threads/digests 统计二次扣减（第三轮全量审计 2026-10-30 补）
+	$soften_tids = array();
+	foreach($threadlist as $thread) {
+		if(empty($thread['is_deleted'])) $soften_tids[] = intval($thread['tid']);
+	}
+	if(empty($soften_tids)) return 0;
+
 	// 2. 对每个有效的 tid 设置软删除标记
-	foreach($valid_tids as $tid) {
+	foreach($soften_tids as $tid) {
 		thread__update($tid, array('is_deleted'=>1, 'deleted_date'=>$time, 'deleted_by'=>intval($deleted_by)));
 	}
 
-	// 3. 批量标记所有 post 为已删除
-	db_update('post', array('tid'=>$valid_tids), array('is_deleted'=>1, 'deleted_date'=>$time, 'deleted_by'=>intval($deleted_by)));
+	// 3. 先查询当前仍计入统计的回帖（审核通过的非首帖）
+	// ponytail: 必须在标记 is_deleted 之前查询——标记后全部 is_deleted=1 无法区分
+	// "本次软删"与"之前已被单独软删"（后者在单独软删时已减过统计，须排除防二次扣减）
+	$postlist = db_find('post', array('tid'=>$soften_tids), array(), 1, 1000000, 'pid');
 
-	// 4. 批量删除 mythread
-	db_delete('mythread', array('tid'=>$valid_tids));
+	// 4. 批量标记所有 post 为已删除
+	db_update('post', array('tid'=>$soften_tids), array('is_deleted'=>1, 'deleted_date'=>$time, 'deleted_by'=>intval($deleted_by)));
 
-	// 5. 汇总统计更新（按 fid/uid 分组累加）
+	// 5. 批量删除 mythread
+	db_delete('mythread', array('tid'=>$soften_tids));
+
+	// 6. 汇总统计更新（按 fid/uid 分组累加）
 	$forum_threads_dec = array();
 	$user_threads_dec = array();
 	$approved_count = 0;
 	foreach($threadlist as $thread) {
+		if(!empty($thread['is_deleted'])) continue; // 入库前已软删，统计已在当时减过
 		$_audit = isset($thread['audit_status']) ? intval($thread['audit_status']) : 1;
 		if($_audit != 1) continue;
 		$approved_count++;
@@ -578,8 +686,33 @@ function thread_soft_delete_batch($tids, $deleted_by) {
 	}
 	runtime_set('threads-', $approved_count);
 
-	// 6. 汇总 posts 统计（批量查询所有 post，按 uid 分组）
-	$postlist = db_find('post', array('tid'=>$valid_tids), array(), 1, 1000000, 'pid');
+	// 6.1 精华计数同步：软删的精华主题对前台不可见，与 threads 同口径递减
+	// digest 行保留（恢复时补回）；硬删路径带 is_deleted 守卫不会二次扣减
+	$_digest_rows = db_find('thread_digest', array('tid'=>$soften_tids), array(), 1, count($soften_tids), 'tid');
+	if(!empty($_digest_rows)) {
+		$_digest_user_dec = array();
+		$_digest_forum_dec = array();
+		$_digest_total = 0;
+		foreach($_digest_rows as $_d) {
+			$_du = intval($_d['uid']);
+			$_df = intval($_d['fid']);
+			if($_du > 0) {
+				if(!isset($_digest_user_dec[$_du])) $_digest_user_dec[$_du] = 0;
+				$_digest_user_dec[$_du]++;
+			}
+			if($_df > 0) {
+				if(!isset($_digest_forum_dec[$_df])) $_digest_forum_dec[$_df] = 0;
+				$_digest_forum_dec[$_df]++;
+			}
+			$_digest_total++;
+		}
+		foreach($_digest_user_dec as $_du => $cnt) user_dec($_du, 'digests', $cnt);
+		foreach($_digest_forum_dec as $_df => $cnt) forum_dec($_df, 'digests', $cnt);
+		$_digest_total > 0 AND runtime_set('digests-', $_digest_total);
+		unset($_digest_rows, $_digest_user_dec, $_digest_forum_dec, $_digest_total);
+	}
+
+	// 7. 汇总 posts 统计（$postlist 已在第 3 步标记前查好，仅含本次需要减计的回帖）
 	$non_first_count = 0;
 	$user_post_count = array();
 	if($postlist) {
@@ -587,6 +720,8 @@ function thread_soft_delete_batch($tids, $deleted_by) {
 			if($post['isfirst']) continue;
 			$_audit = isset($post['audit_status']) ? intval($post['audit_status']) : 1;
 			if($_audit != 1) continue;
+			$_is_deleted = isset($post['is_deleted']) ? intval($post['is_deleted']) : 0;
+			if($_is_deleted) continue; // 之前已被单独软删的回帖已减过统计，不重复减
 			$non_first_count++;
 			if($post['uid']) {
 				if(!isset($user_post_count[$post['uid']])) $user_post_count[$post['uid']] = 0;
@@ -599,7 +734,7 @@ function thread_soft_delete_batch($tids, $deleted_by) {
 		user_dec($_uid, 'posts', $cnt);
 	}
 
-	// 7. 清除 forum_list 缓存
+	// 8. 清除 forum_list 缓存
 	forum_list_cache_delete();
 	// 清除所有受影响版块的帖子列表缓存
 	foreach($forum_threads_dec as $_fid => $_dec) {
@@ -610,7 +745,7 @@ function thread_soft_delete_batch($tids, $deleted_by) {
 	rank_cache_delete();
 
 	// hook model_thread_soft_delete_batch_end.php
-	return count($valid_tids);
+	return count($soften_tids);
 }
 
 // 恢复单个已软删除的主题
@@ -638,6 +773,14 @@ function thread_restore($tid) {
 		forum__update($fid, array('threads+'=>1));
 		user__update($uid, array('threads+'=>1));
 		runtime_set('threads+', 1);
+	}
+
+	// 精华计数补回（软删时已递减；digest 行在软删中保留）
+	$_rs_digest_row = thread_digest_read($tid);
+	if(!empty($_rs_digest_row)) {
+		$uid > 0 AND user__update($uid, array('digests+'=>1));
+		$fid > 0 AND forum__update($fid, array('digests+'=>1));
+		runtime_set('digests+', 1);
 	}
 
 	// 统计该主题下审核通过的非首帖数量（从已恢复的 post 中统计），补计 posts
@@ -689,16 +832,25 @@ function thread_restore_batch($tids) {
 
 	$valid_tids = arrlist_values($threadlist, 'tid');
 
+	// 幂等保护：仅恢复入库时已软删的主题。重复恢复会对 threads/digests/mythread 二次补计
+	// （第三轮全量审计 2026-10-30 补，与 thread_soft_delete_batch 的幂等过滤对称）
+	$restore_tids = array();
+	foreach($threadlist as $thread) {
+		if(!empty($thread['is_deleted'])) $restore_tids[] = intval($thread['tid']);
+	}
+	if(empty($restore_tids)) return 0;
+
 	// 2. 对每个有效的 tid 恢复
-	foreach($valid_tids as $tid) {
+	foreach($restore_tids as $tid) {
 		thread__update($tid, array('is_deleted'=>0, 'deleted_date'=>0, 'deleted_by'=>0));
 	}
 
 	// 3. 批量恢复所有 post
-	db_update('post', array('tid'=>$valid_tids), array('is_deleted'=>0, 'deleted_date'=>0, 'deleted_by'=>0));
+	db_update('post', array('tid'=>$restore_tids), array('is_deleted'=>0, 'deleted_date'=>0, 'deleted_by'=>0));
 
 	// 4. 重建 mythread 记录
 	foreach($threadlist as $thread) {
+		if(empty($thread['is_deleted'])) continue; // 本来就未软删的主题不重复重建
 		$uid = intval($thread['uid']);
 		$tid = intval($thread['tid']);
 		if($uid > 0) {
@@ -711,6 +863,7 @@ function thread_restore_batch($tids) {
 	$user_threads_inc = array();
 	$approved_count = 0;
 	foreach($threadlist as $thread) {
+		if(empty($thread['is_deleted'])) continue; // 入库前未软删，不在本次恢复范围
 		$_audit = isset($thread['audit_status']) ? intval($thread['audit_status']) : 1;
 		if($_audit != 1) continue;
 		$approved_count++;
@@ -733,8 +886,33 @@ function thread_restore_batch($tids) {
 	}
 	runtime_set('threads+', $approved_count);
 
-	// 6. 汇总 posts 统计（批量查询所有 post，按 uid 分组）
-	$postlist = db_find('post', array('tid'=>$valid_tids), array(), 1, 1000000, 'pid');
+	// 5.1 精华计数补回（软删时已递减；digest 行在软删中保留，与 threads 同口径）
+	$_digest_rows = db_find('thread_digest', array('tid'=>$restore_tids), array(), 1, count($restore_tids), 'tid');
+	if(!empty($_digest_rows)) {
+		$_digest_user_inc = array();
+		$_digest_forum_inc = array();
+		$_digest_total = 0;
+		foreach($_digest_rows as $_d) {
+			$_du = intval($_d['uid']);
+			$_df = intval($_d['fid']);
+			if($_du > 0) {
+				if(!isset($_digest_user_inc[$_du])) $_digest_user_inc[$_du] = 0;
+				$_digest_user_inc[$_du]++;
+			}
+			if($_df > 0) {
+				if(!isset($_digest_forum_inc[$_df])) $_digest_forum_inc[$_df] = 0;
+				$_digest_forum_inc[$_df]++;
+			}
+			$_digest_total++;
+		}
+		foreach($_digest_user_inc as $_du => $cnt) user__update($_du, array('digests+'=>$cnt));
+		foreach($_digest_forum_inc as $_df => $cnt) forum__update($_df, array('digests+'=>$cnt));
+		$_digest_total > 0 AND runtime_set('digests+', $_digest_total);
+		unset($_digest_rows, $_digest_user_inc, $_digest_forum_inc, $_digest_total);
+	}
+
+	// 6. 汇总 posts 统计（批量查询所有 post，按 uid 分组；仅本次实际恢复的主题）
+	$postlist = db_find('post', array('tid'=>$restore_tids), array(), 1, 1000000, 'pid');
 	$non_first_count = 0;
 	$user_post_count = array();
 	if($postlist) {
@@ -764,7 +942,7 @@ function thread_restore_batch($tids) {
 	rank_cache_delete();
 
 	// hook model_thread_restore_batch_end.php
-	return count($valid_tids);
+	return count($restore_tids);
 }
 
 function thread_find($cond = array(), $orderby = array(), $page = 1, $pagesize = 20) {
@@ -903,7 +1081,7 @@ function thread_find_by_fids($fids, $page = 1, $pagesize = 20, $order = 'lastpid
 // 默认搜索标题
 function thread_find_by_keyword($keyword) {
 	// hook model_thread_find_by_keyword_start.php
-	$threadlist = db_find('thread', array('is_deleted'=>0, 'subject'=>array('LIKE'=>$keyword)), array(), 1, 60);
+	$threadlist = db_find('thread', array('is_deleted'=>0, 'subject'=>array('LIKE'=>xn_like_escape($keyword))), array(), 1, 60);
 	$threadlist = arrlist_multisort($threadlist, 'tid', FALSE); // 用 PHP 排序，mysql 排序消耗太大。
 	if($threadlist) {
 		// 批量预加载用户数据，消除 N+1 查询

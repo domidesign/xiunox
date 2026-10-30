@@ -115,6 +115,13 @@
 					<?php } ?>
 				</div>
 				<?php  } ?>
+
+				<?php $_mod_audit_url = mod_auditlist_entry_url(); ?>
+				<?php if(!empty($_mod_audit_url)) { ?>
+				<div class="mt-2">
+					<a class="btn btn-sm btn-outline-secondary rounded-pill" href="<?php echo $_mod_audit_url;?>"><i class="ti ti-shield-check me-1"></i><?php echo lang('mod_auditlist_title');?></a>
+				</div>
+				<?php } ?>
 			</div>
 		</div>
 		<?php  } ?>

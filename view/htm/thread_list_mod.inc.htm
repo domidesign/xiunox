@@ -1,4 +1,21 @@
-<?php if($gid > 0 && $gid < 5 && (!empty($toplist) || !empty($threadlist))) { ?>
+<?php
+// 管理栏显隐：管理员(gid 1/2)恒显；版主组(gid 3/4/5)仅当列表内存在其管辖版块的帖子时显示。
+// 复选框仍逐帖过滤（thread_list.inc.htm），服务端逐条 forum_access_mod 复核，此处仅收敛空操作入口。
+$_modbar_visible = FALSE;
+if($gid > 0 && $gid < 6 && (!empty($toplist) || !empty($threadlist))) {
+	if($gid == 1 || $gid == 2) {
+		$_modbar_visible = TRUE;
+	} else {
+		foreach((array)$toplist as $_mt) {
+			if(!empty($_mt['fid']) && forum_access_mod($_mt['fid'], $gid, 'allowtop')) { $_modbar_visible = TRUE; break; }
+		}
+		if(!$_modbar_visible) foreach((array)$threadlist as $_mt) {
+			if(!empty($_mt['fid']) && forum_access_mod($_mt['fid'], $gid, 'allowtop')) { $_modbar_visible = TRUE; break; }
+		}
+	}
+}
+?>
+<?php if($_modbar_visible) { ?>
 <div class="admin-mod-bar">
 	<div class="admin-mod-bar-left">
 		<?php if(param(0) != 'thread') { ?>

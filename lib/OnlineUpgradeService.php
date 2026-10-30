@@ -272,6 +272,19 @@ class OnlineUpgradeService {
         if ($openRes !== true) {
             return ['ok' => false, 'message' => lang('plugin_zip_open_failed', array('code' => $openRes))];
         }
+        // 安全: 解压前逐条目检查路径穿越（对齐 admin/route/plugin.php 的插件包检查），
+        // 防止恶意包用 ../ 或绝对路径把文件写到 APP_PATH 之外
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $entryName = (string)$zip->getNameIndex($i);
+            if ($entryName === '') continue;
+            if (str_contains($entryName, '../') || str_contains($entryName, '..\\')
+                || str_starts_with($entryName, '/') || str_starts_with($entryName, '\\')
+                || preg_match('#^[a-zA-Z]:[\\\\/]#', $entryName)
+                || preg_match('#(^|[\\\\/])\.\.($|[\\\\/])#', $entryName)) {
+                $zip->close();
+                return ['ok' => false, 'message' => lang('plugin_upload_path_traversal', array('file' => $entryName))];
+            }
+        }
         if (!$zip->extractTo($extractDir)) {
             $zip->close();
             return ['ok' => false, 'message' => lang('plugin_extract_failed')];
@@ -667,8 +680,8 @@ class OnlineUpgradeService {
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
             curl_setopt($ch, CURLOPT_USERAGENT, 'Xiuno-BBS-Upgrade/1.0');
             $data = curl_exec($ch);
             $errno = curl_errno($ch);
@@ -696,8 +709,8 @@ class OnlineUpgradeService {
                 'ignore_errors' => true,
             ],
             'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
+                'verify_peer' => true,
+                'verify_peer_name' => true,
             ],
         ]);
         $data = @file_get_contents($url, false, $ctx);
@@ -724,8 +737,8 @@ class OnlineUpgradeService {
             curl_setopt($ch, CURLOPT_FILE, $fp);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
             curl_setopt($ch, CURLOPT_TIMEOUT, 300);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
             curl_setopt($ch, CURLOPT_USERAGENT, 'Xiuno-BBS-Upgrade/1.0');
             curl_exec($ch);
             $errno = curl_errno($ch);
@@ -756,8 +769,8 @@ class OnlineUpgradeService {
                 'ignore_errors' => true,
             ],
             'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
+                'verify_peer' => true,
+                'verify_peer_name' => true,
             ],
         ]);
         $data = @file_get_contents($url, false, $ctx);

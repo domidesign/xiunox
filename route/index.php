@@ -33,7 +33,7 @@ $thread_list_from_default = 1;
 if($order == 'follow' && !empty($uid)) {
     $following_uids = user_follow_find_following_uids($uid);
     if(!empty($following_uids)) {
-        $follow_cond = array('uid' => $following_uids);
+        $follow_cond = array('uid' => $following_uids, 'is_deleted' => 0);
         // 非管理员只显示审核通过的帖子（排除待审和驳回）
         if($gid == 0 || $gid > 2) {
             $follow_cond['audit_status'] = 1;
@@ -56,7 +56,7 @@ if($order == 'follow' && !empty($uid)) {
 // 精华帖子
 if($order == 'digest') {
     $fids = arrlist_values($forumlist_show, 'fid');
-    $digest_cond = array('fid' => $fids, 'digest' => array('>' => 0));
+    $digest_cond = array('fid' => $fids, 'digest' => array('>' => 0), 'is_deleted' => 0);
     // 非管理员只显示审核通过的帖子（排除待审和驳回）
     if($gid == 0 || $gid > 2) {
         $digest_cond['audit_status'] = 1;

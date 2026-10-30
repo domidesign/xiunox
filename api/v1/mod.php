@@ -144,6 +144,12 @@ foreach ($threadlist as $thread) {
             if (empty($targetForum)) {
                 ApiResponse::validationError('Target forum not found');
             }
+            // 安全: 目标版块同样需要版主管辖权限，防止把帖子移入无权管理的版块（含 accesson 版块）
+            if (!forum_access_mod($newfid, $gid, 'allowmove')
+                || !forum_access_user($newfid, $gid, 'allowread')) {
+                $denied[] = $tid;
+                break;
+            }
             $r = thread_update($tid, array('fid' => $newfid));
             if ($r !== FALSE) {
                 modlog_create(array(

@@ -175,7 +175,7 @@
 								<a href="javascript:void(0);" class="text-body-secondary post_top_btn" data-pid="<?php echo $_post['pid'];?>" data-tid="<?php echo $_post['tid'];?>" data-is-top="<?php echo intval($_post['is_top']);?>" data-mod-url="<?php echo mod_top_post_url();?>"><i class="ti ti-pin"></i> <?php echo !empty($_post['is_top']) ? lang('untop') : lang('post_top_label');?></a>
 								<?php endif; ?>
 
-								<?php if($gid > 0 && $gid < 5 && isset($_post['audit_status']) && $_post['audit_status'] != 1): ?>
+								<?php if($gid > 0 && $gid < 6 && isset($_post['audit_status']) && $_post['audit_status'] != 1): ?>
 								<a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_post['pid'];?>" data-audit-status="1" data-mod-url="<?php echo mod_audit_post_url();?>"><i class="ti ti-check"></i>  </a>
 								 
 								<?php endif; ?>
@@ -274,7 +274,7 @@
 											<?php if(!empty($_allow_ban_user) && $_reply['uid'] != $uid): ?>
 											<a href="javascript:void(0);" class="text-body-secondary user-ban-btn" data-uid="<?php echo intval($_reply['uid']);?>" data-username="<?php echo esc_attr($_reply['username']);?>" title="<?php echo lang('user_ban_button');?>" style="font-size:0.8em"><i class="ti ti-ban"></i></a>
 											<?php endif; ?>
-											<?php if($gid > 0 && $gid < 5 && isset($_reply['audit_status']) && $_reply['audit_status'] != 1): ?>
+											<?php if($gid > 0 && $gid < 6 && isset($_reply['audit_status']) && $_reply['audit_status'] != 1): ?>
 												<a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_reply['pid'];?>" data-audit-status="1" data-mod-url="<?php echo mod_audit_post_url();?>" style="font-size:0.8em"><i class="ti ti-check"></i>  </a>
 												<!-- <a href="javascript:void(0);" class="text-body-secondary post_audit_btn" data-pid="<?php echo $_reply['pid'];?>" data-audit-status="2" data-mod-url="<?php echo mod_audit_post_url();?>" style="font-size:0.8em"><i class="ti ti-x"></i> <?php echo lang('audit_reject');?></a> -->
 												<?php endif; ?>
