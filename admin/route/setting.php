@@ -870,6 +870,12 @@ if($action == 'base') {
 fastcgi_intercept_errors off;
 error_page 404 =404 ' . $_idx . ';
 
+# 私有附件目录禁止直链（受保护附件只能经 PHP 鉴权路由 attach-read/attach-download 下载）
+# 缺这段时 ' . $_loc . 'upload/private/ 下的文件可被直接 URL 下载
+location ^~ ' . $_loc . 'upload/private/ {
+    deny all;
+}
+
 # 前台伪静态（后台使用 ? 格式，无需伪静态规则）
 location ' . $_loc . '{
     try_files $uri $uri/ ' . $_idx . '$is_args$args;
@@ -889,6 +895,11 @@ location ' . $_loc . '{
 #
 #    root /path/to/xiuno;
 #    index index.php index.html;
+#
+#    # 私有附件目录禁止直链（受保护附件只能经 PHP 鉴权路由下载）
+#    location ^~ ' . $_loc . 'upload/private/ {
+#        deny all;
+#    }
 #
 #    location ' . $_loc . '{
 #        try_files $uri $uri/ ' . $_idx . '$is_args$args;
@@ -917,6 +928,9 @@ location ' . $_loc . '{
 		$apache_rules = '# 根目录 .htaccess（已内置，无需手动配置）
 RewriteEngine On
 
+# 私有附件目录禁止直链：upload/.htaccess 已内置 RewriteRule ^private/ - [F,L]
+# （请勿删除 upload/.htaccess，否则 /upload/private/ 下的受保护附件可被直接下载）
+
 # 如需 HTTPS 强制跳转，请在 Web 服务器层面配置
 # 或取消以下注释启用：
 # RewriteCond %{HTTPS} off
@@ -936,11 +950,16 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 		// 将以下内容添加到 Caddyfile 的站点块（example.com { ... }）中
 		// 后台 URL 使用 ? 格式，不需要伪静态规则
 		$_caddy_index = $_base_path !== '' ? $_base_path . '/index.php' : '/index.php';
+		$_caddy_private = $_base_path !== '' ? $_base_path . '/upload/private/*' : '/upload/private/*';
 		$caddy_rules = '# ========== Caddy v2 伪静态配置 ==========
 # 将以下内容添加到 Caddyfile 的站点块中：
 # example.com {
 #     ...（粘贴以下指令）
 # }' . ($_base_path !== '' ? "\n# 检测到子目录安装（base_path='$_base_path'），路径已自动适配" : '') . '
+
+# 私有附件目录禁止直链（受保护附件只能经 PHP 鉴权路由下载）
+@xiunox_private path ' . $_caddy_private . '
+respond @xiunox_private 403
 
 # 前台伪静态核心规则（后台使用 ? 格式，无需伪静态）
 try_files {path} {path}/ ' . $_caddy_index . '?{query}
@@ -966,6 +985,10 @@ respond @hidden 404
 #
 #    # PHP FastCGI（按实际监听方式修改）
 #    php_fastcgi unix//tmp/php-cgi.sock
+#
+#    # 私有附件目录禁止直链
+#    @xiunox_private path ' . $_caddy_private . '
+#    respond @xiunox_private 403
 #
 #    # 前台伪静态核心规则
 #    try_files {path} {path}/ ' . $_caddy_index . '?{query}

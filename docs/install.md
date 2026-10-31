@@ -342,6 +342,12 @@ FLUSH PRIVILEGES;
 在 Nginx 的 server 配置块中添加以下 rewrite 规则：
 
 ```nginx
+# 私有附件目录禁止直链（受保护附件只能经 PHP 鉴权路由 attach-read/attach-download 下载）
+# 缺这段时 upload/private/ 下的文件可被直接 URL 下载
+location ^~ /upload/private/ {
+    deny all;
+}
+
 location / {
     if (!-e $request_filename) {
         rewrite ^/(.*)$ /index.php?$1 last;
@@ -357,6 +363,11 @@ server {
     server_name www.domain.com;
     root /var/www/html;
     index index.php index.html;
+
+    # 私有附件目录禁止直链（受保护附件只能经 PHP 鉴权路由下载）
+    location ^~ /upload/private/ {
+        deny all;
+    }
 
     location / {
         if (!-e $request_filename) {
@@ -417,6 +428,8 @@ sudo systemctl restart php8.5-fpm
 ### 3.2 Apache 配置
 
 项目根目录已内置 `.htaccess` 文件，支持 URL 重写。需确保 Apache 已开启 `mod_rewrite` 模块。
+
+`upload/.htaccess` 也已内置 `RewriteRule ^private/ - [F,L]`，禁止直链私有附件目录，无需手动配置；但需确认 `upload/` 目录下的 `.htaccess` 未被删除（删掉后 `upload/private/` 可被直接下载）。
 
 #### 3.2.1 启用 mod_rewrite
 
@@ -783,6 +796,11 @@ server {
     server_name localhost;
     root /var/www/html;
     index index.php index.html;
+
+    # 私有附件目录禁止直链（受保护附件只能经 PHP 鉴权路由下载）
+    location ^~ /upload/private/ {
+        deny all;
+    }
 
     location / {
         if (!-e $request_filename) {
