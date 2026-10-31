@@ -30,6 +30,23 @@ if (php_sapi_name() !== 'cli' || isset($_SERVER['REQUEST_METHOD'])) {
 }
 
 define('APP_PATH', dirname(__DIR__) . '/');
+
+// ponytail: CLI 必须自己装载 conf.php —— xiunophp 不加载配置，$conf 为空会先撞
+// auth_key 校验被 die（"auth_key 未配置或强度不足"），且 $db 为 NULL 无法查 attach 表。
+$conf = @include APP_PATH . 'conf/conf.php';
+if (!$conf || empty($conf['db'])) {
+	echo "错误：未找到 conf/conf.php 或缺少数据库配置，请在网站根目录下运行本工具。\n";
+	exit(1);
+}
+// 与 index.php 一致：相对路径转绝对，否则 CLI 下 cwd 不同会读写错目录
+foreach (array('log_path', 'tmp_path', 'upload_path') as $_conf_key) {
+	if (isset($conf[$_conf_key]) && substr($conf[$_conf_key], 0, 2) === './') $conf[$_conf_key] = APP_PATH . $conf[$_conf_key];
+}
+!isset($conf['user_create_on']) AND $conf['user_create_on'] = 1;
+!isset($conf['cache_disable']) AND $conf['cache_disable'] = 0;
+defined('XIUNOX_VERSION') OR include APP_PATH . 'version.php';
+$conf['version'] = XIUNOX_VERSION;
+
 !defined('DEBUG') AND define('DEBUG', 0);
 include APP_PATH . 'xiunophp/xiunophp.php';
 
@@ -39,15 +56,18 @@ foreach (array(
 	'model/forum.func.php',
 	'model/forum_access.func.php',
 	'model/group.func.php',
+	'model/user.func.php',
 	'model/thread.func.php',
 	'model/post.func.php',
 	'model/attach.func.php',
 ) as $_model_file) {
 	include_once APP_PATH . $_model_file;
 }
-include APP_PATH . 'lib/HiddenContentGuard.php';
-include APP_PATH . 'lib/PrivateAttachmentStorage.php';
-include APP_PATH . 'lib/ApiContentService.php';
+// model/post.func.php 等会在文件级加载 HiddenContentGuard，这里必须去重，否则类重复声明 fatal
+include_once APP_PATH . 'lib/EscapeService.php'; // thread__read/post_format 链路依赖 esc_attr()
+class_exists('HiddenContentGuard', false) OR include_once APP_PATH . 'lib/HiddenContentGuard.php';
+include_once APP_PATH . 'lib/PrivateAttachmentStorage.php';
+include_once APP_PATH . 'lib/ApiContentService.php';
 
 $apply = in_array('--apply', $argv, true);
 echo "=== XIUNOX 存量附件私有化迁移 ===\n";
