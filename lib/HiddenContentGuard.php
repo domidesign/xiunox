@@ -6,8 +6,18 @@ class HiddenContentGuard {
         return (bool) preg_match('/\[\/?hidden\b|xnx-hidden-(?:tag|inner)/i', html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
 
+    /** Localized placeholder. Falls back to the plain literal when no lang pack is loaded (CLI, early bootstrap). */
+    public static function lockedText() {
+        if (isset($_SERVER['lang']) && function_exists('lang')) {
+            $text = lang('content_locked');
+            // lang() returns "lang[key]" for missing keys — keep the literal placeholder then.
+            if (is_string($text) && strpos($text, 'lang[') !== 0) return $text;
+        }
+        return '[Content locked]';
+    }
+
     public static function filter(string $text, ?callable $render = null): string {
-        $locked = '[Content locked]';
+        $locked = self::lockedText();
         // Encoded/broken delimiters are withheld without decoding visible HTML into executable markup.
         $decoded = $text;
         for ($i = 0; $i < 2; $i++) $decoded = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -28,12 +38,12 @@ class HiddenContentGuard {
                 }
             } elseif ($depth > 0 && --$depth === 0) {
                 $end = $token[0][1] + strlen($token[0][0]);
-                $ranges[] = array($start, $end, $attrs, substr($text, $bodyStart, $token[0][1] - $bodyStart));
+                $ranges[] = array($start, $end, $attrs, substr($text, $bodyStart, $token[0][1] - $bodyStart), count($ranges));
             }
         }
-        if ($depth > 0) $ranges[] = array($start, strlen($text), '', null);
+        if ($depth > 0) $ranges[] = array($start, strlen($text), '', null, count($ranges));
         foreach (array_reverse($ranges) as $range) {
-            $replacement = $range[3] === null ? $locked : $render($range[2], $range[3], 'bbcode');
+            $replacement = $range[3] === null ? $locked : $render($range[2], $range[3], 'bbcode', $range[4]);
             $text = substr_replace($text, $replacement, $range[0], $range[1] - $range[0]);
         }
         // HTML editor blocks may contain arbitrarily nested div elements.
@@ -51,12 +61,12 @@ class HiddenContentGuard {
                     $attrs = $token[0];
                 }
             } elseif ($depth > 0 && --$depth === 0) {
-                $ranges[] = array($start, $token[1] + strlen($token[0]), $attrs, substr($text, $bodyStart, $token[1] - $bodyStart));
+                $ranges[] = array($start, $token[1] + strlen($token[0]), $attrs, substr($text, $bodyStart, $token[1] - $bodyStart), count($ranges));
             }
         }
-        if ($depth > 0) $ranges[] = array($start, strlen($text), '', null);
+        if ($depth > 0) $ranges[] = array($start, strlen($text), '', null, count($ranges));
         foreach (array_reverse($ranges) as $range) {
-            $text = substr_replace($text, $range[3] === null ? $locked : $render($range[2], $range[3], 'html'), $range[0], $range[1] - $range[0]);
+            $text = substr_replace($text, $range[3] === null ? $locked : $render($range[2], $range[3], 'html', $range[4]), $range[0], $range[1] - $range[0]);
         }
         // Broken opening delimiters must not turn protected text into public text.
         $text = preg_replace('/\[hidden\b[^\]]*$/is', $locked, $text);

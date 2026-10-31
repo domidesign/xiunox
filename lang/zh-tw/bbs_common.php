@@ -2072,6 +2072,8 @@ return array(
 	'user_nav_credits'=>'我的積分',
 	'user_nav_thread'=>'我的帖子',
 	'user_nav_following'=>'我的關注',
+	// 隱藏內容佔位符（lib/HiddenContentGuard.php 兜底替換，摘要/API/插件未啟用等無法按觀看者權限渲染的出口）
+	'content_locked'=>'[內容已鎖定]',
 );
 
 ?>
