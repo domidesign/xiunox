@@ -597,10 +597,16 @@ function plugin_compile_hooks($s) {
 	for($i = 0; $i < 10; $i++) {
 		if(strpos($s, '<!--{hook') !== FALSE || strpos($s, '// hook') !== FALSE) {
 			$before = $s;
-			$s = preg_replace('#<!--{hook\s+(.*?)}-->#', '// hook \\1', $s);
+			// HTML 上下文占位符转成 // hookhtml 标记，把"占位符在 HTML 还是 PHP 代码块内"的上下文
+			// 带进回调：hookhtml = HTML 上下文（.htm hook 内容自带 <?php 标签，归因注释用 PHP 标签包装）；
+			// 无标记 = PHP 上下文（内容必须是裸 PHP 片段，归因注释用裸行注释，PHP 标签包装会嵌套
+			// <?php 开标签引发 ParseError，实案 2026-10-30 tmp/view_htm_post.htm:48 xnx_tag）。
+			// hookhtml 词法上仍含 "// hook" 前缀供 strpos 门闸命中，冒号兜底改写后（// hook:NAME）编译
+			// 正则不匹配，不会二次展开
+			$s = preg_replace('#<!--{hook\s+(.*?)}-->#', '// hookhtml \\1', $s);
 			// hook 名只允许字母/数字/下划线/点/短横线，避免注释里 `// hook 位于...` 被误识别
 			// ponytail: 旧正则 \S+ 贪婪匹配中文，导致注释行被当 hook 名截断引发 ParseError；合法 hook 文件名均符合 [\w.\-]+
-			$s = preg_replace_callback('#//\s*hook\s+([\w\.\-]+)#is', 'plugin_compile_srcfile_callback', $s);
+			$s = preg_replace_callback('#//\s*hook(html)?\s+([\w\.\-]+)#is', 'plugin_compile_srcfile_callback', $s);
 			// 本轮无变化提前退出，避免 strpos 命中但 preg_replace 不匹配时的无效循环
 			// ponytail: xnx_medal 的 "// hook: post_list_inc_username_after.htm" 注释让 strpos 命中，
 			// 但正则不匹配（hook 后是冒号不是空白），无变化却仍循环 10 趟
@@ -706,7 +712,10 @@ function plugin_compile_srcfile_callback($m) {
 	}
 	
 	$s = '';
-	$hookname = $m[1];
+	$hookname = $m[2];
+	// m[1] = 'html'：占位符源自模板 HTML 注释 <!--{hook xxx}-->（HTML 上下文）；
+	// 空：源自 PHP 代码块内的 // hook xxx 占位符（PHP 上下文）
+	$is_html_context = !empty($m[1]);
 	$is_lang_hook = (strpos($hookname, 'lang_') === 0);
 	if(!empty($hooks[$hookname])) {
 		$fileext = file_ext($hookname);
@@ -721,6 +730,12 @@ function plugin_compile_srcfile_callback($m) {
 				$t = preg_replace('#\?>\s*$#', '', $t);
 			} elseif($fileext == 'php') {
 				// 兼容裸 php 开始标签开头（不带 exit）的 hook 文件
+				$t = preg_replace('#^\s*<\?php\s*#', '', $t);
+				$t = preg_replace('#\?>\s*$#', '', $t);
+			} elseif($fileext == 'htm' && !$is_html_context) {
+				// PHP 上下文的 .htm hook 必须是裸 PHP 片段：宿主 PHP 代码块未闭合，
+				// 注入 PHP 开标签 = 嵌套开标签 ParseError（实案 2026-10-30 tmp/view_htm_post.htm:48）。
+				// 容错剥离误加的 PHP 开标签开头与闭标签结尾，裸片段则原样保留
 				$t = preg_replace('#^\s*<\?php\s*#', '', $t);
 				$t = preg_replace('#\?>\s*$#', '', $t);
 			}
@@ -752,16 +767,21 @@ function plugin_compile_srcfile_callback($m) {
 			// 逐一枚举豁免太脆弱，改为不做语法预检，语法错误的 hook 由 B 部分（autoDisableCrashedPlugin 崩溃计数）兜底
 			// 保留 plugin-compile 注释注入，用于 fatal error 归因
 			// 拼接前加 plugin-compile 注释，用于 fatal error 时从 tmp 文件行号反推插件目录（见 ErrorHandler::handleShutdown）
-			// PHP hook 加裸注释；.htm hook 用 PHP 开闭标签包装的行注释——零 HTML 输出，且让
-			// autoDisableCrashedPlugin 的 #//\s*plugin-compile:# 回扫正则在纯 .htm hook 的
+			// 按占位符上下文区分：PHP hook 与 PHP 代码块内的 .htm hook（源标记 // hook xxx）加裸注释；
+			// HTML 上下文的 .htm hook（源标记 <!--{hook xxx}-->）用 PHP 开闭标签包装的行注释——零 HTML 输出，
+			// 且让 autoDisableCrashedPlugin 的 #//\s*plugin-compile:# 回扫正则在纯 .htm hook 的
 			// view 模板（如 view_htm_post_list.inc.htm）里也能归因到插件。
 			// 实案 2026-10-26：view 模板重复拼接致 static 重复声明 fatal，因 .htm hook 无
 			// 归因注释，归因返回 null，3 次阈值自动禁用链路对这类崩溃完全失效。
 			$plugin_dir = basename(dirname(dirname($path)));
-			if($fileext == 'php') {
+			if($fileext == 'php' || !$is_html_context) {
+				// PHP hook（总是 PHP 上下文）与 PHP 代码块内的 .htm hook：裸行注释。
+				// PHP 上下文里用 PHP 标签包装 = 嵌套 <?php 开标签，必然 ParseError
+				// （实案 2026-10-30 tmp/view_htm_post.htm:48，xnx_tag post_start_init.htm）
 				$s .= "\n// plugin-compile: $plugin_dir  $path\n";
 			} else {
-				// 行注释内的闭标签会正常终止 PHP 块并吞掉注释本身，输出为空字符串
+				// HTML 上下文的 .htm hook：PHP 标签包装的行注释——零 HTML 输出
+				// （行注释内的闭标签会正常终止 PHP 块并吞掉注释本身，输出为空字符串）
 				$s .= "<?php // plugin-compile: $plugin_dir  $path ?>\n";
 			}
 			// 加固：剥离 hook 内容中可能被误匹配为占位符的注释标记
@@ -782,8 +802,10 @@ function plugin_compile_srcfile_callback($m) {
 			// 逃逸守卫却仍被编译正则匹配 → 依然线性拼接。PCRE 有首字符快速失败优化，
 			// 无匹配子串时开销可忽略。
 			$t = preg_replace('#<!--\{hook\s+([^}]*?)\}-->#is', '[hook: \\1]', $t);
-			// 改写为 '// hook:NAME'（冒号紧贴），编译正则 \s+ 在冒号处失配，永不再展开
-			$t = preg_replace('#//\s*hook\s+([\w\.\-]+)#is', '// hook:\\1', $t);
+			// 改写为 '// hook:NAME'（冒号紧贴），编译正则 \s+ 在冒号处失配，永不再展开；
+			// hookhtml 变体（HTML 上下文中间标记，见 plugin_compile_hooks）一并改写，
+			// 防止 hook 内容里的 // hookhtml xxx 注释在下一趟被当占位符二次展开
+			$t = preg_replace('#//\s*hook(html)?\s+([\w\.\-]+)#is', '// hook:\\2', $t);
 			$s .= $t;
 		}
 	}

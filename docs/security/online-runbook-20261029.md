@@ -88,16 +88,18 @@ plugin/xnx_theme_moments/{conf.json,hook/thread_list_inc_start.htm,view/htm/thre
 
 ### 迁移前确认私有存储位置
 
-私有附件默认存到**网站根目录之外**的同级目录（`.xiunox-private-xxxxxxxxxxxx/`，自动创建，0700）。
-如需自定义位置，在部署迁移前创建 `conf/private_storage.php`：
+私有附件默认存到**站点目录内的 `upload/private/`**（自动创建，0700；弱保护：依赖目录不可直达 + 服务器 deny 规则，与 DZ/WP 附件直链同级）。
+如需强保护（文件在 Web 根之外、无法被静态直链），在部署迁移前创建 `conf/private_storage.php`：
 
 ```php
 <?php
-return array('path' => '/data/xiunox-private');   // 绝对路径，必须在 Web 根之外
+return array('path' => '/data/xiunox-private');   // 绝对路径，建议在 Web 根之外，并同步加入 open_basedir
 ```
 
-（或设置环境变量 `XIUNOX_PRIVATE_PATH`。）
-**该目录务必纳入备份计划。**
+（或设置环境变量 `XIUNOX_PRIVATE_PATH`。）**该目录务必纳入备份计划。**
+
+> 用默认 `upload/private/` 时必须确保服务器禁止访问该目录，否则私有附件可直接下载：
+> Nginx 在站点配置加 `location ^~ /upload/private/ { deny all; }`（Apache 由 `upload/.htaccess` 内置规则拦截）。
 
 ## 第 3 步：存量附件迁移（5~30 分钟，视附件量）
 

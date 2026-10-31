@@ -1,0 +1,11 @@
+# 禁止 PHP 执行，仅放行静态资源
+<FilesMatch "\.(php|php3|php4|php5|php7|phtml|pht|phar)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+Options -Indexes

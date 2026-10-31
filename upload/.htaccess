@@ -1,7 +1,20 @@
-# 禁止执行 PHP 文件，防止 webshell 攻击
+# 禁止执行 PHP 文件，防止 webshell 攻击（兼容 Apache 2.2 / 2.4）
 <FilesMatch "\.(php|phtml|phar|php\d+)$">
-    Deny from all
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
 </FilesMatch>
 
 # 禁止目录浏览
 Options -Indexes
+
+# 私有附件目录禁止直链（Nginx 站点需在站点配置加：
+#   location ^~ /upload/private/ { deny all; }
+# 否则 upload/private/ 下的文件可被直接 URL 下载）
+<IfModule mod_rewrite.c>
+    RewriteRule ^private/ - [F,L]
+</IfModule>

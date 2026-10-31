@@ -1,0 +1,22 @@
+# 禁止 PHP 执行，仅放行静态资源
+<FilesMatch "\.(php|php3|php4|php5|php7|phtml|pht|phar)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+Options -Indexes
+
+# 临时压缩包与 API 上传元数据不可作为公开静态资源访问。
+<FilesMatch "(?i)\.(zip|rar|7z|tar|gz|tgz|bz|bz2|tbz2|xz|txz|zst|iso|json)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
