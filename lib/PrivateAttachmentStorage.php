@@ -2,7 +2,8 @@
 
 require_once __DIR__ . '/HiddenContentGuard.php';
 
-/** Local private files are never placed beneath the application/document root. */
+/** 私有文件默认放站点目录 upload/private/（弱保护：靠不可直达链接 + 服务器 deny 规则；
+ *  可用 XIUNOX_PRIVATE_PATH / conf/private_storage.php 覆盖为 Web 根之外的绝对路径） */
 class PrivateAttachmentStorage {
     public static function root(): string {
         $app = realpath(APP_PATH);
@@ -13,12 +14,17 @@ class PrivateAttachmentStorage {
             $settings = include $config;
             $configured = is_array($settings) ? ($settings['path'] ?? '') : '';
         }
-        $root = $configured ?: dirname($app) . '/.xiunox-private-' . substr(hash('sha256', $app), 0, 12);
+        // ponytail: 默认落在站点目录内——生产环境 open_basedir 普遍只放行站点目录 + /tmp，
+        // 放 Web 根之外会被 PHP 直接拦死（线上 /www/wwwroot/.xiunox-private-* 实案）。
+        // 代价：私有附件依赖目录名不被猜到 + 服务器 deny 规则（弱保护，与 DZ/WP 附件直链同级）；
+        // 需要强保护时用 conf/private_storage.php 指到 Web 根之外，并同步放行 open_basedir。
+        $root = $configured ?: $app . '/upload/private';
         if (!preg_match('~^(?:/|[a-zA-Z]:[\\/])~', $root) || preg_match('~(?:^|[\\/])\.\.(?:[\\/]|$)~', $root)) throw new RuntimeException('Private storage requires an absolute path');
-        if (!is_dir($root) && (!function_exists('mkdir') || !mkdir($root, 0700, true))) throw new RuntimeException('Cannot create private storage');
+        if (!is_dir($root) && (!function_exists('mkdir') || !mkdir($root, 0700, true))) throw new RuntimeException('Cannot create private storage in ' . $root . ' (check directory permission / open_basedir, or set XIUNOX_PRIVATE_PATH / conf/private_storage.php)');
         $root = realpath($root);
+        // 只拒绝"私有目录 = Web 根本身"（配置写错会把整站内容当私有区），子目录允许
         foreach (array($app, realpath($_SERVER['DOCUMENT_ROOT'] ?? '') ?: $app) as $public) {
-            if ($root === $public || strpos($root . '/', rtrim($public, '/') . '/') === 0) throw new RuntimeException('Private storage must be outside the web root');
+            if ($root === $public) throw new RuntimeException('Private storage must not be the web root itself');
         }
         return $root . '/';
     }
@@ -106,7 +112,16 @@ class PrivateAttachmentStorage {
     }
 
     public static function isPrivate(array $attach): bool {
-        return is_file(self::privatePath((string)$attach['filename']));
+        static $logged = false;
+        try {
+            return is_file(self::privatePath((string)$attach['filename']));
+        } catch (RuntimeException $e) {
+            // Storage unavailable (open_basedir 等)：读路径降级按公开渲染，避免整页 500。
+            // 私有文件在公开存储中无副本（protect() 哈希校验通过才删公开副本），最坏是链接 404，不构成泄露。
+            // 写路径 destination/protect/delete 不经此处，仍 throw，防止把应受保护附件静默落公开存储。
+            if (!$logged) { error_log('[PrivateAttachmentStorage] read path degraded: ' . $e->getMessage()); $logged = true; }
+            return false;
+        }
     }
 
     public static function delete(array $attach): void {
