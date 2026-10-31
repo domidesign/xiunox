@@ -2086,6 +2086,8 @@ return array(
 	'user_nav_credits'=>'我的积分',
 	'user_nav_thread'=>'我的帖子',
 	'user_nav_following'=>'我的关注',
+	// 隐藏内容占位符（lib/HiddenContentGuard.php 兜底替换，摘要/API/插件未启用等无法按观看者权限渲染的出口）
+	'content_locked'=>'[内容已锁定]',
 );
 
 ?>

@@ -133,6 +133,48 @@ if(!empty($_mobile_nav_items)) {
 		}
 	});
 
+	// 内置五项未命中时（如后台自定义 URL my-notify），按 href 与当前路由比对
+	function routeKey(p) {
+		var s = String(p || '').split('#')[0];
+		var q = s.indexOf('?');
+		if (q > -1) {
+			if (/\.htm/i.test(s.substring(q))) {
+				s = s.substring(q + 1); // ? 路由模式：路由在 query 里
+			} else {
+				s = s.substring(0, q); // 普通查询参数，丢弃
+			}
+		}
+		s = s.substring(s.lastIndexOf('/') + 1);
+		return s.replace(/\.html?$/i, '').replace(/\.php$/i, '');
+	}
+
+	var builtinSlugs = ' home index forum forums create threadcreate discover more me my ';
+	if (!matched) {
+		var curKey = routeKey(path);
+		var prefixItem = null, prefixLen = 0;
+		items.forEach(function(item) {
+			if (matched) return;
+			var nav = item.getAttribute('data-nav');
+			if (!nav || builtinSlugs.indexOf(' ' + nav + ' ') > -1) return; // 内置五项不走通用匹配
+			var href = item.getAttribute('href') || '';
+			if (!href || href.charAt(0) === '#') return;
+			var itemKey = routeKey(href);
+			if (!itemKey) return;
+			if (itemKey === curKey) {
+				setActive(item);
+				matched = true;
+			} else if (curKey.indexOf(itemKey + '-') === 0 && itemKey.length > prefixLen) {
+				// 路由后缀页（my-notify-system.htm 标签页 / my-notify-2.htm 分页）归属该导航，取最长前缀
+				prefixItem = item;
+				prefixLen = itemKey.length;
+			}
+		});
+		if (!matched && prefixItem) {
+			setActive(prefixItem);
+			matched = true;
+		}
+	}
+
 	if (!matched) {
 		setActive(items[0]);
 	}

@@ -2081,6 +2081,8 @@ Authentication:
 	'user_nav_credits'=>'My Credits',
 	'user_nav_thread'=>'My Threads',
 	'user_nav_following'=>'My Following',
+	// Hidden content placeholder (lib/HiddenContentGuard.php fail-closed fallback for brief/API/plugin-disabled exits)
+	'content_locked'=>'[Content locked]',
 );
 
 ?>

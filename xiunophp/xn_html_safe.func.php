@@ -1829,7 +1829,7 @@ function xn_html_purify($html, $config = array()) {
     if (class_exists('HTMLPurifier_HTML5Config')) {
         // 使用 HTML5 配置，支持 video/audio/source 等 HTML5 元素
         $purifierConfig = HTMLPurifier_HTML5Config::createDefault();
-        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height|style],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,s,ins,mark,dl,dt,dd,video[src|controls|preload|class|style|width|height],source[src|type],audio[controls|preload|class|style],figure,figcaption,iframe[src|width|height|frameborder|class|style]');
+        $purifierConfig->set('HTML.Allowed', 'p[class|style],br,b,i,u,a[href|title|target|rel],img[src|alt|width|height|style],ul,ol,li,blockquote,pre[class],code[class],span[class|style|data-type|data-id|data-label],div[class|style|data-type|data-params],h1,h2,h3,h4,h5,h6,table[class|style],tr,td[style],th[style],thead,tbody,hr,sub,sup,em,strong,del,s,ins,mark,dl,dt,dd,video[src|controls|preload|class|style|width|height],source[src|type],audio[controls|preload|class|style],figure,figcaption,iframe[src|width|height|frameborder|class|style]');
         $purifierConfig->set('Attr.AllowedFrameTargets', array('_blank', '_self', '_parent', '_top'));
         $purifierConfig->set('Attr.AllowedRel', array('noopener', 'noreferrer', 'nofollow'));
         $purifierConfig->set('CSS.AllowedProperties', 'text-align,font-weight,font-style,text-decoration,color,background-color,margin-left,margin-right,padding-left,width,max-width,height,border,font-size,font-family,line-height,text-indent,vertical-align,letter-spacing,border-radius,border-color,border-style,border-width');
@@ -1840,12 +1840,14 @@ function xn_html_purify($html, $config = array()) {
         $iframeRegexp = xn_build_iframe_safe_regexp();
         $purifierConfig->set('URI.SafeIframeRegexp', $iframeRegexp);
         $purifierConfig->set('Cache.SerializerPath', $GLOBALS['conf']['tmp_path'] ?? sys_get_temp_dir());
-        // 允许 span 的 data-* 属性（@提及功能）和 iframe 的 allowfullscreen 属性
+        // 允许 span 的 data-* 属性（@提及功能）、div 的 data-type/data-params（隐藏内容块）和 iframe 的 allowfullscreen 属性
         $purifierConfig->set('Attr.EnableID', false);
         if ($def = $purifierConfig->maybeGetRawHTMLDefinition()) {
             $def->addAttribute('span', 'data-type', 'Text');
             $def->addAttribute('span', 'data-id', 'Text');
             $def->addAttribute('span', 'data-label', 'Text');
+            $def->addAttribute('div', 'data-type', 'Text');
+            $def->addAttribute('div', 'data-params', 'Text');
             $def->addAttribute('iframe', 'allowfullscreen', 'Bool');
         }
         if (!empty($config)) {
